@@ -1,0 +1,17 @@
+<project version="4">
+  <component name="DDGenerateAssetsClassConfig">
+    <option name="path" value="null/lib" />
+  </component>
+  <component name="FlutterxFullConfig">
+    <option name="l10nFolder" />
+  </component>
+  <component name="GithubDefaultAccount">
+    <option name="defaultAccountId" value="44a07517-f416-43ec-a4aa-dd74c80c38ea" />
+  </component>
+  <component name="ProjectRootManager" version="2">
+    <output url="file://$PROJECT_DIR$/out" />
+  </component>
+  <component name="TimeTrackingManager">
+    <option name="totallyTimeSpent" value="925000" />
+  </component>
+</project>
