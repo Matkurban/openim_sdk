@@ -40,7 +40,15 @@ class HttpClient {
     if (receiveTimeout != null) _dio.options.receiveTimeout = receiveTimeout;
     if (sendTimeout != null) _dio.options.sendTimeout = sendTimeout;
     if (headers != null) _dio.options.headers.addAll(headers);
-    _dio.options.headers['operationID'] = 'operation_${DateTime.now().millisecondsSinceEpoch}';
+    // 每次请求动态生成 operationID，便于服务端日志追踪
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          options.headers['operationID'] = 'op_${DateTime.now().millisecondsSinceEpoch}';
+          handler.next(options);
+        },
+      ),
+    );
   }
 
   /// 设置 Token

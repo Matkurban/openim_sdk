@@ -13,9 +13,9 @@ class ApiResponse {
 
   factory ApiResponse.fromJson(Map<String, dynamic> json) {
     return ApiResponse(
-      errCode: json['errCode'] as int,
-      errMsg: json['errMsg'] as String,
-      errDlt: json['errDlt'] as String,
+      errCode: (json['errCode'] as int?) ?? 0,
+      errMsg: (json['errMsg'] as String?) ?? '',
+      errDlt: (json['errDlt'] as String?) ?? '',
       data: json['data'],
     );
   }
