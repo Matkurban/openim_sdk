@@ -158,7 +158,10 @@ class ConversationManager {
   /// 设置会话属性（免打扰、置顶等）
   /// [conversationID] 会话ID
   /// [req] 会话修改请求
-  Future<void> setConversation(String conversationID, ConversationReq req) async {
+  Future<void> setConversation({
+    required String conversationID,
+    required ConversationReq req,
+  }) async {
     final updateData = req.toJson()..removeWhere((_, v) => v == null);
     if (updateData.isNotEmpty) {
       await _db.updateConversation(conversationID, updateData);
@@ -172,7 +175,7 @@ class ConversationManager {
   /// [isPinned] true: 置顶, false: 取消置顶
   Future<void> pinConversation({required String conversationID, required bool isPinned}) {
     final req = ConversationReq(isPinned: isPinned);
-    return setConversation(conversationID, req);
+    return setConversation(conversationID: conversationID, req: req);
   }
 
   /// 隐藏会话

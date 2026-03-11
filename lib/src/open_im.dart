@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
@@ -24,6 +28,8 @@ class OpenIM {
 /// IM 管理器，对应 Flutter SDK 中 IMManager。
 /// 管理所有子模块与监听回调。
 class IMManager {
+  static final Logger _log = Logger('IMManager');
+
   /// 会话管理
   late ConversationManager conversationManager;
 
@@ -57,6 +63,9 @@ class IMManager {
   /// 是否已登录
   bool isLogined = false;
 
+  /// 当前登录状态
+  LoginStatus _loginStatus = LoginStatus.logout;
+
   /// Token
   String? token;
 
@@ -89,7 +98,7 @@ class IMManager {
   /// 初始化 SDK
   /// [config] 初始化配置（包含 apiAddr、wsAddr、dataDir 等）
   /// [listener] 连接状态监听
-  Future<bool> init(InitConfig config, OnConnectListener listener) async {
+  Future<bool> init({required InitConfig config, required OnConnectListener listener}) async {
     try {
       _connectListener = listener;
       _config = config;
@@ -136,6 +145,7 @@ class IMManager {
         conversationManager: conversationManager,
         messageManager: messageManager,
         userManager: userManager,
+        db: _db,
       );
 
       // 初始化消息同步器
@@ -161,6 +171,7 @@ class IMManager {
   Future<UserInfo?> login({required String userID, required String token}) async {
     this.userID = userID;
     this.token = token;
+    _loginStatus = LoginStatus.logging;
 
     // 设置 HTTP token
     HttpClient().setToken(token);
@@ -171,7 +182,22 @@ class IMManager {
     // 设置同步器用户 ID
     _msgSyncer.setLoginUserID(userID);
 
+    // 从服务端获取当前用户信息并存入本地
+    final resp = await _imApiService.getUsersInfo(userIDs: [userID]);
+    UserInfo? loginUser;
+    if (resp.errCode == 0 && resp.data != null) {
+      final dataMap = resp.data as Map<String, dynamic>;
+      final users = dataMap['usersInfo'] as List?;
+      if (users != null && users.isNotEmpty) {
+        final userData = Map<String, dynamic>.from(users.first as Map);
+        await _db.insertOrUpdateUser(userData);
+        loginUser = UserInfo.fromJson(userData);
+        userInfo = loginUser;
+      }
+    }
+
     isLogined = true;
+    _loginStatus = LoginStatus.logged;
 
     // 建立 WebSocket 连接
     final platformID = _config.platformID ?? PlatformUtils.platformID;
@@ -183,12 +209,13 @@ class IMManager {
     );
 
     OpenIM._log.info('用户已登录: $userID');
-    return null;
+    return loginUser;
   }
 
   /// 登出
   Future<void> logout() async {
     isLogined = false;
+    _loginStatus = LoginStatus.logout;
     token = null;
 
     // 断开 WebSocket
@@ -218,6 +245,127 @@ class IMManager {
   /// 设置文件上传进度监听
   void setUploadFileListener(OnUploadFileListener listener) {
     uploadFileListener = listener;
+  }
+
+  /// 获取登录状态
+  /// 1: logout  2: logging  3: logged
+  int getLoginStatus() {
+    return _loginStatus.value;
+  }
+
+  /// 上传文件
+  /// [id] 文件标识，用于回调区分
+  /// [filePath] 本地文件路径
+  /// [fileName] 上传后的文件名
+  /// [contentType] MIME 类型（可选，自动检测）
+  /// [cause] 上传原因/用途
+  Future<String> uploadFile({
+    required String id,
+    required String filePath,
+    required String fileName,
+    String? contentType,
+    String? cause,
+  }) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception(SDKErrorCode.uploadFileNotExist.message);
+    }
+
+    final fileSize = await file.length();
+    uploadFileListener?.open(id, fileSize);
+
+    // 计算文件 MD5
+    final fileBytes = await file.readAsBytes();
+    final hash = md5.convert(fileBytes).toString();
+
+    // 分片大小: 2MB
+    const partSize = 2 * 1024 * 1024;
+    final partNum = (fileSize / partSize).ceil().clamp(1, 10000);
+    uploadFileListener?.partSize(id, partSize, partNum);
+
+    // 1. 发起分片上传
+    final initResp = await _imApiService.initiateMultipartUpload(
+      hash: hash,
+      size: fileSize,
+      partSize: partSize,
+      maxParts: partNum.clamp(1, 20),
+      cause: cause ?? '',
+      name: '$userID/$fileName',
+      contentType: contentType ?? 'application/octet-stream',
+    );
+    if (initResp.errCode != 0) {
+      throw Exception('Initiate upload failed: ${initResp.errMsg}');
+    }
+
+    final respData = initResp.data ?? {};
+    final url = respData['url'] as String?;
+
+    // 如果服务端返回 url，说明文件已存在（秒传）
+    if (url != null && url.isNotEmpty) {
+      uploadFileListener?.complete(id, fileSize, url, 0);
+      return url;
+    }
+
+    final upload = respData['upload'] as Map<String, dynamic>? ?? {};
+    final uploadID = upload['uploadID'] as String? ?? '';
+    uploadFileListener?.uploadID(id, uploadID);
+
+    final sign = upload['sign'] as Map<String, dynamic>? ?? {};
+    final parts = sign['parts'] as List? ?? [];
+
+    // 2. 逐片上传
+    final partMd5s = <String>[];
+    for (int i = 0; i < partNum; i++) {
+      final start = i * partSize;
+      final end = (start + partSize).clamp(0, fileSize);
+      final partBytes = fileBytes.sublist(start, end);
+      final partHash = md5.convert(partBytes).toString();
+
+      uploadFileListener?.hashPartProgress(id, i, partBytes.length, partHash);
+
+      if (i < parts.length) {
+        final partInfo = parts[i] as Map<String, dynamic>;
+        final putUrl = partInfo['url'] as String? ?? '';
+        final headers = (partInfo['header'] as Map<String, dynamic>?)?.map(
+          (k, v) => MapEntry(k, v?.toString() ?? ''),
+        );
+
+        if (putUrl.isNotEmpty) {
+          await HttpClient().dio.put(
+            putUrl,
+            data: Stream.fromIterable([partBytes]),
+            options: Options(
+              headers: {...?headers, Headers.contentLengthHeader: partBytes.length},
+              contentType: contentType ?? 'application/octet-stream',
+            ),
+            onSendProgress: (sent, total) {
+              uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
+            },
+          );
+        }
+      }
+
+      partMd5s.add(partHash);
+      uploadFileListener?.uploadPartComplete(id, i, partBytes.length, partHash);
+    }
+
+    uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
+
+    // 3. 完成分片上传
+    final completeResp = await _imApiService.completeMultipartUpload(
+      uploadID: uploadID,
+      parts: partMd5s,
+      name: '$userID/$fileName',
+      contentType: contentType ?? 'application/octet-stream',
+      cause: cause ?? '',
+    );
+    if (completeResp.errCode != 0) {
+      throw Exception('Complete upload failed: ${completeResp.errMsg}');
+    }
+
+    final resultUrl = (completeResp.data?['url'] as String?) ?? '';
+    uploadFileListener?.complete(id, fileSize, resultUrl, 1);
+    return resultUrl;
   }
 
   // ---------------------------------------------------------------------------
@@ -284,6 +432,44 @@ class IMManager {
 
     _msgSyncer.onSyncFailed = (reinstalled) {
       conversationManager.listener?.syncServerFailed(reinstalled);
+    };
+
+    // 推送消息导致会话变更 → 通知 UI 刷新
+    _msgSyncer.onConversationChanged = (convIDs) async {
+      try {
+        final convList = await conversationManager.getMultipleConversation(
+          conversationIDList: convIDs,
+        );
+        if (convList.isNotEmpty) {
+          conversationManager.listener?.conversationChanged(convList);
+        }
+      } catch (e) {
+        _log.warning('通知会话变更失败: $e');
+      }
+    };
+
+    // 推送消息创建新会话 → 通知 UI
+    _msgSyncer.onNewConversation = (convIDs) async {
+      try {
+        final convList = await conversationManager.getMultipleConversation(
+          conversationIDList: convIDs,
+        );
+        if (convList.isNotEmpty) {
+          conversationManager.listener?.newConversation(convList);
+        }
+      } catch (e) {
+        _log.warning('通知新会话失败: $e');
+      }
+    };
+
+    // 未读总数变更 → 通知 UI
+    _msgSyncer.onTotalUnreadCountChanged = () async {
+      try {
+        final total = await conversationManager.getTotalUnreadMsgCount();
+        conversationManager.listener?.totalUnreadMessageCountChanged(total);
+      } catch (e) {
+        _log.warning('通知未读总数变更失败: $e');
+      }
     };
   }
 

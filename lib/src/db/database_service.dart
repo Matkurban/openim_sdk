@@ -150,6 +150,13 @@ class DatabaseService {
     return db.query(DbTableName.localFriend).where('friendUserID', '=', friendUserID).first();
   }
 
+  /// 批量根据好友用户ID获取好友信息
+  Future<List<Map<String, dynamic>>> getFriendsByUserIDs(List<String> userIDs) async {
+    if (userIDs.isEmpty) return [];
+    final result = await db.query(DbTableName.localFriend).where('friendUserID', 'IN', userIDs);
+    return result.data;
+  }
+
   /// 删除好友
   Future<void> deleteFriend(String friendUserID) async {
     await db.delete(DbTableName.localFriend).where('friendUserID', '=', friendUserID);
@@ -495,7 +502,7 @@ class DatabaseService {
 
   /// 删除所有会话
   Future<void> deleteAllConversations() async {
-    await db.delete(DbTableName.localConversation);
+    await db.delete(DbTableName.localConversation).allowDeleteAll();
   }
 
   /// 获取所有会话列表
@@ -541,8 +548,13 @@ class DatabaseService {
 
   /// 获取未读消息总数
   Future<int> getTotalUnreadCount() async {
-    final total = await db.query(DbTableName.localConversation).sum('unreadCount');
-    return total?.toInt() ?? 0;
+    // ToStore sum() 对 integer 字段有 bug，手动聚合
+    final result = await db.query(DbTableName.localConversation);
+    int total = 0;
+    for (final row in result.data) {
+      total += (row['unreadCount'] as int?) ?? 0;
+    }
+    return total;
   }
 
   /// 更新会话草稿
@@ -672,7 +684,7 @@ class DatabaseService {
 
   /// 删除所有本地消息
   Future<void> deleteAllMessages() async {
-    await db.delete(DbTableName.localChatLog);
+    await db.delete(DbTableName.localChatLog).allowDeleteAll();
   }
 
   /// 搜索本地消息（利用 Tostore 查询条件下推）

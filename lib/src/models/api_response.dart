@@ -23,4 +23,6 @@ class ApiResponse {
   Map<String, dynamic> toJson() {
     return {'errCode': errCode, 'errMsg': errMsg, 'errDlt': errDlt, 'data': data};
   }
+
+  bool get isSuccess => errCode == 0;
 }

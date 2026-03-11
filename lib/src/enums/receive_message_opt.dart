@@ -14,4 +14,11 @@ enum ReceiveMessageOpt {
   const ReceiveMessageOpt(this.value);
 
   final int value;
+
+  factory ReceiveMessageOpt.fromValue(int value) {
+    return ReceiveMessageOpt.values.firstWhere(
+      (e) => e.value == value,
+      orElse: () => ReceiveMessageOpt.receive,
+    );
+  }
 }

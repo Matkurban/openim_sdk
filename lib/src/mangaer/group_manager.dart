@@ -135,7 +135,7 @@ class GroupManager {
 
   /// 修改群组信息
   /// [groupInfo] 群组信息（只更新非null字段）
-  Future<void> setGroupInfo(GroupInfo groupInfo) async {
+  Future<void> setGroupInfo({required GroupInfo groupInfo}) async {
     final updateData = groupInfo.toJson()..removeWhere((_, v) => v == null);
     final existing = await _db.getGroupByID(groupInfo.groupID);
     if (existing != null) {

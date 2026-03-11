@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/db/database_service.dart';
 
 /// 通知消息分发器
 ///
@@ -11,6 +12,9 @@ import 'package:openim_sdk/openim_sdk.dart';
 /// - 同步本地数据库
 class NotificationDispatcher {
   final _log = Logger('NotificationDispatcher');
+
+  // ---- 数据库引用 ----
+  DatabaseService? _db;
 
   // ---- Manager 引用（通过 Manager 动态获取监听器，避免快照失效） ----
   FriendshipManager? _friendshipManager;
@@ -30,19 +34,21 @@ class NotificationDispatcher {
 
   NotificationDispatcher();
 
-  /// 绑定 Manager 引用
+  /// 绑定 Manager 引用和数据库
   void bindManagers({
     required FriendshipManager friendshipManager,
     required GroupManager groupManager,
     required ConversationManager conversationManager,
     required MessageManager messageManager,
     required UserManager userManager,
+    DatabaseService? db,
   }) {
     _friendshipManager = friendshipManager;
     _groupManager = groupManager;
     _conversationManager = conversationManager;
     _messageManager = messageManager;
     _userManager = userManager;
+    _db = db;
   }
 
   // ---------------------------------------------------------------------------
@@ -226,7 +232,10 @@ class NotificationDispatcher {
 
   void _onFriendAdded(Map<String, dynamic> detail) {
     try {
-      final info = FriendInfo.fromJson(_extractFromDetail(detail));
+      final data = _extractFromDetail(detail);
+      final info = FriendInfo.fromJson(data);
+      // 同步到本地 DB
+      _db?.upsertFriend(data);
       friendshipListener?.friendAdded(info);
     } catch (e) {
       _log.warning('处理好友添加通知失败: $e');
@@ -235,7 +244,13 @@ class NotificationDispatcher {
 
   void _onFriendDeleted(Map<String, dynamic> detail) {
     try {
-      final info = FriendInfo.fromJson(_extractFromDetail(detail));
+      final data = _extractFromDetail(detail);
+      final info = FriendInfo.fromJson(data);
+      // 从本地 DB 删除
+      final uid = info.userID;
+      if (uid != null && uid.isNotEmpty) {
+        _db?.deleteFriend(uid);
+      }
       friendshipListener?.friendDeleted(info);
     } catch (e) {
       _log.warning('处理好友删除通知失败: $e');
@@ -244,7 +259,10 @@ class NotificationDispatcher {
 
   void _onFriendInfoChanged(Map<String, dynamic> detail) {
     try {
-      final info = FriendInfo.fromJson(_extractFromDetail(detail));
+      final data = _extractFromDetail(detail);
+      final info = FriendInfo.fromJson(data);
+      // 同步到本地 DB
+      _db?.upsertFriend(data);
       friendshipListener?.friendInfoChanged(info);
     } catch (e) {
       _log.warning('处理好友信息变更通知失败: $e');
@@ -275,7 +293,10 @@ class NotificationDispatcher {
 
   void _onSelfInfoUpdated(Map<String, dynamic> detail) {
     try {
-      final info = UserInfo.fromJson(_extractFromDetail(detail));
+      final data = _extractFromDetail(detail);
+      final info = UserInfo.fromJson(data);
+      // 同步到本地 DB
+      _db?.insertOrUpdateUser(data);
       userListener?.selfInfoUpdated(info);
     } catch (e) {
       _log.warning('处理用户信息更新通知失败: $e');
@@ -298,14 +319,51 @@ class NotificationDispatcher {
   void _onConversationChanged(Map<String, dynamic> detail) {
     try {
       // detail 可能包含单个或多个会话
+      final List<ConversationInfo> convList;
       if (detail.containsKey('conversationID')) {
-        final info = ConversationInfo.fromJson(detail);
-        conversationListener?.conversationChanged([info]);
+        convList = [ConversationInfo.fromJson(detail)];
       } else if (detail.containsKey('conversationList')) {
-        final list = (detail['conversationList'] as List)
+        convList = (detail['conversationList'] as List)
             .map((e) => ConversationInfo.fromJson(e as Map<String, dynamic>))
             .toList();
-        conversationListener?.conversationChanged(list);
+      } else {
+        // 可能在 detail 里是 json 字符串
+        final extracted = _extractFromDetail(detail);
+        if (extracted.containsKey('conversationID')) {
+          convList = [ConversationInfo.fromJson(extracted)];
+        } else if (extracted is List) {
+          convList = (extracted as List)
+              .map((e) => ConversationInfo.fromJson(e as Map<String, dynamic>))
+              .toList();
+        } else {
+          convList = [];
+        }
+      }
+
+      // 同步到本地 DB（对应 Go SDK 的 doNotificationConversation）
+      if (_db != null && convList.isNotEmpty) {
+        for (final conv in convList) {
+          final updates = <String, dynamic>{};
+          if (conv.conversationID.isNotEmpty) {
+            // 服务端推送的字段直接覆写到本地
+            if (conv.recvMsgOpt != null) updates['recvMsgOpt'] = conv.recvMsgOpt;
+            if (conv.isPinned != null) updates['isPinned'] = conv.isPinned! ? 1 : 0;
+            if (conv.isPrivateChat != null) updates['isPrivateChat'] = conv.isPrivateChat! ? 1 : 0;
+            if (conv.burnDuration != null) updates['burnDuration'] = conv.burnDuration;
+            if (conv.groupAtType != null) updates['groupAtType'] = conv.groupAtType;
+            if (conv.ex != null) updates['ex'] = conv.ex;
+            if (conv.showName != null) updates['showName'] = conv.showName;
+            if (conv.faceURL != null) updates['faceURL'] = conv.faceURL;
+
+            if (updates.isNotEmpty) {
+              _db!.updateConversation(conv.conversationID, updates);
+            }
+          }
+        }
+      }
+
+      if (convList.isNotEmpty) {
+        conversationListener?.conversationChanged(convList);
       }
     } catch (e) {
       _log.warning('处理会话变更通知失败: $e');
@@ -321,6 +379,8 @@ class NotificationDispatcher {
       final group = detail['group'] as Map<String, dynamic>?;
       if (group != null) {
         final info = GroupInfo.fromJson(group);
+        // 同步到本地 DB
+        _db?.upsertGroup(group);
         groupListener?.joinedGroupAdded(info);
       }
     } catch (e) {
@@ -333,6 +393,11 @@ class NotificationDispatcher {
       final group = detail['group'] as Map<String, dynamic>?;
       if (group != null) {
         final info = GroupInfo.fromJson(group);
+        // 从本地 DB 删除
+        final gid = info.groupID;
+        if (gid.isNotEmpty) {
+          _db?.deleteGroup(gid);
+        }
         groupListener?.groupDismissed(info);
         groupListener?.joinedGroupDeleted(info);
       }
@@ -346,6 +411,8 @@ class NotificationDispatcher {
       final group = detail['group'] as Map<String, dynamic>?;
       if (group != null) {
         final info = GroupInfo.fromJson(group);
+        // 同步到本地 DB
+        _db?.upsertGroup(group);
         groupListener?.groupInfoChanged(info);
       }
     } catch (e) {

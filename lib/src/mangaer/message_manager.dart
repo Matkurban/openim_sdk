@@ -408,6 +408,10 @@ class MessageManager {
     if (startMsg?.clientMsgID != null && startMsg!.clientMsgID!.isNotEmpty) {
       final data = await _db.getMessage(startMsg.clientMsgID!);
       startTime = (data?['sendTime'] as int?) ?? 0;
+      // DB 查不到时用 Message 对象自身的 sendTime 回退，避免 startTime=0 导致重复分页
+      if (startTime == 0) {
+        startTime = startMsg.sendTime ?? 0;
+      }
     }
 
     final conv = await _db.getConversation(conversationID ?? '');

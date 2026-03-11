@@ -122,7 +122,7 @@ class FriendshipManager {
   @Deprecated('Use [updateFriends] instead')
   Future<void> setFriendRemark({required String userID, required String remark}) {
     final req = UpdateFriendsReq(friendUserIDs: [userID], remark: remark);
-    return updateFriends(req);
+    return updateFriends(updateFriendsReq: req);
   }
 
   /// 添加到黑名单
@@ -280,12 +280,12 @@ class FriendshipManager {
   @Deprecated('Use [updateFriends] instead')
   Future<void> setFriendsEx(List<String> friendIDs, {String? ex}) {
     final req = UpdateFriendsReq(friendUserIDs: friendIDs, ex: ex);
-    return updateFriends(req);
+    return updateFriends(updateFriendsReq: req);
   }
 
   /// 更新好友信息（备注、扩展信息等）
   /// [updateFriendsReq] 更新请求
-  Future<void> updateFriends(UpdateFriendsReq updateFriendsReq) async {
+  Future<void> updateFriends({required UpdateFriendsReq updateFriendsReq}) async {
     if (updateFriendsReq.friendUserIDs == null || updateFriendsReq.friendUserIDs!.isEmpty) return;
 
     for (final friendUserID in updateFriendsReq.friendUserIDs!) {

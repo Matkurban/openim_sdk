@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
+import 'package:talker_dio_logger/talker_dio_logger_interceptor.dart';
 
 import '../models/api_response.dart';
 
@@ -24,7 +25,7 @@ class HttpClient {
         responseType: ResponseType.json,
       ),
     );
-    _dio.interceptors.add(_buildLogInterceptor());
+    _dio.interceptors.add(TalkerDioLogger());
   }
 
   /// 初始化，设置 baseUrl 及可选参数
@@ -239,28 +240,6 @@ class HttpClient {
       errMsg: message,
       errDlt: e.message ?? '',
       data: null,
-    );
-  }
-
-  /// 日志拦截器
-  Interceptor _buildLogInterceptor() {
-    return InterceptorsWrapper(
-      onRequest: (options, handler) {
-        _log.info('→ ${options.method} ${options.uri}');
-        _log.fine('  Headers: ${options.headers}');
-        if (options.data != null) {
-          _log.fine('  Body: ${options.data}');
-        }
-        handler.next(options);
-      },
-      onResponse: (response, handler) {
-        _log.info('← ${response.statusCode} ${response.requestOptions.uri}');
-        handler.next(response);
-      },
-      onError: (error, handler) {
-        _log.warning('✖ ${error.requestOptions.uri} → ${error.message}');
-        handler.next(error);
-      },
     );
   }
 }

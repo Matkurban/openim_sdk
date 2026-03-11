@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'ws_codec.dart';
@@ -34,10 +35,9 @@ class WsConnectionManager {
   StreamSubscription? _subscription;
 
   // ---- 心跳 ----
-  Timer? _heartbeatTimer;
-  static const _pingPeriod = Duration(seconds: 24);
-  static const _pongWait = Duration(seconds: 30);
-  DateTime? _lastPongTime;
+  /// Go SDK 使用 WebSocket 协议级 PING/PONG，不是业务消息。
+  /// 通过 IOWebSocketChannel.pingInterval 实现，无需手动发送。
+  static const _pingInterval = Duration(seconds: 24);
 
   // ---- 重连 ----
   static const _maxReconnectAttempts = 300;
@@ -121,7 +121,6 @@ class WsConnectionManager {
   /// 主动断开连接
   Future<void> disconnect() async {
     _userDisconnected = true;
-    _stopHeartbeat();
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _cancelAllPendingRequests('connection closed by user');
@@ -193,17 +192,16 @@ class WsConnectionManager {
     _log.info('正在连接 WebSocket: $url');
 
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
+      // 使用 IOWebSocketChannel 以支持协议级 PING/PONG（同 Go SDK）
+      _channel = IOWebSocketChannel.connect(url, pingInterval: _pingInterval);
       await _channel!.ready;
 
       // 连接成功
       _setStatus(WsConnStatus.connected);
       _reconnectAttempts = 0;
       _reconnectIndex = -1;
-      _lastPongTime = DateTime.now();
 
       _startListening();
-      _startHeartbeat();
 
       onConnectSuccess?.call();
       _log.info('WebSocket 连接成功');
@@ -222,6 +220,7 @@ class WsConnectionManager {
     sb.write('&platformID=$_platformID');
     sb.write('&operationID=${_generateOperationID()}');
     sb.write('&isBackground=false');
+    sb.write('&sdkType=js');
     if (_compression) {
       sb.write('&compression=gzip');
     }
@@ -234,8 +233,6 @@ class WsConnectionManager {
   }
 
   void _onMessage(dynamic message) {
-    _lastPongTime = DateTime.now();
-
     if (message is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(message));
     } else if (message is String) {
@@ -256,7 +253,6 @@ class WsConnectionManager {
 
   void _handleDisconnect() {
     _setStatus(WsConnStatus.closed);
-    _stopHeartbeat();
     _cancelAllPendingRequests('connection lost');
     if (!_userDisconnected) {
       _scheduleReconnect();
@@ -329,50 +325,6 @@ class WsConnectionManager {
     if (_channel == null) return;
     final encoded = _codec.encode(req);
     _channel!.sink.add(encoded);
-  }
-
-  // ---------------------------------------------------------------------------
-  // 心跳
-  // ---------------------------------------------------------------------------
-
-  void _startHeartbeat() {
-    _stopHeartbeat();
-    _heartbeatTimer = Timer.periodic(_pingPeriod, (_) {
-      _sendPing();
-      _checkPongTimeout();
-    });
-  }
-
-  void _stopHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
-  }
-
-  void _sendPing() {
-    if (!isConnected || _channel == null) return;
-    try {
-      // 发送 WebSocket 原生 ping（web_socket_channel 处理 pong）
-      // web_socket_channel 不直接支持 ping 帧，
-      // 因此发送一个空的二进制消息作为心跳包
-      final req = GeneralWsReq(
-        reqIdentifier: WsReqIdentifier.getNewestSeq,
-        sendID: _userID,
-        operationID: _generateOperationID(),
-      );
-      _sendBinary(req);
-      _log.fine('心跳 ping 已发送');
-    } catch (e) {
-      _log.warning('发送 ping 失败: $e');
-    }
-  }
-
-  void _checkPongTimeout() {
-    if (_lastPongTime == null) return;
-    final elapsed = DateTime.now().difference(_lastPongTime!);
-    if (elapsed > _pongWait) {
-      _log.warning('心跳超时，断开重连');
-      _channel?.sink.close();
-    }
   }
 
   // ---------------------------------------------------------------------------

@@ -239,8 +239,8 @@ class ImApiService {
   }
 
   /// 退出群组
-  Future<ApiResponse> quitGroup({required String groupID}) async {
-    return HttpClient().post(ImApiUrl.quitGroup, data: {'groupID': groupID});
+  Future<ApiResponse> quitGroup({required String userID, required String groupID}) async {
+    return HttpClient().post(ImApiUrl.quitGroup, data: {'userID': userID, 'groupID': groupID});
   }
 
   /// 获取群信息
@@ -432,48 +432,61 @@ class ImApiService {
   }
 
   /// 撤回消息
-  Future<ApiResponse> revokeMsg({required String conversationID, required int seq}) async {
+  Future<ApiResponse> revokeMsg({
+    required String userID,
+    required String conversationID,
+    required int seq,
+  }) async {
     return HttpClient().post(
       ImApiUrl.revokeMsg,
-      data: {'conversationID': conversationID, 'seq': seq},
+      data: {'userID': userID, 'conversationID': conversationID, 'seq': seq},
     );
   }
 
   /// 标记消息为已读
   Future<ApiResponse> markMsgsAsRead({
+    required String userID,
     required String conversationID,
     required List<int> seqs,
   }) async {
     return HttpClient().post(
       ImApiUrl.markMsgsAsRead,
-      data: {'conversationID': conversationID, 'seqs': seqs},
+      data: {'userID': userID, 'conversationID': conversationID, 'seqs': seqs},
     );
   }
 
   /// 标记会话为已读
   Future<ApiResponse> markConversationAsRead({
+    required String userID,
     required String conversationID,
     required int hasReadSeq,
   }) async {
     return HttpClient().post(
       ImApiUrl.markConversationAsRead,
-      data: {'conversationID': conversationID, 'hasReadSeq': hasReadSeq},
+      data: {'userID': userID, 'conversationID': conversationID, 'hasReadSeq': hasReadSeq},
     );
   }
 
   /// 删除消息
-  Future<ApiResponse> deleteMsgs({required String conversationID, required List<int> seqs}) async {
+  Future<ApiResponse> deleteMsgs({
+    required String userID,
+    required String conversationID,
+    required List<int> seqs,
+  }) async {
     return HttpClient().post(
       ImApiUrl.deleteMsgs,
-      data: {'conversationID': conversationID, 'seqs': seqs},
+      data: {'userID': userID, 'conversationID': conversationID, 'seqs': seqs},
     );
   }
 
   /// 清空会话消息
-  Future<ApiResponse> clearConversationMsg({required List<String> conversationIDs}) async {
+  Future<ApiResponse> clearConversationMsg({
+    required String userID,
+    required List<String> conversationIDs,
+  }) async {
     return HttpClient().post(
       ImApiUrl.clearConversationMsg,
-      data: {'conversationIDs': conversationIDs},
+      data: {'userID': userID, 'conversationIDs': conversationIDs},
     );
   }
 
@@ -484,11 +497,27 @@ class ImApiService {
 
   /// 获取会话已读和最大 seq
   Future<ApiResponse> getConversationsHasReadAndMaxSeq({
+    required String userID,
     required List<String> conversationIDs,
   }) async {
     return HttpClient().post(
       ImApiUrl.getConversationsHasReadAndMaxSeq,
-      data: {'conversationIDs': conversationIDs},
+      data: {'userID': userID, 'conversationIDs': conversationIDs},
+    );
+  }
+
+  /// 按 seq 范围拉取云端消息（HTTP REST 接口）
+  ///
+  /// [seqRanges] 每项为 {conversationID, begin, end, num}
+  /// [order] 0=升序 1=降序
+  Future<ApiResponse> pullMsgBySeqs({
+    required String userID,
+    required List<Map<String, dynamic>> seqRanges,
+    int order = 0,
+  }) async {
+    return HttpClient().post(
+      ImApiUrl.pullMsgBySeqs,
+      data: {'userID': userID, 'seqRanges': seqRanges, 'order': order},
     );
   }
 
@@ -502,8 +531,14 @@ class ImApiService {
   // ---------------------------------------------------------------------------
 
   /// 获取指定会话
-  Future<ApiResponse> getConversations({required List<String> conversationIDs}) async {
-    return HttpClient().post(ImApiUrl.getConversations, data: {'conversationIDs': conversationIDs});
+  Future<ApiResponse> getConversations({
+    required String ownerUserID,
+    required List<String> conversationIDs,
+  }) async {
+    return HttpClient().post(
+      ImApiUrl.getConversations,
+      data: {'ownerUserID': ownerUserID, 'conversationIDs': conversationIDs},
+    );
   }
 
   /// 获取全部会话
@@ -553,6 +588,50 @@ class ImApiService {
     return HttpClient().post(
       ImApiUrl.setAppBadge,
       data: {'userID': userID, 'appUnreadCount': appUnreadCount},
+    );
+  }
+
+  /// 发起分片上传
+  Future<ApiResponse> initiateMultipartUpload({
+    required String hash,
+    required int size,
+    required int partSize,
+    required int maxParts,
+    required String cause,
+    required String name,
+    required String contentType,
+  }) async {
+    return HttpClient().post(
+      ImApiUrl.objectInitiateUpload,
+      data: {
+        'hash': hash,
+        'size': size,
+        'partSize': partSize,
+        'maxParts': maxParts,
+        'cause': cause,
+        'name': name,
+        'contentType': contentType,
+      },
+    );
+  }
+
+  /// 完成分片上传
+  Future<ApiResponse> completeMultipartUpload({
+    required String uploadID,
+    required List<String> parts,
+    required String name,
+    required String contentType,
+    required String cause,
+  }) async {
+    return HttpClient().post(
+      ImApiUrl.objectCompleteUpload,
+      data: {
+        'uploadID': uploadID,
+        'parts': parts,
+        'name': name,
+        'contentType': contentType,
+        'cause': cause,
+      },
     );
   }
 }

@@ -17,4 +17,8 @@ enum GroupStatus {
   const GroupStatus(this.value);
 
   final int value;
+
+  factory GroupStatus.fromValue(int value) {
+    return GroupStatus.values.firstWhere((e) => e.value == value, orElse: () => GroupStatus.normal);
+  }
 }

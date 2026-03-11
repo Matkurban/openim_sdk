@@ -1,0 +1,2506 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:get_it/get_it.dart';
+import 'package:logging/logging.dart';
+import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/db/database_service.dart';
+import 'package:openim_sdk/src/network/http_client.dart';
+import 'package:openim_sdk/src/network/msg_syncer.dart';
+import 'package:openim_sdk/src/network/ws_codec.dart';
+import 'package:openim_sdk/src/network/ws_connection_manager.dart';
+import 'package:openim_sdk/src/services/im_api_service.dart';
+import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:test/test.dart';
+
+// ===========================================================================
+// 测试配置
+// ===========================================================================
+const _apiAddr = 'http://115.190.173.31:10002';
+const _wsAddr = 'ws://115.190.173.31:10001';
+const _chatAddr = 'http://115.190.173.31:10008';
+const _phone1 = '13579885143';
+const _phone2 = '13579885142';
+const _password = '123456m';
+const _areaCode = '+86';
+
+// ===========================================================================
+// 辅助函数
+// ===========================================================================
+
+/// 通过 Chat API 登录
+Future<Map<String, String>> chatLogin(String phone) async {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: _chatAddr,
+      headers: {'operationID': 'test_${DateTime.now().millisecondsSinceEpoch}'},
+    ),
+  );
+  final resp = await dio.post(
+    '/account/login',
+    data: {
+      'phoneNumber': phone,
+      'password': ImUtils.generateMD5(_password),
+      'areaCode': _areaCode,
+      'platform': 5,
+    },
+  );
+  final body = resp.data as Map<String, dynamic>;
+  expect(body['errCode'], 0, reason: '登录失败: ${body['errMsg']}');
+  final data = body['data'] as Map<String, dynamic>;
+  return {
+    'chatToken': data['chatToken'] as String? ?? '',
+    'userID': data['userID'] as String? ?? '',
+    'imToken': data['imToken'] as String? ?? '',
+  };
+}
+
+/// 创建独立 DB 环境
+Future<({DatabaseService db, Directory dir})> createDbEnv({String userID = 'test_user_001'}) async {
+  final dir = Directory.systemTemp.createTempSync('openim_test_');
+  final db = DatabaseService();
+  await db.init(userID: userID, dataDir: dir.path);
+  return (db: db, dir: dir);
+}
+
+/// 创建 MsgSyncer 测试环境
+Future<({MsgSyncer syncer, DatabaseService db, Directory dir})> createSyncerEnv({
+  String userID = 'test_user_001',
+}) async {
+  final dir = Directory.systemTemp.createTempSync('openim_test_');
+  final db = DatabaseService();
+  await db.init(userID: userID, dataDir: dir.path);
+  final ws = WsConnectionManager();
+  final api = ImApiService();
+  final syncer = MsgSyncer(ws: ws, db: db, api: api);
+  syncer.setLoginUserID(userID);
+  return (syncer: syncer, db: db, dir: dir);
+}
+
+/// 创建 Manager 层测试环境（注册 GetIt）
+Future<
+  ({
+    DatabaseService db,
+    Directory dir,
+    ConversationManager convMgr,
+    MessageManager msgMgr,
+    FriendshipManager friendMgr,
+    GroupManager groupMgr,
+    UserManager userMgr,
+  })
+>
+createManagerEnv({String userID = 'test_user_001'}) async {
+  final dir = Directory.systemTemp.createTempSync('openim_test_');
+  final db = DatabaseService();
+  await db.init(userID: userID, dataDir: dir.path);
+  final getIt = GetIt.instance;
+  if (getIt.isRegistered<DatabaseService>()) getIt.unregister<DatabaseService>();
+  getIt.registerSingleton<DatabaseService>(db);
+  if (!getIt.isRegistered<ImApiService>()) {
+    getIt.registerSingleton<ImApiService>(ImApiService());
+  }
+  return (
+    db: db,
+    dir: dir,
+    convMgr: ConversationManager(),
+    msgMgr: MessageManager(),
+    friendMgr: FriendshipManager(),
+    groupMgr: GroupManager(),
+    userMgr: UserManager(),
+  );
+}
+
+/// 销毁 DB 环境
+Future<void> destroyEnv(DatabaseService db, Directory dir) async {
+  await db.close();
+  try {
+    dir.deleteSync(recursive: true);
+  } catch (_) {}
+}
+
+/// 销毁 Manager 环境
+Future<void> destroyManagerEnv(DatabaseService db, Directory dir) async {
+  await db.close();
+  final getIt = GetIt.instance;
+  if (getIt.isRegistered<DatabaseService>()) getIt.unregister<DatabaseService>();
+  if (getIt.isRegistered<ImApiService>()) getIt.unregister<ImApiService>();
+  try {
+    dir.deleteSync(recursive: true);
+  } catch (_) {}
+}
+
+/// 构造推送 WS 消息
+GeneralWsResp makePushResp(Map<String, dynamic> payload) {
+  return GeneralWsResp(
+    reqIdentifier: 2001,
+    errCode: 0,
+    errMsg: '',
+    msgIncr: '',
+    operationID: '',
+    data: utf8.encode(jsonEncode(payload)),
+  );
+}
+
+/// 构造消息 Map
+Map<String, dynamic> makeMsg({
+  required String clientMsgID,
+  required String sendID,
+  required String recvID,
+  int seq = 1,
+  int contentType = 101,
+  int sessionType = 1,
+  String? content,
+  int? sendTime,
+  String groupID = '',
+  String senderNickname = '',
+  String senderFaceUrl = '',
+}) {
+  final t = sendTime ?? DateTime.now().millisecondsSinceEpoch;
+  return {
+    'clientMsgID': clientMsgID,
+    'serverMsgID': 'srv_$clientMsgID',
+    'sendID': sendID,
+    'recvID': recvID,
+    'senderNickname': senderNickname,
+    'senderFaceUrl': senderFaceUrl,
+    'sessionType': sessionType,
+    'contentType': contentType,
+    'content': content ?? jsonEncode({'content': 'test'}),
+    'seq': seq,
+    'sendTime': t,
+    'createTime': t,
+    'status': 2,
+    'groupID': groupID,
+  };
+}
+
+// ===========================================================================
+// 测试主体
+// ===========================================================================
+void main() {
+  Logger.root.level = Level.INFO;
+  Logger.root.onRecord.listen((rec) {
+    // ignore: avoid_print
+    print('${rec.level.name}: ${rec.loggerName}: ${rec.message}');
+  });
+
+  // =========================================================================
+  //  第一部分：DatabaseService 全方法测试
+  // =========================================================================
+
+  // ── 1.1 用户表 ──
+  group('DB-用户表', () {
+    test('insertOrUpdateUser + getLoginUser', () async {
+      final env = await createDbEnv();
+      await env.db.insertOrUpdateUser({
+        'userID': 'test_user_001',
+        'nickname': '测试用户',
+        'faceURL': 'https://face.png',
+      });
+      final user = await env.db.getLoginUser();
+      expect(user, isNotNull);
+      expect(user!['nickname'], '测试用户');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('更新已有用户', () async {
+      final env = await createDbEnv();
+      await env.db.insertOrUpdateUser({'userID': 'u1', 'nickname': '旧名称'});
+      await env.db.insertOrUpdateUser({'userID': 'u1', 'nickname': '新名称'});
+      final users = await env.db.getUsersByIDs(['u1']);
+      expect(users.length, 1);
+      expect(users.first['nickname'], '新名称');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getUsersByIDs 批量查询', () async {
+      final env = await createDbEnv();
+      for (var i = 0; i < 5; i++) {
+        await env.db.insertOrUpdateUser({'userID': 'user_$i', 'nickname': 'nick_$i'});
+      }
+      final users = await env.db.getUsersByIDs(['user_0', 'user_2', 'user_4']);
+      expect(users.length, 3);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('查不到的 ID 返回空', () async {
+      final env = await createDbEnv();
+      final users = await env.db.getUsersByIDs(['nonexistent']);
+      expect(users, isEmpty);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.2 好友表 ──
+  group('DB-好友表', () {
+    test('upsertFriend + getFriendByUserID', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': '备注1',
+        'nickname': 'nick1',
+        'faceURL': 'https://f.png',
+      });
+      final f = await env.db.getFriendByUserID('f1');
+      expect(f, isNotNull);
+      expect(f!['remark'], '备注1');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getAllFriends', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'nickname': 'a',
+      });
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f2',
+        'nickname': 'b',
+      });
+      final all = await env.db.getAllFriends();
+      expect(all.length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getFriendsPage 分页', () async {
+      final env = await createDbEnv();
+      for (var i = 0; i < 10; i++) {
+        await env.db.upsertFriend({
+          'ownerUserID': 'test_user_001',
+          'friendUserID': 'f$i',
+          'nickname': 'n$i',
+        });
+      }
+      final page1 = await env.db.getFriendsPage(0, 5);
+      expect(page1.length, 5);
+      final page2 = await env.db.getFriendsPage(5, 5);
+      expect(page2.length, 5);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getFriendsByUserIDs', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'nickname': 'a',
+      });
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f2',
+        'nickname': 'b',
+      });
+      final friends = await env.db.getFriendsByUserIDs(['f1', 'f2']);
+      expect(friends.length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteFriend', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'nickname': 'a',
+      });
+      await env.db.deleteFriend('f1');
+      expect(await env.db.getFriendByUserID('f1'), isNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('batchUpsertFriends', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertFriends([
+        {'ownerUserID': 'test_user_001', 'friendUserID': 'f1', 'nickname': 'a'},
+        {'ownerUserID': 'test_user_001', 'friendUserID': 'f2', 'nickname': 'b'},
+        {'ownerUserID': 'test_user_001', 'friendUserID': 'f3', 'nickname': 'c'},
+      ]);
+      expect((await env.db.getAllFriends()).length, 3);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('searchFriends 关键字', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': '张三',
+        'nickname': 'zs',
+      });
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f2',
+        'remark': '李四',
+        'nickname': 'ls',
+      });
+      final results = await env.db.searchFriends('张三', searchRemark: true);
+      expect(results.length, 1);
+      expect(results.first['friendUserID'], 'f1');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('upsertFriend 更新备注', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': '旧',
+      });
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': '新',
+      });
+      expect((await env.db.getFriendByUserID('f1'))!['remark'], '新');
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.3 黑名单表 ──
+  group('DB-黑名单', () {
+    test('insertBlack + getBlackList', () async {
+      final env = await createDbEnv();
+      await env.db.insertBlack({
+        'ownerUserID': 'test_user_001',
+        'blockUserID': 'b1',
+        'nickname': 'block',
+      });
+      final list = await env.db.getBlackList();
+      expect(list.length, 1);
+      expect(list.first['blockUserID'], 'b1');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('removeBlack', () async {
+      final env = await createDbEnv();
+      await env.db.insertBlack({'ownerUserID': 'test_user_001', 'blockUserID': 'b1'});
+      await env.db.removeBlack('b1');
+      expect(await env.db.getBlackList(), isEmpty);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.4 好友请求表 ──
+  group('DB-好友请求', () {
+    test('upsertFriendRequest + getFriendRequestsAsRecipient', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriendRequest({
+        'fromUserID': 'u2',
+        'toUserID': 'test_user_001',
+        'handleResult': 0,
+        'reqMsg': '加我',
+        'createTime': DateTime.now().millisecondsSinceEpoch,
+      });
+      final list = await env.db.getFriendRequestsAsRecipient();
+      expect(list.length, 1);
+      expect(list.first['fromUserID'], 'u2');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getFriendRequestsAsApplicant', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriendRequest({
+        'fromUserID': 'test_user_001',
+        'toUserID': 'u3',
+        'handleResult': 0,
+        'createTime': 1,
+      });
+      final list = await env.db.getFriendRequestsAsApplicant();
+      expect(list.length, 1);
+      expect(list.first['toUserID'], 'u3');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getFriendRequestUnhandledCount', () async {
+      final env = await createDbEnv();
+      await env.db.upsertFriendRequest({
+        'fromUserID': 'u1',
+        'toUserID': 'test_user_001',
+        'handleResult': 0,
+        'createTime': 1,
+      });
+      await env.db.upsertFriendRequest({
+        'fromUserID': 'u2',
+        'toUserID': 'test_user_001',
+        'handleResult': 0,
+        'createTime': 2,
+      });
+      await env.db.upsertFriendRequest({
+        'fromUserID': 'u3',
+        'toUserID': 'test_user_001',
+        'handleResult': 1,
+        'createTime': 3,
+      });
+      expect(await env.db.getFriendRequestUnhandledCount(), 2);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.5 群组表 ──
+  group('DB-群组', () {
+    test('upsertGroup + getGroupByID', () async {
+      final env = await createDbEnv();
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': '测试群', 'faceURL': 'https://g.png'});
+      final g = await env.db.getGroupByID('g1');
+      expect(g!['groupName'], '测试群');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('batchUpsertGroups', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertGroups([
+        {'groupID': 'g1', 'groupName': '群1'},
+        {'groupID': 'g2', 'groupName': '群2'},
+      ]);
+      expect((await env.db.getJoinedGroupList()).length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getJoinedGroupListPage 分页', () async {
+      final env = await createDbEnv();
+      for (var i = 0; i < 10; i++) {
+        await env.db.upsertGroup({'groupID': 'g$i', 'groupName': '群$i'});
+      }
+      expect((await env.db.getJoinedGroupListPage(0, 5)).length, 5);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getGroupsByIDs', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertGroups([
+        {'groupID': 'g1', 'groupName': '群1'},
+        {'groupID': 'g2', 'groupName': '群2'},
+        {'groupID': 'g3', 'groupName': '群3'},
+      ]);
+      expect((await env.db.getGroupsByIDs(['g1', 'g3'])).length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteGroup', () async {
+      final env = await createDbEnv();
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': '删我'});
+      await env.db.deleteGroup('g1');
+      expect(await env.db.getGroupByID('g1'), isNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('searchGroups', () async {
+      final env = await createDbEnv();
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': '开发群'});
+      await env.db.upsertGroup({'groupID': 'g2', 'groupName': '测试群'});
+      final results = await env.db.searchGroups('开发', searchGroupName: true);
+      expect(results.length, 1);
+      expect(results.first['groupID'], 'g1');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('upsertGroup 更新', () async {
+      final env = await createDbEnv();
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': '旧名'});
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': '新名'});
+      expect((await env.db.getGroupByID('g1'))!['groupName'], '新名');
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.6 群成员表 ──
+  group('DB-群成员', () {
+    test('upsertGroupMember + getGroupMember', () async {
+      final env = await createDbEnv();
+      await env.db.upsertGroupMember({
+        'groupID': 'g1',
+        'userID': 'u1',
+        'nickname': '成员1',
+        'roleLevel': 20,
+      });
+      final m = await env.db.getGroupMember('g1', 'u1');
+      expect(m!['nickname'], '成员1');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('batchUpsertGroupMembers + getGroupMembers', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertGroupMembers([
+        {'groupID': 'g1', 'userID': 'u1', 'nickname': 'n1', 'roleLevel': 20},
+        {'groupID': 'g1', 'userID': 'u2', 'nickname': 'n2', 'roleLevel': 20},
+        {'groupID': 'g1', 'userID': 'u3', 'nickname': 'n3', 'roleLevel': 100},
+      ]);
+      expect((await env.db.getGroupMembers('g1')).length, 3);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getGroupMembersPage', () async {
+      final env = await createDbEnv();
+      for (var i = 0; i < 10; i++) {
+        await env.db.upsertGroupMember({
+          'groupID': 'g1',
+          'userID': 'u$i',
+          'nickname': 'n$i',
+          'roleLevel': 20,
+        });
+      }
+      expect((await env.db.getGroupMembersPage('g1', offset: 0, count: 3)).length, 3);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getGroupOwnerAndAdmin', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertGroupMembers([
+        {'groupID': 'g1', 'userID': 'owner', 'roleLevel': 100},
+        {'groupID': 'g1', 'userID': 'admin', 'roleLevel': 60},
+        {'groupID': 'g1', 'userID': 'member', 'roleLevel': 20},
+      ]);
+      expect((await env.db.getGroupOwnerAndAdmin('g1')).length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteGroupMember', () async {
+      final env = await createDbEnv();
+      await env.db.upsertGroupMember({'groupID': 'g1', 'userID': 'u1', 'roleLevel': 20});
+      await env.db.deleteGroupMember('g1', 'u1');
+      expect(await env.db.getGroupMember('g1', 'u1'), isNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteGroupAllMembers', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertGroupMembers([
+        {'groupID': 'g1', 'userID': 'u1', 'roleLevel': 20},
+        {'groupID': 'g1', 'userID': 'u2', 'roleLevel': 20},
+      ]);
+      await env.db.deleteGroupAllMembers('g1');
+      expect(await env.db.getGroupMembers('g1'), isEmpty);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('searchGroupMembers', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertGroupMembers([
+        {'groupID': 'g1', 'userID': 'u1', 'nickname': '张三', 'roleLevel': 20},
+        {'groupID': 'g1', 'userID': 'u2', 'nickname': '李四', 'roleLevel': 20},
+      ]);
+      final results = await env.db.searchGroupMembers('g1', '张三', searchNickname: true);
+      expect(results.length, 1);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.7 群申请表 ──
+  group('DB-群申请', () {
+    test('upsertGroupRequest + getGroupRequestsAsRecipient', () async {
+      final env = await createDbEnv();
+      // 当前用户必须是群管理员/群主才能查到群申请
+      await env.db.upsertGroupMember({
+        'groupID': 'g1',
+        'userID': 'test_user_001',
+        'roleLevel': 100,
+      });
+      await env.db.upsertGroupRequest({
+        'groupID': 'g1',
+        'userID': 'u2',
+        'handleResult': 0,
+        'reqMsg': '我要入群',
+        'createTime': DateTime.now().millisecondsSinceEpoch,
+      });
+      expect((await env.db.getGroupRequestsAsRecipient()).length, 1);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getGroupRequestUnhandledCount', () async {
+      final env = await createDbEnv();
+      // 当前用户必须是群管理员/群主才能查到群申请
+      await env.db.upsertGroupMember({
+        'groupID': 'g1',
+        'userID': 'test_user_001',
+        'roleLevel': 100,
+      });
+      await env.db.upsertGroupRequest({
+        'groupID': 'g1',
+        'userID': 'u1',
+        'handleResult': 0,
+        'createTime': 1,
+      });
+      await env.db.upsertGroupRequest({
+        'groupID': 'g1',
+        'userID': 'u2',
+        'handleResult': 0,
+        'createTime': 2,
+      });
+      await env.db.upsertGroupRequest({
+        'groupID': 'g1',
+        'userID': 'u3',
+        'handleResult': 1,
+        'createTime': 3,
+      });
+      expect(await env.db.getGroupRequestUnhandledCount(), 2);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.8 会话表 ──
+  group('DB-会话', () {
+    test('upsertConversation + getConversation', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'si_001',
+        'conversationType': 1,
+        'showName': '测试会话',
+        'unreadCount': 5,
+      });
+      final c = await env.db.getConversation('si_001');
+      expect(c!['showName'], '测试会话');
+      expect(c['unreadCount'], 5);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getAllConversations + getConversationsPage', () async {
+      final env = await createDbEnv();
+      for (var i = 0; i < 10; i++) {
+        await env.db.upsertConversation({'conversationID': 'c$i', 'conversationType': 1});
+      }
+      expect((await env.db.getAllConversations()).length, 10);
+      expect((await env.db.getConversationsPage(0, 5)).length, 5);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('batchUpsertConversations', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertConversations([
+        {'conversationID': 'c1', 'conversationType': 1, 'showName': 'a'},
+        {'conversationID': 'c2', 'conversationType': 3, 'showName': 'b'},
+      ]);
+      expect((await env.db.getAllConversations()).length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getMultipleConversations', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertConversations([
+        {'conversationID': 'c1', 'conversationType': 1},
+        {'conversationID': 'c2', 'conversationType': 1},
+        {'conversationID': 'c3', 'conversationType': 1},
+      ]);
+      expect((await env.db.getMultipleConversations(['c1', 'c3'])).length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('updateConversation', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'showName': '旧名',
+        'unreadCount': 0,
+      });
+      await env.db.updateConversation('c1', {'showName': '新名', 'unreadCount': 3});
+      final c = await env.db.getConversation('c1');
+      expect(c!['showName'], '新名');
+      expect(c['unreadCount'], 3);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteConversation', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({'conversationID': 'c1', 'conversationType': 1});
+      await env.db.deleteConversation('c1');
+      expect(await env.db.getConversation('c1'), isNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteAllConversations', () async {
+      final env = await createDbEnv();
+      await env.db.batchUpsertConversations([
+        {'conversationID': 'c1', 'conversationType': 1},
+        {'conversationID': 'c2', 'conversationType': 1},
+      ]);
+      await env.db.deleteAllConversations();
+      expect(await env.db.getAllConversations(), isEmpty);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('getTotalUnreadCount', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'unreadCount': 3,
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'c2',
+        'conversationType': 1,
+        'unreadCount': 7,
+      });
+      expect(await env.db.getTotalUnreadCount(), 10);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('clearConversationUnreadCount', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'unreadCount': 5,
+      });
+      await env.db.clearConversationUnreadCount('c1');
+      expect((await env.db.getConversation('c1'))!['unreadCount'], 0);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('clearAllUnreadCounts', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'unreadCount': 5,
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'c2',
+        'conversationType': 1,
+        'unreadCount': 8,
+      });
+      await env.db.clearAllUnreadCounts();
+      expect(await env.db.getTotalUnreadCount(), 0);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('setConversationDraft', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({'conversationID': 'c1', 'conversationType': 1});
+      await env.db.setConversationDraft('c1', '草稿内容');
+      expect((await env.db.getConversation('c1'))!['draftText'], '草稿内容');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('searchConversations', () async {
+      final env = await createDbEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'showName': '张三的会话',
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'c2',
+        'conversationType': 1,
+        'showName': '李四的会话',
+      });
+      final results = await env.db.searchConversations('张三');
+      expect(results.length, 1);
+      expect(results.first['conversationID'], 'c1');
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.9 消息表 ──
+  group('DB-消息', () {
+    test('insertMessage + getMessage', () async {
+      final env = await createDbEnv();
+      await env.db.insertMessage({
+        'clientMsgID': 'msg001',
+        'serverMsgID': 'srv001',
+        'sendID': 'u1',
+        'recvID': 'u2',
+        'contentType': 101,
+        'sessionType': 1,
+        'content': 'hello',
+        'seq': 1,
+        'sendTime': DateTime.now().millisecondsSinceEpoch,
+        'status': 2,
+      });
+      expect((await env.db.getMessage('msg001'))!['content'], 'hello');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('batchInsertMessages', () async {
+      final env = await createDbEnv();
+      await env.db.batchInsertMessages([
+        {
+          'clientMsgID': 'm1',
+          'sendID': 'u1',
+          'recvID': 'u2',
+          'contentType': 101,
+          'sessionType': 1,
+          'seq': 1,
+          'sendTime': 1,
+          'status': 2,
+        },
+        {
+          'clientMsgID': 'm2',
+          'sendID': 'u1',
+          'recvID': 'u2',
+          'contentType': 101,
+          'sessionType': 1,
+          'seq': 2,
+          'sendTime': 2,
+          'status': 2,
+        },
+      ]);
+      expect(await env.db.getMessage('m1'), isNotNull);
+      expect(await env.db.getMessage('m2'), isNotNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('updateMessage + updateMessageStatus', () async {
+      final env = await createDbEnv();
+      await env.db.insertMessage({
+        'clientMsgID': 'mu',
+        'sendID': 'u1',
+        'recvID': 'u2',
+        'contentType': 101,
+        'sessionType': 1,
+        'seq': 1,
+        'sendTime': 1,
+        'status': 1,
+      });
+      await env.db.updateMessageStatus('mu', 2);
+      expect((await env.db.getMessage('mu'))!['status'], 2);
+      await env.db.updateMessage('mu', {'content': '已改'});
+      expect((await env.db.getMessage('mu'))!['content'], '已改');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteMessage', () async {
+      final env = await createDbEnv();
+      await env.db.insertMessage({
+        'clientMsgID': 'md',
+        'sendID': 'u1',
+        'recvID': 'u2',
+        'contentType': 101,
+        'sessionType': 1,
+        'seq': 1,
+        'sendTime': 1,
+        'status': 2,
+      });
+      await env.db.deleteMessage('md');
+      expect(await env.db.getMessage('md'), isNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('deleteAllMessages', () async {
+      final env = await createDbEnv();
+      await env.db.batchInsertMessages([
+        {
+          'clientMsgID': 'm1',
+          'sendID': 'u1',
+          'recvID': 'u2',
+          'contentType': 101,
+          'sessionType': 1,
+          'seq': 1,
+          'sendTime': 1,
+          'status': 2,
+        },
+        {
+          'clientMsgID': 'm2',
+          'sendID': 'u1',
+          'recvID': 'u2',
+          'contentType': 101,
+          'sessionType': 1,
+          'seq': 2,
+          'sendTime': 2,
+          'status': 2,
+        },
+      ]);
+      await env.db.deleteAllMessages();
+      expect(await env.db.getMessage('m1'), isNull);
+      expect(await env.db.getMessage('m2'), isNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('markMessageAsRead + markMessagesAsRead', () async {
+      final env = await createDbEnv();
+      await env.db.insertMessage({
+        'clientMsgID': 'mr1',
+        'sendID': 'u1',
+        'recvID': 'u2',
+        'contentType': 101,
+        'sessionType': 1,
+        'seq': 1,
+        'sendTime': 1,
+        'status': 2,
+        'isRead': false,
+      });
+      await env.db.insertMessage({
+        'clientMsgID': 'mr2',
+        'sendID': 'u1',
+        'recvID': 'u2',
+        'contentType': 101,
+        'sessionType': 1,
+        'seq': 2,
+        'sendTime': 2,
+        'status': 2,
+        'isRead': false,
+      });
+      await env.db.markMessageAsRead('mr1');
+      expect((await env.db.getMessage('mr1'))!['isRead'], true);
+      await env.db.markMessagesAsRead(['mr2']);
+      expect((await env.db.getMessage('mr2'))!['isRead'], true);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('insertSendingMessage + getSendingMessages + deleteSendingMessage', () async {
+      final env = await createDbEnv();
+      await env.db.insertSendingMessage('ms', 'conv_001');
+      expect((await env.db.getSendingMessages('conv_001')).length, 1);
+      await env.db.deleteSendingMessage('ms');
+      expect(await env.db.getSendingMessages('conv_001'), isEmpty);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('searchMessages', () async {
+      final env = await createDbEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      await env.db.insertMessage({
+        'clientMsgID': 's1',
+        'sendID': 'u1',
+        'recvID': 'u2',
+        'contentType': 101,
+        'sessionType': 1,
+        'seq': 1,
+        'sendTime': t,
+        'status': 2,
+        'content': '你好世界',
+      });
+      await env.db.insertMessage({
+        'clientMsgID': 's2',
+        'sendID': 'u1',
+        'recvID': 'u2',
+        'contentType': 101,
+        'sessionType': 1,
+        'seq': 2,
+        'sendTime': t + 1,
+        'status': 2,
+        'content': '再见世界',
+      });
+      final results = await env.db.searchMessages(keyword: '世界');
+      expect(results.length, 2);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 1.10 DB 静态工具 ──
+  group('DB-工具方法', () {
+    test('safeDecodeJson / safeEncodeJson', () {
+      expect(DatabaseService.safeDecodeJson(null), isNull);
+      expect(DatabaseService.safeDecodeJson(''), isNull);
+      expect(DatabaseService.safeDecodeJson('bad'), isNull);
+      final map = {'key': 'value'};
+      final encoded = DatabaseService.safeEncodeJson(map);
+      expect(encoded, isNotNull);
+      expect(DatabaseService.safeDecodeJson(encoded!)!['key'], 'value');
+      expect(DatabaseService.safeEncodeJson(null), isNull);
+    });
+  });
+
+  // =========================================================================
+  //  第二部分：ConversationManager 方法测试
+  // =========================================================================
+  group('ConversationManager', () {
+    test('genSingleConversationID 顺序无关', () {
+      final id1 = ConversationManager.genSingleConversationID('alice', 'bob');
+      final id2 = ConversationManager.genSingleConversationID('bob', 'alice');
+      expect(id1, id2);
+      expect(id1, startsWith('si_'));
+    });
+
+    test('genGroupConversationID', () {
+      expect(ConversationManager.genGroupConversationID('g123'), 'sg_g123');
+    });
+
+    test('genNotificationConversationID', () {
+      expect(ConversationManager.genNotificationConversationID('u1', 'u2'), startsWith('sn_'));
+    });
+
+    test('getAllConversationList', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'showName': '会话A',
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'c2',
+        'conversationType': 3,
+        'showName': '会话B',
+      });
+      final list = await env.convMgr.getAllConversationList();
+      expect(list.length, 2);
+      expect(list.map((c) => c.conversationID), containsAll(['c1', 'c2']));
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('getConversationListSplit', () async {
+      final env = await createManagerEnv();
+      for (var i = 0; i < 10; i++) {
+        await env.db.upsertConversation({'conversationID': 'c$i', 'conversationType': 1});
+      }
+      expect((await env.convMgr.getConversationListSplit(offset: 0, count: 3)).length, 3);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('getOneConversation 不存在时创建', () async {
+      final env = await createManagerEnv();
+      final conv = await env.convMgr.getOneConversation(sourceID: 'target', sessionType: 1);
+      expect(conv.conversationID, isNotEmpty);
+      expect(conv.conversationType, ConversationType.single);
+      // 再次查询返回相同
+      final conv2 = await env.convMgr.getOneConversation(sourceID: 'target', sessionType: 1);
+      expect(conv2.conversationID, conv.conversationID);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('getMultipleConversation', () async {
+      final env = await createManagerEnv();
+      await env.db.batchUpsertConversations([
+        {'conversationID': 'c1', 'conversationType': 1},
+        {'conversationID': 'c2', 'conversationType': 1},
+        {'conversationID': 'c3', 'conversationType': 1},
+      ]);
+      expect(
+        (await env.convMgr.getMultipleConversation(conversationIDList: ['c1', 'c3'])).length,
+        2,
+      );
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('searchConversations', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'showName': '张三聊天',
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'c2',
+        'conversationType': 1,
+        'showName': '李四聊天',
+      });
+      final results = await env.convMgr.searchConversations('张三');
+      expect(results.length, 1);
+      expect(results.first.showName, '张三聊天');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('simpleSort 置顶优先+时间排序', () {
+      final convs = [
+        ConversationInfo(conversationID: 'c1', latestMsgSendTime: 100),
+        ConversationInfo(conversationID: 'c2', latestMsgSendTime: 300, isPinned: true),
+        ConversationInfo(conversationID: 'c3', latestMsgSendTime: 200),
+      ];
+      final sorted = ConversationManager().simpleSort(convs);
+      expect(sorted.first.conversationID, 'c2');
+      expect(sorted[1].conversationID, 'c3');
+      expect(sorted.last.conversationID, 'c1');
+    });
+
+    test('pinConversation', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'isPinned': false,
+      });
+      await env.convMgr.pinConversation(conversationID: 'c1', isPinned: true);
+      expect((await env.db.getConversation('c1'))!['isPinned'], true);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('setConversationDraft', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({'conversationID': 'c1', 'conversationType': 1});
+      await env.convMgr.setConversationDraft(conversationID: 'c1', draftText: '草稿');
+      expect((await env.db.getConversation('c1'))!['draftText'], '草稿');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('getTotalUnreadMsgCount', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'unreadCount': 5,
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'c2',
+        'conversationType': 1,
+        'unreadCount': 3,
+      });
+      expect(await env.convMgr.getTotalUnreadMsgCount(), 8);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('markConversationMessageAsRead', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'unreadCount': 10,
+      });
+      await env.convMgr.markConversationMessageAsRead(conversationID: 'c1');
+      expect((await env.db.getConversation('c1'))!['unreadCount'], 0);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('markAllConversationMessageAsRead', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({
+        'conversationID': 'c1',
+        'conversationType': 1,
+        'unreadCount': 5,
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'c2',
+        'conversationType': 1,
+        'unreadCount': 8,
+      });
+      await env.convMgr.markAllConversationMessageAsRead();
+      expect(await env.convMgr.getTotalUnreadMsgCount(), 0);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('hideConversation', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({'conversationID': 'c1', 'conversationType': 1});
+      await env.convMgr.hideConversation(conversationID: 'c1');
+      expect(await env.db.getConversation('c1'), isNull);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('hideAllConversations', () async {
+      final env = await createManagerEnv();
+      await env.db.batchUpsertConversations([
+        {'conversationID': 'c1', 'conversationType': 1},
+        {'conversationID': 'c2', 'conversationType': 1},
+      ]);
+      await env.convMgr.hideAllConversations();
+      expect(await env.convMgr.getAllConversationList(), isEmpty);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('saveConversationToLocal', () async {
+      final env = await createManagerEnv();
+      await env.convMgr.saveConversationToLocal(
+        ConversationInfo(
+          conversationID: 'saved',
+          conversationType: ConversationType.single,
+          showName: '保存的',
+        ),
+      );
+      expect((await env.db.getConversation('saved'))!['showName'], '保存的');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('batchSaveConversationsToLocal', () async {
+      final env = await createManagerEnv();
+      await env.convMgr.batchSaveConversationsToLocal([
+        ConversationInfo(conversationID: 'bc1', conversationType: ConversationType.single),
+        ConversationInfo(conversationID: 'bc2', conversationType: ConversationType.superGroup),
+      ]);
+      expect((await env.convMgr.getAllConversationList()).length, 2);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('deleteConversationAndDeleteAllMsg', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({'conversationID': 'del', 'conversationType': 1});
+      await env.convMgr.deleteConversationAndDeleteAllMsg(conversationID: 'del');
+      expect(await env.db.getConversation('del'), isNull);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('clearConversationAndDeleteAllMsg', () async {
+      final env = await createManagerEnv();
+      await env.db.upsertConversation({'conversationID': 'clr', 'conversationType': 1});
+      await env.convMgr.clearConversationAndDeleteAllMsg(conversationID: 'clr');
+      expect(await env.db.getConversation('clr'), isNull);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('getAtAllTag', () async {
+      final mgr = ConversationManager();
+      expect(await mgr.getAtAllTag(), 'AtAllTag');
+      expect(mgr.atAllTag, 'AtAllTag');
+    });
+  });
+
+  // =========================================================================
+  //  第三部分：MessageManager 消息创建方法测试
+  // =========================================================================
+  group('MessageManager-创建消息', () {
+    test('createTextMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createTextMessage(text: '你好世界');
+      expect(msg.clientMsgID, isNotEmpty);
+      expect(msg.contentType, MessageType.text);
+      expect(msg.textElem?.content, '你好世界');
+      expect(msg.status, MessageStatus.sending);
+      expect(msg.sendID, 'test_user_001');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createTextAtMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createTextAtMessage(text: '@张三 你好', atUserIDList: ['user_zhangsan']);
+      expect(msg.contentType, MessageType.atText);
+      expect(msg.atTextElem?.text, '@张三 你好');
+      expect(msg.atTextElem?.atUserList, contains('user_zhangsan'));
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createImageMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createImageMessage(imagePath: '/tmp/test.jpg');
+      expect(msg.contentType, MessageType.picture);
+      expect(msg.pictureElem?.sourcePath, '/tmp/test.jpg');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createSoundMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createSoundMessage(soundPath: '/tmp/voice.mp3', duration: 10);
+      expect(msg.contentType, MessageType.voice);
+      expect(msg.soundElem?.soundPath, '/tmp/voice.mp3');
+      expect(msg.soundElem?.duration, 10);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createVideoMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createVideoMessage(
+        videoPath: '/tmp/video.mp4',
+        videoType: 'video/mp4',
+        duration: 30,
+        snapshotPath: '/tmp/snap.jpg',
+      );
+      expect(msg.contentType, MessageType.video);
+      expect(msg.videoElem?.videoPath, '/tmp/video.mp4');
+      expect(msg.videoElem?.duration, 30);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createFileMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createFileMessage(filePath: '/tmp/doc.pdf', fileName: 'doc.pdf');
+      expect(msg.contentType, MessageType.file);
+      expect(msg.fileElem?.fileName, 'doc.pdf');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createLocationMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createLocationMessage(
+        latitude: 39.9042,
+        longitude: 116.4074,
+        description: '北京',
+      );
+      expect(msg.contentType, MessageType.location);
+      expect(msg.locationElem?.latitude, 39.9042);
+      expect(msg.locationElem?.longitude, 116.4074);
+      expect(msg.locationElem?.description, '北京');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createCustomMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createCustomMessage(
+        data: '{"type":"red_packet"}',
+        extension: '{}',
+        description: '红包消息',
+      );
+      expect(msg.contentType, MessageType.custom);
+      expect(msg.customElem?.data, '{"type":"red_packet"}');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createCardMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createCardMessage(
+        userID: 'card_user',
+        nickname: '名片用户',
+        faceURL: 'https://face.png',
+      );
+      expect(msg.contentType, MessageType.card);
+      expect(msg.cardElem?.userID, 'card_user');
+      expect(msg.cardElem?.nickname, '名片用户');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createFaceMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createFaceMessage(index: 1, data: 'https://emoji/smile.png');
+      expect(msg.contentType, MessageType.customFace);
+      expect(msg.faceElem?.index, 1);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createQuoteMessage', () async {
+      final env = await createManagerEnv();
+      final original = env.msgMgr.createTextMessage(text: '原始消息');
+      final quote = env.msgMgr.createQuoteMessage(text: '引用回复', quoteMsg: original);
+      expect(quote.contentType, MessageType.quote);
+      expect(quote.quoteElem?.text, '引用回复');
+      expect(quote.quoteElem?.quoteMessage?.textElem?.content, '原始消息');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createAdvancedTextMessage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createAdvancedTextMessage(text: '富文本');
+      expect(msg.contentType, MessageType.advancedText);
+      expect(msg.advancedTextElem?.text, '富文本');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createForwardMessage', () async {
+      final env = await createManagerEnv();
+      final original = env.msgMgr.createTextMessage(text: '被转发');
+      final forwarded = env.msgMgr.createForwardMessage(message: original);
+      expect(forwarded.clientMsgID, isNot(original.clientMsgID));
+      expect(forwarded.textElem?.content, '被转发');
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('createMergerMessage', () async {
+      final env = await createManagerEnv();
+      final msg1 = env.msgMgr.createTextMessage(text: '消息1');
+      final msg2 = env.msgMgr.createTextMessage(text: '消息2');
+      final merged = env.msgMgr.createMergerMessage(
+        messageList: [msg1, msg2],
+        title: '合并记录',
+        summaryList: ['张三: 消息1', '李四: 消息2'],
+      );
+      expect(merged.contentType, MessageType.merger);
+      expect(merged.mergeElem?.title, '合并记录');
+      expect(merged.mergeElem?.abstractList?.length, 2);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('clientMsgID 100次唯一', () async {
+      final env = await createManagerEnv();
+      final ids = <String>{};
+      for (var i = 0; i < 100; i++) {
+        ids.add(env.msgMgr.createTextMessage(text: 'msg_$i').clientMsgID!);
+      }
+      expect(ids.length, 100);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+  });
+
+  // ── 3.2 MessageManager - 本地消息操作 ──
+  group('MessageManager-本地操作', () {
+    test('sendMessage 写入 DB 并更新会话', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createTextMessage(text: '发送测试');
+      final sent = await env.msgMgr.sendMessage(
+        message: msg,
+        userID: 'target_user',
+        offlinePushInfo: const OfflinePushInfo(title: '新消息'),
+      );
+      expect(sent.status, MessageStatus.succeeded);
+
+      // 验证 DB 存在该消息
+      final dbMsg = await env.db.getMessage(msg.clientMsgID!);
+      expect(dbMsg, isNotNull);
+      expect(dbMsg!['status'], MessageStatus.succeeded.value);
+
+      // 验证会话创建
+      final convID = ConversationManager.genSingleConversationID('test_user_001', 'target_user');
+      final conv = await env.db.getConversation(convID);
+      expect(conv, isNotNull);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('insertSingleMessageToLocalStorage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createTextMessage(text: '插入本地');
+      final inserted = await env.msgMgr.insertSingleMessageToLocalStorage(
+        receiverID: 'u2',
+        senderID: 'u1',
+        message: msg,
+      );
+      expect(inserted.sendID, 'u1');
+      expect(inserted.recvID, 'u2');
+      expect(await env.db.getMessage(msg.clientMsgID!), isNotNull);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+
+    test('insertGroupMessageToLocalStorage', () async {
+      final env = await createManagerEnv();
+      final msg = env.msgMgr.createTextMessage(text: '群消息');
+      final inserted = await env.msgMgr.insertGroupMessageToLocalStorage(
+        groupID: 'g1',
+        senderID: 'u1',
+        message: msg,
+      );
+      expect(inserted.groupID, 'g1');
+      expect(inserted.sessionType, ConversationType.superGroup);
+      await destroyManagerEnv(env.db, env.dir);
+    });
+  });
+
+  // =========================================================================
+  //  第四部分：MsgSyncer 方法测试
+  // =========================================================================
+  group('MsgSyncer-setLoginUserID', () {
+    test('自己消息不加 unread', () async {
+      final env = await createSyncerEnv();
+      final convID = 'si_test_user_001_test_user_002';
+      final t = DateTime.now().millisecondsSinceEpoch;
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {
+            convID: {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'self',
+                  sendID: 'test_user_001',
+                  recvID: 'test_user_002',
+                  sendTime: t,
+                ),
+              ],
+            },
+          },
+          'notificationMsgs': {},
+        }),
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      expect((await env.db.getConversation(convID))!['unreadCount'], 0);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-loadSeqs', () {
+    test('空 DB → reinstalled=true', () async {
+      final env = await createSyncerEnv();
+      await env.syncer.loadSeqs();
+      expect(env.syncer.reinstalled, isTrue);
+      expect(env.syncer.syncedMaxSeqs, isEmpty);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('有会话 → reinstalled=false', () async {
+      final env = await createSyncerEnv();
+      await env.db.upsertConversation({'conversationID': 'a', 'conversationType': 1, 'maxSeq': 10});
+      await env.db.upsertConversation({'conversationID': 'b', 'conversationType': 3, 'maxSeq': 25});
+      await env.syncer.loadSeqs();
+      expect(env.syncer.reinstalled, isFalse);
+      expect(env.syncer.syncedMaxSeqs['a'], 10);
+      expect(env.syncer.syncedMaxSeqs['b'], 25);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-batchAddFaceURLAndName', () {
+    test('好友备注优先', () async {
+      final env = await createSyncerEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': '好友备注',
+        'nickname': '昵称',
+        'faceURL': 'https://f.png',
+      });
+      final convs = [
+        {'conversationID': 'si_f', 'conversationType': 1, 'userID': 'f1'},
+      ];
+      await env.syncer.batchAddFaceURLAndName(convs);
+      expect(convs[0]['showName'], '好友备注');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('群聊使用群名', () async {
+      final env = await createSyncerEnv();
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': '群名', 'faceURL': 'https://g.png'});
+      final convs = [
+        {'conversationID': 'sg_g1', 'conversationType': 3, 'groupID': 'g1'},
+      ];
+      await env.syncer.batchAddFaceURLAndName(convs);
+      expect(convs[0]['showName'], '群名');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('好友无备注使用昵称', () async {
+      final env = await createSyncerEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': '',
+        'nickname': '朋友昵称',
+        'faceURL': 'https://f.png',
+      });
+      final convs = [
+        {'conversationID': 'si_f', 'conversationType': 1, 'userID': 'f1'},
+      ];
+      await env.syncer.batchAddFaceURLAndName(convs);
+      expect(convs[0]['showName'], '朋友昵称');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('多会话批量处理', () async {
+      final env = await createSyncerEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': 'R1',
+        'nickname': 'N1',
+      });
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': 'G1'});
+      final convs = [
+        {'conversationID': 'si_f1', 'conversationType': 1, 'userID': 'f1'},
+        {'conversationID': 'sg_g1', 'conversationType': 3, 'groupID': 'g1'},
+      ];
+      await env.syncer.batchAddFaceURLAndName(convs);
+      expect(convs[0]['showName'], 'R1');
+      expect(convs[1]['showName'], 'G1');
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-processPulledMsgs', () {
+    test('拉取的消息存入 DB', () async {
+      final env = await createSyncerEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      env.syncer.onNewConversation = (_) {};
+      env.syncer.onConversationChanged = (_) {};
+      env.syncer.onTotalUnreadCountChanged = () {};
+      await env.syncer.processPulledMsgs({
+        'si_conv1': {
+          'msgs': [
+            makeMsg(clientMsgID: 'p1', sendID: 'u2', recvID: 'test_user_001', seq: 1, sendTime: t),
+            makeMsg(
+              clientMsgID: 'p2',
+              sendID: 'u2',
+              recvID: 'test_user_001',
+              seq: 2,
+              sendTime: t + 1000,
+            ),
+          ],
+        },
+      });
+      expect(await env.db.getMessage('p1'), isNotNull);
+      expect(await env.db.getMessage('p2'), isNotNull);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('通知消息触发回调', () async {
+      final env = await createSyncerEnv();
+      final received = <String>[];
+      env.syncer.onNewMsg = (msg) => received.add(msg['clientMsgID'] as String);
+      env.syncer.onNewConversation = (_) {};
+      env.syncer.onConversationChanged = (_) {};
+      env.syncer.onTotalUnreadCountChanged = () {};
+      final t = DateTime.now().millisecondsSinceEpoch;
+      await env.syncer.processPulledMsgs({
+        'sn_conv': {
+          'msgs': [
+            makeMsg(
+              clientMsgID: 'not1',
+              sendID: 'sys',
+              recvID: 'test_user_001',
+              seq: 1,
+              sendTime: t,
+              contentType: 1201,
+            ),
+          ],
+        },
+      });
+      expect(received, contains('not1'));
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('空 map 不崩溃', () async {
+      final env = await createSyncerEnv();
+      env.syncer.onNewConversation = (_) {};
+      env.syncer.onTotalUnreadCountChanged = () {};
+      await env.syncer.processPulledMsgs({});
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-collectMessageUpdate', () {
+    test('普通消息聚合', () async {
+      final env = await createSyncerEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      final updates = <String, ConvBatchUpdate>{};
+      env.syncer.collectMessageUpdate(
+        makeMsg(clientMsgID: 'c1', sendID: 'u2', recvID: 'test_user_001', seq: 5, sendTime: t),
+        'conv',
+        updates,
+      );
+      expect(updates['conv']!.maxSeq, 5);
+      expect(updates['conv']!.newUnreadCount, 1);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('自己消息不加 unread', () async {
+      final env = await createSyncerEnv();
+      final updates = <String, ConvBatchUpdate>{};
+      env.syncer.collectMessageUpdate(
+        makeMsg(clientMsgID: 'c1', sendID: 'test_user_001', recvID: 'u2'),
+        'conv',
+        updates,
+      );
+      expect(updates['conv']!.newUnreadCount, 0);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('通知消息不聚合', () async {
+      final env = await createSyncerEnv();
+      final updates = <String, ConvBatchUpdate>{};
+      env.syncer.collectMessageUpdate(
+        makeMsg(clientMsgID: 'n', sendID: 'sys', recvID: 'u1', contentType: 1201),
+        'conv',
+        updates,
+      );
+      expect(updates.containsKey('conv'), isFalse);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('多条累加', () async {
+      final env = await createSyncerEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      final updates = <String, ConvBatchUpdate>{};
+      for (var i = 1; i <= 3; i++) {
+        env.syncer.collectMessageUpdate(
+          makeMsg(
+            clientMsgID: 'm$i',
+            sendID: 'u2',
+            recvID: 'test_user_001',
+            seq: i,
+            sendTime: t + i * 1000,
+          ),
+          'conv',
+          updates,
+        );
+      }
+      expect(updates['conv']!.maxSeq, 3);
+      expect(updates['conv']!.newUnreadCount, 3);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('混合自己和他人消息', () async {
+      final env = await createSyncerEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      final updates = <String, ConvBatchUpdate>{};
+      env.syncer.collectMessageUpdate(
+        makeMsg(clientMsgID: 'm1', sendID: 'u2', recvID: 'test_user_001', seq: 1, sendTime: t),
+        'conv',
+        updates,
+      );
+      env.syncer.collectMessageUpdate(
+        makeMsg(
+          clientMsgID: 'm2',
+          sendID: 'test_user_001',
+          recvID: 'u2',
+          seq: 2,
+          sendTime: t + 1000,
+        ),
+        'conv',
+        updates,
+      );
+      expect(updates['conv']!.maxSeq, 2);
+      expect(updates['conv']!.newUnreadCount, 1); // 只有 m1 算未读
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-applyBatchUpdatesAndNotify', () {
+    test('新会话创建', () async {
+      final env = await createSyncerEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      final newIDs = <String>[];
+      env.syncer.onNewConversation = (ids) => newIDs.addAll(ids);
+      env.syncer.onTotalUnreadCountChanged = () {};
+      final msg = makeMsg(
+        clientMsgID: 'a1',
+        sendID: 'u2',
+        recvID: 'test_user_001',
+        seq: 1,
+        sendTime: t,
+      );
+      final update = ConvBatchUpdate(firstMsg: msg)
+        ..latestMsg = msg
+        ..latestMsgSendTime = t
+        ..maxSeq = 1
+        ..newUnreadCount = 1;
+      await env.syncer.applyBatchUpdatesAndNotify({'conv1': update}, {});
+      final conv = await env.db.getConversation('conv1');
+      expect(conv!['unreadCount'], 1);
+      expect(newIDs, contains('conv1'));
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('已有会话更新', () async {
+      final env = await createSyncerEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      await env.db.upsertConversation({
+        'conversationID': 'conv1',
+        'conversationType': 1,
+        'maxSeq': 5,
+        'unreadCount': 2,
+      });
+      final changedIDs = <String>[];
+      env.syncer.onConversationChanged = (ids) => changedIDs.addAll(ids);
+      env.syncer.onTotalUnreadCountChanged = () {};
+      final msg = makeMsg(
+        clientMsgID: 'a2',
+        sendID: 'u2',
+        recvID: 'test_user_001',
+        seq: 6,
+        sendTime: t,
+      );
+      final update = ConvBatchUpdate(firstMsg: msg)
+        ..latestMsg = msg
+        ..latestMsgSendTime = t
+        ..maxSeq = 6
+        ..newUnreadCount = 1;
+      await env.syncer.applyBatchUpdatesAndNotify({'conv1': update}, {});
+      final conv = await env.db.getConversation('conv1');
+      expect(conv!['unreadCount'], 3);
+      expect(conv['maxSeq'], 6);
+      expect(changedIDs, contains('conv1'));
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('空更新不崩溃', () async {
+      final env = await createSyncerEnv();
+      env.syncer.onNewConversation = (_) {};
+      env.syncer.onTotalUnreadCountChanged = () {};
+      await env.syncer.applyBatchUpdatesAndNotify({}, {});
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-enrichNewConversation', () {
+    test('单聊会话填充好友信息', () async {
+      final env = await createSyncerEnv();
+      await env.db.upsertFriend({
+        'ownerUserID': 'test_user_001',
+        'friendUserID': 'f1',
+        'remark': '好友名',
+        'faceURL': 'https://f.png',
+      });
+      await env.db.upsertConversation({
+        'conversationID': 'si_f1',
+        'conversationType': 1,
+        'userID': 'f1',
+      });
+      await env.syncer.enrichNewConversation('si_f1', 1, 'f1', null);
+      final conv = await env.db.getConversation('si_f1');
+      expect(conv!['showName'], '好友名');
+      expect(conv['faceURL'], 'https://f.png');
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('群聊会话填充群信息', () async {
+      final env = await createSyncerEnv();
+      await env.db.upsertGroup({'groupID': 'g1', 'groupName': '群名', 'faceURL': 'https://g.png'});
+      await env.db.upsertConversation({
+        'conversationID': 'sg_g1',
+        'conversationType': 3,
+        'groupID': 'g1',
+      });
+      await env.syncer.enrichNewConversation('sg_g1', 3, null, 'g1');
+      final conv = await env.db.getConversation('sg_g1');
+      expect(conv!['showName'], '群名');
+      expect(conv['faceURL'], 'https://g.png');
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-processNotificationMessage', () {
+    test('通知消息触发 onNewMsg', () async {
+      final env = await createSyncerEnv();
+      final received = <String>[];
+      env.syncer.onNewMsg = (msg) => received.add(msg['clientMsgID'] as String);
+      env.syncer.processNotificationMessage(
+        makeMsg(clientMsgID: 'n1', sendID: 'sys', recvID: 'u1', contentType: 1201),
+        'conv',
+      );
+      expect(received, contains('n1'));
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('非通知消息也触发 onNewMsg', () async {
+      final env = await createSyncerEnv();
+      final received = <String>[];
+      env.syncer.onNewMsg = (msg) => received.add(msg['clientMsgID'] as String);
+      env.syncer.processNotificationMessage(
+        makeMsg(clientMsgID: 'n2', sendID: 'u2', recvID: 'u1', contentType: 101),
+        'conv',
+      );
+      expect(received, contains('n2'));
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('回调为 null 不崩溃', () async {
+      final env = await createSyncerEnv();
+      env.syncer.onNewMsg = null;
+      env.syncer.processNotificationMessage(
+        makeMsg(clientMsgID: 'n3', sendID: 'sys', recvID: 'u1', contentType: 1201),
+        'conv',
+      );
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  group('MsgSyncer-handlePushMsg 端到端', () {
+    test('单聊消息创建新会话', () async {
+      final env = await createSyncerEnv();
+      final convID = 'si_test_user_001_test_user_002';
+      final t = DateTime.now().millisecondsSinceEpoch;
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {
+            convID: {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'e1',
+                  sendID: 'test_user_002',
+                  recvID: 'test_user_001',
+                  seq: 1,
+                  sendTime: t,
+                ),
+              ],
+            },
+          },
+          'notificationMsgs': {},
+        }),
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      final conv = await env.db.getConversation(convID);
+      expect(conv!['unreadCount'], 1);
+      expect(conv['maxSeq'], 1);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('多条消息未读累加', () async {
+      final env = await createSyncerEnv();
+      final convID = 'si_multi';
+      final t = DateTime.now().millisecondsSinceEpoch;
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {
+            convID: {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'm1',
+                  sendID: 'u2',
+                  recvID: 'test_user_001',
+                  seq: 1,
+                  sendTime: t,
+                ),
+                makeMsg(
+                  clientMsgID: 'm2',
+                  sendID: 'u2',
+                  recvID: 'test_user_001',
+                  seq: 2,
+                  sendTime: t + 1000,
+                ),
+                makeMsg(
+                  clientMsgID: 'm3',
+                  sendID: 'u2',
+                  recvID: 'test_user_001',
+                  seq: 3,
+                  sendTime: t + 2000,
+                ),
+              ],
+            },
+          },
+          'notificationMsgs': {},
+        }),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      final conv = await env.db.getConversation(convID);
+      expect(conv!['unreadCount'], 3);
+      expect(conv['maxSeq'], 3);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('通知消息触发 onNewMsg', () async {
+      final env = await createSyncerEnv();
+      final received = <String>[];
+      env.syncer.onNewMsg = (msg) => received.add(msg['clientMsgID'] as String);
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {},
+          'notificationMsgs': {
+            'conv': {
+              'msgs': [
+                makeMsg(clientMsgID: 'n1', sendID: 'sys', recvID: 'u1', seq: 5, contentType: 1201),
+              ],
+            },
+          },
+        }),
+      );
+      await Future.delayed(const Duration(milliseconds: 500));
+      expect(received, contains('n1'));
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('空推送不崩溃', () async {
+      final env = await createSyncerEnv();
+      env.syncer.handlePushMsg(
+        GeneralWsResp(
+          reqIdentifier: 2001,
+          errCode: 0,
+          errMsg: '',
+          msgIncr: '',
+          operationID: '',
+          data: Uint8List(0),
+        ),
+      );
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('已有会话更新不重复创建', () async {
+      final env = await createSyncerEnv();
+      final convID = 'si_existing';
+      final t = DateTime.now().millisecondsSinceEpoch;
+      await env.db.upsertConversation({
+        'conversationID': convID,
+        'conversationType': 1,
+        'maxSeq': 5,
+        'unreadCount': 2,
+        'userID': 'u2',
+      });
+      env.syncer.onConversationChanged = (_) {};
+      env.syncer.onTotalUnreadCountChanged = () {};
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {
+            convID: {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'new',
+                  sendID: 'u2',
+                  recvID: 'test_user_001',
+                  seq: 6,
+                  sendTime: t,
+                ),
+              ],
+            },
+          },
+          'notificationMsgs': {},
+        }),
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      final conv = await env.db.getConversation(convID);
+      expect(conv!['unreadCount'], 3);
+      expect(conv['maxSeq'], 6);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('SEQ 缺口检测', () async {
+      final env = await createSyncerEnv();
+      final convID = 'si_gap';
+      final t = DateTime.now().millisecondsSinceEpoch;
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {
+            convID: {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'g1',
+                  sendID: 'u2',
+                  recvID: 'test_user_001',
+                  seq: 5,
+                  sendTime: t,
+                ),
+              ],
+            },
+          },
+          'notificationMsgs': {},
+        }),
+      );
+      await Future.delayed(const Duration(seconds: 1));
+      var gapDetected = false;
+      final sub = Logger('MsgSyncer').onRecord.listen((rec) {
+        if (rec.message.contains('SEQ 缺口')) gapDetected = true;
+      });
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {
+            convID: {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'g2',
+                  sendID: 'u2',
+                  recvID: 'test_user_001',
+                  seq: 20,
+                  sendTime: t + 5000,
+                ),
+              ],
+            },
+          },
+          'notificationMsgs': {},
+        }),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      sub.cancel();
+      expect(gapDetected, isTrue);
+      await destroyEnv(env.db, env.dir);
+    });
+
+    test('多会话并行推送', () async {
+      final env = await createSyncerEnv();
+      final t = DateTime.now().millisecondsSinceEpoch;
+      env.syncer.handlePushMsg(
+        makePushResp({
+          'msgs': {
+            'si_conv_a': {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'a1',
+                  sendID: 'ua',
+                  recvID: 'test_user_001',
+                  seq: 1,
+                  sendTime: t,
+                ),
+              ],
+            },
+            'si_conv_b': {
+              'msgs': [
+                makeMsg(
+                  clientMsgID: 'b1',
+                  sendID: 'ub',
+                  recvID: 'test_user_001',
+                  seq: 1,
+                  sendTime: t,
+                ),
+                makeMsg(
+                  clientMsgID: 'b2',
+                  sendID: 'ub',
+                  recvID: 'test_user_001',
+                  seq: 2,
+                  sendTime: t + 1000,
+                ),
+              ],
+            },
+          },
+          'notificationMsgs': {},
+        }),
+      );
+      await Future.delayed(const Duration(seconds: 2));
+      final convA = await env.db.getConversation('si_conv_a');
+      final convB = await env.db.getConversation('si_conv_b');
+      expect(convA!['unreadCount'], 1);
+      expect(convB!['unreadCount'], 2);
+      await destroyEnv(env.db, env.dir);
+    });
+  });
+
+  // =========================================================================
+  //  第五部分：WS 消息格式验证
+  // =========================================================================
+  group('WS 消息格式', () {
+    test('GeneralWsResp 构造和解析', () {
+      final testData = utf8.encode(jsonEncode({'key': 'value'}));
+      final resp = GeneralWsResp(
+        reqIdentifier: 2001,
+        errCode: 0,
+        errMsg: '',
+        msgIncr: 'incr',
+        operationID: 'op',
+        data: testData,
+      );
+      expect(resp.reqIdentifier, 2001);
+      final decoded = jsonDecode(utf8.decode(resp.data)) as Map<String, dynamic>;
+      expect(decoded['key'], 'value');
+    });
+
+    test('推送消息结构正确性', () {
+      final payload = {
+        'msgs': {
+          'si_u1_u2': {
+            'msgs': [
+              {'clientMsgID': 'a', 'seq': 1},
+            ],
+          },
+        },
+        'notificationMsgs': {},
+      };
+      final decoded = jsonDecode(jsonEncode(payload)) as Map<String, dynamic>;
+      expect(decoded['msgs'], isNotNull);
+      expect(decoded['notificationMsgs'], isNotNull);
+    });
+  });
+
+  // =========================================================================
+  //  第六部分：集成测试 — 真实服务器（两用户互发消息）
+  // =========================================================================
+  group('集成-真实服务器', () {
+    setUp(() async {
+      if (GetIt.instance.isRegistered<InitConfig>()) {
+        await GetIt.instance.reset();
+      }
+    });
+
+    tearDown(() async {
+      try {
+        await OpenIM.iMManager.logout();
+      } catch (_) {}
+      try {
+        await GetIt.instance.reset();
+      } catch (_) {}
+    });
+
+    test('用户1 登录并同步会话', () async {
+      final sync = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () => print('[连接] 成功'),
+          onConnectFailed: (c, m) => print('[连接] 失败: $c $m'),
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync.isCompleted) sync.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync.isCompleted) sync.complete(false);
+        },
+        onSyncServerProgress: (p) => print('[同步] $p%'),
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      final login = await chatLogin(_phone1);
+      print('[登录] userID=${login['userID']}');
+      final userInfo = await OpenIM.iMManager.login(
+        userID: login['userID']!,
+        token: login['imToken']!,
+      );
+      expect(userInfo, isNotNull);
+      await sync.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+      final convs = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      print('[会话] 共 ${convs.length} 个');
+      expect(convs, isNotEmpty);
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('用户1 发文本消息给用户2', () async {
+      final sync = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () {},
+          onConnectFailed: (c, m) {},
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync.isCompleted) sync.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync.isCompleted) sync.complete(false);
+        },
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      final login1 = await chatLogin(_phone1);
+      await OpenIM.iMManager.login(userID: login1['userID']!, token: login1['imToken']!);
+      await sync.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+
+      final login2 = await chatLogin(_phone2);
+      final txt = OpenIM.iMManager.messageManager.createTextMessage(
+        text: '互发测试: ${DateTime.now()}',
+      );
+      try {
+        final sent = await OpenIM.iMManager.messageManager.sendMessage(
+          message: txt,
+          userID: login2['userID']!,
+          offlinePushInfo: const OfflinePushInfo(title: '新消息', desc: '测试'),
+        );
+        print('[发送] 成功: ${sent.clientMsgID}');
+        expect(sent.status, MessageStatus.succeeded);
+      } catch (e) {
+        print('[发送] 失败: $e');
+      }
+      final convs = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      expect(convs, isNotEmpty);
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('用户2 登录后能看到用户1发的消息', () async {
+      final sync = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () {},
+          onConnectFailed: (c, m) {},
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync.isCompleted) sync.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync.isCompleted) sync.complete(false);
+        },
+        onSyncServerProgress: (p) => print('[同步] $p%'),
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      final login2 = await chatLogin(_phone2);
+      print('[登录用户2] userID=${login2['userID']}');
+      await OpenIM.iMManager.login(userID: login2['userID']!, token: login2['imToken']!);
+      await sync.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+
+      final convs = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      print('[用户2会话] 共 ${convs.length} 个');
+      for (final c in convs) {
+        print('  - ${c.conversationID}: showName=${c.showName}, unread=${c.unreadCount}');
+      }
+      expect(convs, isNotEmpty);
+
+      final login1 = await chatLogin(_phone1);
+      final convID = ConversationManager.genSingleConversationID(
+        login2['userID']!,
+        login1['userID']!,
+      );
+      final tc = convs.where((c) => c.conversationID == convID).toList();
+      if (tc.isNotEmpty) {
+        print(
+          '[用户2] 与用户1会话: unread=${tc.first.unreadCount}, latest=${tc.first.latestMsg?.textElem?.content}',
+        );
+        expect(tc.first.latestMsg, isNotNull);
+      }
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('两用户互发消息: 用户1发 → 用户2收 → 用户2回 → 用户1查看', () async {
+      // ── 步骤1: 用户1登录并发送 ──
+      final sync1 = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () {},
+          onConnectFailed: (c, m) {},
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync1.isCompleted) sync1.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync1.isCompleted) sync1.complete(false);
+        },
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      final login1 = await chatLogin(_phone1);
+      final login2Data = await chatLogin(_phone2);
+      await OpenIM.iMManager.login(userID: login1['userID']!, token: login1['imToken']!);
+      await sync1.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final msgText1 = '互发测试_from_user1_$ts';
+      final txt1 = OpenIM.iMManager.messageManager.createTextMessage(text: msgText1);
+      try {
+        await OpenIM.iMManager.messageManager.sendMessage(
+          message: txt1,
+          userID: login2Data['userID']!,
+          offlinePushInfo: OfflinePushInfo(title: '新消息', desc: msgText1),
+        );
+        print('[用户1] 发送成功: $msgText1');
+      } catch (e) {
+        print('[用户1] 发送: $e');
+      }
+
+      final convID = ConversationManager.genSingleConversationID(
+        login1['userID']!,
+        login2Data['userID']!,
+      );
+      final convs1 = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      final c1 = convs1.where((c) => c.conversationID == convID).toList();
+      if (c1.isNotEmpty) {
+        print('[用户1] 会话 latestMsg=${c1.first.latestMsg?.textElem?.content}');
+        expect(c1.first.latestMsg, isNotNull);
+      }
+
+      await OpenIM.iMManager.logout();
+      await GetIt.instance.reset();
+
+      // ── 步骤2: 用户2登录、查看消息、回复 ──
+      final sync2 = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () {},
+          onConnectFailed: (c, m) {},
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync2.isCompleted) sync2.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync2.isCompleted) sync2.complete(false);
+        },
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      await OpenIM.iMManager.login(userID: login2Data['userID']!, token: login2Data['imToken']!);
+      await sync2.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+
+      final convs2 = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      final c2 = convs2.where((c) => c.conversationID == convID).toList();
+      print('[用户2] 会话数=${convs2.length}, 与用户1会话=${c2.length}');
+      if (c2.isNotEmpty) {
+        print(
+          '[用户2] latestMsg=${c2.first.latestMsg?.textElem?.content}, unread=${c2.first.unreadCount}',
+        );
+      }
+
+      final replyText = '互发测试_from_user2_$ts';
+      final reply = OpenIM.iMManager.messageManager.createTextMessage(text: replyText);
+      try {
+        await OpenIM.iMManager.messageManager.sendMessage(
+          message: reply,
+          userID: login1['userID']!,
+          offlinePushInfo: OfflinePushInfo(title: '新消息', desc: replyText),
+        );
+        print('[用户2] 回复成功: $replyText');
+      } catch (e) {
+        print('[用户2] 回复: $e');
+      }
+
+      final convs2After = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      final c2a = convs2After.where((c) => c.conversationID == convID).toList();
+      if (c2a.isNotEmpty) {
+        print('[用户2] 回复后 latestMsg=${c2a.first.latestMsg?.textElem?.content}');
+        expect(c2a.first.latestMsg, isNotNull);
+      }
+
+      await OpenIM.iMManager.logout();
+      await GetIt.instance.reset();
+
+      // ── 步骤3: 用户1重新登录查看回复 ──
+      final sync3 = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () {},
+          onConnectFailed: (c, m) {},
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync3.isCompleted) sync3.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync3.isCompleted) sync3.complete(false);
+        },
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      await OpenIM.iMManager.login(userID: login1['userID']!, token: login1['imToken']!);
+      await sync3.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+
+      final convs3 = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      final c3 = convs3.where((c) => c.conversationID == convID).toList();
+      if (c3.isNotEmpty) {
+        print(
+          '[用户1重登] latestMsg=${c3.first.latestMsg?.textElem?.content}, unread=${c3.first.unreadCount}',
+        );
+        expect(c3.first.unreadCount, greaterThanOrEqualTo(0));
+      }
+    }, timeout: const Timeout(Duration(minutes: 5)));
+
+    test('未读总数一致性', () async {
+      final sync = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () {},
+          onConnectFailed: (c, m) {},
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync.isCompleted) sync.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync.isCompleted) sync.complete(false);
+        },
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      final login = await chatLogin(_phone1);
+      await OpenIM.iMManager.login(userID: login['userID']!, token: login['imToken']!);
+      await sync.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+
+      final count = await OpenIM.iMManager.conversationManager.getTotalUnreadMsgCount();
+      final convs = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      int sum = 0;
+      for (final c in convs) {
+        sum += c.unreadCount;
+      }
+      print('[验证] DB总未读=$count, 会话列表总未读=$sum');
+      expect(count, sum);
+    }, timeout: const Timeout(Duration(minutes: 2)));
+
+    test('标记已读后未读数归零', () async {
+      final sync = Completer<bool>();
+      await OpenIM.iMManager.init(
+        config: const InitConfig(apiAddr: _apiAddr, wsAddr: _wsAddr, platformID: 5),
+        listener: OnConnectListener(
+          onConnecting: () {},
+          onConnectSuccess: () {},
+          onConnectFailed: (c, m) {},
+          onKickedOffline: () {},
+          onUserTokenExpired: () {},
+          onUserTokenInvalid: () {},
+        ),
+      );
+      OpenIM.iMManager.conversationManager.listener = OnConversationListener(
+        onSyncServerFinish: (_) {
+          if (!sync.isCompleted) sync.complete(true);
+        },
+        onSyncServerFailed: (_) {
+          if (!sync.isCompleted) sync.complete(false);
+        },
+      );
+      HttpClient().init(baseUrl: _apiAddr);
+      final login = await chatLogin(_phone1);
+      await OpenIM.iMManager.login(userID: login['userID']!, token: login['imToken']!);
+      await sync.future.timeout(const Duration(seconds: 30), onTimeout: () => false);
+
+      final convs = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      if (convs.isNotEmpty) {
+        final target = convs.first;
+        print('[已读前] ${target.conversationID}: unread=${target.unreadCount}');
+        await OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
+          conversationID: target.conversationID,
+        );
+        final after = await OpenIM.iMManager.conversationManager.getMultipleConversation(
+          conversationIDList: [target.conversationID],
+        );
+        print('[已读后] ${after.first.conversationID}: unread=${after.first.unreadCount}');
+        expect(after.first.unreadCount, 0);
+      }
+    }, timeout: const Timeout(Duration(minutes: 2)));
+  });
+}

@@ -70,6 +70,7 @@ sealed class ImApiUrl {
   static const String clearAllMsg = '/msg/user_clear_all_msg';
   static const String getConversationsHasReadAndMaxSeq =
       '/msg/get_conversations_has_read_and_max_seq';
+  static const String pullMsgBySeqs = '/msg/pull_msg_by_seq';
   static const String setConversationHasReadSeq = '/msg/set_conversation_has_read_seq';
   static const String getServerTime = '/msg/get_server_time';
 
