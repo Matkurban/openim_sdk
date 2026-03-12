@@ -229,7 +229,7 @@ class WebSocketService {
   }
 
   void _onMessage(dynamic message) {
-    _log.fine('WebSocket 收到消息: ${message}');
+    _log.fine('WebSocket 收到消息: $message');
 
     if (message is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(message));
