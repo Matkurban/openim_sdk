@@ -19,7 +19,11 @@ include: package:lints/recommended.yaml
 #   rules:
 #     - camel_case_types
 
-# analyzer:
+formatter:
+  page_width: 100
+
+#analyzer:
+
 #   exclude:
 #     - path/to/excluded/files/**
 

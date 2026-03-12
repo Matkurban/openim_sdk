@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
@@ -46,10 +47,6 @@ class WebSocketService {
   static const _pingPeriod = Duration(seconds: 24);
   Timer? _heartbeatTimer;
   DateTime? _lastPong;
-
-  // ---- 连接握手 ----
-  bool _awaitingAuthResponse = false;
-  Completer<void>? _authCompleter;
 
   // ---- 请求/响应异步匹配 ----
   int _msgIncrCounter = 0;
@@ -191,19 +188,7 @@ class WebSocketService {
     try {
       _channel = WebSocketChannel.connect(Uri.parse(url));
       await _channel!.ready;
-
-      // --- 等待服务端连接认证响应（ws_js.go dial 中的第一条消息） ---
-      _awaitingAuthResponse = true;
-      _authCompleter = Completer<void>();
       _startListening();
-
-      // 等待认证消息到达并处理
-      await _authCompleter!.future.timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('等待连接认证响应超时');
-        },
-      );
 
       // 连接成功
       _setStatus(WsConnStatus.connected);
@@ -244,49 +229,12 @@ class WebSocketService {
   }
 
   void _onMessage(dynamic message) {
-    _log.fine('WebSocket 收到消息: ${message.runtimeType}');
-
-    // --- 第一条消息：连接认证响应 ---
-    if (_awaitingAuthResponse) {
-      _awaitingAuthResponse = false;
-      _handleAuthResponse(message);
-      return;
-    }
+    _log.fine('WebSocket 收到消息: ${message}');
 
     if (message is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(message));
     } else if (message is String) {
       _handleTextMessage(message);
-    }
-  }
-
-  /// 处理服务端连接认证响应（对应 ws_js.go dial 中 JSON {errCode,errMsg,errDlt}）
-  void _handleAuthResponse(dynamic message) {
-    try {
-      String jsonStr;
-      if (message is String) {
-        jsonStr = message;
-      } else if (message is List<int>) {
-        jsonStr = utf8.decode(message);
-      } else {
-        _authCompleter?.completeError(StateError('未知的认证响应类型: ${message.runtimeType}'));
-        return;
-      }
-
-      final resp = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final errCode = resp['errCode'] as int? ?? 0;
-      final errMsg = resp['errMsg'] as String? ?? '';
-      final errDlt = resp['errDlt'] as String? ?? '';
-
-      if (errCode != 0) {
-        _log.warning('连接认证失败: errCode=$errCode, errMsg=$errMsg, errDlt=$errDlt');
-        _authCompleter?.completeError(StateError('连接认证失败($errCode): $errMsg $errDlt'));
-      } else {
-        _log.info('连接认证成功');
-        _authCompleter?.complete();
-      }
-    } catch (e) {
-      _authCompleter?.completeError(StateError('解析认证响应失败: $e'));
     }
   }
 
@@ -362,6 +310,12 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _handleBinaryMessage(Uint8List raw) {
+    // 1. 使用 GZipDecoder 解压
+    List<int> decompressedData = gzip.decode(raw);
+
+    // 2. 将解压后的字节转换为字符串
+    String result = utf8.decode(decompressedData);
+    _log.info(result);
     GeneralWsResp resp;
     try {
       resp = _codec.decode(raw);

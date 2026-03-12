@@ -10,10 +10,7 @@ enum SDKErrorCode {
   parameterError(10002, 'Parameter Error'),
 
   /// Context Timeout Error, usually when the user has already logged out
-  contextTimeoutError(
-    10003,
-    'Context Timeout Error, usually when the user has already logged out',
-  ),
+  contextTimeoutError(10003, 'Context Timeout Error, usually when the user has already logged out'),
 
   /// Resources not loaded completely, usually uninitialized or login hasn\'t completed
   resourceNotLoaded(
@@ -25,19 +22,13 @@ enum SDKErrorCode {
   unknownError(10005, 'Unknown Error, check the error message for details'),
 
   /// SDK Internal Error, check the error message for details
-  sdkInternalError(
-    10006,
-    'SDK Internal Error, check the error message for details',
-  ),
+  sdkInternalError(10006, 'SDK Internal Error, check the error message for details'),
 
   /// This user has set not to be added
   refuseToAddFriends(10013, 'This user has set not to be added'),
 
   /// User does not exist or is not registered
-  userNotExistOrNotRegistered(
-    10100,
-    'User does not exist or is not registered',
-  ),
+  userNotExistOrNotRegistered(10100, 'User does not exist or is not registered'),
 
   /// User has already logged out
   userHasLoggedOut(10101, 'User has already logged out'),
@@ -58,10 +49,7 @@ enum SDKErrorCode {
   messageDecodingFailed(10202, 'Message decoding failed'),
 
   /// Unsupported long connection binary protocol
-  unsupportedLongConnection(
-    10203,
-    'Unsupported long connection binary protocol',
-  ),
+  unsupportedLongConnection(10203, 'Unsupported long connection binary protocol'),
 
   /// Message sent multiple times
   messageRepeated(10204, 'Message sent multiple times'),
@@ -79,10 +67,7 @@ enum SDKErrorCode {
   wrongGroupType(10401, 'Group type is incorrect'),
 
   /// Server Internal Error, usually an internal network error, check if server nodes are running correctly
-  serverInternalError(
-    500,
-    'Server Internal Error, usually an internal network error',
-  ),
+  serverInternalError(500, 'Server Internal Error, usually an internal network error'),
 
   /// Parameter Error on the server, check if body and header parameters are correct
   serverParameterError(
@@ -118,10 +103,7 @@ enum SDKErrorCode {
   groupDisbanded(1204, 'Group has been disbanded'),
 
   /// Group application has already been processed, no need to process it again
-  groupApplicationHasBeenProcessed(
-    1206,
-    'Group application has already been processed',
-  ),
+  groupApplicationHasBeenProcessed(1206, 'Group application has already been processed'),
 
   /// Cannot add yourself as a friend
   notAddMyselfAsAFriend(1301, 'Cannot add yourself as a friend'),
@@ -172,10 +154,7 @@ enum SDKErrorCode {
   tokenNotExist(1507, 'Token does not exist'),
 
   /// Number of Connections Exceeds Gateway\'s Maximum Limit
-  connectionsExceedsMaximumLimit(
-    1601,
-    'Number of Connections Exceeds Maximum Limit',
-  ),
+  connectionsExceedsMaximumLimit(1601, 'Number of Connections Exceeds Maximum Limit'),
 
   /// Handshake Parameter Error
   handshakeParameterError(1602, 'Handshake Parameter Error'),

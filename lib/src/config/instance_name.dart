@@ -15,4 +15,7 @@ sealed class InstanceName {
 
   ///数据库 tostore 类
   static const String toStore = '${_baseName}to_store';
+
+  ///日志类
+  static const String logger = '${_baseName}logger';
 }

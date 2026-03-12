@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -18,14 +19,12 @@ import 'package:tostore/tostore.dart';
 class OpenIM {
   OpenIM._();
 
-  static final Logger _log = Logger('OpenIM');
-
   /// 单例
   static final IMManager iMManager = IMManager();
 }
 
 class IMManager {
-  static final Logger _log = Logger('IMManager');
+  static final Logger _log = Logger('openim_sdk');
 
   /// 会话管理
   late ConversationManager conversationManager;
@@ -86,6 +85,7 @@ class IMManager {
     int? platformID,
     required String apiAddr,
     required String wsAddr,
+    required String chatAddr,
     String? dataDir,
     required OnConnectListener listener,
     Level logLevel = .ALL,
@@ -94,13 +94,21 @@ class IMManager {
     final config = InitConfig(
       platformID: platformID,
       apiAddr: apiAddr,
+      chatAddr: chatAddr,
       wsAddr: wsAddr,
       dbPath: dataDir,
       logLevel: logLevel,
     );
     try {
       _connectListener = listener;
+      hierarchicalLoggingEnabled = true;
       Logger.root.level = config.logLevel;
+      Logger.root.onRecord.listen((record) {
+        log(
+          '[${record.level.name}] ${record.time}: ${record.loggerName}: ${record.message}',
+          stackTrace: record.stackTrace,
+        );
+      });
 
       final GetIt getIt = GetIt.instance;
 
@@ -138,10 +146,10 @@ class IMManager {
         instanceName: InstanceName.webSocketService,
       );
 
-      OpenIM._log.info('OpenIM SDK initialized successfully');
+      _log.info('OpenIM SDK initialized successfully');
       return true;
     } catch (e, s) {
-      OpenIM._log.severe(e.toString(), e, s);
+      _log.severe(e.toString(), e, s);
       return false;
     }
   }
@@ -218,6 +226,8 @@ class IMManager {
         await databaseService.insertOrUpdateUser(userData);
         loginUser = UserInfo.fromJson(userData);
         userInfo = loginUser;
+      } else {
+        loginUser = await defaultValue?.call();
       }
     }
     if (loginUser == null) {
@@ -233,7 +243,7 @@ class IMManager {
     );
     await webSocketService.connect(userID: userID, token: token);
 
-    OpenIM._log.info('用户已登录: $userID');
+    _log.info('用户已登录: $userID');
     return loginUser;
   }
 
@@ -257,7 +267,7 @@ class IMManager {
     // 关闭数据库
     await databaseService.close();
 
-    OpenIM._log.info('用户已登出');
+    _log.info('用户已登出');
   }
 
   /// 设置连接监听
