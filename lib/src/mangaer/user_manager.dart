@@ -13,7 +13,8 @@ class UserManager {
 
   ImApiService get _api =>
       GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
-  DatabaseService get _db => GetIt.instance.get<DatabaseService>();
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
 
   /// 用户信息变更监听器
   OnUserListener? listener;
@@ -56,13 +57,13 @@ class UserManager {
   /// 获取用户信息
   /// [userIDList] 用户ID列表
   Future<List<UserInfo>> getUsersInfo({required List<String> userIDList}) async {
-    final dataList = await _db.getUsersByIDs(userIDList);
+    final dataList = await _database.getUsersByIDs(userIDList);
     return dataList.map((d) => UserInfo.fromJson(d)).toList();
   }
 
   /// 获取当前登录用户信息
   Future<UserInfo?> getSelfUserInfo() async {
-    final data = await _db.getLoginUser();
+    final data = await _database.getLoginUser();
     if (data == null) return null;
     return UserInfo.fromJson(data);
   }
@@ -87,9 +88,9 @@ class UserManager {
     if (updateData.isEmpty) return;
 
     // 获取当前用户信息并合并更新
-    final current = await _db.getLoginUser();
+    final current = await _database.getLoginUser();
     if (current != null) {
-      await _db.insertOrUpdateUser({...current, ...updateData});
+      await _database.insertOrUpdateUser({...current, ...updateData});
     }
 
     _log.info('用户信息已更新');
@@ -138,7 +139,7 @@ class UserManager {
   /// 将用户信息保存到本地数据库
   Future<void> saveUserToLocal(UserInfo userInfo) async {
     final data = userInfo.toJson()..removeWhere((_, v) => v == null);
-    await _db.insertOrUpdateUser(data);
+    await _database.insertOrUpdateUser(data);
   }
 
   /// 批量将用户信息保存到本地数据库

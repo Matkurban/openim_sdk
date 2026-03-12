@@ -13,6 +13,7 @@ import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
+import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:tostore/tostore.dart';
 
@@ -106,7 +107,7 @@ class IMManager {
       HttpClient().init(baseUrl: config.apiAddr);
 
       ToStore toStore = await _initDatabase(
-        dbPath: config.dbPath,
+        dbPath: config.dbPath ?? await ImUtils.defaultDbPath(),
         dbName: config.dbName,
         schemas: config.schemas,
       );

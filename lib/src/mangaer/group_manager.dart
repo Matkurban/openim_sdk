@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 
 /// 群组管理器
@@ -9,7 +10,8 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class GroupManager {
   static final Logger _log = Logger('GroupManager');
 
-  DatabaseService get _db => GetIt.instance.get<DatabaseService>();
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
 
   /// 群组监听器
   OnGroupListener? listener;
@@ -28,7 +30,7 @@ class GroupManager {
   Future<List<GroupInfo>> getGroupsInfo({required List<String> groupIDList}) async {
     final results = <GroupInfo>[];
     for (final gid in groupIDList) {
-      final data = await _db.getGroupByID(gid);
+      final data = await _database.getGroupByID(gid);
       if (data != null) {
         results.add(_convertGroupInfo(data));
       }
@@ -38,7 +40,7 @@ class GroupManager {
 
   /// 获取已加入的群组列表
   Future<List<GroupInfo>> getJoinedGroupList() async {
-    final dataList = await _db.getJoinedGroupList();
+    final dataList = await _database.getJoinedGroupList();
     return dataList.map(_convertGroupInfo).toList();
   }
 
@@ -46,14 +48,14 @@ class GroupManager {
   /// [offset] 起始索引
   /// [count] 每页数量
   Future<List<GroupInfo>> getJoinedGroupListPage({int offset = 0, int count = 40}) async {
-    final dataList = await _db.getJoinedGroupListPage(offset, count);
+    final dataList = await _database.getJoinedGroupListPage(offset, count);
     return dataList.map(_convertGroupInfo).toList();
   }
 
   /// 检查是否已加入群组
   /// [groupID] 群组ID
   Future<bool> isJoinedGroup({required String groupID}) async {
-    final data = await _db.getGroupByID(groupID);
+    final data = await _database.getGroupByID(groupID);
     return data != null;
   }
 
@@ -73,7 +75,9 @@ class GroupManager {
     String? ownerUserID,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final gid = groupInfo.groupID.isNotEmpty ? groupInfo.groupID : 'g_${now}_${_db.currentUserID}';
+    final gid = groupInfo.groupID.isNotEmpty
+        ? groupInfo.groupID
+        : 'g_${now}_${_database.currentUserID}';
 
     final data = {
       'groupID': gid,
@@ -81,25 +85,25 @@ class GroupManager {
       'notification': groupInfo.notification,
       'introduction': groupInfo.introduction,
       'faceURL': groupInfo.faceURL,
-      'ownerUserID': ownerUserID ?? _db.currentUserID,
+      'ownerUserID': ownerUserID ?? _database.currentUserID,
       'createTime': now,
       'memberCount': memberUserIDs.length + adminUserIDs.length + 1,
       'status': GroupStatus.normal.value,
-      'creatorUserID': _db.currentUserID,
+      'creatorUserID': _database.currentUserID,
       'groupType': groupInfo.groupType?.value ?? GroupType.work.value,
       'ex': groupInfo.ex,
       'needVerification': groupInfo.needVerification,
       'lookMemberInfo': groupInfo.lookMemberInfo,
       'applyMemberFriend': groupInfo.applyMemberFriend,
       'notificationUpdateTime': now,
-      'notificationUserID': _db.currentUserID,
+      'notificationUserID': _database.currentUserID,
     };
-    await _db.upsertGroup(data);
+    await _database.upsertGroup(data);
 
     // 添加群主
-    await _db.upsertGroupMember({
+    await _database.upsertGroupMember({
       'groupID': gid,
-      'userID': ownerUserID ?? _db.currentUserID,
+      'userID': ownerUserID ?? _database.currentUserID,
       'roleLevel': GroupRoleLevel.owner.value,
       'joinTime': now,
       'joinSource': JoinSource.invited.value,
@@ -107,7 +111,7 @@ class GroupManager {
 
     // 添加管理员
     for (final uid in adminUserIDs) {
-      await _db.upsertGroupMember({
+      await _database.upsertGroupMember({
         'groupID': gid,
         'userID': uid,
         'roleLevel': GroupRoleLevel.admin.value,
@@ -118,7 +122,7 @@ class GroupManager {
 
     // 添加普通成员
     for (final uid in memberUserIDs) {
-      await _db.upsertGroupMember({
+      await _database.upsertGroupMember({
         'groupID': gid,
         'userID': uid,
         'roleLevel': GroupRoleLevel.member.value,
@@ -129,7 +133,7 @@ class GroupManager {
 
     _log.info('群组已创建: $gid');
 
-    final createdData = await _db.getGroupByID(gid);
+    final createdData = await _database.getGroupByID(gid);
     return _convertGroupInfo(createdData ?? data);
   }
 
@@ -137,9 +141,9 @@ class GroupManager {
   /// [groupInfo] 群组信息（只更新非null字段）
   Future<void> setGroupInfo({required GroupInfo groupInfo}) async {
     final updateData = groupInfo.toJson()..removeWhere((_, v) => v == null);
-    final existing = await _db.getGroupByID(groupInfo.groupID);
+    final existing = await _database.getGroupByID(groupInfo.groupID);
     if (existing != null) {
-      await _db.upsertGroup({...existing, ...updateData});
+      await _database.upsertGroup({...existing, ...updateData});
     }
     _log.info('群组信息已更新: ${groupInfo.groupID}');
 
@@ -162,7 +166,7 @@ class GroupManager {
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     for (final uid in userIDList) {
-      await _db.upsertGroupMember({
+      await _database.upsertGroupMember({
         'groupID': groupID,
         'userID': uid,
         'roleLevel': GroupRoleLevel.member.value,
@@ -184,7 +188,7 @@ class GroupManager {
     String? reason,
   }) async {
     for (final uid in userIDList) {
-      await _db.deleteGroupMember(groupID, uid);
+      await _database.deleteGroupMember(groupID, uid);
     }
     _log.info('已从群 $groupID 踢出 ${userIDList.length} 个成员');
     // TODO: 同步到服务器
@@ -199,7 +203,7 @@ class GroupManager {
   }) async {
     final results = <GroupMembersInfo>[];
     for (final uid in userIDList) {
-      final data = await _db.getGroupMember(groupID, uid);
+      final data = await _database.getGroupMember(groupID, uid);
       if (data != null) {
         results.add(_convertGroupMembersInfo(data));
       }
@@ -218,7 +222,7 @@ class GroupManager {
     int offset = 0,
     int count = 40,
   }) async {
-    final dataList = await _db.getGroupMembersPage(
+    final dataList = await _database.getGroupMembersPage(
       groupID,
       filter: filter,
       offset: offset,
@@ -230,7 +234,7 @@ class GroupManager {
   /// 获取群主和管理员列表
   /// [groupID] 群组ID
   Future<List<GroupMembersInfo>> getGroupOwnerAndAdmin({required String groupID}) async {
-    final dataList = await _db.getGroupOwnerAndAdmin(groupID);
+    final dataList = await _database.getGroupOwnerAndAdmin(groupID);
     return dataList.map(_convertGroupMembersInfo).toList();
   }
 
@@ -252,7 +256,7 @@ class GroupManager {
     final keyword = keywordList.isNotEmpty ? keywordList.first : '';
     if (keyword.isEmpty) return [];
 
-    final dataList = await _db.searchGroupMembers(
+    final dataList = await _database.searchGroupMembers(
       groupID,
       keyword,
       searchUserID: isSearchUserID,
@@ -271,7 +275,7 @@ class GroupManager {
     final uid = groupMembersInfo.userID;
     if (gid.isEmpty || uid.isEmpty) return;
 
-    final existing = await _db.getGroupMember(gid, uid);
+    final existing = await _database.getGroupMember(gid, uid);
     if (existing == null) return;
 
     final updateData = <String, dynamic>{...existing};
@@ -280,7 +284,7 @@ class GroupManager {
     if (groupMembersInfo.roleLevel != null) updateData['roleLevel'] = groupMembersInfo.roleLevel;
     if (groupMembersInfo.ex != null) updateData['ex'] = groupMembersInfo.ex;
 
-    await _db.upsertGroupMember(updateData);
+    await _database.upsertGroupMember(updateData);
     _log.info('群成员信息已更新: group=$gid, user=$uid');
 
     // TODO: 同步到服务器
@@ -291,18 +295,18 @@ class GroupManager {
   /// [userID] 新群主用户ID
   Future<void> transferGroupOwner({required String groupID, required String userID}) async {
     // 获取当前群主
-    final ownerList = await _db.getGroupOwnerAndAdmin(groupID);
+    final ownerList = await _database.getGroupOwnerAndAdmin(groupID);
     for (final member in ownerList) {
       if (member['roleLevel'] == GroupRoleLevel.owner.value) {
-        await _db.upsertGroupMember({...member, 'roleLevel': GroupRoleLevel.member.value});
+        await _database.upsertGroupMember({...member, 'roleLevel': GroupRoleLevel.member.value});
         break;
       }
     }
 
     // 设置新群主
-    final newOwner = await _db.getGroupMember(groupID, userID);
+    final newOwner = await _database.getGroupMember(groupID, userID);
     if (newOwner != null) {
-      await _db.upsertGroupMember({...newOwner, 'roleLevel': GroupRoleLevel.owner.value});
+      await _database.upsertGroupMember({...newOwner, 'roleLevel': GroupRoleLevel.owner.value});
     }
 
     _log.info('群主已转让: group=$groupID, newOwner=$userID');
@@ -325,9 +329,9 @@ class GroupManager {
     String? ex,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await _db.upsertGroupRequest({
+    await _database.upsertGroupRequest({
       'groupID': groupID,
-      'userID': _db.currentUserID,
+      'userID': _database.currentUserID,
       'reqMsg': reason ?? '',
       'reqTime': now,
       'handleResult': 0,
@@ -341,8 +345,8 @@ class GroupManager {
   /// 退出群组
   /// [groupID] 群组ID
   Future<void> quitGroup({required String groupID}) async {
-    await _db.deleteGroupMember(groupID, _db.currentUserID);
-    await _db.deleteGroup(groupID);
+    await _database.deleteGroupMember(groupID, _database.currentUserID);
+    await _database.deleteGroup(groupID);
     _log.info('已退出群: $groupID');
     // TODO: 同步到服务器
   }
@@ -350,7 +354,7 @@ class GroupManager {
   /// 解散群组
   /// [groupID] 群组ID
   Future<void> dismissGroup({required String groupID}) async {
-    await _db.deleteGroup(groupID);
+    await _database.deleteGroup(groupID);
     _log.info('群组已解散: $groupID');
 
     listener?.groupDismissed(GroupInfo(groupID: groupID));
@@ -365,9 +369,9 @@ class GroupManager {
   /// [groupID] 群组ID
   /// [mute] true:禁言, false:解除禁言
   Future<void> changeGroupMute({required String groupID, required bool mute}) async {
-    final existing = await _db.getGroupByID(groupID);
+    final existing = await _database.getGroupByID(groupID);
     if (existing != null) {
-      await _db.upsertGroup({
+      await _database.upsertGroup({
         ...existing,
         'status': mute ? GroupStatus.muted.value : GroupStatus.normal.value,
       });
@@ -385,10 +389,10 @@ class GroupManager {
     required String userID,
     int seconds = 0,
   }) async {
-    final member = await _db.getGroupMember(groupID, userID);
+    final member = await _database.getGroupMember(groupID, userID);
     if (member != null) {
       final muteEndTime = seconds > 0 ? DateTime.now().millisecondsSinceEpoch + seconds * 1000 : 0;
-      await _db.upsertGroupMember({...member, 'muteEndTime': muteEndTime});
+      await _database.upsertGroupMember({...member, 'muteEndTime': muteEndTime});
     }
     _log.info('群成员禁言: group=$groupID, user=$userID, seconds=$seconds');
     // TODO: 同步到服务器
@@ -403,7 +407,7 @@ class GroupManager {
   Future<List<GroupApplicationInfo>> getGroupApplicationListAsRecipient({
     GetGroupApplicationListAsRecipientReq? req,
   }) async {
-    final dataList = await _db.getGroupRequestsAsRecipient(
+    final dataList = await _database.getGroupRequestsAsRecipient(
       offset: req?.offset ?? 0,
       count: req?.count ?? 40,
     );
@@ -415,7 +419,7 @@ class GroupManager {
   Future<List<GroupApplicationInfo>> getGroupApplicationListAsApplicant({
     GetGroupApplicationListAsApplicantReq? req,
   }) async {
-    final dataList = await _db.getGroupRequestsAsApplicant(
+    final dataList = await _database.getGroupRequestsAsApplicant(
       offset: req?.offset ?? 0,
       count: req?.count ?? 40,
     );
@@ -432,7 +436,7 @@ class GroupManager {
     String? handleMsg,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await _db.upsertGroupRequest({
+    await _database.upsertGroupRequest({
       'groupID': groupID,
       'userID': userID,
       'handleResult': 1,
@@ -441,7 +445,7 @@ class GroupManager {
     });
 
     // 将申请者添加为群成员
-    await _db.upsertGroupMember({
+    await _database.upsertGroupMember({
       'groupID': groupID,
       'userID': userID,
       'roleLevel': GroupRoleLevel.member.value,
@@ -463,7 +467,7 @@ class GroupManager {
     String? handleMsg,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    await _db.upsertGroupRequest({
+    await _database.upsertGroupRequest({
       'groupID': groupID,
       'userID': userID,
       'handleResult': -1,
@@ -478,7 +482,7 @@ class GroupManager {
   /// 获取未处理的入群申请数量
   /// [req] 查询参数
   Future<int> getGroupApplicationUnhandledCount(GetGroupApplicationUnhandledCountReq req) async {
-    return _db.getGroupRequestUnhandledCount();
+    return _database.getGroupRequestUnhandledCount();
   }
 
   // ---------------------------------------------------------------------------
@@ -497,7 +501,7 @@ class GroupManager {
     final keyword = keywordList.isNotEmpty ? keywordList.first : '';
     if (keyword.isEmpty) return [];
 
-    final dataList = await _db.searchGroups(
+    final dataList = await _database.searchGroups(
       keyword,
       searchGroupID: isSearchGroupID,
       searchGroupName: isSearchGroupName,

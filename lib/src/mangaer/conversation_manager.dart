@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 
 /// 会话管理器
@@ -11,7 +12,8 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class ConversationManager {
   static final Logger _log = Logger('ConversationManager');
 
-  DatabaseService get _db => GetIt.instance.get<DatabaseService>();
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
 
   /// 会话变更监听器
   OnConversationListener? listener;
@@ -33,11 +35,11 @@ class ConversationManager {
     required int sessionType,
   }) async {
     if (sessionType == ConversationType.single.value) {
-      return genSingleConversationID(_db.currentUserID, sourceID);
+      return genSingleConversationID(_database.currentUserID, sourceID);
     } else if (sessionType == ConversationType.superGroup.value) {
       return genGroupConversationID(sourceID);
     } else {
-      return genNotificationConversationID(_db.currentUserID, sourceID);
+      return genNotificationConversationID(_database.currentUserID, sourceID);
     }
   }
 
@@ -70,7 +72,7 @@ class ConversationManager {
 
   /// 获取所有会话列表
   Future<List<ConversationInfo>> getAllConversationList() async {
-    final dataList = await _db.getAllConversations();
+    final dataList = await _database.getAllConversations();
     return _batchConvertConversations(dataList);
   }
 
@@ -78,7 +80,7 @@ class ConversationManager {
   /// [offset] 起始索引
   /// [count] 每页数量
   Future<List<ConversationInfo>> getConversationListSplit({int offset = 0, int count = 20}) async {
-    final dataList = await _db.getConversationsPage(offset, count);
+    final dataList = await _database.getConversationsPage(offset, count);
     return _batchConvertConversations(dataList);
   }
 
@@ -93,7 +95,7 @@ class ConversationManager {
       sourceID: sourceID,
       sessionType: sessionType,
     );
-    final data = await _db.getConversation(conversationID);
+    final data = await _database.getConversation(conversationID);
     if (data != null) {
       return _convertConversation(data);
     }
@@ -105,7 +107,7 @@ class ConversationManager {
       'groupID': sessionType != ConversationType.single.value ? sourceID : null,
       'unreadCount': 0,
     };
-    await _db.upsertConversation(newConv);
+    await _database.upsertConversation(newConv);
     return _convertConversation(newConv);
   }
 
@@ -114,14 +116,14 @@ class ConversationManager {
   Future<List<ConversationInfo>> getMultipleConversation({
     required List<String> conversationIDList,
   }) async {
-    final dataList = await _db.getMultipleConversations(conversationIDList);
+    final dataList = await _database.getMultipleConversations(conversationIDList);
     return _batchConvertConversations(dataList);
   }
 
   /// 搜索会话
   /// [name] 搜索关键字
   Future<List<ConversationInfo>> searchConversations(String name) async {
-    final dataList = await _db.searchConversations(name);
+    final dataList = await _database.searchConversations(name);
     return _batchConvertConversations(dataList);
   }
 
@@ -164,7 +166,7 @@ class ConversationManager {
   }) async {
     final updateData = req.toJson()..removeWhere((_, v) => v == null);
     if (updateData.isNotEmpty) {
-      await _db.updateConversation(conversationID, updateData);
+      await _database.updateConversation(conversationID, updateData);
     }
     _log.info('会话属性已更新: $conversationID');
     await _notifyConversationChanged([conversationID]);
@@ -181,13 +183,13 @@ class ConversationManager {
   /// 隐藏会话
   /// [conversationID] 会话ID
   Future<void> hideConversation({required String conversationID}) async {
-    await _db.deleteConversation(conversationID);
+    await _database.deleteConversation(conversationID);
     _log.info('会话已隐藏: $conversationID');
   }
 
   /// 隐藏所有会话
   Future<void> hideAllConversations() async {
-    await _db.deleteAllConversations();
+    await _database.deleteAllConversations();
     _log.info('所有会话已隐藏');
   }
 
@@ -198,7 +200,7 @@ class ConversationManager {
     required String conversationID,
     required String draftText,
   }) async {
-    await _db.setConversationDraft(conversationID, draftText);
+    await _database.setConversationDraft(conversationID, draftText);
     _log.info('会话草稿已设置: $conversationID');
     await _notifyConversationChanged([conversationID]);
   }
@@ -209,13 +211,13 @@ class ConversationManager {
 
   /// 获取未读消息总数
   Future<int> getTotalUnreadMsgCount() async {
-    return _db.getTotalUnreadCount();
+    return _database.getTotalUnreadCount();
   }
 
   /// 标记会话消息已读
   /// [conversationID] 会话ID
   Future<void> markConversationMessageAsRead({required String conversationID}) async {
-    await _db.clearConversationUnreadCount(conversationID);
+    await _database.clearConversationUnreadCount(conversationID);
     _log.info('会话已标记已读: $conversationID');
 
     final total = await getTotalUnreadMsgCount();
@@ -225,7 +227,7 @@ class ConversationManager {
 
   /// 标记所有会话消息已读
   Future<void> markAllConversationMessageAsRead() async {
-    await _db.clearAllUnreadCounts();
+    await _database.clearAllUnreadCounts();
     _log.info('所有会话已标记已读');
     listener?.totalUnreadMessageCountChanged(0);
   }
@@ -238,7 +240,7 @@ class ConversationManager {
   /// [conversationID] 会话ID
   Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
     await _clearConversationMessages(conversationID);
-    await _db.deleteConversation(conversationID);
+    await _database.deleteConversation(conversationID);
     _log.info('会话及消息已删除: $conversationID');
 
     // TODO: 同步到服务器
@@ -248,7 +250,7 @@ class ConversationManager {
   /// [conversationID] 会话ID
   Future<void> clearConversationAndDeleteAllMsg({required String conversationID}) async {
     await _clearConversationMessages(conversationID);
-    await _db.deleteConversation(conversationID);
+    await _database.deleteConversation(conversationID);
     _log.info('会话及消息已清空: $conversationID');
 
     // TODO: 同步到服务器
@@ -281,13 +283,13 @@ class ConversationManager {
   /// 保存或更新会话到本地
   Future<void> saveConversationToLocal(ConversationInfo conversation) async {
     final data = _conversationToDbMap(conversation);
-    await _db.upsertConversation(data);
+    await _database.upsertConversation(data);
   }
 
   /// 批量保存或更新会话到本地
   Future<void> batchSaveConversationsToLocal(List<ConversationInfo> conversations) async {
     final dataList = conversations.map(_conversationToDbMap).toList();
-    await _db.batchUpsertConversations(dataList);
+    await _database.batchUpsertConversations(dataList);
   }
 
   /// 通知新会话创建
@@ -303,14 +305,14 @@ class ConversationManager {
 
   /// 清空指定会话的所有消息
   Future<void> _clearConversationMessages(String conversationID) async {
-    final conv = await _db.getConversation(conversationID);
+    final conv = await _database.getConversation(conversationID);
     if (conv != null) {
       final sessionType = conv['conversationType'] as int?;
       final groupID = conv['groupID'] as String?;
       final userID = conv['userID'] as String?;
-      await _db.deleteConversationAllMessages(
+      await _database.deleteConversationAllMessages(
         groupID: groupID,
-        sendID: _db.currentUserID,
+        sendID: _database.currentUserID,
         recvID: userID,
         sessionType: sessionType,
       );

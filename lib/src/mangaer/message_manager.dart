@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
@@ -14,7 +15,8 @@ import 'package:openim_sdk/src/utils/platform_utils.dart';
 class MessageManager {
   static final Logger _log = Logger('MessageManager');
 
-  DatabaseService get _db => GetIt.instance.get<DatabaseService>();
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
 
   /// 消息监听器
   OnAdvancedMsgListener? msgListener;
@@ -149,7 +151,7 @@ class MessageManager {
       createTime: _nowMillis(),
       sendTime: 0,
       status: MessageStatus.sending,
-      sendID: _db.currentUserID,
+      sendID: _database.currentUserID,
     );
   }
 
@@ -336,7 +338,7 @@ class MessageManager {
     final sessionType = isGroupMsg ? ConversationType.superGroup : ConversationType.single;
 
     final sendMsg = message.copyWith(
-      sendID: _db.currentUserID,
+      sendID: _database.currentUserID,
       recvID: userID,
       groupID: groupID,
       sessionType: sessionType,
@@ -346,20 +348,20 @@ class MessageManager {
 
     final conversationID = isGroupMsg
         ? ConversationManager.genGroupConversationID(groupID)
-        : ConversationManager.genSingleConversationID(_db.currentUserID, userID!);
+        : ConversationManager.genSingleConversationID(_database.currentUserID, userID!);
 
-    await _db.insertMessage(_messageToDbMap(sendMsg));
-    await _db.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
+    await _database.insertMessage(_messageToDbMap(sendMsg));
+    await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
 
     _log.info('消息已发送到本地: ${sendMsg.clientMsgID}');
 
     // TODO: 通过 WebSocket 发送到服务器，收到响应后更新状态
     final sentMsg = sendMsg.copyWith(status: MessageStatus.succeeded, sendTime: _nowMillis());
-    await _db.updateMessage(sentMsg.clientMsgID!, {
+    await _database.updateMessage(sentMsg.clientMsgID!, {
       'status': MessageStatus.succeeded.value,
       'sendTime': sentMsg.sendTime,
     });
-    await _db.deleteSendingMessage(sentMsg.clientMsgID!);
+    await _database.deleteSendingMessage(sentMsg.clientMsgID!);
 
     await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
 
@@ -406,7 +408,7 @@ class MessageManager {
     final queryCount = count ?? 40;
     int startTime = 0;
     if (startMsg?.clientMsgID != null && startMsg!.clientMsgID!.isNotEmpty) {
-      final data = await _db.getMessage(startMsg.clientMsgID!);
+      final data = await _database.getMessage(startMsg.clientMsgID!);
       startTime = (data?['sendTime'] as int?) ?? 0;
       // DB 查不到时用 Message 对象自身的 sendTime 回退，避免 startTime=0 导致重复分页
       if (startTime == 0) {
@@ -414,13 +416,13 @@ class MessageManager {
       }
     }
 
-    final conv = await _db.getConversation(conversationID ?? '');
+    final conv = await _database.getConversation(conversationID ?? '');
     final sessionType = (conv?['conversationType'] as int?) ?? 1;
     final groupID = conv?['groupID'] as String?;
     final userID = conv?['userID'] as String?;
 
-    final dataList = await _db.getHistoryMessages(
-      sendID: _db.currentUserID,
+    final dataList = await _database.getHistoryMessages(
+      sendID: _database.currentUserID,
       recvID: userID ?? '',
       groupID: groupID,
       sessionType: sessionType,
@@ -464,7 +466,7 @@ class MessageManager {
       if (param.clientMsgIDList == null || param.clientMsgIDList!.isEmpty) continue;
       final messages = <Message>[];
       for (final id in param.clientMsgIDList!) {
-        final data = await _db.getMessage(id);
+        final data = await _database.getMessage(id);
         if (data != null) messages.add(_convertMessage(data));
       }
       if (messages.isNotEmpty) {
@@ -506,7 +508,7 @@ class MessageManager {
     final keyword = keywordList.isNotEmpty ? keywordList.first : null;
     final offset = (pageIndex - 1) * count;
 
-    final dataList = await _db.searchMessages(
+    final dataList = await _database.searchMessages(
       conversationID: conversationID,
       keyword: keyword,
       messageTypes: messageTypeList.isEmpty ? null : messageTypeList,
@@ -537,13 +539,17 @@ class MessageManager {
   /// [conversationID] 会话ID
   /// [clientMsgID] 消息ID
   Future<void> revokeMessage({required String conversationID, required String clientMsgID}) async {
-    await _db.updateMessage(clientMsgID, {
+    await _database.updateMessage(clientMsgID, {
       'contentType': MessageType.revokeMessageNotification.value,
     });
     _log.info('消息已撤回: $clientMsgID');
 
     msgListener?.newRecvMessageRevoked(
-      RevokedInfo(clientMsgID: clientMsgID, revokerID: _db.currentUserID, revokeTime: _nowMillis()),
+      RevokedInfo(
+        clientMsgID: clientMsgID,
+        revokerID: _database.currentUserID,
+        revokeTime: _nowMillis(),
+      ),
     );
 
     // TODO: 同步到服务器
@@ -556,7 +562,7 @@ class MessageManager {
     required String conversationID,
     required String clientMsgID,
   }) async {
-    await _db.deleteMessage(clientMsgID);
+    await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地删除: $clientMsgID');
   }
 
@@ -567,7 +573,7 @@ class MessageManager {
     required String conversationID,
     required String clientMsgID,
   }) async {
-    await _db.deleteMessage(clientMsgID);
+    await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地和服务器删除: $clientMsgID');
 
     // TODO: 同步到服务器
@@ -575,13 +581,13 @@ class MessageManager {
 
   /// 删除所有本地消息
   Future<void> deleteAllMsgFromLocal() async {
-    await _db.deleteAllMessages();
+    await _database.deleteAllMessages();
     _log.info('所有本地消息已删除');
   }
 
   /// 删除所有消息（本地和服务器）
   Future<void> deleteAllMsgFromLocalAndSvr() async {
-    await _db.deleteAllMessages();
+    await _database.deleteAllMessages();
     _log.info('所有消息已从本地和服务器删除');
 
     // TODO: 同步到服务器
@@ -595,7 +601,7 @@ class MessageManager {
     required String conversationID,
     required List<String> messageIDList,
   }) async {
-    await _db.markMessagesAsRead(messageIDList);
+    await _database.markMessagesAsRead(messageIDList);
     _log.info('消息已标记已读: ${messageIDList.length}条');
   }
 
@@ -608,7 +614,7 @@ class MessageManager {
     required String clientMsgID,
     required String localEx,
   }) async {
-    await _db.updateMessage(clientMsgID, {'localEx': localEx});
+    await _database.updateMessage(clientMsgID, {'localEx': localEx});
   }
 
   /// 插入单聊消息到本地存储
@@ -625,7 +631,7 @@ class MessageManager {
       recvID: receiverID,
       sessionType: ConversationType.single,
     );
-    await _db.insertMessage(_messageToDbMap(msg));
+    await _database.insertMessage(_messageToDbMap(msg));
     return msg;
   }
 
@@ -643,7 +649,7 @@ class MessageManager {
       groupID: groupID,
       sessionType: ConversationType.superGroup,
     );
-    await _db.insertMessage(_messageToDbMap(msg));
+    await _database.insertMessage(_messageToDbMap(msg));
     return msg;
   }
 
@@ -676,7 +682,7 @@ class MessageManager {
   String _generateClientMsgID() {
     final timestamp = DateTime.now().microsecondsSinceEpoch;
     final random = Random.secure().nextInt(999999999);
-    final raw = '$timestamp-$random-${_db.currentUserID}';
+    final raw = '$timestamp-$random-${_database.currentUserID}';
     return md5.convert(utf8.encode(raw)).toString();
   }
 
@@ -704,7 +710,7 @@ class MessageManager {
       clientMsgID: _generateClientMsgID(),
       createTime: _nowMillis(),
       sendTime: 0,
-      sendID: _db.currentUserID,
+      sendID: _database.currentUserID,
       contentType: contentType,
       senderPlatformID: PlatformUtils.currentPlatform,
       status: MessageStatus.sending,
@@ -730,14 +736,14 @@ class MessageManager {
     Message message,
     ConversationType sessionType,
   ) async {
-    final conv = await _db.getConversation(conversationID);
+    final conv = await _database.getConversation(conversationID);
     if (conv != null) {
-      await _db.updateConversation(conversationID, {
+      await _database.updateConversation(conversationID, {
         'latestMsg': jsonEncode(message.toJson()),
         'latestMsgSendTime': message.sendTime,
       });
     } else {
-      await _db.upsertConversation({
+      await _database.upsertConversation({
         'conversationID': conversationID,
         'conversationType': sessionType.value,
         'userID': message.recvID,
