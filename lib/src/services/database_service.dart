@@ -56,9 +56,9 @@ class DatabaseService {
     return toStore.batchUpsert(table, dataList);
   }
 
-  /// 根据主键查询单条记录
-  Future<Map<String, dynamic>?> queryByPrimaryKey(String table, dynamic pk) async {
-    return toStore.query(table).where('', '=', pk).first();
+  /// 根据主键查询单条记录（主键字段名 + 值）
+  Future<Map<String, dynamic>?> queryByPrimaryKey(String table, String pkField, dynamic pk) async {
+    return toStore.query(table).whereEqual(pkField, pk).first();
   }
 
   /// 查询表中所有记录
@@ -67,9 +67,9 @@ class DatabaseService {
     return result.data;
   }
 
-  /// 根据条件删除记录
+  /// 根据主键删除记录
   Future<void> deleteByPrimaryKey(String table, String pkField, dynamic pkValue) async {
-    await toStore.delete(table).where(pkField, '=', pkValue);
+    await toStore.delete(table).whereEqual(pkField, pkValue);
   }
 
   /// 在事务中执行操作
@@ -88,13 +88,13 @@ class DatabaseService {
 
   /// 获取当前登录用户信息
   Future<Map<String, dynamic>?> getLoginUser() async {
-    return toStore.query(DbTableName.localUser).where('userID', '=', currentUserID).first();
+    return toStore.query(DbTableName.localUser).whereEqual('userID', currentUserID).first();
   }
 
   /// 批量获取用户信息
   Future<List<Map<String, dynamic>>> getUsersByIDs(List<String> userIDs) async {
     if (userIDs.isEmpty) return [];
-    final result = await toStore.query(DbTableName.localUser).where('userID', 'IN', userIDs);
+    final result = await toStore.query(DbTableName.localUser).whereIn('userID', userIDs);
     return result.data;
   }
 
@@ -111,7 +111,7 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getAllFriends() async {
     final result = await toStore
         .query(DbTableName.localFriend)
-        .where('ownerUserID', '=', currentUserID);
+        .whereEqual('ownerUserID', currentUserID);
     return result.data;
   }
 
@@ -119,7 +119,7 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getFriendsPage(int offset, int count) async {
     final result = await toStore
         .query(DbTableName.localFriend)
-        .where('ownerUserID', '=', currentUserID)
+        .whereEqual('ownerUserID', currentUserID)
         .limit(count)
         .offset(offset);
     return result.data;
@@ -127,21 +127,19 @@ class DatabaseService {
 
   /// 根据好友用户ID获取好友信息
   Future<Map<String, dynamic>?> getFriendByUserID(String friendUserID) async {
-    return toStore.query(DbTableName.localFriend).where('friendUserID', '=', friendUserID).first();
+    return toStore.query(DbTableName.localFriend).whereEqual('friendUserID', friendUserID).first();
   }
 
   /// 批量根据好友用户ID获取好友信息
   Future<List<Map<String, dynamic>>> getFriendsByUserIDs(List<String> userIDs) async {
     if (userIDs.isEmpty) return [];
-    final result = await toStore
-        .query(DbTableName.localFriend)
-        .where('friendUserID', 'IN', userIDs);
+    final result = await toStore.query(DbTableName.localFriend).whereIn('friendUserID', userIDs);
     return result.data;
   }
 
   /// 删除好友
   Future<void> deleteFriend(String friendUserID) async {
-    await toStore.delete(DbTableName.localFriend).where('friendUserID', '=', friendUserID);
+    await toStore.delete(DbTableName.localFriend).whereEqual('friendUserID', friendUserID);
   }
 
   /// 批量插入或更新好友
@@ -165,14 +163,14 @@ class DatabaseService {
     if (searchRemark) fields.add('remark');
     if (fields.isEmpty) return [];
 
-    var cond = QueryCondition().where(fields.first, 'LIKE', pattern);
+    var cond = QueryCondition().whereLike(fields.first, pattern);
     for (int i = 1; i < fields.length; i++) {
-      cond = cond.or().where(fields[i], 'LIKE', pattern);
+      cond = cond.or().whereLike(fields[i], pattern);
     }
 
     final result = await toStore
         .query(DbTableName.localFriend)
-        .where('ownerUserID', '=', currentUserID)
+        .whereEqual('ownerUserID', currentUserID)
         .condition(cond);
     return result.data;
   }
@@ -193,7 +191,7 @@ class DatabaseService {
   }) async {
     final result = await toStore
         .query(DbTableName.localFriendRequest)
-        .where('toUserID', '=', currentUserID)
+        .whereEqual('toUserID', currentUserID)
         .limit(count)
         .offset(offset);
     return result.data;
@@ -206,7 +204,7 @@ class DatabaseService {
   }) async {
     final result = await toStore
         .query(DbTableName.localFriendRequest)
-        .where('fromUserID', '=', currentUserID)
+        .whereEqual('fromUserID', currentUserID)
         .limit(count)
         .offset(offset);
     return result.data;
@@ -225,7 +223,7 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getBlackList() async {
     final result = await toStore
         .query(DbTableName.localBlack)
-        .where('ownerUserID', '=', currentUserID);
+        .whereEqual('ownerUserID', currentUserID);
     return result.data;
   }
 
@@ -233,8 +231,8 @@ class DatabaseService {
   Future<void> removeBlack(String blockUserID) async {
     await toStore
         .delete(DbTableName.localBlack)
-        .where('ownerUserID', '=', currentUserID)
-        .where('blockUserID', '=', blockUserID);
+        .whereEqual('ownerUserID', currentUserID)
+        .whereEqual('blockUserID', blockUserID);
   }
 
   // ---------------------------------------------------------------------------
@@ -266,19 +264,19 @@ class DatabaseService {
 
   /// 根据群组ID获取群组信息
   Future<Map<String, dynamic>?> getGroupByID(String groupID) async {
-    return toStore.query(DbTableName.localGroup).where('groupID', '=', groupID).first();
+    return toStore.query(DbTableName.localGroup).whereEqual('groupID', groupID).first();
   }
 
   /// 根据群组ID列表获取群组信息
   Future<List<Map<String, dynamic>>> getGroupsByIDs(List<String> groupIDs) async {
     if (groupIDs.isEmpty) return [];
-    final result = await toStore.query(DbTableName.localGroup).where('groupID', 'IN', groupIDs);
+    final result = await toStore.query(DbTableName.localGroup).whereIn('groupID', groupIDs);
     return result.data;
   }
 
   /// 删除群组
   Future<void> deleteGroup(String groupID) async {
-    await toStore.delete(DbTableName.localGroup).where('groupID', '=', groupID);
+    await toStore.delete(DbTableName.localGroup).whereEqual('groupID', groupID);
   }
 
   /// 搜索群组（利用 Tostore LIKE 查询）
@@ -294,9 +292,9 @@ class DatabaseService {
     if (searchGroupName) fields.add('groupName');
     if (fields.isEmpty) return [];
 
-    var cond = QueryCondition().where(fields.first, 'LIKE', pattern);
+    var cond = QueryCondition().whereLike(fields.first, pattern);
     for (int i = 1; i < fields.length; i++) {
-      cond = cond.or().where(fields[i], 'LIKE', pattern);
+      cond = cond.or().whereLike(fields[i], pattern);
     }
 
     final result = await toStore.query(DbTableName.localGroup).condition(cond);
@@ -320,7 +318,7 @@ class DatabaseService {
 
   /// 获取群成员列表
   Future<List<Map<String, dynamic>>> getGroupMembers(String groupID) async {
-    final result = await toStore.query(DbTableName.localGroupMember).where('groupID', '=', groupID);
+    final result = await toStore.query(DbTableName.localGroupMember).whereEqual('groupID', groupID);
     return result.data;
   }
 
@@ -331,9 +329,9 @@ class DatabaseService {
     int count = 40,
     int? filter,
   }) async {
-    var query = toStore.query(DbTableName.localGroupMember).where('groupID', '=', groupID);
+    var query = toStore.query(DbTableName.localGroupMember).whereEqual('groupID', groupID);
     if (filter != null && filter > 0) {
-      query = query.where('roleLevel', '=', filter);
+      query = query.whereEqual('roleLevel', filter);
     }
     final result = await query.limit(count).offset(offset);
     return result.data;
@@ -343,31 +341,31 @@ class DatabaseService {
   Future<List<Map<String, dynamic>>> getGroupOwnerAndAdmin(String groupID) async {
     final result = await toStore
         .query(DbTableName.localGroupMember)
-        .where('groupID', '=', groupID)
-        .where('roleLevel', 'IN', [60, 100]);
+        .whereEqual('groupID', groupID)
+        .whereIn('roleLevel', [60, 100]);
     return result.data;
   }
 
   /// 获取指定群成员信息
   Future<Map<String, dynamic>?> getGroupMember(String groupID, String userID) async {
-    final result = await toStore
+    return toStore
         .query(DbTableName.localGroupMember)
-        .where('groupID', '=', groupID)
-        .where('userID', '=', userID);
-    return result.data.isEmpty ? null : result.data.first;
+        .whereEqual('groupID', groupID)
+        .whereEqual('userID', userID)
+        .first();
   }
 
   /// 删除群成员
   Future<void> deleteGroupMember(String groupID, String userID) async {
     await toStore
         .delete(DbTableName.localGroupMember)
-        .where('groupID', '=', groupID)
-        .where('userID', '=', userID);
+        .whereEqual('groupID', groupID)
+        .whereEqual('userID', userID);
   }
 
   /// 删除群组的所有成员
   Future<void> deleteGroupAllMembers(String groupID) async {
-    await toStore.delete(DbTableName.localGroupMember).where('groupID', '=', groupID);
+    await toStore.delete(DbTableName.localGroupMember).whereEqual('groupID', groupID);
   }
 
   /// 搜索群成员（利用 Tostore LIKE 查询）
@@ -386,14 +384,14 @@ class DatabaseService {
     if (searchNickname) fields.add('nickname');
     if (fields.isEmpty) return [];
 
-    var cond = QueryCondition().where(fields.first, 'LIKE', pattern);
+    var cond = QueryCondition().whereLike(fields.first, pattern);
     for (int i = 1; i < fields.length; i++) {
-      cond = cond.or().where(fields[i], 'LIKE', pattern);
+      cond = cond.or().whereLike(fields[i], pattern);
     }
 
     final result = await toStore
         .query(DbTableName.localGroupMember)
-        .where('groupID', '=', groupID)
+        .whereEqual('groupID', groupID)
         .condition(cond)
         .offset(offset)
         .limit(count);
@@ -417,15 +415,15 @@ class DatabaseService {
     // 查找当前用户是群主或管理员的群组ID
     final adminGroups = await toStore
         .query(DbTableName.localGroupMember)
-        .where('userID', '=', currentUserID)
-        .where('roleLevel', 'IN', [60, 100]);
+        .whereEqual('userID', currentUserID)
+        .whereIn('roleLevel', [60, 100]);
     final myGroupIDs = adminGroups.data.map((m) => m['groupID'] as String).toList();
 
     if (myGroupIDs.isEmpty) return [];
 
     final result = await toStore
         .query(DbTableName.localGroupRequest)
-        .where('groupID', 'IN', myGroupIDs)
+        .whereIn('groupID', myGroupIDs)
         .offset(offset)
         .limit(count);
     return result.data;
@@ -438,7 +436,7 @@ class DatabaseService {
   }) async {
     final result = await toStore
         .query(DbTableName.localGroupRequest)
-        .where('userID', '=', currentUserID)
+        .whereEqual('userID', currentUserID)
         .limit(count)
         .offset(offset);
     return result.data;
@@ -448,8 +446,8 @@ class DatabaseService {
   Future<int> getFriendRequestUnhandledCount() async {
     return toStore
         .query(DbTableName.localFriendRequest)
-        .where('toUserID', '=', currentUserID)
-        .where('handleResult', '=', 0)
+        .whereEqual('toUserID', currentUserID)
+        .whereEqual('handleResult', 0)
         .count();
   }
 
@@ -457,15 +455,15 @@ class DatabaseService {
   Future<int> getGroupRequestUnhandledCount() async {
     final adminGroups = await toStore
         .query(DbTableName.localGroupMember)
-        .where('userID', '=', currentUserID)
-        .where('roleLevel', 'IN', [60, 100]);
+        .whereEqual('userID', currentUserID)
+        .whereIn('roleLevel', [60, 100]);
     final myGroupIDs = adminGroups.data.map((m) => m['groupID'] as String).toList();
     if (myGroupIDs.isEmpty) return 0;
 
     return toStore
         .query(DbTableName.localGroupRequest)
-        .where('groupID', 'IN', myGroupIDs)
-        .where('handleResult', '=', 0)
+        .whereIn('groupID', myGroupIDs)
+        .whereEqual('handleResult', 0)
         .count();
   }
 
@@ -505,7 +503,7 @@ class DatabaseService {
   Future<Map<String, dynamic>?> getConversation(String conversationID) async {
     return toStore
         .query(DbTableName.localConversation)
-        .where('conversationID', '=', conversationID)
+        .whereEqual('conversationID', conversationID)
         .first();
   }
 
@@ -514,7 +512,7 @@ class DatabaseService {
     if (conversationIDs.isEmpty) return [];
     final result = await toStore
         .query(DbTableName.localConversation)
-        .where('conversationID', 'IN', conversationIDs);
+        .whereIn('conversationID', conversationIDs);
     return result.data;
   }
 
@@ -522,14 +520,14 @@ class DatabaseService {
   Future<void> deleteConversation(String conversationID) async {
     await toStore
         .delete(DbTableName.localConversation)
-        .where('conversationID', '=', conversationID);
+        .whereEqual('conversationID', conversationID);
   }
 
   /// 更新会话属性
   Future<void> updateConversation(String conversationID, Map<String, dynamic> data) async {
     await toStore
         .update(DbTableName.localConversation, data)
-        .where('conversationID', '=', conversationID);
+        .whereEqual('conversationID', conversationID);
   }
 
   /// 获取未读消息总数
@@ -550,14 +548,14 @@ class DatabaseService {
           'draftText': draftText,
           'draftTextTime': DateTime.now().millisecondsSinceEpoch,
         })
-        .where('conversationID', '=', conversationID);
+        .whereEqual('conversationID', conversationID);
   }
 
   /// 清空会话未读数
   Future<void> clearConversationUnreadCount(String conversationID) async {
     await toStore
         .update(DbTableName.localConversation, {'unreadCount': 0})
-        .where('conversationID', '=', conversationID);
+        .whereEqual('conversationID', conversationID);
   }
 
   /// 清空所有会话未读数
@@ -570,7 +568,7 @@ class DatabaseService {
     if (keyword.isEmpty) return [];
     final result = await toStore
         .query(DbTableName.localConversation)
-        .where('showName', 'LIKE', '%$keyword%');
+        .whereLike('showName', '%$keyword%');
     return result.data;
   }
 
@@ -591,81 +589,76 @@ class DatabaseService {
 
   /// 根据 clientMsgID 获取消息
   Future<Map<String, dynamic>?> getMessage(String clientMsgID) async {
-    return toStore.query(DbTableName.localChatLog).where('clientMsgID', '=', clientMsgID).first();
+    return toStore.query(DbTableName.localChatLog).whereEqual('clientMsgID', clientMsgID).first();
   }
 
   /// 获取会话的历史消息（按发送时间倒序）
+  /// [conversationID] 会话ID
   /// [startTime] 起始时间戳（毫秒），0 表示从最新开始
   /// [count] 获取条数
   Future<List<Map<String, dynamic>>> getHistoryMessages({
-    required String sendID,
-    required String recvID,
-    String? groupID,
-    required int sessionType,
+    required String conversationID,
     int startTime = 0,
+    int startSeq = 0,
+    String startClientMsgID = '',
     int count = 20,
   }) async {
-    var query = toStore.query(DbTableName.localChatLog).where('sessionType', '=', sessionType);
-
-    if (groupID != null && groupID.isNotEmpty) {
-      query = query.where('groupID', '=', groupID);
-    } else {
-      // 单聊：sendID/recvID 互换都要查，使用 OR 条件下推到查询层
-      query = query.condition(
-        QueryCondition()
-            .where('sendID', '=', sendID)
-            .where('recvID', '=', recvID)
-            .or()
-            .where('sendID', '=', recvID)
-            .where('recvID', '=', sendID),
-      );
-    }
+    var query = toStore
+        .query(DbTableName.localChatLog)
+        .whereEqual('conversationID', conversationID);
 
     if (startTime > 0) {
-      query = query.where('sendTime', '<', startTime);
+      // 避免 whereCustom() 导致全表扫描遍历而在主线程发生 ANR，
+      // 使用带宽限制的时间检索，然后在 Dart 内存中精准切片
+      query = query.whereLessThanOrEqualTo('sendTime', startTime);
     }
 
-    final result = await query.orderByDesc('sendTime').limit(count);
-    return result.data;
+    // 多取几十条容错以应对同一毫秒 (sendTime 重叠) 的大批量消息
+    int limitCount = (startTime > 0) ? (count + 100) : count;
+    final result = await query.orderByDesc('sendTime').orderByDesc('seq').limit(limitCount);
+
+    List<Map<String, dynamic>> dataList = result.data;
+
+    // 根据 Go 客户端逻辑，严格在 Dart 端过滤掉包括 startMsg 及时间更新的消息：
+    // 条件：send_time < ? OR (send_time = ? AND (seq < ? OR (seq = 0 AND client_msg_id != ?)))
+    if (startTime > 0 && dataList.isNotEmpty) {
+      dataList = dataList.where((record) {
+        final int sendTime = record['sendTime'] ?? 0;
+        final int seq = record['seq'] ?? 0;
+        final String clientMsgID = record['clientMsgID'] ?? '';
+
+        if (sendTime < startTime) return true;
+        if (sendTime == startTime) {
+          if (startSeq > 0) return seq < startSeq;
+          return seq == 0 && clientMsgID != startClientMsgID;
+        }
+        return false;
+      }).toList();
+    }
+
+    return dataList.take(count).toList();
   }
 
   /// 更新消息状态
   Future<void> updateMessageStatus(String clientMsgID, int status) async {
     await toStore
         .update(DbTableName.localChatLog, {'status': status})
-        .where('clientMsgID', '=', clientMsgID);
+        .whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 更新消息（通用）
   Future<void> updateMessage(String clientMsgID, Map<String, dynamic> data) async {
-    await toStore.update(DbTableName.localChatLog, data).where('clientMsgID', '=', clientMsgID);
+    await toStore.update(DbTableName.localChatLog, data).whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 删除消息
   Future<void> deleteMessage(String clientMsgID) async {
-    await toStore.delete(DbTableName.localChatLog).where('clientMsgID', '=', clientMsgID);
+    await toStore.delete(DbTableName.localChatLog).whereEqual('clientMsgID', clientMsgID);
   }
 
-  /// 删除会话所有消息
-  Future<void> deleteConversationAllMessages({
-    String? groupID,
-    String? sendID,
-    String? recvID,
-    int? sessionType,
-  }) async {
-    if (groupID != null && groupID.isNotEmpty) {
-      await toStore.delete(DbTableName.localChatLog).where('groupID', '=', groupID);
-    } else if (sendID != null && recvID != null) {
-      // 单聊：双向删除（发送方/接收方互换）
-      await toStore
-          .delete(DbTableName.localChatLog)
-          .where('sendID', '=', sendID)
-          .where('recvID', '=', recvID);
-      await toStore
-          .delete(DbTableName.localChatLog)
-          .where('sendID', '=', recvID)
-          .where('recvID', '=', sendID);
-    }
+  /// 删除会话所有消息（按 conversationID 单条件删除）
+  Future<void> deleteConversationAllMessages(String conversationID) async {
+    await toStore.delete(DbTableName.localChatLog).whereEqual('conversationID', conversationID);
   }
 
   /// 删除所有本地消息
@@ -673,7 +666,9 @@ class DatabaseService {
     await toStore.delete(DbTableName.localChatLog).allowDeleteAll();
   }
 
-  /// 搜索本地消息（利用 Tostore 查询条件下推）
+  /// 搜索本地消息
+  /// 始终以 conversationID 作为首要过滤条件（单索引），其余条件在 Dart 层过滤，
+  /// 避免 Tostore 多索引优化器 bug。
   Future<List<Map<String, dynamic>>> searchMessages({
     String? conversationID,
     String? keyword,
@@ -685,29 +680,31 @@ class DatabaseService {
   }) async {
     var query = toStore.query(DbTableName.localChatLog);
 
-    if (keyword != null && keyword.isNotEmpty) {
-      query = query.where('content', 'LIKE', '%$keyword%');
-    }
-
-    if (messageTypes != null && messageTypes.isNotEmpty) {
-      query = query.where('contentType', 'IN', messageTypes);
-    }
-
-    if (startTime != null && startTime > 0) {
-      query = query.where('sendTime', '>=', startTime);
-    }
-
-    if (endTime != null && endTime > 0) {
-      query = query.where('sendTime', '<=', endTime);
-    }
-
     if (conversationID != null && conversationID.isNotEmpty) {
       if (conversationID.startsWith('sg_')) {
-        query = query.where('groupID', '=', conversationID.substring(3));
+        query = query.whereEqual('groupID', conversationID.substring(3));
+      } else {
+        query = query.whereEqual('conversationID', conversationID);
       }
     }
 
-    final result = await query.offset(offset).limit(count);
+    if (keyword != null && keyword.isNotEmpty) {
+      query = query.whereLike('content', '%$keyword%');
+    }
+
+    if (messageTypes != null && messageTypes.isNotEmpty) {
+      query = query.whereIn('contentType', messageTypes);
+    }
+
+    if (startTime != null && startTime > 0) {
+      query = query.whereGreaterThanOrEqualTo('sendTime', startTime);
+    }
+
+    if (endTime != null && endTime > 0) {
+      query = query.whereLessThanOrEqualTo('sendTime', endTime);
+    }
+
+    final result = await query.orderByDesc('sendTime').offset(offset).limit(count);
     return result.data;
   }
 
@@ -718,7 +715,7 @@ class DatabaseService {
           'isRead': true,
           'hasReadTime': DateTime.now().millisecondsSinceEpoch,
         })
-        .where('clientMsgID', '=', clientMsgID);
+        .whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 批量标记消息已读
@@ -727,7 +724,7 @@ class DatabaseService {
     final now = DateTime.now().millisecondsSinceEpoch;
     await toStore
         .update(DbTableName.localChatLog, {'isRead': true, 'hasReadTime': now})
-        .where('clientMsgID', 'IN', clientMsgIDs);
+        .whereIn('clientMsgID', clientMsgIDs);
   }
 
   // ---------------------------------------------------------------------------
@@ -736,7 +733,7 @@ class DatabaseService {
 
   /// 插入发送中消息
   Future<void> insertSendingMessage(String clientMsgID, String conversationID) async {
-    await toStore.insert(DbTableName.localSendingMessage, {
+    await toStore.upsert(DbTableName.localSendingMessage, {
       'clientMsgID': clientMsgID,
       'conversationID': conversationID,
     });
@@ -744,14 +741,14 @@ class DatabaseService {
 
   /// 删除发送中消息
   Future<void> deleteSendingMessage(String clientMsgID) async {
-    await toStore.delete(DbTableName.localSendingMessage).where('clientMsgID', '=', clientMsgID);
+    await toStore.delete(DbTableName.localSendingMessage).whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 获取会话的发送中消息列表
   Future<List<Map<String, dynamic>>> getSendingMessages(String conversationID) async {
     final result = await toStore
         .query(DbTableName.localSendingMessage)
-        .where('conversationID', '=', conversationID);
+        .whereEqual('conversationID', conversationID);
     return result.data;
   }
 

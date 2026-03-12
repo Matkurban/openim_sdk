@@ -16,14 +16,22 @@ sealed class ImApiUrl {
   static const String updateUserInfo = '/user/update_user_info';
   static const String updateUserInfoEx = '/user/update_user_info_ex';
   static const String getUserClientConfig = '/user/get_user_client_config';
+  static const String subscribeUsersStatus = '/user/subscribe_users_status';
+  static const String getSubscribeUsersStatus =
+      '/user/get_subscribe_users_status';
+  static const String getUserStatus = '/user/get_users_status';
 
   // ---- Friend ----
   static const String addFriend = '/friend/add_friend';
   static const String deleteFriend = '/friend/delete_friend';
-  static const String getRecvFriendApplicationList = '/friend/get_friend_apply_list';
-  static const String getSelfFriendApplicationList = '/friend/get_self_friend_apply_list';
-  static const String getSelfUnhandledApplyCount = '/friend/get_self_unhandled_apply_count';
-  static const String getDesignatedFriendsApply = '/friend/get_designated_friend_apply';
+  static const String getRecvFriendApplicationList =
+      '/friend/get_friend_apply_list';
+  static const String getSelfFriendApplicationList =
+      '/friend/get_self_friend_apply_list';
+  static const String getSelfUnhandledApplyCount =
+      '/friend/get_self_unhandled_apply_count';
+  static const String getDesignatedFriendsApply =
+      '/friend/get_designated_friend_apply';
   static const String getFriendList = '/friend/get_friend_list';
   static const String getDesignatedFriends = '/friend/get_designated_friends';
   static const String addFriendResponse = '/friend/add_friend_response';
@@ -46,18 +54,22 @@ sealed class ImApiUrl {
   static const String getJoinedGroupList = '/group/get_joined_group_list';
   static const String kickGroup = '/group/kick_group';
   static const String transferGroup = '/group/transfer_group';
-  static const String getRecvGroupApplicationList = '/group/get_recv_group_applicationList';
-  static const String getSendGroupApplicationList = '/group/get_user_req_group_applicationList';
+  static const String getRecvGroupApplicationList =
+      '/group/get_recv_group_applicationList';
+  static const String getSendGroupApplicationList =
+      '/group/get_user_req_group_applicationList';
   static const String getGroupApplicationUnhandledCount =
       '/group/get_group_application_unhandled_count';
-  static const String groupApplicationResponse = '/group/group_application_response';
+  static const String groupApplicationResponse =
+      '/group/group_application_response';
   static const String dismissGroup = '/group/dismiss_group';
   static const String muteGroupMember = '/group/mute_group_member';
   static const String cancelMuteGroupMember = '/group/cancel_mute_group_member';
   static const String muteGroup = '/group/mute_group';
   static const String cancelMuteGroup = '/group/cancel_mute_group';
   static const String setGroupMemberInfo = '/group/set_group_member_info';
-  static const String getIncrementalJoinGroup = '/group/get_incremental_join_groups';
+  static const String getIncrementalJoinGroup =
+      '/group/get_incremental_join_groups';
   static const String getFullJoinGroupIDs = '/group/get_full_join_group_ids';
 
   // ---- Message ----
@@ -71,16 +83,21 @@ sealed class ImApiUrl {
   static const String getConversationsHasReadAndMaxSeq =
       '/msg/get_conversations_has_read_and_max_seq';
   static const String pullMsgBySeqs = '/msg/pull_msg_by_seq';
-  static const String setConversationHasReadSeq = '/msg/set_conversation_has_read_seq';
+  static const String setConversationHasReadSeq =
+      '/msg/set_conversation_has_read_seq';
   static const String getServerTime = '/msg/get_server_time';
 
   // ---- Conversation ----
   static const String getConversations = '/conversation/get_conversations';
-  static const String getAllConversations = '/conversation/get_all_conversations';
+  static const String getAllConversations =
+      '/conversation/get_all_conversations';
   static const String setConversations = '/conversation/set_conversations';
-  static const String getIncrementalConversation = '/conversation/get_incremental_conversations';
-  static const String getFullConversationIDs = '/conversation/get_full_conversation_ids';
-  static const String getOwnerConversation = '/conversation/get_owner_conversation';
+  static const String getIncrementalConversation =
+      '/conversation/get_incremental_conversations';
+  static const String getFullConversationIDs =
+      '/conversation/get_full_conversation_ids';
+  static const String getOwnerConversation =
+      '/conversation/get_owner_conversation';
 
   // ---- Third ----
   static const String fcmUpdateToken = '/third/fcm_update_token';
@@ -89,8 +106,10 @@ sealed class ImApiUrl {
 
   // ---- Object Storage ----
   static const String objectPartLimit = '/object/part_limit';
-  static const String objectInitiateUpload = '/object/initiate_multipart_upload';
+  static const String objectInitiateUpload =
+      '/object/initiate_multipart_upload';
   static const String objectAuthSign = '/object/auth_sign';
-  static const String objectCompleteUpload = '/object/complete_multipart_upload';
+  static const String objectCompleteUpload =
+      '/object/complete_multipart_upload';
   static const String objectAccessURL = '/object/access_url';
 }

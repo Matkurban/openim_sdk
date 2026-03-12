@@ -185,6 +185,12 @@ class MsgSyncer {
       for (final conv in conversations) {
         if (conv is Map<String, dynamic>) {
           convMaps.add(Map<String, dynamic>.from(conv));
+          if (convMaps.last['latestMsg'] is Map) {
+            convMaps.last['latestMsg'] = jsonEncode(convMaps.last['latestMsg']);
+          }
+          if (convMaps.last["latestMsg"] is Map) {
+            convMaps.last["latestMsg"] = jsonEncode(convMaps.last["latestMsg"]);
+          }
           final cid = conv['conversationID'] as String?;
           if (cid != null) conversationIDs.add(cid);
         }
@@ -273,6 +279,27 @@ class MsgSyncer {
         final uid = u['userID'] as String?;
         if (uid != null) userMap[uid] = u;
       }
+
+      // Fallback: Fetch missing users from network
+      final notInAnyMap = notInFriendIDs.where((id) => !userMap.containsKey(id)).toList();
+      if (notInAnyMap.isNotEmpty) {
+        try {
+          final resp = await _api.getUsersInfo(userIDs: notInAnyMap);
+          if (resp.errCode == 0) {
+            final netUsers = resp.data?['usersInfo'] as List? ?? [];
+            for (final u in netUsers) {
+              if (u is Map<String, dynamic>) {
+                final uid = u['userID'] as String?;
+                if (uid != null) {
+                  userMap[uid] = u;
+                  // Cache it so future syncs have it
+                  await _db.insertOrUpdateUser(u);
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
     }
 
     // 批量查群组信息
@@ -282,6 +309,25 @@ class MsgSyncer {
       for (final g in groups) {
         final gid = g['groupID'] as String?;
         if (gid != null) groupMap[gid] = g;
+      }
+
+      final notInGroupMap = groupIDs.where((id) => !groupMap.containsKey(id)).toList();
+      if (notInGroupMap.isNotEmpty) {
+        try {
+          final resp = await _api.getGroupsInfo(groupIDs: notInGroupMap.toList());
+          if (resp.errCode == 0) {
+            final netGroups = resp.data?['groupInfoList'] as List? ?? [];
+            for (final g in netGroups) {
+              if (g is Map<String, dynamic>) {
+                final gid = g['groupID'] as String?;
+                if (gid != null) {
+                  groupMap[gid] = g;
+                  await _db.upsertGroup(g);
+                }
+              }
+            }
+          }
+        } catch (_) {}
       }
     }
 
@@ -330,7 +376,21 @@ class MsgSyncer {
         final batch = <Map<String, dynamic>>[];
         for (final f in friends) {
           if (f is Map<String, dynamic>) {
-            batch.add(f);
+            // 服务端返回的好友信息中，对方的详细信息在嵌套的 friendUser 字段中
+            // 需要将其扁平化为 DB 表格的结构（主键 friendUserID = friendUser.userID）
+            final friendUser = f['friendUser'] as Map<String, dynamic>? ?? {};
+            batch.add({
+              'friendUserID': friendUser['userID'] ?? f['userID'],
+              'ownerUserID': f['ownerUserID'],
+              'nickname': friendUser['nickname'],
+              'faceURL': friendUser['faceURL'],
+              'remark': f['remark'],
+              'createTime': f['createTime'],
+              'addSource': f['addSource'],
+              'operatorUserID': f['operatorUserID'],
+              'ex': f['ex'],
+              'isPinned': f['isPinned'],
+            });
           }
         }
         if (batch.isNotEmpty) await _db.batchUpsertFriends(batch);
@@ -491,8 +551,11 @@ class MsgSyncer {
         }
       }
 
-      // 批量存入消息表
+      // 批量存入消息表（注入 conversationID 以支持单条件查询）
       if (msgMaps.isNotEmpty) {
+        for (final m in msgMaps) {
+          m['conversationID'] = convID;
+        }
         await _db.batchInsertMessages(msgMaps);
       }
 
@@ -644,8 +707,8 @@ class MsgSyncer {
       return;
     }
 
-    // 存储普通消息到 chatLog
-    _db.insertMessage(msg);
+    // 存储普通消息到 chatLog（注入 conversationID）
+    _db.insertMessage({...msg, 'conversationID': conversationID});
 
     // 更新 seq 追踪
     final isNewSeq = seq > (_syncedMaxSeqs[conversationID] ?? 0);

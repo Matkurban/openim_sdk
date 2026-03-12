@@ -27,10 +27,13 @@ class NotificationDispatcher {
   // 动态获取当前有效监听器
   OnFriendshipListener? get friendshipListener => _friendshipManager?.listener;
   OnGroupListener? get groupListener => _groupManager?.listener;
-  OnConversationListener? get conversationListener => _conversationManager?.listener;
-  OnAdvancedMsgListener? get advancedMsgListener => _messageManager?.msgListener;
+  OnConversationListener? get conversationListener =>
+      _conversationManager?.listener;
+  OnAdvancedMsgListener? get advancedMsgListener =>
+      _messageManager?.msgListener;
   OnUserListener? get userListener => _userManager?.listener;
-  OnCustomBusinessListener? get customBusinessListener => _messageManager?.customBusinessListener;
+  OnCustomBusinessListener? get customBusinessListener =>
+      _messageManager?.customBusinessListener;
 
   NotificationDispatcher();
 
@@ -75,9 +78,83 @@ class NotificationDispatcher {
   // 普通消息
   // ---------------------------------------------------------------------------
 
+  /// 将服务端原始消息 Map 规范化为 Message.fromJson 可解析的格式。
+  ///
+  /// 服务端消息的内容存放在 `content` 字段（JSON 字符串 或 base64 编码的 JSON 字符串），
+  /// 而 Message.fromJson（json_serializable 自动生成）期望找到对应 elem 的子对象字段
+  /// （如 `customElem`、`textElem` 等）。
+  /// 此方法负责把 `content` 解析后注入到正确的 elem 字段，避免 null 检查崩溃。
+  Map<String, dynamic> _normalizeServerMessage(
+    Map<String, dynamic> msg,
+    int contentType,
+  ) {
+    // 确定目标 elem 字段名
+    final elemKey = _contentTypeToElemKey(contentType);
+    if (elemKey == null) return msg;
+    // 已经有对应 elem 字段时，无需处理
+    if (msg[elemKey] != null) return msg;
+
+    final rawContent = msg['content'] as String?;
+    if (rawContent == null || rawContent.isEmpty) return msg;
+
+    Map<String, dynamic>? contentMap;
+    // 尝试直接 JSON 解析
+    try {
+      contentMap = jsonDecode(rawContent) as Map<String, dynamic>;
+    } catch (_) {}
+    // 兜底：base64 → UTF-8 → JSON
+    if (contentMap == null) {
+      try {
+        final decoded = utf8.decode(base64Decode(rawContent));
+        contentMap = jsonDecode(decoded) as Map<String, dynamic>;
+      } catch (_) {}
+    }
+
+    if (contentMap == null) return msg;
+    return {...msg, elemKey: contentMap};
+  }
+
+  /// content type → Message.fromJson 期望的 elem 字段名映射
+  String? _contentTypeToElemKey(int contentType) {
+    switch (contentType) {
+      case 101:
+        return 'textElem';
+      case 102:
+        return 'pictureElem';
+      case 103:
+        return 'soundElem';
+      case 104:
+        return 'videoElem';
+      case 105:
+        return 'fileElem';
+      case 106:
+        return 'atTextElem';
+      case 107:
+        return 'mergeElem';
+      case 108:
+        return 'cardElem';
+      case 109:
+        return 'locationElem';
+      case 110:
+        return 'customElem';
+      case 114:
+        return 'quoteElem';
+      case 115:
+        return 'faceElem';
+      case 117:
+        return 'advancedTextElem';
+      case 119:
+      case 120:
+        return 'customElem';
+      default:
+        return null;
+    }
+  }
+
   void _dispatchUserMessage(Map<String, dynamic> msg, int contentType) {
     try {
-      final message = Message.fromJson(msg);
+      final normalized = _normalizeServerMessage(msg, contentType);
+      final message = Message.fromJson(normalized);
 
       // 通知消息监听器
       advancedMsgListener?.recvNewMessage(message);
@@ -94,14 +171,20 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _dispatchNotification(Map<String, dynamic> msg, int contentType) {
-    // 解析通知体中的 detail JSON
-    final content = msg['content'] as String? ?? '{}';
+    // 解析通知体中的 detail JSON（content 可能是 JSON 字符串或 base64 编码的 JSON 字符串）
+    final rawContent = msg['content'] as String? ?? '{}';
     Map<String, dynamic> detail;
+    Map<String, dynamic>? parsed;
     try {
-      detail = jsonDecode(content) as Map<String, dynamic>;
-    } catch (_) {
-      detail = {};
+      parsed = jsonDecode(rawContent) as Map<String, dynamic>;
+    } catch (_) {}
+    if (parsed == null) {
+      try {
+        final decoded = utf8.decode(base64Decode(rawContent));
+        parsed = jsonDecode(decoded) as Map<String, dynamic>;
+      } catch (_) {}
     }
+    detail = parsed ?? {};
 
     switch (contentType) {
       // ---- Friend 通知 (1200-1299) ----
@@ -216,7 +299,10 @@ class NotificationDispatcher {
     }
   }
 
-  void _onFriendApplicationChanged(Map<String, dynamic> detail, {required bool accepted}) {
+  void _onFriendApplicationChanged(
+    Map<String, dynamic> detail, {
+    required bool accepted,
+  }) {
     try {
       final info = FriendApplicationInfo.fromJson(_extractFromDetail(detail));
       if (accepted) {
@@ -346,11 +432,16 @@ class NotificationDispatcher {
           final updates = <String, dynamic>{};
           if (conv.conversationID.isNotEmpty) {
             // 服务端推送的字段直接覆写到本地
-            if (conv.recvMsgOpt != null) updates['recvMsgOpt'] = conv.recvMsgOpt;
-            if (conv.isPinned != null) updates['isPinned'] = conv.isPinned! ? 1 : 0;
-            if (conv.isPrivateChat != null) updates['isPrivateChat'] = conv.isPrivateChat! ? 1 : 0;
-            if (conv.burnDuration != null) updates['burnDuration'] = conv.burnDuration;
-            if (conv.groupAtType != null) updates['groupAtType'] = conv.groupAtType;
+            if (conv.recvMsgOpt != null)
+              updates['recvMsgOpt'] = conv.recvMsgOpt;
+            if (conv.isPinned != null)
+              updates['isPinned'] = conv.isPinned! ? 1 : 0;
+            if (conv.isPrivateChat != null)
+              updates['isPrivateChat'] = conv.isPrivateChat! ? 1 : 0;
+            if (conv.burnDuration != null)
+              updates['burnDuration'] = conv.burnDuration;
+            if (conv.groupAtType != null)
+              updates['groupAtType'] = conv.groupAtType;
             if (conv.ex != null) updates['ex'] = conv.ex;
             if (conv.showName != null) updates['showName'] = conv.showName;
             if (conv.faceURL != null) updates['faceURL'] = conv.faceURL;
@@ -422,7 +513,10 @@ class NotificationDispatcher {
 
   void _onGroupMemberAdded(Map<String, dynamic> detail) {
     try {
-      final memberList = detail['invitedUserList'] as List? ?? detail['memberList'] as List? ?? [];
+      final memberList =
+          detail['invitedUserList'] as List? ??
+          detail['memberList'] as List? ??
+          [];
       for (final m in memberList) {
         if (m is Map<String, dynamic>) {
           final info = GroupMembersInfo.fromJson(m);
@@ -436,7 +530,10 @@ class NotificationDispatcher {
 
   void _onGroupMemberDeleted(Map<String, dynamic> detail) {
     try {
-      final memberList = detail['kickedUserList'] as List? ?? detail['memberList'] as List? ?? [];
+      final memberList =
+          detail['kickedUserList'] as List? ??
+          detail['memberList'] as List? ??
+          [];
       for (final m in memberList) {
         if (m is Map<String, dynamic>) {
           final info = GroupMembersInfo.fromJson(m);

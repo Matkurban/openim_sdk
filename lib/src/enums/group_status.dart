@@ -19,6 +19,9 @@ enum GroupStatus {
   final int value;
 
   factory GroupStatus.fromValue(int value) {
-    return GroupStatus.values.firstWhere((e) => e.value == value, orElse: () => GroupStatus.normal);
+    return GroupStatus.values.firstWhere(
+      (e) => e.value == value,
+      orElse: () => GroupStatus.normal,
+    );
   }
 }

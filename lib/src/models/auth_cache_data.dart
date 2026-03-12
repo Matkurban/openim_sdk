@@ -14,9 +14,14 @@ class AuthCacheData {
 
   final String chatToken;
 
-  AuthCacheData({required this.userID, required this.imToken, required this.chatToken});
+  AuthCacheData({
+    required this.userID,
+    required this.imToken,
+    required this.chatToken,
+  });
 
-  factory AuthCacheData.fromJson(Map<String, dynamic> json) => _$AuthCacheDataFromJson(json);
+  factory AuthCacheData.fromJson(Map<String, dynamic> json) =>
+      _$AuthCacheDataFromJson(json);
 
   Map<String, dynamic> toJson() => _$AuthCacheDataToJson(this);
 

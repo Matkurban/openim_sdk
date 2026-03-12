@@ -45,7 +45,8 @@ class HttpClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          options.headers['operationID'] = 'op_${DateTime.now().millisecondsSinceEpoch}';
+          options.headers['operationID'] =
+              'op_${DateTime.now().millisecondsSinceEpoch}';
           handler.next(options);
         },
       ),
@@ -200,7 +201,12 @@ class HttpClient {
       return _handleDioException(e);
     } catch (e, s) {
       _log.severe('Unknown error', e, s);
-      return ApiResponse(errCode: -1, errMsg: e.toString(), errDlt: s.toString(), data: null);
+      return ApiResponse(
+        errCode: -1,
+        errMsg: e.toString(),
+        errDlt: s.toString(),
+        data: null,
+      );
     }
   }
 

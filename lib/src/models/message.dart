@@ -174,7 +174,8 @@ class Message extends Equatable {
     this.typingElem,
   });
 
-  factory Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);
+  factory Message.fromJson(Map<String, dynamic> json) =>
+      _$MessageFromJson(json);
 
   Map<String, dynamic> toJson() => _$MessageToJson(this);
 
@@ -183,7 +184,8 @@ class Message extends Equatable {
 
   /// Group chat message
   bool get isGroupChat =>
-      sessionType == ConversationType.group || sessionType == ConversationType.superGroup;
+      sessionType == ConversationType.group ||
+      sessionType == ConversationType.superGroup;
 
   Message copyWith({
     String? clientMsgID,
@@ -283,9 +285,15 @@ class PictureElem extends Equatable {
   final PictureInfo? bigPicture;
   final PictureInfo? snapshotPicture;
 
-  const PictureElem({this.sourcePath, this.sourcePicture, this.bigPicture, this.snapshotPicture});
+  const PictureElem({
+    this.sourcePath,
+    this.sourcePicture,
+    this.bigPicture,
+    this.snapshotPicture,
+  });
 
-  factory PictureElem.fromJson(Map<String, dynamic> json) => _$PictureElemFromJson(json);
+  factory PictureElem.fromJson(Map<String, dynamic> json) =>
+      _$PictureElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$PictureElemToJson(this);
 
@@ -304,7 +312,12 @@ class PictureElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [sourcePath, sourcePicture, bigPicture, snapshotPicture];
+  List<Object?> get props => [
+    sourcePath,
+    sourcePicture,
+    bigPicture,
+    snapshotPicture,
+  ];
 }
 
 /// Image information
@@ -317,9 +330,17 @@ class PictureInfo extends Equatable {
   final int? height;
   final String? url;
 
-  const PictureInfo({this.uuid, this.type, this.size, this.width, this.height, this.url});
+  const PictureInfo({
+    this.uuid,
+    this.type,
+    this.size,
+    this.width,
+    this.height,
+    this.url,
+  });
 
-  factory PictureInfo.fromJson(Map<String, dynamic> json) => _$PictureInfoFromJson(json);
+  factory PictureInfo.fromJson(Map<String, dynamic> json) =>
+      _$PictureInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$PictureInfoToJson(this);
 
@@ -354,9 +375,16 @@ class SoundElem extends Equatable {
   final int? dataSize;
   final int? duration;
 
-  const SoundElem({this.uuid, this.soundPath, this.sourceUrl, this.dataSize, this.duration});
+  const SoundElem({
+    this.uuid,
+    this.soundPath,
+    this.sourceUrl,
+    this.dataSize,
+    this.duration,
+  });
 
-  factory SoundElem.fromJson(Map<String, dynamic> json) => _$SoundElemFromJson(json);
+  factory SoundElem.fromJson(Map<String, dynamic> json) =>
+      _$SoundElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$SoundElemToJson(this);
 
@@ -411,7 +439,8 @@ class VideoElem extends Equatable {
     this.snapshotHeight,
   });
 
-  factory VideoElem.fromJson(Map<String, dynamic> json) => _$VideoElemFromJson(json);
+  factory VideoElem.fromJson(Map<String, dynamic> json) =>
+      _$VideoElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$VideoElemToJson(this);
 
@@ -471,9 +500,16 @@ class FileElem extends Equatable {
   final String? fileName;
   final int? fileSize;
 
-  const FileElem({this.filePath, this.uuid, this.sourceUrl, this.fileName, this.fileSize});
+  const FileElem({
+    this.filePath,
+    this.uuid,
+    this.sourceUrl,
+    this.fileName,
+    this.fileSize,
+  });
 
-  factory FileElem.fromJson(Map<String, dynamic> json) => _$FileElemFromJson(json);
+  factory FileElem.fromJson(Map<String, dynamic> json) =>
+      _$FileElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$FileElemToJson(this);
 
@@ -514,7 +550,8 @@ class AtTextElem extends Equatable {
     this.quoteMessage,
   });
 
-  factory AtTextElem.fromJson(Map<String, dynamic> json) => _$AtTextElemFromJson(json);
+  factory AtTextElem.fromJson(Map<String, dynamic> json) =>
+      _$AtTextElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$AtTextElemToJson(this);
 
@@ -535,7 +572,13 @@ class AtTextElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [text, atUserList, isAtSelf, atUsersInfo, quoteMessage];
+  List<Object?> get props => [
+    text,
+    atUserList,
+    isAtSelf,
+    atUsersInfo,
+    quoteMessage,
+  ];
 }
 
 /// Location Message
@@ -547,11 +590,16 @@ class LocationElem extends Equatable {
 
   const LocationElem({this.description, this.longitude, this.latitude});
 
-  factory LocationElem.fromJson(Map<String, dynamic> json) => _$LocationElemFromJson(json);
+  factory LocationElem.fromJson(Map<String, dynamic> json) =>
+      _$LocationElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$LocationElemToJson(this);
 
-  LocationElem copyWith({String? description, double? longitude, double? latitude}) {
+  LocationElem copyWith({
+    String? description,
+    double? longitude,
+    double? latitude,
+  }) {
     return LocationElem(
       description: description ?? this.description,
       longitude: longitude ?? this.longitude,
@@ -572,7 +620,8 @@ class CustomElem extends Equatable {
 
   const CustomElem({this.data, this.extension, this.description});
 
-  factory CustomElem.fromJson(Map<String, dynamic> json) => _$CustomElemFromJson(json);
+  factory CustomElem.fromJson(Map<String, dynamic> json) =>
+      _$CustomElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$CustomElemToJson(this);
 
@@ -596,12 +645,16 @@ class QuoteElem extends Equatable {
 
   const QuoteElem({this.text, this.quoteMessage});
 
-  factory QuoteElem.fromJson(Map<String, dynamic> json) => _$QuoteElemFromJson(json);
+  factory QuoteElem.fromJson(Map<String, dynamic> json) =>
+      _$QuoteElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$QuoteElemToJson(this);
 
   QuoteElem copyWith({String? text, Message? quoteMessage}) {
-    return QuoteElem(text: text ?? this.text, quoteMessage: quoteMessage ?? this.quoteMessage);
+    return QuoteElem(
+      text: text ?? this.text,
+      quoteMessage: quoteMessage ?? this.quoteMessage,
+    );
   }
 
   @override
@@ -617,11 +670,16 @@ class MergeElem extends Equatable {
 
   const MergeElem({this.title, this.abstractList, this.multiMessage});
 
-  factory MergeElem.fromJson(Map<String, dynamic> json) => _$MergeElemFromJson(json);
+  factory MergeElem.fromJson(Map<String, dynamic> json) =>
+      _$MergeElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$MergeElemToJson(this);
 
-  MergeElem copyWith({String? title, List<String>? abstractList, List<Message>? multiMessage}) {
+  MergeElem copyWith({
+    String? title,
+    List<String>? abstractList,
+    List<Message>? multiMessage,
+  }) {
     return MergeElem(
       title: title ?? this.title,
       abstractList: abstractList ?? this.abstractList,
@@ -641,7 +699,8 @@ class NotificationElem extends Equatable {
 
   const NotificationElem({this.detail, this.defaultTips});
 
-  factory NotificationElem.fromJson(Map<String, dynamic> json) => _$NotificationElemFromJson(json);
+  factory NotificationElem.fromJson(Map<String, dynamic> json) =>
+      _$NotificationElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$NotificationElemToJson(this);
 
@@ -664,7 +723,8 @@ class FaceElem extends Equatable {
 
   const FaceElem({this.index, this.data});
 
-  factory FaceElem.fromJson(Map<String, dynamic> json) => _$FaceElemFromJson(json);
+  factory FaceElem.fromJson(Map<String, dynamic> json) =>
+      _$FaceElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$FaceElemToJson(this);
 
@@ -695,7 +755,8 @@ class AttachedInfoElem extends Equatable {
     this.uploadProgress,
   });
 
-  factory AttachedInfoElem.fromJson(Map<String, dynamic> json) => _$AttachedInfoElemFromJson(json);
+  factory AttachedInfoElem.fromJson(Map<String, dynamic> json) =>
+      _$AttachedInfoElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$AttachedInfoElemToJson(this);
 
@@ -712,7 +773,8 @@ class AttachedInfoElem extends Equatable {
       isPrivateChat: isPrivateChat ?? this.isPrivateChat,
       hasReadTime: hasReadTime ?? this.hasReadTime,
       burnDuration: burnDuration ?? this.burnDuration,
-      notSenderNotificationPush: notSenderNotificationPush ?? this.notSenderNotificationPush,
+      notSenderNotificationPush:
+          notSenderNotificationPush ?? this.notSenderNotificationPush,
       uploadProgress: uploadProgress ?? this.uploadProgress,
     );
   }
@@ -737,11 +799,17 @@ class UploadProgress extends Equatable {
 
   const UploadProgress({this.total, this.save, this.current, this.uploadID});
 
-  factory UploadProgress.fromJson(Map<String, dynamic> json) => _$UploadProgressFromJson(json);
+  factory UploadProgress.fromJson(Map<String, dynamic> json) =>
+      _$UploadProgressFromJson(json);
 
   Map<String, dynamic> toJson() => _$UploadProgressToJson(this);
 
-  UploadProgress copyWith({int? total, int? save, int? current, String? uploadID}) {
+  UploadProgress copyWith({
+    int? total,
+    int? save,
+    int? current,
+    String? uploadID,
+  }) {
     return UploadProgress(
       total: total ?? this.total,
       save: save ?? this.save,
@@ -760,7 +828,8 @@ class TextElem extends Equatable {
 
   const TextElem({this.content});
 
-  factory TextElem.fromJson(Map<String, dynamic> json) => _$TextElemFromJson(json);
+  factory TextElem.fromJson(Map<String, dynamic> json) =>
+      _$TextElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$TextElemToJson(this);
 
@@ -781,11 +850,17 @@ class CardElem extends Equatable {
 
   const CardElem({this.userID, this.nickname, this.faceURL, this.ex});
 
-  factory CardElem.fromJson(Map<String, dynamic> json) => _$CardElemFromJson(json);
+  factory CardElem.fromJson(Map<String, dynamic> json) =>
+      _$CardElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$CardElemToJson(this);
 
-  CardElem copyWith({String? userID, String? nickname, String? faceURL, String? ex}) {
+  CardElem copyWith({
+    String? userID,
+    String? nickname,
+    String? faceURL,
+    String? ex,
+  }) {
     return CardElem(
       userID: userID ?? this.userID,
       nickname: nickname ?? this.nickname,
@@ -804,7 +879,8 @@ class TypingElem extends Equatable {
 
   const TypingElem({this.msgTips});
 
-  factory TypingElem.fromJson(Map<String, dynamic> json) => _$TypingElemFromJson(json);
+  factory TypingElem.fromJson(Map<String, dynamic> json) =>
+      _$TypingElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$TypingElemToJson(this);
 
@@ -823,11 +899,15 @@ class AdvancedTextElem extends Equatable {
 
   const AdvancedTextElem({this.text, this.messageEntityList});
 
-  factory AdvancedTextElem.fromJson(Map<String, dynamic> json) => _$AdvancedTextElemFromJson(json);
+  factory AdvancedTextElem.fromJson(Map<String, dynamic> json) =>
+      _$AdvancedTextElemFromJson(json);
 
   Map<String, dynamic> toJson() => _$AdvancedTextElemToJson(this);
 
-  AdvancedTextElem copyWith({String? text, List<MessageEntity>? messageEntityList}) {
+  AdvancedTextElem copyWith({
+    String? text,
+    List<MessageEntity>? messageEntityList,
+  }) {
     return AdvancedTextElem(
       text: text ?? this.text,
       messageEntityList: messageEntityList ?? this.messageEntityList,
@@ -848,11 +928,18 @@ class MessageEntity extends Equatable {
 
   const MessageEntity({this.type, this.offset, this.length, this.url, this.ex});
 
-  factory MessageEntity.fromJson(Map<String, dynamic> json) => _$MessageEntityFromJson(json);
+  factory MessageEntity.fromJson(Map<String, dynamic> json) =>
+      _$MessageEntityFromJson(json);
 
   Map<String, dynamic> toJson() => _$MessageEntityToJson(this);
 
-  MessageEntity copyWith({String? type, int? offset, int? length, String? url, String? ex}) {
+  MessageEntity copyWith({
+    String? type,
+    int? offset,
+    int? length,
+    String? url,
+    String? ex,
+  }) {
     return MessageEntity(
       type: type ?? this.type,
       offset: offset ?? this.offset,
@@ -874,7 +961,8 @@ class GroupHasReadInfo extends Equatable {
 
   const GroupHasReadInfo({this.hasReadCount, this.unreadCount});
 
-  factory GroupHasReadInfo.fromJson(Map<String, dynamic> json) => _$GroupHasReadInfoFromJson(json);
+  factory GroupHasReadInfo.fromJson(Map<String, dynamic> json) =>
+      _$GroupHasReadInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$GroupHasReadInfoToJson(this);
 
@@ -914,7 +1002,8 @@ class ReadReceiptInfo extends Equatable {
     this.sessionType,
   });
 
-  factory ReadReceiptInfo.fromJson(Map<String, dynamic> json) => _$ReadReceiptInfoFromJson(json);
+  factory ReadReceiptInfo.fromJson(Map<String, dynamic> json) =>
+      _$ReadReceiptInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$ReadReceiptInfoToJson(this);
 
@@ -959,9 +1048,16 @@ class OfflinePushInfo extends Equatable {
   final String? iOSPushSound;
   final bool? iOSBadgeCount;
 
-  const OfflinePushInfo({this.title, this.desc, this.ex, this.iOSPushSound, this.iOSBadgeCount});
+  const OfflinePushInfo({
+    this.title,
+    this.desc,
+    this.ex,
+    this.iOSPushSound,
+    this.iOSBadgeCount,
+  });
 
-  factory OfflinePushInfo.fromJson(Map<String, dynamic> json) => _$OfflinePushInfoFromJson(json);
+  factory OfflinePushInfo.fromJson(Map<String, dynamic> json) =>
+      _$OfflinePushInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$OfflinePushInfoToJson(this);
 
@@ -993,7 +1089,8 @@ class AtUserInfo extends Equatable {
 
   const AtUserInfo({this.atUserID, this.groupNickname});
 
-  factory AtUserInfo.fromJson(Map<String, dynamic> json) => _$AtUserInfoFromJson(json);
+  factory AtUserInfo.fromJson(Map<String, dynamic> json) =>
+      _$AtUserInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$AtUserInfoToJson(this);
 
@@ -1038,7 +1135,8 @@ class RevokedInfo extends Equatable {
     this.sessionType,
   });
 
-  factory RevokedInfo.fromJson(Map<String, dynamic> json) => _$RevokedInfoFromJson(json);
+  factory RevokedInfo.fromJson(Map<String, dynamic> json) =>
+      _$RevokedInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$RevokedInfoToJson(this);
 
@@ -1059,9 +1157,11 @@ class RevokedInfo extends Equatable {
       revokerNickname: revokerNickname ?? this.revokerNickname,
       clientMsgID: clientMsgID ?? this.clientMsgID,
       revokeTime: revokeTime ?? this.revokeTime,
-      sourceMessageSendTime: sourceMessageSendTime ?? this.sourceMessageSendTime,
+      sourceMessageSendTime:
+          sourceMessageSendTime ?? this.sourceMessageSendTime,
       sourceMessageSendID: sourceMessageSendID ?? this.sourceMessageSendID,
-      sourceMessageSenderNickname: sourceMessageSenderNickname ?? this.sourceMessageSenderNickname,
+      sourceMessageSenderNickname:
+          sourceMessageSenderNickname ?? this.sourceMessageSenderNickname,
       sessionType: sessionType ?? this.sessionType,
     );
   }
@@ -1088,9 +1188,16 @@ class AdvancedMessage extends Equatable {
   final String? errMsg;
   final int? lastMinSeq;
 
-  const AdvancedMessage({this.messageList, this.isEnd, this.errCode, this.errMsg, this.lastMinSeq});
+  const AdvancedMessage({
+    this.messageList,
+    this.isEnd,
+    this.errCode,
+    this.errMsg,
+    this.lastMinSeq,
+  });
 
-  factory AdvancedMessage.fromJson(Map<String, dynamic> json) => _$AdvancedMessageFromJson(json);
+  factory AdvancedMessage.fromJson(Map<String, dynamic> json) =>
+      _$AdvancedMessageFromJson(json);
 
   Map<String, dynamic> toJson() => _$AdvancedMessageToJson(this);
 
@@ -1122,13 +1229,26 @@ class RichMessageInfo extends Equatable {
   final String? url;
   final String? info;
 
-  const RichMessageInfo({this.type, this.offset, this.length, this.url, this.info});
+  const RichMessageInfo({
+    this.type,
+    this.offset,
+    this.length,
+    this.url,
+    this.info,
+  });
 
-  factory RichMessageInfo.fromJson(Map<String, dynamic> json) => _$RichMessageInfoFromJson(json);
+  factory RichMessageInfo.fromJson(Map<String, dynamic> json) =>
+      _$RichMessageInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$RichMessageInfoToJson(this);
 
-  RichMessageInfo copyWith({String? type, int? offset, int? length, String? url, String? info}) {
+  RichMessageInfo copyWith({
+    String? type,
+    int? offset,
+    int? length,
+    String? url,
+    String? info,
+  }) {
     return RichMessageInfo(
       type: type ?? this.type,
       offset: offset ?? this.offset,
@@ -1149,7 +1269,8 @@ class UserExInfo extends Equatable {
 
   const UserExInfo({this.userID, this.ex});
 
-  factory UserExInfo.fromJson(Map<String, dynamic> json) => _$UserExInfoFromJson(json);
+  factory UserExInfo.fromJson(Map<String, dynamic> json) =>
+      _$UserExInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$UserExInfoToJson(this);
 

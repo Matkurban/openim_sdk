@@ -13,8 +13,9 @@ class UserManager {
 
   ImApiService get _api =>
       GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  DatabaseService get _database => GetIt.instance.get<DatabaseService>(
+    instanceName: InstanceName.databaseService,
+  );
 
   /// 用户信息变更监听器
   OnUserListener? listener;
@@ -29,7 +30,10 @@ class UserManager {
   // ---------------------------------------------------------------------------
 
   /// 使用邮箱登录
-  Future<void> loginByEmail({required String email, required String password}) async {
+  Future<void> loginByEmail({
+    required String email,
+    required String password,
+  }) async {
     final resp = await _api.login(email: email, password: password);
     if (resp.errCode != 0) {
       throw Exception('登录失败: ${resp.errMsg}');
@@ -43,7 +47,11 @@ class UserManager {
     required String phoneNumber,
     required String password,
   }) async {
-    final resp = await _api.login(areaCode: areaCode, phoneNumber: phoneNumber, password: password);
+    final resp = await _api.login(
+      areaCode: areaCode,
+      phoneNumber: phoneNumber,
+      password: password,
+    );
     if (resp.errCode != 0) {
       throw Exception('登录失败: ${resp.errMsg}');
     }
@@ -54,11 +62,55 @@ class UserManager {
   // 用户信息操作
   // ---------------------------------------------------------------------------
 
-  /// 获取用户信息
+  /// 获取用户信息（走缓存机制）
   /// [userIDList] 用户ID列表
-  Future<List<UserInfo>> getUsersInfo({required List<String> userIDList}) async {
-    final dataList = await _database.getUsersByIDs(userIDList);
-    return dataList.map((d) => UserInfo.fromJson(d)).toList();
+  Future<List<UserInfo>> getUsersInfo({
+    required List<String> userIDList,
+  }) async {
+    return getUsersInfoWithCache(userIDList: userIDList);
+  }
+
+  /// 从缓存获取用户信息，缺失部分从服务器获取并回写本地
+  Future<List<UserInfo>> getUsersInfoWithCache({
+    required List<String> userIDList,
+  }) async {
+    if (userIDList.isEmpty) return [];
+
+    List<UserInfo> result = [];
+    List<String> missingIDs = [];
+
+    // 1. 查询本地数据库
+    final dbUsers = await _database.getUsersByIDs(userIDList);
+    result = dbUsers.map((d) => UserInfo.fromJson(d)).toList();
+
+    // 2. 对比找出未缓存的用户 ID
+    for (var id in userIDList) {
+      if (!result.any((u) => u.userID == id)) {
+        missingIDs.add(id);
+      }
+    }
+
+    // 3. 远程拉取缺失数据
+    if (missingIDs.isNotEmpty) {
+      final srvUsers = await getUsersInfoFromSrv(userIDList: missingIDs);
+      result.addAll(srvUsers);
+      // 4. 更新到本地缓存
+      await batchSaveUsersToLocal(srvUsers);
+    }
+
+    return result;
+  }
+
+  /// 强制从服务器获取用户信息
+  Future<List<UserInfo>> getUsersInfoFromSrv({
+    required List<String> userIDList,
+  }) async {
+    if (userIDList.isEmpty) return [];
+    final resp = await _api.getUsersInfo(userIDs: userIDList);
+    if (resp.errCode == 0 && resp.data is List) {
+      return (resp.data as List).map((v) => UserInfo.fromJson(v)).toList();
+    }
+    throw Exception('从服务器获取用户信息失败: ${resp.errMsg}');
   }
 
   /// 获取当前登录用户信息
@@ -82,7 +134,8 @@ class UserManager {
     final updateData = <String, dynamic>{};
     if (nickname != null) updateData['nickname'] = nickname;
     if (faceURL != null) updateData['faceURL'] = faceURL;
-    if (globalRecvMsgOpt != null) updateData['globalRecvMsgOpt'] = globalRecvMsgOpt;
+    if (globalRecvMsgOpt != null)
+      updateData['globalRecvMsgOpt'] = globalRecvMsgOpt;
     if (ex != null) updateData['ex'] = ex;
 
     if (updateData.isEmpty) return;
@@ -101,34 +154,84 @@ class UserManager {
       listener?.selfInfoUpdated(updated);
     }
 
-    // TODO: 同步到服务器
+    // 5. 同步到服务器
+    updateData['userID'] = current?['userID'];
+    final resp = await _api.updateUserInfo(userInfo: updateData);
+    if (resp.errCode != 0) {
+      _log.warning('同步用户信息到服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 订阅用户在线状态
   /// [userIDs] 用户ID列表
-  Future<List<UserStatusInfo>> subscribeUsersStatus(List<String> userIDs) async {
-    // TODO: 通过服务器订阅用户状态
+  Future<List<UserStatusInfo>> subscribeUsersStatus(
+    List<String> userIDs,
+  ) async {
     _log.info('订阅用户状态: $userIDs');
+    final resp = await _api.subscribeUsersStatus(
+      userID: _database.currentUserID,
+      userIDs: userIDs,
+      genre: 1, // 1 for subscribe (assumed based on common logic)
+    );
+    if (resp.errCode != 0) {
+      throw Exception('订阅用户状态失败: ${resp.errMsg}');
+    }
+    final data = resp.data;
+    if (data is Map && data['statusList'] is List) {
+      return (data['statusList'] as List)
+          .map((e) => UserStatusInfo.fromJson(e))
+          .toList();
+    }
     return [];
   }
 
   /// 取消订阅用户在线状态
   /// [userIDs] 用户ID列表
   Future<void> unsubscribeUsersStatus(List<String> userIDs) async {
-    // TODO: 通过服务器取消订阅
     _log.info('取消订阅用户状态: $userIDs');
+    final resp = await _api.subscribeUsersStatus(
+      userID: _database.currentUserID,
+      userIDs: userIDs,
+      genre: 2, // 2 for unsubscribe
+    );
+    if (resp.errCode != 0) {
+      throw Exception('取消订阅用户状态失败: ${resp.errMsg}');
+    }
   }
 
   /// 获取已订阅用户的在线状态
   Future<List<UserStatusInfo>> getSubscribeUsersStatus() async {
-    // TODO: 从服务器获取已订阅用户的状态
+    final resp = await _api.getSubscribeUsersStatus(
+      userID: _database.currentUserID,
+    );
+    if (resp.errCode != 0) {
+      throw Exception('获取已订阅用户状态失败: ${resp.errMsg}');
+    }
+    final data = resp.data;
+    if (data is Map && data['statusList'] is List) {
+      return (data['statusList'] as List)
+          .map((e) => UserStatusInfo.fromJson(e))
+          .toList();
+    }
     return [];
   }
 
   /// 获取用户在线状态
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> getUserStatus(List<String> userIDs) async {
-    // TODO: 从服务器查询用户在线状态
+    final resp = await _api.getUserStatus(
+      userID: _database.currentUserID,
+      userIDs: userIDs,
+    );
+    if (resp.errCode != 0) {
+      throw Exception('获取用户状态失败: ${resp.errMsg}');
+    }
+    final data = resp.data;
+    if (data is Map && data['statusList'] is List) {
+      return (data['statusList'] as List)
+          .map((e) => UserStatusInfo.fromJson(e))
+          .toList();
+    }
     return [];
   }
 

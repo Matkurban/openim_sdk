@@ -164,7 +164,9 @@ class WebSocketService {
       if (_pendingRequests.containsKey(msgIncr)) {
         _pendingRequests.remove(msgIncr);
         if (!completer.isCompleted) {
-          completer.completeError(TimeoutException('WebSocket 请求超时', _requestTimeout));
+          completer.completeError(
+            TimeoutException('WebSocket 请求超时', _requestTimeout),
+          );
         }
       }
     });
@@ -229,7 +231,11 @@ class WebSocketService {
 
   void _startListening() {
     _subscription?.cancel();
-    _subscription = _channel?.stream.listen(_onMessage, onError: _onError, onDone: _onDone);
+    _subscription = _channel?.stream.listen(
+      _onMessage,
+      onError: _onError,
+      onDone: _onDone,
+    );
   }
 
   void _onMessage(dynamic message) {
@@ -342,7 +348,8 @@ class WebSocketService {
 
     _isReconnecting = true;
     _reconnectIndex++;
-    final interval = _backoffIntervals[_reconnectIndex % _backoffIntervals.length];
+    final interval =
+        _backoffIntervals[_reconnectIndex % _backoffIntervals.length];
     _reconnectAttempts++;
 
     _log.info('将在 ${interval}s 后重连 (第 $_reconnectAttempts 次)');

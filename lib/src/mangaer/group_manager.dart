@@ -1,3 +1,4 @@
+import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
@@ -10,10 +11,12 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class GroupManager {
   static final Logger _log = Logger('GroupManager');
 
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  DatabaseService get _database => GetIt.instance.get<DatabaseService>(
+    instanceName: InstanceName.databaseService,
+  );
 
   /// 群组监听器
+  ImApiService get _api => GetIt.instance.get<ImApiService>();
   OnGroupListener? listener;
 
   /// 设置群组监听器
@@ -27,7 +30,9 @@ class GroupManager {
 
   /// 查询群组信息
   /// [groupIDList] 群组ID列表
-  Future<List<GroupInfo>> getGroupsInfo({required List<String> groupIDList}) async {
+  Future<List<GroupInfo>> getGroupsInfo({
+    required List<String> groupIDList,
+  }) async {
     final results = <GroupInfo>[];
     for (final gid in groupIDList) {
       final data = await _database.getGroupByID(gid);
@@ -47,7 +52,10 @@ class GroupManager {
   /// 分页获取已加入的群组列表
   /// [offset] 起始索引
   /// [count] 每页数量
-  Future<List<GroupInfo>> getJoinedGroupListPage({int offset = 0, int count = 40}) async {
+  Future<List<GroupInfo>> getJoinedGroupListPage({
+    int offset = 0,
+    int count = 40,
+  }) async {
     final dataList = await _database.getJoinedGroupListPage(offset, count);
     return dataList.map(_convertGroupInfo).toList();
   }
@@ -148,7 +156,11 @@ class GroupManager {
     _log.info('群组信息已更新: ${groupInfo.groupID}');
 
     listener?.groupInfoChanged(groupInfo);
-    // TODO: 同步到服务器
+    // 5. 同步到服务器
+    final resp = await _api.setGroupInfoEx(req: groupInfo.toJson());
+    if (resp.errCode != 0) {
+      _log.warning('同步群组信息失败: ${resp.errMsg}');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -175,7 +187,15 @@ class GroupManager {
       });
     }
     _log.info('已邀请 ${userIDList.length} 个用户加入群 $groupID');
-    // TODO: 同步到服务器
+
+    final resp = await _api.inviteUserToGroup(
+      groupID: groupID,
+      invitedUserIDs: userIDList,
+      reason: reason,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('邀请用户入群失败: ${resp.errMsg}');
+    }
   }
 
   /// 踢出群成员
@@ -191,7 +211,15 @@ class GroupManager {
       await _database.deleteGroupMember(groupID, uid);
     }
     _log.info('已从群 $groupID 踢出 ${userIDList.length} 个成员');
-    // TODO: 同步到服务器
+
+    final resp = await _api.kickGroupMember(
+      groupID: groupID,
+      kickedUserIDs: userIDList,
+      reason: reason,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('踢出群成员失败: ${resp.errMsg}');
+    }
   }
 
   /// 查询群成员信息
@@ -233,7 +261,9 @@ class GroupManager {
 
   /// 获取群主和管理员列表
   /// [groupID] 群组ID
-  Future<List<GroupMembersInfo>> getGroupOwnerAndAdmin({required String groupID}) async {
+  Future<List<GroupMembersInfo>> getGroupOwnerAndAdmin({
+    required String groupID,
+  }) async {
     final dataList = await _database.getGroupOwnerAndAdmin(groupID);
     return dataList.map(_convertGroupMembersInfo).toList();
   }
@@ -270,7 +300,9 @@ class GroupManager {
 
   /// 修改群成员信息
   /// [groupMembersInfo] 群成员信息
-  Future<void> setGroupMemberInfo({required SetGroupMemberInfo groupMembersInfo}) async {
+  Future<void> setGroupMemberInfo({
+    required SetGroupMemberInfo groupMembersInfo,
+  }) async {
     final gid = groupMembersInfo.groupID;
     final uid = groupMembersInfo.userID;
     if (gid.isEmpty || uid.isEmpty) return;
@@ -279,26 +311,40 @@ class GroupManager {
     if (existing == null) return;
 
     final updateData = <String, dynamic>{...existing};
-    if (groupMembersInfo.nickname != null) updateData['nickname'] = groupMembersInfo.nickname;
-    if (groupMembersInfo.faceURL != null) updateData['faceURL'] = groupMembersInfo.faceURL;
-    if (groupMembersInfo.roleLevel != null) updateData['roleLevel'] = groupMembersInfo.roleLevel;
+    if (groupMembersInfo.nickname != null)
+      updateData['nickname'] = groupMembersInfo.nickname;
+    if (groupMembersInfo.faceURL != null)
+      updateData['faceURL'] = groupMembersInfo.faceURL;
+    if (groupMembersInfo.roleLevel != null)
+      updateData['roleLevel'] = groupMembersInfo.roleLevel;
     if (groupMembersInfo.ex != null) updateData['ex'] = groupMembersInfo.ex;
 
     await _database.upsertGroupMember(updateData);
     _log.info('群成员信息已更新: group=$gid, user=$uid');
 
-    // TODO: 同步到服务器
+    final resp = await _api.setGroupMemberInfo(req: groupMembersInfo.toJson());
+    if (resp.errCode != 0) {
+      _log.warning('同步群成员信息失败: ${resp.errMsg}');
+    }
   }
 
   /// 转让群主
   /// [groupID] 群组ID
   /// [userID] 新群主用户ID
-  Future<void> transferGroupOwner({required String groupID, required String userID}) async {
+  Future<void> transferGroupOwner({
+    required String groupID,
+    required String userID,
+  }) async {
     // 获取当前群主
+    String? oldOwnerID;
     final ownerList = await _database.getGroupOwnerAndAdmin(groupID);
     for (final member in ownerList) {
       if (member['roleLevel'] == GroupRoleLevel.owner.value) {
-        await _database.upsertGroupMember({...member, 'roleLevel': GroupRoleLevel.member.value});
+        oldOwnerID = member['userID'];
+        await _database.upsertGroupMember({
+          ...member,
+          'roleLevel': GroupRoleLevel.member.value,
+        });
         break;
       }
     }
@@ -306,11 +352,24 @@ class GroupManager {
     // 设置新群主
     final newOwner = await _database.getGroupMember(groupID, userID);
     if (newOwner != null) {
-      await _database.upsertGroupMember({...newOwner, 'roleLevel': GroupRoleLevel.owner.value});
+      await _database.upsertGroupMember({
+        ...newOwner,
+        'roleLevel': GroupRoleLevel.owner.value,
+      });
     }
 
-    _log.info('群主已转让: group=$groupID, newOwner=$userID');
-    // TODO: 同步到服务器
+    _log.info('群主已转让: group=$groupID, newOwner=$userID, oldOwner=$oldOwnerID');
+
+    if (oldOwnerID != null) {
+      final resp = await _api.transferGroup(
+        groupID: groupID,
+        oldOwnerUserID: oldOwnerID,
+        newOwnerUserID: userID,
+      );
+      if (resp.errCode != 0) {
+        _log.warning('转让群主失败: ${resp.errMsg}');
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -339,7 +398,15 @@ class GroupManager {
       'ex': ex,
     });
     _log.info('已申请加入群: $groupID');
-    // TODO: 同步到服务器
+
+    final resp = await _api.joinGroup(
+      groupID: groupID,
+      reqMessage: reason,
+      joinSource: joinSource,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('申请加入群失败: ${resp.errMsg}');
+    }
   }
 
   /// 退出群组
@@ -348,7 +415,14 @@ class GroupManager {
     await _database.deleteGroupMember(groupID, _database.currentUserID);
     await _database.deleteGroup(groupID);
     _log.info('已退出群: $groupID');
-    // TODO: 同步到服务器
+
+    final resp = await _api.quitGroup(
+      userID: _database.currentUserID,
+      groupID: groupID,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('退出群失败: ${resp.errMsg}');
+    }
   }
 
   /// 解散群组
@@ -358,7 +432,11 @@ class GroupManager {
     _log.info('群组已解散: $groupID');
 
     listener?.groupDismissed(GroupInfo(groupID: groupID));
-    // TODO: 同步到服务器
+
+    final resp = await _api.dismissGroup(groupID: groupID);
+    if (resp.errCode != 0) {
+      _log.warning('解散群组失败: ${resp.errMsg}');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -368,7 +446,10 @@ class GroupManager {
   /// 群组全员禁言/解除禁言
   /// [groupID] 群组ID
   /// [mute] true:禁言, false:解除禁言
-  Future<void> changeGroupMute({required String groupID, required bool mute}) async {
+  Future<void> changeGroupMute({
+    required String groupID,
+    required bool mute,
+  }) async {
     final existing = await _database.getGroupByID(groupID);
     if (existing != null) {
       await _database.upsertGroup({
@@ -377,7 +458,13 @@ class GroupManager {
       });
     }
     _log.info('群组禁言状态变更: $groupID, mute=$mute');
-    // TODO: 同步到服务器
+
+    final resp = mute
+        ? await _api.muteGroup(groupID: groupID)
+        : await _api.cancelMuteGroup(groupID: groupID);
+    if (resp.errCode != 0) {
+      _log.warning('设置群组禁言状态失败: ${resp.errMsg}');
+    }
   }
 
   /// 群成员禁言
@@ -391,11 +478,26 @@ class GroupManager {
   }) async {
     final member = await _database.getGroupMember(groupID, userID);
     if (member != null) {
-      final muteEndTime = seconds > 0 ? DateTime.now().millisecondsSinceEpoch + seconds * 1000 : 0;
-      await _database.upsertGroupMember({...member, 'muteEndTime': muteEndTime});
+      final muteEndTime = seconds > 0
+          ? DateTime.now().millisecondsSinceEpoch + seconds * 1000
+          : 0;
+      await _database.upsertGroupMember({
+        ...member,
+        'muteEndTime': muteEndTime,
+      });
     }
     _log.info('群成员禁言: group=$groupID, user=$userID, seconds=$seconds');
-    // TODO: 同步到服务器
+
+    final resp = seconds > 0
+        ? await _api.muteGroupMember(
+            groupID: groupID,
+            userID: userID,
+            mutedSeconds: seconds,
+          )
+        : await _api.cancelMuteGroupMember(groupID: groupID, userID: userID);
+    if (resp.errCode != 0) {
+      _log.warning('设置群成员禁言失败: ${resp.errMsg}');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -454,7 +556,16 @@ class GroupManager {
     });
 
     _log.info('入群申请已接受: group=$groupID, user=$userID');
-    // TODO: 同步到服务器
+
+    final resp = await _api.groupApplicationResponse(
+      groupID: groupID,
+      fromUserID: userID,
+      handledMsg: handleMsg ?? '',
+      handleResult: 1, // 1 for accept
+    );
+    if (resp.errCode != 0) {
+      _log.warning('处理入群申请失败: ${resp.errMsg}');
+    }
   }
 
   /// 拒绝入群申请
@@ -476,12 +587,23 @@ class GroupManager {
     });
 
     _log.info('入群申请已拒绝: group=$groupID, user=$userID');
-    // TODO: 同步到服务器
+
+    final resp = await _api.groupApplicationResponse(
+      groupID: groupID,
+      fromUserID: userID,
+      handledMsg: handleMsg ?? '',
+      handleResult: -1, // -1 for refuse
+    );
+    if (resp.errCode != 0) {
+      _log.warning('处理入群申请失败: ${resp.errMsg}');
+    }
   }
 
   /// 获取未处理的入群申请数量
   /// [req] 查询参数
-  Future<int> getGroupApplicationUnhandledCount(GetGroupApplicationUnhandledCountReq req) async {
+  Future<int> getGroupApplicationUnhandledCount(
+    GetGroupApplicationUnhandledCountReq req,
+  ) async {
     return _database.getGroupRequestUnhandledCount();
   }
 
@@ -548,7 +670,9 @@ class GroupManager {
       creatorUserID: data['creatorUserID'] as String?,
       groupType: _intToGroupType(data['groupType'] as int?),
       ex: data['ex'] as String?,
-      needVerification: _intToGroupVerification(data['needVerification'] as int?),
+      needVerification: _intToGroupVerification(
+        data['needVerification'] as int?,
+      ),
       lookMemberInfo: data['lookMemberInfo'] as int?,
       applyMemberFriend: data['applyMemberFriend'] as int?,
       notificationUpdateTime: data['notificationUpdateTime'] as int?,

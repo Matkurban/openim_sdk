@@ -22,7 +22,15 @@ class InitConfig extends Equatable {
   });
 
   @override
-  List<Object?> get props => [platformID, apiAddr, wsAddr, dbPath, dbName, schemas, logLevel];
+  List<Object?> get props => [
+    platformID,
+    apiAddr,
+    wsAddr,
+    dbPath,
+    dbName,
+    schemas,
+    logLevel,
+  ];
 
   Map<String, dynamic> toJson() => {
     'platformID': platformID,

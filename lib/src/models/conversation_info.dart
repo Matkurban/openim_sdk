@@ -58,14 +58,16 @@ class ConversationInfo extends Equatable {
     this.groupAtType,
   });
 
-  factory ConversationInfo.fromJson(Map<String, dynamic> json) => _$ConversationInfoFromJson(json);
+  factory ConversationInfo.fromJson(Map<String, dynamic> json) =>
+      _$ConversationInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$ConversationInfoToJson(this);
 
   bool get isSingleChat => conversationType == ConversationType.single;
 
   bool get isGroupChat =>
-      conversationType == ConversationType.group || conversationType == ConversationType.superGroup;
+      conversationType == ConversationType.group ||
+      conversationType == ConversationType.superGroup;
 
   bool get isValid => isSingleChat || (isGroupChat && isNotInGroup != true);
 

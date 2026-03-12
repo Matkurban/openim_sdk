@@ -7,6 +7,7 @@ import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
+import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 /// 消息管理器
@@ -17,6 +18,9 @@ class MessageManager {
 
   DatabaseService get _database =>
       GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+
+  ImApiService get _api =>
+      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
 
   /// 消息监听器
   OnAdvancedMsgListener? msgListener;
@@ -406,29 +410,84 @@ class MessageManager {
     int? count,
   }) async {
     final queryCount = count ?? 40;
-    int startTime = 0;
+    int startTime = startMsg?.sendTime ?? 0;
+
     if (startMsg?.clientMsgID != null && startMsg!.clientMsgID!.isNotEmpty) {
       final data = await _database.getMessage(startMsg.clientMsgID!);
-      startTime = (data?['sendTime'] as int?) ?? 0;
-      // DB 查不到时用 Message 对象自身的 sendTime 回退，避免 startTime=0 导致重复分页
-      if (startTime == 0) {
-        startTime = startMsg.sendTime ?? 0;
+      final dbSendTime = (data?['sendTime'] as int?) ?? 0;
+      if (dbSendTime > 0) {
+        startTime = dbSendTime;
       }
     }
 
     final conv = await _database.getConversation(conversationID ?? '');
-    final sessionType = (conv?['conversationType'] as int?) ?? 1;
-    final groupID = conv?['groupID'] as String?;
-    final userID = conv?['userID'] as String?;
+    if (conv == null) {
+      return AdvancedMessage(messageList: [], isEnd: true);
+    }
 
-    final dataList = await _database.getHistoryMessages(
-      sendID: _database.currentUserID,
-      recvID: userID ?? '',
-      groupID: groupID,
-      sessionType: sessionType,
+    var dataList = await _database.getHistoryMessages(
+      conversationID: conversationID ?? '',
       startTime: startTime,
+      startSeq: startMsg?.seq ?? 0,
+      startClientMsgID: startMsg?.clientMsgID ?? '',
       count: queryCount + 1,
     );
+
+    // 如果本地数据不足，且起始消息在远端可能有更早的数据，则尝试从云端拉取
+    if (dataList.length <= queryCount && startMsg != null && (startMsg.seq ?? 0) > 1) {
+      int currentSeq = startMsg.seq ?? 0;
+      if (dataList.isNotEmpty) {
+        currentSeq = dataList.last['seq'] as int? ?? currentSeq;
+      }
+
+      if (currentSeq > 1) {
+        final beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
+        try {
+          final resp = await _api.pullMsgBySeqs(
+            userID: _database.currentUserID,
+            seqRanges: [
+              {
+                'conversationID': conversationID,
+                'begin': beginSeq,
+                'end': currentSeq - 1,
+                'num': queryCount,
+              },
+            ],
+            order: 1, // 降序
+          );
+          if (resp.errCode == 0) {
+            final data = resp.data as Map<String, dynamic>? ?? {};
+            final msgsJson = data['msgs'] as Map<String, dynamic>? ?? {};
+            final convMsgs = msgsJson[conversationID] as Map<String, dynamic>? ?? {};
+            final pulledMsgs = (convMsgs['Msgs'] ?? convMsgs['msgs']) as List? ?? [];
+
+            final batchInsert = <Map<String, dynamic>>[];
+            for (final netMsg in pulledMsgs) {
+              if (netMsg is Map) {
+                final m = Map<String, dynamic>.from(netMsg);
+                m['conversationID'] = conversationID;
+                if ((m['contentType'] as int? ?? 0) < 1000) {
+                  batchInsert.add(m);
+                }
+              }
+            }
+            if (batchInsert.isNotEmpty) {
+              await _database.batchInsertMessages(batchInsert);
+              // 重新查询使得本地有序并拼接新数据
+              dataList = await _database.getHistoryMessages(
+                conversationID: conversationID ?? '',
+                startTime: startTime,
+                startSeq: startMsg.seq ?? 0,
+                startClientMsgID: startMsg.clientMsgID ?? '',
+                count: queryCount + 1,
+              );
+            }
+          }
+        } catch (e) {
+          _log.warning('Fallback history pull failed: $e');
+        }
+      }
+    }
 
     final isEnd = dataList.length <= queryCount;
     final actualData = isEnd ? dataList : dataList.sublist(0, queryCount);
@@ -540,7 +599,7 @@ class MessageManager {
   /// [clientMsgID] 消息ID
   Future<void> revokeMessage({required String conversationID, required String clientMsgID}) async {
     await _database.updateMessage(clientMsgID, {
-      'contentType': MessageType.revokeMessageNotification.value,
+      'contentType': MessageType.revokeNotification.value,
     });
     _log.info('消息已撤回: $clientMsgID');
 

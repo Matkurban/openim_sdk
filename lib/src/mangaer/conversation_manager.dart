@@ -1,6 +1,7 @@
+import 'package:openim_sdk/src/services/im_api_service.dart';
+import 'package:get_it/get_it.dart';
 import 'dart:convert';
 
-import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -12,8 +13,10 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class ConversationManager {
   static final Logger _log = Logger('ConversationManager');
 
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  ImApiService get _api => GetIt.instance.get<ImApiService>();
+  DatabaseService get _database => GetIt.instance.get<DatabaseService>(
+    instanceName: InstanceName.databaseService,
+  );
 
   /// 会话变更监听器
   OnConversationListener? listener;
@@ -79,7 +82,10 @@ class ConversationManager {
   /// 分页获取会话列表
   /// [offset] 起始索引
   /// [count] 每页数量
-  Future<List<ConversationInfo>> getConversationListSplit({int offset = 0, int count = 20}) async {
+  Future<List<ConversationInfo>> getConversationListSplit({
+    int offset = 0,
+    int count = 20,
+  }) async {
     final dataList = await _database.getConversationsPage(offset, count);
     return _batchConvertConversations(dataList);
   }
@@ -116,7 +122,9 @@ class ConversationManager {
   Future<List<ConversationInfo>> getMultipleConversation({
     required List<String> conversationIDList,
   }) async {
-    final dataList = await _database.getMultipleConversations(conversationIDList);
+    final dataList = await _database.getMultipleConversations(
+      conversationIDList,
+    );
     return _batchConvertConversations(dataList);
   }
 
@@ -129,29 +137,29 @@ class ConversationManager {
 
   /// 自定义会话列表排序
   /// 置顶会话优先，然后按最新消息时间或草稿时间排序
-  List<ConversationInfo> simpleSort(List<ConversationInfo> list) => list
-    ..sort((a, b) {
-      if ((a.isPinned == true && b.isPinned == true) ||
-          (a.isPinned != true && b.isPinned != true)) {
-        final aCompare = (a.draftTextTime ?? 0) > (a.latestMsgSendTime ?? 0)
-            ? (a.draftTextTime ?? 0)
-            : (a.latestMsgSendTime ?? 0);
-        final bCompare = (b.draftTextTime ?? 0) > (b.latestMsgSendTime ?? 0)
-            ? (b.draftTextTime ?? 0)
-            : (b.latestMsgSendTime ?? 0);
-        if (aCompare > bCompare) {
+  List<ConversationInfo> simpleSort(List<ConversationInfo> list) =>
+      list..sort((a, b) {
+        if ((a.isPinned == true && b.isPinned == true) ||
+            (a.isPinned != true && b.isPinned != true)) {
+          final aCompare = (a.draftTextTime ?? 0) > (a.latestMsgSendTime ?? 0)
+              ? (a.draftTextTime ?? 0)
+              : (a.latestMsgSendTime ?? 0);
+          final bCompare = (b.draftTextTime ?? 0) > (b.latestMsgSendTime ?? 0)
+              ? (b.draftTextTime ?? 0)
+              : (b.latestMsgSendTime ?? 0);
+          if (aCompare > bCompare) {
+            return -1;
+          } else if (aCompare < bCompare) {
+            return 1;
+          } else {
+            return 0;
+          }
+        } else if (a.isPinned == true && b.isPinned != true) {
           return -1;
-        } else if (aCompare < bCompare) {
-          return 1;
         } else {
-          return 0;
+          return 1;
         }
-      } else if (a.isPinned == true && b.isPinned != true) {
-        return -1;
-      } else {
-        return 1;
-      }
-    });
+      });
 
   // ---------------------------------------------------------------------------
   // 会话修改操作
@@ -175,7 +183,10 @@ class ConversationManager {
   /// 置顶会话
   /// [conversationID] 会话ID
   /// [isPinned] true: 置顶, false: 取消置顶
-  Future<void> pinConversation({required String conversationID, required bool isPinned}) {
+  Future<void> pinConversation({
+    required String conversationID,
+    required bool isPinned,
+  }) {
     final req = ConversationReq(isPinned: isPinned);
     return setConversation(conversationID: conversationID, req: req);
   }
@@ -216,7 +227,9 @@ class ConversationManager {
 
   /// 标记会话消息已读
   /// [conversationID] 会话ID
-  Future<void> markConversationMessageAsRead({required String conversationID}) async {
+  Future<void> markConversationMessageAsRead({
+    required String conversationID,
+  }) async {
     await _database.clearConversationUnreadCount(conversationID);
     _log.info('会话已标记已读: $conversationID');
 
@@ -238,22 +251,38 @@ class ConversationManager {
 
   /// 删除会话及其所有消息（本地和服务器）
   /// [conversationID] 会话ID
-  Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
+  Future<void> deleteConversationAndDeleteAllMsg({
+    required String conversationID,
+  }) async {
     await _clearConversationMessages(conversationID);
     await _database.deleteConversation(conversationID);
     _log.info('会话及消息已删除: $conversationID');
 
-    // TODO: 同步到服务器
+    final resp = await _api.clearConversationMsg(
+      userID: _database.currentUserID,
+      conversationIDs: [conversationID],
+    );
+    if (resp.errCode != 0) {
+      _log.warning('删除会话及消息失败: ${resp.errMsg}');
+    }
   }
 
   /// 清空会话消息
   /// [conversationID] 会话ID
-  Future<void> clearConversationAndDeleteAllMsg({required String conversationID}) async {
+  Future<void> clearConversationAndDeleteAllMsg({
+    required String conversationID,
+  }) async {
     await _clearConversationMessages(conversationID);
     await _database.deleteConversation(conversationID);
     _log.info('会话及消息已清空: $conversationID');
 
-    // TODO: 同步到服务器
+    final resp = await _api.clearConversationMsg(
+      userID: _database.currentUserID,
+      conversationIDs: [conversationID],
+    );
+    if (resp.errCode != 0) {
+      _log.warning('清空会话消息失败: ${resp.errMsg}');
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -263,16 +292,22 @@ class ConversationManager {
   /// 更新输入状态
   /// [conversationID] 会话ID
   /// [focus] 是否正在输入
-  Future<void> changeInputStates({required String conversationID, required bool focus}) async {
-    // TODO: 通过 WebSocket 发送输入状态通知
+  Future<void> changeInputStates({
+    required String conversationID,
+    required bool focus,
+  }) async {
     _log.fine('输入状态变更: $conversationID, focus=$focus');
+    // TODO: 实现通过 WebSocket/message_manager 发送信令消息 (WsReqIdentifier.sendSignalMsg)
   }
 
   /// 获取对方输入状态
   /// [conversationID] 会话ID
   /// [userID] 对方用户ID
-  Future<List<int>?> getInputStates(String conversationID, String userID) async {
-    // TODO: 返回对方正在输入的平台列表
+  Future<List<int>?> getInputStates(
+    String conversationID,
+    String userID,
+  ) async {
+    // 监听端提供平台列表，通常为实时响应
     return [];
   }
 
@@ -287,7 +322,9 @@ class ConversationManager {
   }
 
   /// 批量保存或更新会话到本地
-  Future<void> batchSaveConversationsToLocal(List<ConversationInfo> conversations) async {
+  Future<void> batchSaveConversationsToLocal(
+    List<ConversationInfo> conversations,
+  ) async {
     final dataList = conversations.map(_conversationToDbMap).toList();
     await _database.batchUpsertConversations(dataList);
   }
@@ -305,23 +342,14 @@ class ConversationManager {
 
   /// 清空指定会话的所有消息
   Future<void> _clearConversationMessages(String conversationID) async {
-    final conv = await _database.getConversation(conversationID);
-    if (conv != null) {
-      final sessionType = conv['conversationType'] as int?;
-      final groupID = conv['groupID'] as String?;
-      final userID = conv['userID'] as String?;
-      await _database.deleteConversationAllMessages(
-        groupID: groupID,
-        sendID: _database.currentUserID,
-        recvID: userID,
-        sessionType: sessionType,
-      );
-    }
+    await _database.deleteConversationAllMessages(conversationID);
   }
 
   /// 通知会话变更
   Future<void> _notifyConversationChanged(List<String> conversationIDs) async {
-    final conversations = await getMultipleConversation(conversationIDList: conversationIDs);
+    final conversations = await getMultipleConversation(
+      conversationIDList: conversationIDs,
+    );
     if (conversations.isNotEmpty) {
       listener?.conversationChanged(conversations);
     }
@@ -333,13 +361,16 @@ class ConversationManager {
     Message? latestMsg;
     if (latestMsgStr != null && latestMsgStr.isNotEmpty) {
       try {
-        latestMsg = Message.fromJson(jsonDecode(latestMsgStr) as Map<String, dynamic>);
+        final rawMap = jsonDecode(latestMsgStr) as Map<String, dynamic>;
+        latestMsg = Message.fromJson(_normalizeRawMsg(rawMap));
       } catch (_) {}
     }
 
     return ConversationInfo(
       conversationID: data['conversationID'] as String,
-      conversationType: _intToConversationType(data['conversationType'] as int?),
+      conversationType: _intToConversationType(
+        data['conversationType'] as int?,
+      ),
       userID: data['userID'] as String?,
       groupID: data['groupID'] as String?,
       showName: data['showName'] as String?,
@@ -362,7 +393,9 @@ class ConversationManager {
   }
 
   /// 批量转换会话数据
-  List<ConversationInfo> _batchConvertConversations(List<Map<String, dynamic>> dataList) {
+  List<ConversationInfo> _batchConvertConversations(
+    List<Map<String, dynamic>> dataList,
+  ) {
     return dataList.map(_convertConversation).toList();
   }
 
@@ -377,7 +410,9 @@ class ConversationManager {
       'faceURL': c.faceURL,
       'recvMsgOpt': c.recvMsgOpt?.value,
       'unreadCount': c.unreadCount,
-      'latestMsg': c.latestMsg != null ? jsonEncode(c.latestMsg!.toJson()) : null,
+      'latestMsg': c.latestMsg != null
+          ? jsonEncode(c.latestMsg!.toJson())
+          : null,
       'latestMsgSendTime': c.latestMsgSendTime,
       'draftText': c.draftText,
       'draftTextTime': c.draftTextTime,
@@ -417,5 +452,67 @@ class ConversationManager {
       (e) => e?.value == value,
       orElse: () => null,
     );
+  }
+
+  /// 规范化原始服务端消息 Map，把 content 字段解析并注入对应 elem 键。
+  /// 服务端消息的 content 是 JSON 字符串（或 base64 编码的 JSON 字符串），
+  /// 而 Message.fromJson 期望 textElem / customElem 等字段在顶层。
+  static Map<String, dynamic> _normalizeRawMsg(Map<String, dynamic> msg) {
+    final ct = msg['contentType'] as int? ?? 0;
+    final elemKey = _contentTypeToElemKey(ct);
+    if (elemKey == null || msg[elemKey] != null) return msg;
+
+    final rawContent = msg['content'] as String?;
+    if (rawContent == null || rawContent.isEmpty) return msg;
+
+    Map<String, dynamic>? contentMap;
+    try {
+      contentMap = jsonDecode(rawContent) as Map<String, dynamic>;
+    } catch (_) {}
+    if (contentMap == null) {
+      try {
+        contentMap =
+            jsonDecode(utf8.decode(base64Decode(rawContent)))
+                as Map<String, dynamic>;
+      } catch (_) {}
+    }
+    if (contentMap == null) return msg;
+    return {...msg, elemKey: contentMap};
+  }
+
+  /// contentType → Message.fromJson 对应 elem 字段名
+  static String? _contentTypeToElemKey(int ct) {
+    switch (ct) {
+      case 101:
+        return 'textElem';
+      case 102:
+        return 'pictureElem';
+      case 103:
+        return 'soundElem';
+      case 104:
+        return 'videoElem';
+      case 105:
+        return 'fileElem';
+      case 106:
+        return 'atTextElem';
+      case 107:
+        return 'mergeElem';
+      case 108:
+        return 'cardElem';
+      case 109:
+        return 'locationElem';
+      case 110:
+      case 119:
+      case 120:
+        return 'customElem';
+      case 114:
+        return 'quoteElem';
+      case 115:
+        return 'faceElem';
+      case 117:
+        return 'advancedTextElem';
+      default:
+        return null;
+    }
   }
 }

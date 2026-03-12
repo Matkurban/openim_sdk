@@ -92,7 +92,10 @@ class IMManager {
   /// 初始化 SDK
   /// [config] 初始化配置（包含 apiAddr、wsAddr、dataDir 等）
   /// [listener] 连接状态监听
-  Future<bool> initSdk({required InitConfig config, required OnConnectListener listener}) async {
+  Future<bool> initSdk({
+    required InitConfig config,
+    required OnConnectListener listener,
+  }) async {
     try {
       _connectListener = listener;
       _config = config;
@@ -101,7 +104,10 @@ class IMManager {
       final GetIt getIt = GetIt.instance;
 
       // 注册配置
-      getIt.registerSingleton<InitConfig>(config, instanceName: InstanceName.initConfig);
+      getIt.registerSingleton<InitConfig>(
+        config,
+        instanceName: InstanceName.initConfig,
+      );
 
       // 初始化 HTTP 层
       HttpClient().init(baseUrl: config.apiAddr);
@@ -120,7 +126,10 @@ class IMManager {
 
       // 注册 IM API 服务
       final ImApiService imApiService = ImApiService();
-      getIt.registerSingleton<ImApiService>(imApiService, instanceName: InstanceName.imApiService);
+      getIt.registerSingleton<ImApiService>(
+        imApiService,
+        instanceName: InstanceName.imApiService,
+      );
 
       // 初始化 WebSocket 连接管理器
       final WebSocketService webSocketService = WebSocketService();
@@ -141,7 +150,11 @@ class IMManager {
       );
 
       // 初始化消息同步器
-      _msgSyncer = MsgSyncer(ws: webSocketService, db: databaseService, api: imApiService);
+      _msgSyncer = MsgSyncer(
+        ws: webSocketService,
+        db: databaseService,
+        api: imApiService,
+      );
 
       // 绑定 WebSocket 回调
       _setupWsCallbacks();
@@ -176,16 +189,28 @@ class IMManager {
     if (getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
       await getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
     }
-    if (getIt.isRegistered<DatabaseService>(instanceName: InstanceName.databaseService)) {
-      await getIt.unregister<DatabaseService>(instanceName: InstanceName.databaseService);
+    if (getIt.isRegistered<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    )) {
+      await getIt.unregister<DatabaseService>(
+        instanceName: InstanceName.databaseService,
+      );
     }
 
-    if (getIt.isRegistered<ImApiService>(instanceName: InstanceName.imApiService)) {
-      await getIt.unregister<ImApiService>(instanceName: InstanceName.imApiService);
+    if (getIt.isRegistered<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    )) {
+      await getIt.unregister<ImApiService>(
+        instanceName: InstanceName.imApiService,
+      );
     }
 
-    if (getIt.isRegistered<WebSocketService>(instanceName: InstanceName.webSocketService)) {
-      await getIt.unregister<WebSocketService>(instanceName: InstanceName.webSocketService);
+    if (getIt.isRegistered<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    )) {
+      await getIt.unregister<WebSocketService>(
+        instanceName: InstanceName.webSocketService,
+      );
     }
   }
 
@@ -389,11 +414,19 @@ class IMManager {
             putUrl,
             data: Stream.fromIterable([partBytes]),
             options: Options(
-              headers: {...?headers, Headers.contentLengthHeader: partBytes.length},
+              headers: {
+                ...?headers,
+                Headers.contentLengthHeader: partBytes.length,
+              },
               contentType: contentType ?? 'application/octet-stream',
             ),
             onSendProgress: (sent, total) {
-              uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
+              uploadFileListener?.uploadProgress(
+                id,
+                fileSize,
+                start + sent,
+                start,
+              );
             },
           );
         }
