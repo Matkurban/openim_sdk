@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:openim_sdk/openim_sdk.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../network/ws_codec.dart';
@@ -18,7 +18,9 @@ class WebSocketService {
 
   final int platformID;
 
-  WebSocketService({required this.wsUrl, required this.platformID});
+  final OnConnectListener connectListener;
+
+  WebSocketService({required this.wsUrl, required this.platformID, required this.connectListener});
 
   late String _userID;
   late String _token;
@@ -50,28 +52,10 @@ class WebSocketService {
 
   // ---- 请求/响应异步匹配 ----
   int _msgIncrCounter = 0;
+
   final Map<String, Completer<GeneralWsResp>> _pendingRequests = {};
 
   static const _requestTimeout = Duration(seconds: 10);
-
-  // ---- 回调 ----
-  /// 连接成功
-  void Function()? onConnectSuccess;
-
-  /// 连接中
-  void Function()? onConnecting;
-
-  /// 连接失败
-  void Function(int code, String msg)? onConnectFailed;
-
-  /// 被踢下线
-  void Function()? onKickedOffline;
-
-  /// Token 过期
-  void Function()? onUserTokenExpired;
-
-  /// Token 无效
-  void Function()? onUserTokenInvalid;
 
   /// 收到推送消息（原始 JSON data）
   void Function(GeneralWsResp resp)? onPushMsg;
@@ -128,8 +112,13 @@ class WebSocketService {
 
   /// 发送请求并等待响应
   ///
+  /// 对应 Go SDK SendReqWaitResp (long_conn_mgr.go)：
+  ///   data, _ := proto.Marshal(m)       // protobuf 编码业务数据
+  ///   msg := Message{Message: GeneralWsReq{..., Data: data}}
+  ///   c.send <- msg
+  ///
   /// [reqIdentifier] 请求类型
-  /// [data] 请求数据（JSON Map 序列化后的字节）
+  /// [data] 请求数据（protobuf 序列化后的字节，即 proto.Marshal 的结果）
   /// 返回服务端响应
   Future<GeneralWsResp> sendReqWaitResp({
     required int reqIdentifier,
@@ -180,7 +169,7 @@ class WebSocketService {
   Future<void> _doConnect() async {
     if (_connStatus == WsConnStatus.connecting) return;
     _setStatus(WsConnStatus.connecting);
-    onConnecting?.call();
+    connectListener.onConnecting?.call();
 
     final url = _buildWsUrl();
     _log.info('正在连接 WebSocket: $url');
@@ -197,13 +186,13 @@ class WebSocketService {
 
       _startHeartbeat();
 
-      onConnectSuccess?.call();
+      connectListener.onConnectSuccess?.call();
       _log.info('WebSocket 连接成功');
     } catch (e) {
       _log.warning('WebSocket 连接失败: $e');
       _setStatus(WsConnStatus.closed);
       _stopHeartbeat();
-      onConnectFailed?.call(-1, e.toString());
+      connectListener.onConnectFailed?.call(-1, e.toString());
       _scheduleReconnect();
     }
   }
@@ -229,8 +218,6 @@ class WebSocketService {
   }
 
   void _onMessage(dynamic message) {
-    _log.fine('WebSocket 收到消息: $message');
-
     if (message is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(message));
     } else if (message is String) {
@@ -310,15 +297,10 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _handleBinaryMessage(Uint8List raw) {
-    // 1. 使用 GZipDecoder 解压
-    List<int> decompressedData = gzip.decode(raw);
-
-    // 2. 将解压后的字节转换为字符串
-    String result = utf8.decode(decompressedData);
-    _log.info(result);
+    // gzip 解压 + JSON 解码（sdkType=js 协议，data 字段为 base64 编码的 protobuf）
     GeneralWsResp resp;
     try {
-      resp = _codec.decode(raw);
+      resp = _codec.decodeResp(raw);
     } catch (e) {
       _log.warning('消息解码失败: $e');
       return;
@@ -335,7 +317,7 @@ class WebSocketService {
 
       case WsReqIdentifier.kickOnlineMsg:
         _log.warning('被踢下线');
-        onKickedOffline?.call();
+        connectListener.onKickedOffline?.call();
         _userDisconnected = true;
         disconnect();
 
@@ -375,7 +357,8 @@ class WebSocketService {
 
   void _sendBinary(GeneralWsReq req) {
     if (_channel == null) return;
-    final encoded = _codec.encode(req);
+    // JSON 编码 + gzip 压缩（sdkType=js 协议）
+    final encoded = _codec.encodeReq(req);
     _channel!.sink.add(encoded);
   }
 
@@ -387,7 +370,7 @@ class WebSocketService {
     if (_userDisconnected || _isReconnecting) return;
     if (_reconnectAttempts >= _maxReconnectAttempts) {
       _log.severe('已达最大重连次数 ($_maxReconnectAttempts)，停止重连');
-      onConnectFailed?.call(-1, '超过最大重连次数');
+      connectListener.onConnectFailed?.call(-1, '超过最大重连次数');
       return;
     }
 

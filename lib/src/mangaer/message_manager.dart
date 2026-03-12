@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
@@ -12,6 +13,7 @@ import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
+import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 
 /// 消息管理器
 /// 对应 open-im-sdk-flutter 中 MessageManager。
@@ -365,39 +367,15 @@ class MessageManager {
 
     _log.info('消息已发送到本地: ${sendMsg.clientMsgID}');
 
-    // 通过 REST API 发送消息（避免 WebSocket protobuf 编码问题）
-    final apiMsgData = _buildRestApiMsgData(sendMsg, isOnlineOnly: isOnlineOnly);
-
+    // 通过 WebSocket 发送消息（使用 protobuf 编码，与 Go SDK 保持一致）
     try {
-      final resp = await _api.sendMsg(msgData: apiMsgData);
-
-      if (resp.errCode == 0) {
-        final respData = resp.data as Map<String, dynamic>? ?? {};
-        final serverMsgID = respData['serverMsgID'] as String?;
-        final serverSendTime = respData['sendTime'] as int? ?? _nowMillis();
-
-        final sentMsg = sendMsg.copyWith(
-          status: MessageStatus.succeeded,
-          sendTime: serverSendTime,
-          serverMsgID: serverMsgID,
-        );
-        await _database.updateMessage(sentMsg.clientMsgID!, {
-          'status': MessageStatus.succeeded.value,
-          'sendTime': sentMsg.sendTime,
-          'serverMsgID': serverMsgID,
-        });
-        await _database.deleteSendingMessage(sentMsg.clientMsgID!);
-        await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
-        return sentMsg;
-      } else {
-        _log.warning('消息发送失败: ${resp.errMsg}');
-        final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
-        await _database.updateMessage(failedMsg.clientMsgID!, {
-          'status': MessageStatus.failed.value,
-        });
-        await _database.deleteSendingMessage(failedMsg.clientMsgID!);
-        return failedMsg;
-      }
+      final sentMsg = await _sendMsgViaWebSocket(
+        sendMsg,
+        conversationID,
+        sessionType,
+        isOnlineOnly,
+      );
+      return sentMsg;
     } catch (e) {
       _log.warning('消息发送异常: $e');
       final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
@@ -912,34 +890,6 @@ class MessageManager {
   // 私有辅助方法
   // ---------------------------------------------------------------------------
 
-  /// 构造 REST API 发送消息的请求体
-  ///
-  /// 对应 Go SDK api_msg_sender.go 中的 SendMsgReq 结构，
-  /// content 字段为 Map，内含 JSON 序列化后的元素内容。
-  Map<String, dynamic> _buildRestApiMsgData(Message msg, {bool isOnlineOnly = false}) {
-    final content = _extractContent(msg);
-
-    final data = <String, dynamic>{
-      'sendID': msg.sendID,
-      'recvID': msg.recvID ?? '',
-      'groupID': msg.groupID ?? '',
-      'senderNickname': msg.senderNickname ?? '',
-      'senderFaceURL': msg.senderFaceUrl ?? '',
-      'senderPlatformID': msg.senderPlatformID?.value ?? PlatformUtils.currentPlatform.value,
-      'contentType': msg.contentType?.value ?? MessageType.text.value,
-      'sessionType': msg.sessionType?.value ?? ConversationType.single.value,
-      'content': {'content': content},
-      'isOnlineOnly': isOnlineOnly,
-    };
-
-    // 离线推送信息
-    if (msg.offlinePush != null) {
-      data['offlinePushInfo'] = msg.offlinePush!.toJson();
-    }
-
-    return data;
-  }
-
   /// 从消息对象中提取 content 字符串（JSON 编码的 Elem）
   String _extractContent(Message msg) {
     if (msg.textElem != null) return jsonEncode(msg.textElem!.toJson());
@@ -1077,7 +1027,12 @@ class MessageManager {
     if (content != null && content.isNotEmpty) {
       try {
         contentMap = jsonDecode(content) as Map<String, dynamic>;
-      } catch (_) {}
+      } catch (_) {
+        // content 可能是 base64 编码的（proto3 JSON 中 bytes 字段的格式）
+        try {
+          contentMap = jsonDecode(utf8.decode(base64Decode(content))) as Map<String, dynamic>;
+        } catch (_) {}
+      }
     }
 
     return Message(
@@ -1233,6 +1188,99 @@ class MessageManager {
     return IMPlatform.values.cast<IMPlatform?>().firstWhere(
       (e) => e?.value == value,
       orElse: () => null,
+    );
+  }
+
+  /// 通过 WebSocket 发送消息（使用 protobuf）
+  /// 对应 Go SDK 的 Conversation.SendMessage -> sendMsg
+  Future<Message> _sendMsgViaWebSocket(
+    Message message,
+    String conversationID,
+    ConversationType sessionType,
+    bool isOnlineOnly,
+  ) async {
+    // 1. 构建 MsgData protobuf
+    final msgData = _buildMsgData(message, isOnlineOnly);
+
+    // 2. 序列化为 protobuf 字节
+    final msgDataBytes = msgData.writeToBuffer();
+
+    // 3. 通过 WebSocket 发送
+    if (!_ws.isConnected) {
+      throw StateError('WebSocket 未连接');
+    }
+
+    try {
+      final resp = await _ws.sendReqWaitResp(
+        reqIdentifier: WsReqIdentifier.sendMsg,
+        data: msgDataBytes,
+      );
+
+      if (resp.errCode == 0) {
+        // 解析响应：服务器返回修改后的消息或发送结果
+        final sentMsg = message.copyWith(status: MessageStatus.succeeded, sendTime: _nowMillis());
+
+        await _database.updateMessage(sentMsg.clientMsgID!, {
+          'status': MessageStatus.succeeded.value,
+          'sendTime': sentMsg.sendTime,
+        });
+        await _database.deleteSendingMessage(sentMsg.clientMsgID!);
+        await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+        return sentMsg;
+      } else {
+        _log.warning('消息发送失败: ${resp.errMsg}');
+        final failedMsg = message.copyWith(status: MessageStatus.failed);
+        await _database.updateMessage(failedMsg.clientMsgID!, {
+          'status': MessageStatus.failed.value,
+        });
+        await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+        return failedMsg;
+      }
+    } catch (e) {
+      _log.warning('WebSocket 发送失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 构建 MsgData protobuf
+  /// 对应 sdkws.proto 中的 MsgData 消息
+  sdkws.MsgData _buildMsgData(Message msg, bool isOnlineOnly) {
+    // 提取消息内容为字节（JSON 编码的 Elem）
+    final contentJson = _extractContent(msg);
+    final contentBytes = utf8.encode(contentJson);
+
+    final msgData = sdkws.MsgData(
+      sendID: msg.sendID ?? '',
+      recvID: msg.recvID ?? '',
+      groupID: msg.groupID ?? '',
+      clientMsgID: msg.clientMsgID ?? '',
+      senderPlatformID: msg.senderPlatformID?.value ?? PlatformUtils.currentPlatform.value,
+      senderNickname: msg.senderNickname ?? '',
+      senderFaceURL: msg.senderFaceUrl ?? '',
+      sessionType: msg.sessionType?.value ?? ConversationType.single.value,
+      msgFrom: 1, // 默认为用户消息
+      contentType: msg.contentType?.value ?? MessageType.text.value,
+      content: contentBytes,
+      createTime: Int64(msg.createTime ?? _nowMillis()),
+      ex: msg.ex ?? '',
+    );
+
+    // 添加离线推送信息
+    if (msg.offlinePush != null) {
+      msgData.offlinePushInfo = _buildOfflinePushInfo(msg.offlinePush!);
+    }
+
+    return msgData;
+  }
+
+  /// 构建 OfflinePushInfo protobuf
+  sdkws.OfflinePushInfo _buildOfflinePushInfo(OfflinePushInfo push) {
+    return sdkws.OfflinePushInfo(
+      title: push.title ?? '',
+      desc: push.desc ?? '',
+      ex: push.ex ?? '',
+      iOSPushSound: push.iOSPushSound ?? '',
+      iOSBadgeCount: push.iOSBadgeCount ?? false,
     );
   }
 }

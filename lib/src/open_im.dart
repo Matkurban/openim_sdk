@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/db/db_schema.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
@@ -140,6 +141,7 @@ class IMManager {
       final WebSocketService webSocketService = WebSocketService(
         wsUrl: config.wsAddr,
         platformID: config.platformID ?? PlatformUtils.platformID,
+        connectListener: listener,
       );
       getIt.registerSingleton<WebSocketService>(
         webSocketService,
@@ -242,6 +244,10 @@ class IMManager {
       instanceName: InstanceName.webSocketService,
     );
     await webSocketService.connect(userID: userID, token: token);
+
+    final MsgSyncer msgSyncer = MsgSyncer(database: databaseService, api: imApiService);
+    msgSyncer.setLoginUserID(userID);
+    msgSyncer.doConnectedSync();
 
     _log.info('用户已登录: $userID');
     return loginUser;

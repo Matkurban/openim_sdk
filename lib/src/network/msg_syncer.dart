@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:logging/logging.dart';
+import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/network/ws_codec.dart';
-import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
 /// 会话批量更新信息（聚合同一会话的多条推送消息）
@@ -26,10 +26,14 @@ class ConvBatchUpdate {
 /// - 会话已读状态同步
 /// - 收到推送时更新会话（latestMsg, unreadCount, maxSeq）
 class MsgSyncer {
-  final _log = Logger('MsgSyncer');
+  final Logger _log = Logger('MsgSyncer');
 
-  final DatabaseService _db;
-  final ImApiService _api;
+  final DatabaseService database;
+
+  final ImApiService api;
+
+  MsgSyncer({required this.database, required this.api});
+
   late String _userID;
 
   /// 每个会话已同步的最大 seq
@@ -69,10 +73,6 @@ class MsgSyncer {
 
   /// 同步失败
   void Function(bool reinstalled)? onSyncFailed;
-
-  MsgSyncer({required WebSocketService ws, required DatabaseService db, required ImApiService api})
-    : _db = db,
-      _api = api;
 
   /// 设置当前用户 ID
   void setLoginUserID(String userID) {
@@ -131,7 +131,7 @@ class MsgSyncer {
     _syncedMaxSeqs.clear();
     _localMaxSeqsBeforeSync.clear();
 
-    final conversations = await _db.getAllConversations();
+    final conversations = await database.getAllConversations();
     if (conversations.isEmpty) {
       _reinstalled = true;
       return;
@@ -159,7 +159,7 @@ class MsgSyncer {
   Future<void> _syncConversationsAndSeqs() async {
     try {
       // 1. 从服务端获取所有会话
-      final resp = await _api.getAllConversations(ownerUserID: _userID);
+      final resp = await api.getAllConversations(ownerUserID: _userID);
       if (resp.errCode != 0) {
         _log.warning('同步会话失败: ${resp.errMsg}');
         return;
@@ -186,7 +186,7 @@ class MsgSyncer {
       // 2. 获取所有会话的 seq 信息
       Map<String, dynamic> seqs = {};
       if (conversationIDs.isNotEmpty) {
-        final seqResp = await _api.getConversationsHasReadAndMaxSeq(
+        final seqResp = await api.getConversationsHasReadAndMaxSeq(
           userID: _userID,
           conversationIDs: conversationIDs,
         );
@@ -217,7 +217,7 @@ class MsgSyncer {
 
       // 5. 批量写入本地数据库
       if (convMaps.isNotEmpty) {
-        await _db.batchUpsertConversations(convMaps);
+        await database.batchUpsertConversations(convMaps);
       }
       _log.info('已同步 ${convMaps.length} 个会话');
     } catch (e) {
@@ -250,7 +250,7 @@ class MsgSyncer {
     // 批量查好友信息（优先使用备注）
     final friendMap = <String, Map<String, dynamic>>{};
     if (userIDs.isNotEmpty) {
-      final friends = await _db.getFriendsByUserIDs(userIDs.toList());
+      final friends = await database.getFriendsByUserIDs(userIDs.toList());
       for (final f in friends) {
         final fid = f['friendUserID'] as String?;
         if (fid != null) friendMap[fid] = f;
@@ -261,7 +261,7 @@ class MsgSyncer {
     final userMap = <String, Map<String, dynamic>>{};
     final notInFriendIDs = userIDs.where((id) => !friendMap.containsKey(id)).toList();
     if (notInFriendIDs.isNotEmpty) {
-      final users = await _db.getUsersByIDs(notInFriendIDs);
+      final users = await database.getUsersByIDs(notInFriendIDs);
       for (final u in users) {
         final uid = u['userID'] as String?;
         if (uid != null) userMap[uid] = u;
@@ -271,7 +271,7 @@ class MsgSyncer {
       final notInAnyMap = notInFriendIDs.where((id) => !userMap.containsKey(id)).toList();
       if (notInAnyMap.isNotEmpty) {
         try {
-          final resp = await _api.getUsersInfo(userIDs: notInAnyMap);
+          final resp = await api.getUsersInfo(userIDs: notInAnyMap);
           if (resp.errCode == 0) {
             final netUsers = resp.data?['usersInfo'] as List? ?? [];
             for (final u in netUsers) {
@@ -280,7 +280,7 @@ class MsgSyncer {
                 if (uid != null) {
                   userMap[uid] = u;
                   // Cache it so future syncs have it
-                  await _db.insertOrUpdateUser(u);
+                  await database.insertOrUpdateUser(u);
                 }
               }
             }
@@ -292,7 +292,7 @@ class MsgSyncer {
     // 批量查群组信息
     final groupMap = <String, Map<String, dynamic>>{};
     if (groupIDs.isNotEmpty) {
-      final groups = await _db.getGroupsByIDs(groupIDs.toList());
+      final groups = await database.getGroupsByIDs(groupIDs.toList());
       for (final g in groups) {
         final gid = g['groupID'] as String?;
         if (gid != null) groupMap[gid] = g;
@@ -301,7 +301,7 @@ class MsgSyncer {
       final notInGroupMap = groupIDs.where((id) => !groupMap.containsKey(id)).toList();
       if (notInGroupMap.isNotEmpty) {
         try {
-          final resp = await _api.getGroupsInfo(groupIDs: notInGroupMap.toList());
+          final resp = await api.getGroupsInfo(groupIDs: notInGroupMap.toList());
           if (resp.errCode == 0) {
             final netGroups = resp.data?['groupInfoList'] as List? ?? [];
             for (final g in netGroups) {
@@ -309,7 +309,7 @@ class MsgSyncer {
                 final gid = g['groupID'] as String?;
                 if (gid != null) {
                   groupMap[gid] = g;
-                  await _db.upsertGroup(g);
+                  await database.upsertGroup(g);
                 }
               }
             }
@@ -352,7 +352,7 @@ class MsgSyncer {
       int pageNumber = 1;
       const pageSize = 100;
       while (true) {
-        final resp = await _api.getFriendList(
+        final resp = await api.getFriendList(
           userID: _userID,
           offset: (pageNumber - 1) * pageSize,
           count: pageSize,
@@ -380,7 +380,7 @@ class MsgSyncer {
             });
           }
         }
-        if (batch.isNotEmpty) await _db.batchUpsertFriends(batch);
+        if (batch.isNotEmpty) await database.batchUpsertFriends(batch);
         if (friends.length < pageSize) break;
         pageNumber++;
       }
@@ -396,7 +396,7 @@ class MsgSyncer {
       int pageNumber = 1;
       const pageSize = 100;
       while (true) {
-        final resp = await _api.getJoinedGroupList(
+        final resp = await api.getJoinedGroupList(
           fromUserID: _userID,
           offset: (pageNumber - 1) * pageSize,
           count: pageSize,
@@ -410,7 +410,7 @@ class MsgSyncer {
             batch.add(g);
           }
         }
-        if (batch.isNotEmpty) await _db.batchUpsertGroups(batch);
+        if (batch.isNotEmpty) await database.batchUpsertGroups(batch);
         if (groups.length < pageSize) break;
         pageNumber++;
       }
@@ -485,7 +485,7 @@ class MsgSyncer {
   /// 通过 HTTP API 拉取消息并存储到本地
   Future<void> _pullAndStoreMsgs(List<Map<String, dynamic>> seqRanges, List<String> convIDs) async {
     try {
-      final resp = await _api.pullMsgBySeqs(
+      final resp = await api.pullMsgBySeqs(
         userID: _userID,
         seqRanges: seqRanges,
         order: 1, // 降序，拉最新的
@@ -520,6 +520,10 @@ class MsgSyncer {
 
       for (final msg in msgList) {
         if (msg is Map<String, dynamic>) {
+          // HTTP API 返回的 proto3 JSON 中，bytes 字段为 base64 编码
+          // 将 content 解码为原始 JSON 字符串，保持与 WebSocket 推送一致
+          _decodeContentIfBase64(msg);
+
           // 仅存储 contentType < 1000 的普通消息到 chatLog
           final contentType = msg['contentType'] as int? ?? 0;
           if (contentType < 1000) {
@@ -543,7 +547,7 @@ class MsgSyncer {
         for (final m in msgMaps) {
           m['conversationID'] = convID;
         }
-        await _db.batchInsertMessages(msgMaps);
+        await database.batchInsertMessages(msgMaps);
       }
 
       // 更新会话的 latestMsg、latestMsgSendTime 和 maxSeq
@@ -556,10 +560,10 @@ class MsgSyncer {
         if (maxSeq > 0) {
           updates['maxSeq'] = maxSeq;
         }
-        await _db.updateConversation(convID, updates);
+        await database.updateConversation(convID, updates);
       } else if (maxSeq > 0) {
         // 只有通知消息，仍需更新 maxSeq
-        await _db.updateConversation(convID, {'maxSeq': maxSeq});
+        await database.updateConversation(convID, {'maxSeq': maxSeq});
       }
 
       // 更新本地已同步 seq
@@ -572,11 +576,11 @@ class MsgSyncer {
   /// 同步自身用户信息
   Future<void> _syncSelfUserInfo() async {
     try {
-      final resp = await _api.getUsersInfo(userIDs: [_userID]);
+      final resp = await api.getUsersInfo(userIDs: [_userID]);
       if (resp.errCode != 0) return;
       final users = resp.data?['usersInfo'] as List? ?? [];
       if (users.isNotEmpty && users.first is Map<String, dynamic>) {
-        await _db.insertOrUpdateUser(users.first as Map<String, dynamic>);
+        await database.insertOrUpdateUser(users.first as Map<String, dynamic>);
       }
     } catch (e) {
       _log.warning('同步用户信息异常: $e');
@@ -590,7 +594,7 @@ class MsgSyncer {
   /// 处理来自 WebSocket 的推送消息
   ///
   /// 对应 Go SDK 的 doPushMsg：
-  /// 1. 解析推送体中的 msgs 和 notificationMsgs
+  /// 1. 解析推送体中的 msgs 和 notificationMsgs（protobuf 解码）
   /// 2. 验证 SEQ 连续性，发现缺口时触发同步
   /// 3. 存储消息并更新会话（latestMsg, unreadCount, maxSeq）
   /// 4. 触发回调通知上层
@@ -598,21 +602,20 @@ class MsgSyncer {
     if (resp.data.isEmpty) return;
 
     try {
-      final pushData = jsonDecode(utf8.decode(resp.data)) as Map<String, dynamic>;
+      // resp.data 是 base64 解码后的 protobuf 字节（PushMessages）
+      final pushMessages = sdkws.PushMessages.fromBuffer(resp.data);
 
       // 收集需要检测 SEQ 缺口的会话
       final gapConvIDs = <String>{};
 
       // 按 conversationID 聚合的会话更新信息
-      // key: conversationID, value: {latestMsg, latestMsgSendTime, maxSeq, newUnread, firstMsg}
       final convUpdates = <String, ConvBatchUpdate>{};
 
       // 处理普通消息
-      final msgs = pushData['msgs'] as Map<String, dynamic>? ?? {};
-      for (final entry in msgs.entries) {
+      for (final entry in pushMessages.msgs.entries) {
         final convID = entry.key;
-        final convMsgs = entry.value as Map<String, dynamic>? ?? {};
-        final msgList = convMsgs['msgs'] as List? ?? [];
+        final pullMsgs = entry.value;
+        final msgList = pullMsgs.msgs;
         if (msgList.isEmpty) continue;
 
         // 检测 SEQ 连续性（对应 Go SDK pushTriggerAndSync）
@@ -620,12 +623,10 @@ class MsgSyncer {
         int batchMaxSeq = 0;
         int batchMinSeq = 0;
         for (final msg in msgList) {
-          if (msg is Map<String, dynamic>) {
-            final seq = msg['seq'] as int? ?? 0;
-            if (seq > 0) {
-              if (batchMinSeq == 0 || seq < batchMinSeq) batchMinSeq = seq;
-              if (seq > batchMaxSeq) batchMaxSeq = seq;
-            }
+          final seq = msg.seq.toInt();
+          if (seq > 0) {
+            if (batchMinSeq == 0 || seq < batchMinSeq) batchMinSeq = seq;
+            if (seq > batchMaxSeq) batchMaxSeq = seq;
           }
         }
 
@@ -640,22 +641,18 @@ class MsgSyncer {
 
         // 处理每条消息，聚合到 convUpdates
         for (final msg in msgList) {
-          if (msg is Map<String, dynamic>) {
-            _collectMessageUpdate(msg, convID, convUpdates);
-          }
+          final msgMap = _msgDataToMap(msg);
+          _collectMessageUpdate(msgMap, convID, convUpdates);
         }
       }
 
       // 处理通知消息
-      final notificationMsgs = pushData['notificationMsgs'] as Map<String, dynamic>? ?? {};
-      for (final entry in notificationMsgs.entries) {
+      for (final entry in pushMessages.notificationMsgs.entries) {
         final convID = entry.key;
-        final convMsgs = entry.value as Map<String, dynamic>? ?? {};
-        final msgList = convMsgs['msgs'] as List? ?? [];
-        for (final msg in msgList) {
-          if (msg is Map<String, dynamic>) {
-            _processNotificationMessage(msg, convID);
-          }
+        final pullMsgs = entry.value;
+        for (final msg in pullMsgs.msgs) {
+          final msgMap = _msgDataToMap(msg);
+          _processNotificationMessage(msgMap, convID);
         }
       }
 
@@ -663,6 +660,55 @@ class MsgSyncer {
       _applyBatchUpdatesAndNotify(convUpdates, gapConvIDs);
     } catch (e, s) {
       _log.warning('处理推送消息失败: $e', e, s);
+    }
+  }
+
+  /// 将 protobuf MsgData 转为 Map<String, dynamic>（供数据库和回调使用）
+  Map<String, dynamic> _msgDataToMap(sdkws.MsgData msg) {
+    return {
+      'sendID': msg.sendID,
+      'recvID': msg.recvID,
+      'groupID': msg.groupID,
+      'clientMsgID': msg.clientMsgID,
+      'serverMsgID': msg.serverMsgID,
+      'senderPlatformID': msg.senderPlatformID,
+      'senderNickname': msg.senderNickname,
+      'senderFaceURL': msg.senderFaceURL,
+      'sessionType': msg.sessionType,
+      'msgFrom': msg.msgFrom,
+      'contentType': msg.contentType,
+      'content': utf8.decode(msg.content, allowMalformed: true),
+      'seq': msg.seq.toInt(),
+      'sendTime': msg.sendTime.toInt(),
+      'createTime': msg.createTime.toInt(),
+      'status': msg.status,
+      'isRead': msg.isRead,
+      'attachedInfo': msg.attachedInfo,
+      'ex': msg.ex,
+    };
+  }
+
+  /// 将 HTTP API 返回消息中 base64 编码的 content 解码为原始 JSON 字符串。
+  ///
+  /// proto3 JSON 将 `bytes` 字段编码为 base64，但下游代码和数据库期望
+  /// content 是可直接 jsonDecode 的原始 JSON 字符串。
+  /// 此方法原地修改 msg map。
+  void _decodeContentIfBase64(Map<String, dynamic> msg) {
+    final content = msg['content'];
+    if (content is! String || content.isEmpty) return;
+
+    // 如果已经是合法 JSON，无需解码
+    try {
+      jsonDecode(content);
+      return;
+    } catch (_) {}
+
+    // 尝试 base64 解码
+    try {
+      final decoded = utf8.decode(base64Decode(content));
+      msg['content'] = decoded;
+    } catch (_) {
+      // 既非 JSON 也非 base64，保持原值
     }
   }
 
@@ -688,14 +734,14 @@ class MsgSyncer {
     if (contentType >= 1000) {
       if (seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
         _syncedMaxSeqs[conversationID] = seq;
-        _db.updateConversation(conversationID, {'maxSeq': seq});
+        database.updateConversation(conversationID, {'maxSeq': seq});
       }
       onNewMsg?.call(msg);
       return;
     }
 
     // 存储普通消息到 chatLog（注入 conversationID）
-    _db.insertMessage({...msg, 'conversationID': conversationID});
+    database.insertMessage({...msg, 'conversationID': conversationID});
 
     // 更新 seq 追踪
     final isNewSeq = seq > (_syncedMaxSeqs[conversationID] ?? 0);
@@ -729,7 +775,7 @@ class MsgSyncer {
       final update = entry.value;
 
       try {
-        final existing = await _db.getConversation(convID);
+        final existing = await database.getConversation(convID);
         if (existing != null) {
           // 更新已有会话
           final updates = <String, dynamic>{};
@@ -747,7 +793,7 @@ class MsgSyncer {
             updates['maxSeq'] = update.maxSeq;
           }
           if (updates.isNotEmpty) {
-            await _db.updateConversation(convID, updates);
+            await database.updateConversation(convID, updates);
             changedConvIDs.add(convID);
           }
         } else {
@@ -769,7 +815,7 @@ class MsgSyncer {
             userID = isSelfMsg ? recvID : msgSendID;
           }
 
-          await _db.upsertConversation({
+          await database.upsertConversation({
             'conversationID': convID,
             'conversationType': sessionType,
             'userID': userID,
@@ -819,14 +865,14 @@ class MsgSyncer {
 
       if ((sessionType == 1 || sessionType == 4) && userID != null && userID.isNotEmpty) {
         // 单聊/通知：优先用好友备注
-        final friend = await _db.getFriendByUserID(userID);
+        final friend = await database.getFriendByUserID(userID);
         if (friend != null) {
           final remark = friend['remark'] as String? ?? '';
           updates['showName'] = remark.isNotEmpty ? remark : (friend['nickname'] as String? ?? '');
           updates['faceURL'] = friend['faceURL'] as String? ?? '';
         } else {
           // 从用户表查
-          final users = await _db.getUsersByIDs([userID]);
+          final users = await database.getUsersByIDs([userID]);
           if (users.isNotEmpty) {
             updates['showName'] = users.first['nickname'] as String? ?? '';
             updates['faceURL'] = users.first['faceURL'] as String? ?? '';
@@ -834,7 +880,7 @@ class MsgSyncer {
         }
       } else if (sessionType == 3 && groupID != null && groupID.isNotEmpty) {
         // 群聊：用群组名称
-        final group = await _db.getGroupByID(groupID);
+        final group = await database.getGroupByID(groupID);
         if (group != null) {
           updates['showName'] = group['groupName'] as String? ?? '';
           updates['faceURL'] = group['faceURL'] as String? ?? '';
@@ -842,7 +888,7 @@ class MsgSyncer {
       }
 
       if (updates.isNotEmpty) {
-        await _db.updateConversation(conversationID, updates);
+        await database.updateConversation(conversationID, updates);
       }
     } catch (e) {
       _log.fine('补充会话信息失败: $conversationID, $e');
@@ -860,7 +906,7 @@ class MsgSyncer {
     // 更新 seq
     if (seq > 0 && seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
       _syncedMaxSeqs[conversationID] = seq;
-      _db.updateConversation(conversationID, {'maxSeq': seq});
+      database.updateConversation(conversationID, {'maxSeq': seq});
     }
 
     // 通知消息通过 onNewMsg 分发，由上层 NotificationDispatcher 解析
