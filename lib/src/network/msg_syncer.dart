@@ -3,9 +3,9 @@ import 'dart:convert';
 
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
-import 'package:openim_sdk/src/db/database_service.dart';
+import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/network/ws_codec.dart';
-import 'package:openim_sdk/src/network/ws_connection_manager.dart';
+import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
 /// 会话批量更新信息（聚合同一会话的多条推送消息）
@@ -83,12 +83,9 @@ class MsgSyncer {
   /// 同步失败
   void Function(bool reinstalled)? onSyncFailed;
 
-  MsgSyncer({
-    required WsConnectionManager ws,
-    required DatabaseService db,
-    required ImApiService api,
-  }) : _db = db,
-       _api = api;
+  MsgSyncer({required WebSocketService ws, required DatabaseService db, required ImApiService api})
+    : _db = db,
+      _api = api;
 
   /// 设置当前用户 ID
   void setLoginUserID(String userID) {

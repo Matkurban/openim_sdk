@@ -5,8 +5,8 @@ import 'package:logging/logging.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'ws_codec.dart';
-import 'ws_constants.dart';
+import '../network/ws_codec.dart';
+import '../network/ws_constants.dart';
 
 /// WebSocket 长连接管理器
 ///
@@ -16,8 +16,8 @@ import 'ws_constants.dart';
 /// - 自动重连（指数退避）
 /// - 请求/响应匹配
 /// - 推送消息分发
-class WsConnectionManager {
-  final _log = Logger('WsConnectionManager');
+class WebSocketService {
+  final Logger _log = Logger('WsConnectionManager');
 
   // ---- 配置 ----
   late String _wsUrl;
@@ -80,7 +80,7 @@ class WsConnectionManager {
   /// 用户在线状态变更
   void Function(GeneralWsResp resp)? onUserOnlineStatusChanged;
 
-  WsConnectionManager();
+  WebSocketService();
 
   /// 当前连接状态
   WsConnStatus get connStatus => _connStatus;
@@ -233,6 +233,7 @@ class WsConnectionManager {
   }
 
   void _onMessage(dynamic message) {
+    _log.info('WebSocket：$message');
     if (message is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(message));
     } else if (message is String) {

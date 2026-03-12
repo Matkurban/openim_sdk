@@ -1,8 +1,9 @@
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/db/database_service.dart';
-import 'package:openim_sdk/src/services/api_services.dart';
+import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/services/database_service.dart';
+import 'package:openim_sdk/src/services/im_api_service.dart';
 
 /// 用户管理器
 /// 对应 open-im-sdk-flutter 中 UserManager。
@@ -10,7 +11,8 @@ import 'package:openim_sdk/src/services/api_services.dart';
 class UserManager {
   static final Logger _log = Logger('UserManager');
 
-  ApiServices get _api => GetIt.instance.get<ApiServices>();
+  ImApiService get _api =>
+      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
   DatabaseService get _db => GetIt.instance.get<DatabaseService>();
 
   /// 用户信息变更监听器

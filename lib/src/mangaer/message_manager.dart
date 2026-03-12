@@ -5,7 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/db/database_service.dart';
+import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 /// 消息管理器

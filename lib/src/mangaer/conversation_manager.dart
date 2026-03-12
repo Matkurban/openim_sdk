@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/db/database_service.dart';
+import 'package:openim_sdk/src/services/database_service.dart';
 
 /// 会话管理器
 /// 对应 open-im-sdk-flutter 中 ConversationManager。

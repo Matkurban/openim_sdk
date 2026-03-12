@@ -5,14 +5,16 @@ import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/db/database_service.dart';
+import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/services/database_service.dart';
+import 'package:openim_sdk/src/db/db_schema.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
-import 'package:openim_sdk/src/network/ws_connection_manager.dart';
-import 'package:openim_sdk/src/services/api_services.dart';
+import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
+import 'package:tostore/tostore.dart';
 
 /// OpenIM SDK 入口。
 /// 对应 open-im-sdk-flutter 中 [OpenIM] → [IMManager]。
@@ -69,20 +71,11 @@ class IMManager {
   /// Token
   String? token;
 
-  /// WebSocket 连接管理器
-  late WsConnectionManager _wsManager;
-
   /// 消息同步器
   late MsgSyncer _msgSyncer;
 
   /// 通知分发器
   late NotificationDispatcher _notificationDispatcher;
-
-  /// IM API 服务
-  late ImApiService _imApiService;
-
-  /// 数据库服务
-  late DatabaseService _db;
 
   /// 初始化配置
   late InitConfig _config;
@@ -98,44 +91,42 @@ class IMManager {
   /// 初始化 SDK
   /// [config] 初始化配置（包含 apiAddr、wsAddr、dataDir 等）
   /// [listener] 连接状态监听
-  Future<bool> init({required InitConfig config, required OnConnectListener listener}) async {
+  Future<bool> initSdk({required InitConfig config, required OnConnectListener listener}) async {
     try {
       _connectListener = listener;
       _config = config;
       Logger.root.level = config.logLevel;
 
-      final getIt = GetIt.instance;
+      final GetIt getIt = GetIt.instance;
 
       // 注册配置
-      if (!getIt.isRegistered<InitConfig>()) {
-        getIt.registerSingleton<InitConfig>(config);
-      }
+      getIt.registerSingleton<InitConfig>(config, instanceName: InstanceName.initConfig);
 
       // 初始化 HTTP 层
       HttpClient().init(baseUrl: config.apiAddr);
 
-      // 注册 Chat 业务 API
-      if (!getIt.isRegistered<ApiServices>()) {
-        getIt.registerLazySingleton<ApiServices>(() => ApiServices());
-      }
+      ToStore toStore = await _initDatabase(
+        dbPath: config.dbPath,
+        dbName: config.dbName,
+        schemas: config.schemas,
+      );
 
-      // 注册数据库服务
-      _db = DatabaseService();
-      if (!getIt.isRegistered<DatabaseService>()) {
-        getIt.registerSingleton<DatabaseService>(_db);
-      }
+      final DatabaseService databaseService = DatabaseService(toStore: toStore);
+      getIt.registerSingleton<DatabaseService>(
+        databaseService,
+        instanceName: InstanceName.databaseService,
+      );
 
       // 注册 IM API 服务
-      _imApiService = ImApiService();
-      if (!getIt.isRegistered<ImApiService>()) {
-        getIt.registerSingleton<ImApiService>(_imApiService);
-      }
+      final ImApiService imApiService = ImApiService();
+      getIt.registerSingleton<ImApiService>(imApiService, instanceName: InstanceName.imApiService);
 
       // 初始化 WebSocket 连接管理器
-      _wsManager = WsConnectionManager();
-      if (!getIt.isRegistered<WsConnectionManager>()) {
-        getIt.registerSingleton<WsConnectionManager>(_wsManager);
-      }
+      final WebSocketService webSocketService = WebSocketService();
+      getIt.registerSingleton<WebSocketService>(
+        webSocketService,
+        instanceName: InstanceName.webSocketService,
+      );
 
       // 初始化通知分发器
       _notificationDispatcher = NotificationDispatcher();
@@ -145,11 +136,11 @@ class IMManager {
         conversationManager: conversationManager,
         messageManager: messageManager,
         userManager: userManager,
-        db: _db,
+        db: databaseService,
       );
 
       // 初始化消息同步器
-      _msgSyncer = MsgSyncer(ws: _wsManager, db: _db, api: _imApiService);
+      _msgSyncer = MsgSyncer(ws: webSocketService, db: databaseService, api: imApiService);
 
       // 绑定 WebSocket 回调
       _setupWsCallbacks();
@@ -165,10 +156,46 @@ class IMManager {
     }
   }
 
+  /// 初始化数据库
+  /// [dbPath] 数据存储目录
+  Future<ToStore> _initDatabase({
+    String? dbPath,
+    String? dbName,
+    List<TableSchema> schemas = const [],
+  }) async {
+    return await ToStore.open(
+      dbPath: dbPath,
+      dbName: dbName ?? 'kurban_openim_sdk',
+      schemas: [...DbSchema.allSchemas, ...schemas],
+    );
+  }
+
+  Future<void> uninitSdk() async {
+    final GetIt getIt = GetIt.instance;
+    if (getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
+      await getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
+    }
+    if (getIt.isRegistered<DatabaseService>(instanceName: InstanceName.databaseService)) {
+      await getIt.unregister<DatabaseService>(instanceName: InstanceName.databaseService);
+    }
+
+    if (getIt.isRegistered<ImApiService>(instanceName: InstanceName.imApiService)) {
+      await getIt.unregister<ImApiService>(instanceName: InstanceName.imApiService);
+    }
+
+    if (getIt.isRegistered<WebSocketService>(instanceName: InstanceName.webSocketService)) {
+      await getIt.unregister<WebSocketService>(instanceName: InstanceName.webSocketService);
+    }
+  }
+
   /// 登录
   /// [userID] 用户ID
   /// [token] 用户 token
-  Future<UserInfo?> login({required String userID, required String token}) async {
+  Future<UserInfo> login({
+    required String userID,
+    required String token,
+    Future<UserInfo> Function()? defaultValue,
+  }) async {
     this.userID = userID;
     this.token = token;
     _loginStatus = LoginStatus.logging;
@@ -176,32 +203,48 @@ class IMManager {
     // 设置 HTTP token
     HttpClient().setToken(token);
 
+    final GetIt getIt = GetIt.instance;
+
+    final DatabaseService databaseService = getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+
     // 初始化数据库（以用户维度）
-    await _db.init(userID: userID);
+    await databaseService.switchSpace(userID: userID);
 
     // 设置同步器用户 ID
     _msgSyncer.setLoginUserID(userID);
 
+    final ImApiService imApiService = getIt.get<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    );
+
     // 从服务端获取当前用户信息并存入本地
-    final resp = await _imApiService.getUsersInfo(userIDs: [userID]);
+    final resp = await imApiService.getUsersInfo(userIDs: [userID]);
     UserInfo? loginUser;
     if (resp.errCode == 0 && resp.data != null) {
       final dataMap = resp.data as Map<String, dynamic>;
       final users = dataMap['usersInfo'] as List?;
       if (users != null && users.isNotEmpty) {
         final userData = Map<String, dynamic>.from(users.first as Map);
-        await _db.insertOrUpdateUser(userData);
+        await databaseService.insertOrUpdateUser(userData);
         loginUser = UserInfo.fromJson(userData);
         userInfo = loginUser;
       }
+    }
+    if (loginUser == null) {
+      return Future.error('Login Field');
     }
 
     isLogined = true;
     _loginStatus = LoginStatus.logged;
 
     // 建立 WebSocket 连接
-    final platformID = _config.platformID ?? PlatformUtils.platformID;
-    await _wsManager.connect(
+    final int platformID = _config.platformID ?? PlatformUtils.platformID;
+    final WebSocketService webSocketService = getIt.get<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    );
+    await webSocketService.connect(
       wsUrl: _config.wsAddr,
       userID: userID,
       token: token,
@@ -217,15 +260,20 @@ class IMManager {
     isLogined = false;
     _loginStatus = LoginStatus.logout;
     token = null;
-
+    final GetIt getIt = GetIt.instance;
+    final WebSocketService webSocketService = getIt.get<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    );
     // 断开 WebSocket
-    await _wsManager.disconnect();
+    await webSocketService.disconnect();
 
     // 清除 HTTP token
     HttpClient().setToken(null);
-
+    final DatabaseService databaseService = getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
     // 关闭数据库
-    await _db.close();
+    await databaseService.close();
 
     OpenIM._log.info('用户已登出');
   }
@@ -283,8 +331,13 @@ class IMManager {
     final partNum = (fileSize / partSize).ceil().clamp(1, 10000);
     uploadFileListener?.partSize(id, partSize, partNum);
 
+    final GetIt getIt = GetIt.instance;
+    final ImApiService imApiService = getIt.get<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    );
+
     // 1. 发起分片上传
-    final initResp = await _imApiService.initiateMultipartUpload(
+    final initResp = await imApiService.initiateMultipartUpload(
       hash: hash,
       size: fileSize,
       partSize: partSize,
@@ -352,7 +405,7 @@ class IMManager {
     uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
 
     // 3. 完成分片上传
-    final completeResp = await _imApiService.completeMultipartUpload(
+    final completeResp = await imApiService.completeMultipartUpload(
       uploadID: uploadID,
       parts: partMd5s,
       name: '$userID/$fileName',
@@ -374,35 +427,39 @@ class IMManager {
 
   /// 将 WsConnectionManager 的回调桥接到 OnConnectListener
   void _setupWsCallbacks() {
-    _wsManager.onConnecting = () {
+    final GetIt getIt = GetIt.instance;
+    final WebSocketService webSocketService = getIt.get<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    );
+    webSocketService.onConnecting = () {
       _connectListener.connecting();
     };
 
-    _wsManager.onConnectSuccess = () {
+    webSocketService.onConnectSuccess = () {
       _connectListener.connectSuccess();
       // 连接成功后自动触发数据同步
       _msgSyncer.doConnectedSync();
     };
 
-    _wsManager.onConnectFailed = (int code, String msg) {
+    webSocketService.onConnectFailed = (int code, String msg) {
       _connectListener.connectFailed(code, msg);
     };
 
-    _wsManager.onKickedOffline = () {
+    webSocketService.onKickedOffline = () {
       isLogined = false;
       _connectListener.kickedOffline();
     };
 
-    _wsManager.onUserTokenExpired = () {
+    webSocketService.onUserTokenExpired = () {
       _connectListener.userTokenExpired();
     };
 
-    _wsManager.onUserTokenInvalid = () {
+    webSocketService.onUserTokenInvalid = () {
       _connectListener.userTokenInvalid();
     };
 
     // 推送消息 → MsgSyncer 处理 → NotificationDispatcher 分发
-    _wsManager.onPushMsg = (resp) {
+    webSocketService.onPushMsg = (resp) {
       _msgSyncer.handlePushMsg(resp);
     };
 

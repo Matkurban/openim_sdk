@@ -10,4 +10,9 @@ sealed class ImUtils {
     var digest = md5.convert(content);
     return digest.toString();
   }
+
+  ///根据用户名生成空间名
+  static String generateSpaceName(String userID) {
+    return 'kurban_open_im_$userID';
+  }
 }

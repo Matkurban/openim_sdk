@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/db/database_service.dart';
+import 'package:openim_sdk/src/services/database_service.dart';
 
 /// 通知消息分发器
 ///
