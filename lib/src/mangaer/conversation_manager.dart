@@ -5,7 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
-import 'package:openim_sdk/src/network/ws_constants.dart';
+import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
@@ -347,7 +347,7 @@ class ConversationManager {
 
     try {
       final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
-      await _ws.sendReqWaitResp(reqIdentifier: WsReqIdentifier.sendMsg, data: wsData);
+      await _ws.sendReqWaitResp(reqIdentifier: WebSocketIdentifier.sendMsg, data: wsData);
     } catch (e) {
       _log.warning('发送输入状态失败: $e');
     }

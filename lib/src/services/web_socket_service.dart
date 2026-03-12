@@ -4,10 +4,11 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/enums/web_socket_status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../network/ws_codec.dart';
-import '../network/ws_constants.dart';
+import '../models/ws_codec.dart';
+import '../models/web_socket_identifier.dart';
 
 /// WebSocket 长连接管理器
 class WebSocketService {
@@ -31,7 +32,7 @@ class WebSocketService {
 
   // ---- 连接 ----
   WebSocketChannel? _channel;
-  WsConnStatus _connStatus = WsConnStatus.notConnected;
+  WebSocketStatus _connStatus = WebSocketStatus.notConnected;
   StreamSubscription? _subscription;
 
   // ---- 重连 ----
@@ -64,10 +65,10 @@ class WebSocketService {
   void Function(GeneralWsResp resp)? onUserOnlineStatusChanged;
 
   /// 当前连接状态
-  WsConnStatus get connStatus => _connStatus;
+  WebSocketStatus get connStatus => _connStatus;
 
   /// 是否已连接
-  bool get isConnected => _connStatus == WsConnStatus.connected;
+  bool get isConnected => _connStatus == WebSocketStatus.connected;
 
   // ---------------------------------------------------------------------------
   // 连接生命周期
@@ -106,7 +107,7 @@ class WebSocketService {
     _subscription = null;
     await _channel?.sink.close();
     _channel = null;
-    _setStatus(WsConnStatus.closed);
+    _setStatus(WebSocketStatus.closed);
     _log.info('WebSocket 已主动断开');
   }
 
@@ -167,8 +168,8 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   Future<void> _doConnect() async {
-    if (_connStatus == WsConnStatus.connecting) return;
-    _setStatus(WsConnStatus.connecting);
+    if (_connStatus == WebSocketStatus.connecting) return;
+    _setStatus(WebSocketStatus.connecting);
     connectListener.onConnecting?.call();
 
     final url = _buildWsUrl();
@@ -180,7 +181,7 @@ class WebSocketService {
       _startListening();
 
       // 连接成功
-      _setStatus(WsConnStatus.connected);
+      _setStatus(WebSocketStatus.connected);
       _reconnectAttempts = 0;
       _reconnectIndex = -1;
 
@@ -190,7 +191,7 @@ class WebSocketService {
       _log.info('WebSocket 连接成功');
     } catch (e) {
       _log.warning('WebSocket 连接失败: $e');
-      _setStatus(WsConnStatus.closed);
+      _setStatus(WebSocketStatus.closed);
       _stopHeartbeat();
       connectListener.onConnectFailed?.call(-1, e.toString());
       _scheduleReconnect();
@@ -253,7 +254,7 @@ class WebSocketService {
   }
 
   void _handleDisconnect() {
-    _setStatus(WsConnStatus.closed);
+    _setStatus(WebSocketStatus.closed);
     _stopHeartbeat();
     _cancelAllPendingRequests('connection lost');
     if (!_userDisconnected) {
@@ -312,32 +313,32 @@ class WebSocketService {
     );
 
     switch (resp.reqIdentifier) {
-      case WsReqIdentifier.pushMsg:
+      case WebSocketIdentifier.pushMsg:
         onPushMsg?.call(resp);
 
-      case WsReqIdentifier.kickOnlineMsg:
+      case WebSocketIdentifier.kickOnlineMsg:
         _log.warning('被踢下线');
         connectListener.onKickedOffline?.call();
         _userDisconnected = true;
         disconnect();
 
-      case WsReqIdentifier.logoutMsg:
+      case WebSocketIdentifier.logoutMsg:
         _notifyResponse(resp);
         _userDisconnected = true;
         disconnect();
 
-      case WsReqIdentifier.wsSubUserOnlineStatus:
+      case WebSocketIdentifier.wsSubUserOnlineStatus:
         onUserOnlineStatusChanged?.call(resp);
 
       // 请求响应类消息，通过 msgIncr 匹配到对应的 Completer
-      case WsReqIdentifier.getNewestSeq:
-      case WsReqIdentifier.pullMsgByRange:
-      case WsReqIdentifier.pullMsgBySeqList:
-      case WsReqIdentifier.getConvMaxReadSeq:
-      case WsReqIdentifier.pullConvLastMessage:
-      case WsReqIdentifier.sendMsg:
-      case WsReqIdentifier.sendSignalMsg:
-      case WsReqIdentifier.setBackgroundStatus:
+      case WebSocketIdentifier.getNewestSeq:
+      case WebSocketIdentifier.pullMsgByRange:
+      case WebSocketIdentifier.pullMsgBySeqList:
+      case WebSocketIdentifier.getConvMaxReadSeq:
+      case WebSocketIdentifier.pullConvLastMessage:
+      case WebSocketIdentifier.sendMsg:
+      case WebSocketIdentifier.sendSignalMsg:
+      case WebSocketIdentifier.setBackgroundStatus:
         _notifyResponse(resp);
 
       default:
@@ -392,7 +393,7 @@ class WebSocketService {
   // 工具方法
   // ---------------------------------------------------------------------------
 
-  void _setStatus(WsConnStatus status) {
+  void _setStatus(WebSocketStatus status) {
     _connStatus = status;
   }
 

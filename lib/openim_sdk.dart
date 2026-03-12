@@ -51,6 +51,3 @@ export 'src/enums/message_type.dart';
 export 'src/enums/receive_message_opt.dart';
 export 'src/enums/relationship.dart';
 export 'src/enums/sdk_error_code.dart';
-
-/// Network
-export 'src/network/ws_constants.dart' show WsConnStatus;

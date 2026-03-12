@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:openim_sdk/src/services/database_service.dart';
-import 'package:openim_sdk/src/network/ws_codec.dart';
+import 'package:openim_sdk/src/models/ws_codec.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
 /// 会话批量更新信息（聚合同一会话的多条推送消息）
@@ -663,7 +663,7 @@ class MsgSyncer {
     }
   }
 
-  /// 将 protobuf MsgData 转为 Map<String, dynamic>（供数据库和回调使用）
+  /// 将 protobuf MsgData 转为 [Map<String, dynamic>]（供数据库和回调使用）
   Map<String, dynamic> _msgDataToMap(sdkws.MsgData msg) {
     return {
       'sendID': msg.sendID,

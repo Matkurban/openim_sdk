@@ -34,7 +34,7 @@ class SettingsController extends GetxController {
 
   Future<void> _loadUserInfo() async {
     try {
-      final info = await OpenIM.iMManager.getLoginUserInfo();
+      final info = OpenIM.iMManager.getLoginUserInfo();
       userInfo.value = info;
       nicknameCtrl.text = info.nickname ?? '';
       faceURLCtrl.text = info.faceURL ?? '';

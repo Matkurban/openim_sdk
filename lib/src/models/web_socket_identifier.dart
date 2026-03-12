@@ -1,5 +1,5 @@
 /// WebSocket 请求/响应标识符，对应 Go SDK 的 constant.go
-sealed class WsReqIdentifier {
+sealed class WebSocketIdentifier {
   // ---- Client → Server ----
   /// 获取最新 seq
   static const int getNewestSeq = 1001;
@@ -38,6 +38,3 @@ sealed class WsReqIdentifier {
   /// 用户在线状态订阅
   static const int wsSubUserOnlineStatus = 2005;
 }
-
-/// WebSocket 连接状态
-enum WsConnStatus { notConnected, closed, connecting, connected }
