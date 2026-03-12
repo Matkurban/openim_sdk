@@ -1,9 +1,12 @@
+import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
+import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 /// 用户管理器
 /// 对应 open-im-sdk-flutter 中 UserManager。
@@ -13,9 +16,8 @@ class UserManager {
 
   ImApiService get _api =>
       GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
-  DatabaseService get _database => GetIt.instance.get<DatabaseService>(
-    instanceName: InstanceName.databaseService,
-  );
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
 
   /// 用户信息变更监听器
   OnUserListener? listener;
@@ -29,33 +31,85 @@ class UserManager {
   // 登录相关
   // ---------------------------------------------------------------------------
 
-  /// 使用邮箱登录
-  Future<void> loginByEmail({
-    required String email,
-    required String password,
-  }) async {
-    final resp = await _api.login(email: email, password: password);
-    if (resp.errCode != 0) {
-      throw Exception('登录失败: ${resp.errMsg}');
+  /// Chat 服务端登录（内部方法）
+  /// 向 chatAddr + /account/login 发起请求，返回 {userID, imToken, chatToken}
+  Future<Map<String, dynamic>> _chatLogin(Map<String, dynamic> body) async {
+    final GetIt getIt = GetIt.instance;
+    final config = getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
+    final chatAddr = config.chatAddr;
+    if (chatAddr == null || chatAddr.isEmpty) {
+      throw Exception('chatAddr 未配置，请在 InitConfig 中设置 chatAddr');
     }
-    _log.info('邮箱登录成功: $email');
+
+    _log.info('[_chatLogin] chatAddr=$chatAddr');
+    _log.info('[_chatLogin] requestBody=$body');
+
+    final dio = Dio(
+      BaseOptions(
+        baseUrl: chatAddr,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        contentType: Headers.jsonContentType,
+        responseType: ResponseType.json,
+        headers: {'operationID': 'op_${DateTime.now().millisecondsSinceEpoch}'},
+      ),
+    );
+
+    try {
+      final response = await dio.post('/account/login', data: body);
+      _log.info('[_chatLogin] statusCode=${response.statusCode}');
+      _log.info('[_chatLogin] responseData=${response.data}');
+
+      final data = response.data as Map<String, dynamic>;
+      final errCode = (data['errCode'] as int?) ?? -1;
+      if (errCode != 0) {
+        final errMsg = data['errMsg'] ?? '未知错误';
+        final errDlt = data['errDlt'] ?? '';
+        _log.severe('[_chatLogin] 登录失败: errCode=$errCode, errMsg=$errMsg, errDlt=$errDlt');
+        throw Exception('登录失败($errCode): $errMsg $errDlt');
+      }
+      final loginData = Map<String, dynamic>.from(data['data'] as Map);
+      _log.info('[_chatLogin] loginData keys=${loginData.keys.toList()}');
+      return loginData;
+    } on DioException catch (e) {
+      _log.severe('[_chatLogin] DioException: type=${e.type}, message=${e.message}');
+      _log.severe('[_chatLogin] response statusCode=${e.response?.statusCode}');
+      _log.severe('[_chatLogin] response data=${e.response?.data}');
+      rethrow;
+    }
   }
 
-  /// 使用手机号登录
-  Future<void> loginByPhone({
+  /// 使用邮箱登录（包含 SDK login）
+  /// 调用 chat 服务端登录后，自动使用返回的 userID 和 imToken 完成 SDK 登录。
+  Future<UserInfo> loginByEmail({required String email, required String password}) async {
+    final loginData = await _chatLogin({
+      'email': email,
+      'password': ImUtils.generateMD5(password),
+      'platform': PlatformUtils.platformID,
+    });
+    final userID = loginData['userID'] as String;
+    final imToken = loginData['imToken'] as String;
+    _log.info('邮箱 Chat 登录成功: $email, userID=$userID');
+    return OpenIM.iMManager.login(userID: userID, token: imToken);
+  }
+
+  /// 使用手机号登录（包含 SDK login）
+  /// 调用 chat 服务端登录后，自动使用返回的 userID 和 imToken 完成 SDK 登录。
+  Future<UserInfo> loginByPhone({
     required String areaCode,
     required String phoneNumber,
     required String password,
   }) async {
-    final resp = await _api.login(
-      areaCode: areaCode,
-      phoneNumber: phoneNumber,
-      password: password,
-    );
-    if (resp.errCode != 0) {
-      throw Exception('登录失败: ${resp.errMsg}');
-    }
-    _log.info('手机号登录成功: $areaCode$phoneNumber');
+    final loginData = await _chatLogin({
+      'areaCode': areaCode,
+      'phoneNumber': phoneNumber,
+      'password': ImUtils.generateMD5(password),
+      'platform': PlatformUtils.platformID,
+    });
+    final userID = loginData['userID'] as String;
+    final imToken = loginData['imToken'] as String;
+    _log.info('手机号 Chat 登录成功: $areaCode$phoneNumber, userID=$userID');
+    return OpenIM.iMManager.login(userID: userID, token: imToken);
   }
 
   // ---------------------------------------------------------------------------
@@ -64,16 +118,12 @@ class UserManager {
 
   /// 获取用户信息（走缓存机制）
   /// [userIDList] 用户ID列表
-  Future<List<UserInfo>> getUsersInfo({
-    required List<String> userIDList,
-  }) async {
+  Future<List<UserInfo>> getUsersInfo({required List<String> userIDList}) async {
     return getUsersInfoWithCache(userIDList: userIDList);
   }
 
   /// 从缓存获取用户信息，缺失部分从服务器获取并回写本地
-  Future<List<UserInfo>> getUsersInfoWithCache({
-    required List<String> userIDList,
-  }) async {
+  Future<List<UserInfo>> getUsersInfoWithCache({required List<String> userIDList}) async {
     if (userIDList.isEmpty) return [];
 
     List<UserInfo> result = [];
@@ -102,9 +152,7 @@ class UserManager {
   }
 
   /// 强制从服务器获取用户信息
-  Future<List<UserInfo>> getUsersInfoFromSrv({
-    required List<String> userIDList,
-  }) async {
+  Future<List<UserInfo>> getUsersInfoFromSrv({required List<String> userIDList}) async {
     if (userIDList.isEmpty) return [];
     final resp = await _api.getUsersInfo(userIDs: userIDList);
     if (resp.errCode == 0 && resp.data is List) {
@@ -134,8 +182,7 @@ class UserManager {
     final updateData = <String, dynamic>{};
     if (nickname != null) updateData['nickname'] = nickname;
     if (faceURL != null) updateData['faceURL'] = faceURL;
-    if (globalRecvMsgOpt != null)
-      updateData['globalRecvMsgOpt'] = globalRecvMsgOpt;
+    if (globalRecvMsgOpt != null) updateData['globalRecvMsgOpt'] = globalRecvMsgOpt;
     if (ex != null) updateData['ex'] = ex;
 
     if (updateData.isEmpty) return;
@@ -164,9 +211,7 @@ class UserManager {
 
   /// 订阅用户在线状态
   /// [userIDs] 用户ID列表
-  Future<List<UserStatusInfo>> subscribeUsersStatus(
-    List<String> userIDs,
-  ) async {
+  Future<List<UserStatusInfo>> subscribeUsersStatus(List<String> userIDs) async {
     _log.info('订阅用户状态: $userIDs');
     final resp = await _api.subscribeUsersStatus(
       userID: _database.currentUserID,
@@ -178,9 +223,7 @@ class UserManager {
     }
     final data = resp.data;
     if (data is Map && data['statusList'] is List) {
-      return (data['statusList'] as List)
-          .map((e) => UserStatusInfo.fromJson(e))
-          .toList();
+      return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
     }
     return [];
   }
@@ -201,17 +244,13 @@ class UserManager {
 
   /// 获取已订阅用户的在线状态
   Future<List<UserStatusInfo>> getSubscribeUsersStatus() async {
-    final resp = await _api.getSubscribeUsersStatus(
-      userID: _database.currentUserID,
-    );
+    final resp = await _api.getSubscribeUsersStatus(userID: _database.currentUserID);
     if (resp.errCode != 0) {
       throw Exception('获取已订阅用户状态失败: ${resp.errMsg}');
     }
     final data = resp.data;
     if (data is Map && data['statusList'] is List) {
-      return (data['statusList'] as List)
-          .map((e) => UserStatusInfo.fromJson(e))
-          .toList();
+      return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
     }
     return [];
   }
@@ -219,18 +258,13 @@ class UserManager {
   /// 获取用户在线状态
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> getUserStatus(List<String> userIDs) async {
-    final resp = await _api.getUserStatus(
-      userID: _database.currentUserID,
-      userIDs: userIDs,
-    );
+    final resp = await _api.getUserStatus(userID: _database.currentUserID, userIDs: userIDs);
     if (resp.errCode != 0) {
       throw Exception('获取用户状态失败: ${resp.errMsg}');
     }
     final data = resp.data;
     if (data is Map && data['statusList'] is List) {
-      return (data['statusList'] as List)
-          .map((e) => UserStatusInfo.fromJson(e))
-          .toList();
+      return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
     }
     return [];
   }
@@ -255,5 +289,15 @@ class UserManager {
   /// 通知用户状态变更（供内部调用）
   void notifyUserStatusChanged(UserStatusInfo statusInfo) {
     listener?.userStatusChanged(statusInfo);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 兼容 open-im-sdk-flutter 的方法
+  // ---------------------------------------------------------------------------
+
+  /// 设置全局免打扰
+  @Deprecated('Use [ConversationManager.setConversation] instead')
+  Future<dynamic> setGlobalRecvMessageOpt({required int status, String? operationID}) async {
+    return setSelfInfo(globalRecvMsgOpt: status);
   }
 }

@@ -12,4 +12,7 @@ sealed class InstanceName {
 
   ///WebSocket 服务类
   static const String webSocketService = '${_baseName}web_socket_service';
+
+  ///数据库 tostore 类
+  static const String toStore = '${_baseName}to_store';
 }

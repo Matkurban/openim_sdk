@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:logging/logging.dart';
-import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/network/ws_codec.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
@@ -46,18 +45,6 @@ class MsgSyncer {
   bool _reinstalled = false;
 
   // -- 以下为测试可见的读取器 --
-
-  @visibleForTesting
-  Map<String, int> get syncedMaxSeqs => _syncedMaxSeqs;
-
-  @visibleForTesting
-  bool get reinstalled => _reinstalled;
-
-  @visibleForTesting
-  bool get isSyncing => _isSyncing;
-
-  @visibleForTesting
-  DatabaseService get db => _db;
 
   /// 推送消息处理回调
   void Function(Map<String, dynamic> msg)? onNewMsg;
@@ -905,43 +892,4 @@ class MsgSyncer {
       _log.warning('缺口同步失败: $e');
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 以下方法仅供测试使用
-  // ---------------------------------------------------------------------------
-
-  @visibleForTesting
-  Future<void> loadSeqs() => _loadSeqs();
-
-  @visibleForTesting
-  Future<void> processPulledMsgs(Map<String, dynamic> msgsByConv) => _processPulledMsgs(msgsByConv);
-
-  @visibleForTesting
-  Future<void> batchAddFaceURLAndName(List<Map<String, dynamic>> conversations) =>
-      _batchAddFaceURLAndName(conversations);
-
-  @visibleForTesting
-  void collectMessageUpdate(
-    Map<String, dynamic> msg,
-    String conversationID,
-    Map<String, ConvBatchUpdate> convUpdates,
-  ) => _collectMessageUpdate(msg, conversationID, convUpdates);
-
-  @visibleForTesting
-  Future<void> applyBatchUpdatesAndNotify(
-    Map<String, ConvBatchUpdate> convUpdates,
-    Set<String> gapConvIDs,
-  ) => _applyBatchUpdatesAndNotify(convUpdates, gapConvIDs);
-
-  @visibleForTesting
-  Future<void> enrichNewConversation(
-    String conversationID,
-    int sessionType,
-    String? userID,
-    String? groupID,
-  ) => _enrichNewConversation(conversationID, sessionType, userID, groupID);
-
-  @visibleForTesting
-  void processNotificationMessage(Map<String, dynamic> msg, String conversationID) =>
-      _processNotificationMessage(msg, conversationID);
 }

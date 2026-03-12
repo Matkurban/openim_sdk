@@ -11,12 +11,11 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class GroupManager {
   static final Logger _log = Logger('GroupManager');
 
-  DatabaseService get _database => GetIt.instance.get<DatabaseService>(
-    instanceName: InstanceName.databaseService,
-  );
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
 
   /// 群组监听器
-  ImApiService get _api => GetIt.instance.get<ImApiService>();
+  ImApiService get _api => GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
   OnGroupListener? listener;
 
   /// 设置群组监听器
@@ -30,9 +29,7 @@ class GroupManager {
 
   /// 查询群组信息
   /// [groupIDList] 群组ID列表
-  Future<List<GroupInfo>> getGroupsInfo({
-    required List<String> groupIDList,
-  }) async {
+  Future<List<GroupInfo>> getGroupsInfo({required List<String> groupIDList}) async {
     final results = <GroupInfo>[];
     for (final gid in groupIDList) {
       final data = await _database.getGroupByID(gid);
@@ -52,10 +49,7 @@ class GroupManager {
   /// 分页获取已加入的群组列表
   /// [offset] 起始索引
   /// [count] 每页数量
-  Future<List<GroupInfo>> getJoinedGroupListPage({
-    int offset = 0,
-    int count = 40,
-  }) async {
+  Future<List<GroupInfo>> getJoinedGroupListPage({int offset = 0, int count = 40}) async {
     final dataList = await _database.getJoinedGroupListPage(offset, count);
     return dataList.map(_convertGroupInfo).toList();
   }
@@ -261,9 +255,7 @@ class GroupManager {
 
   /// 获取群主和管理员列表
   /// [groupID] 群组ID
-  Future<List<GroupMembersInfo>> getGroupOwnerAndAdmin({
-    required String groupID,
-  }) async {
+  Future<List<GroupMembersInfo>> getGroupOwnerAndAdmin({required String groupID}) async {
     final dataList = await _database.getGroupOwnerAndAdmin(groupID);
     return dataList.map(_convertGroupMembersInfo).toList();
   }
@@ -300,9 +292,7 @@ class GroupManager {
 
   /// 修改群成员信息
   /// [groupMembersInfo] 群成员信息
-  Future<void> setGroupMemberInfo({
-    required SetGroupMemberInfo groupMembersInfo,
-  }) async {
+  Future<void> setGroupMemberInfo({required SetGroupMemberInfo groupMembersInfo}) async {
     final gid = groupMembersInfo.groupID;
     final uid = groupMembersInfo.userID;
     if (gid.isEmpty || uid.isEmpty) return;
@@ -311,12 +301,9 @@ class GroupManager {
     if (existing == null) return;
 
     final updateData = <String, dynamic>{...existing};
-    if (groupMembersInfo.nickname != null)
-      updateData['nickname'] = groupMembersInfo.nickname;
-    if (groupMembersInfo.faceURL != null)
-      updateData['faceURL'] = groupMembersInfo.faceURL;
-    if (groupMembersInfo.roleLevel != null)
-      updateData['roleLevel'] = groupMembersInfo.roleLevel;
+    if (groupMembersInfo.nickname != null) updateData['nickname'] = groupMembersInfo.nickname;
+    if (groupMembersInfo.faceURL != null) updateData['faceURL'] = groupMembersInfo.faceURL;
+    if (groupMembersInfo.roleLevel != null) updateData['roleLevel'] = groupMembersInfo.roleLevel;
     if (groupMembersInfo.ex != null) updateData['ex'] = groupMembersInfo.ex;
 
     await _database.upsertGroupMember(updateData);
@@ -331,20 +318,14 @@ class GroupManager {
   /// 转让群主
   /// [groupID] 群组ID
   /// [userID] 新群主用户ID
-  Future<void> transferGroupOwner({
-    required String groupID,
-    required String userID,
-  }) async {
+  Future<void> transferGroupOwner({required String groupID, required String userID}) async {
     // 获取当前群主
     String? oldOwnerID;
     final ownerList = await _database.getGroupOwnerAndAdmin(groupID);
     for (final member in ownerList) {
       if (member['roleLevel'] == GroupRoleLevel.owner.value) {
         oldOwnerID = member['userID'];
-        await _database.upsertGroupMember({
-          ...member,
-          'roleLevel': GroupRoleLevel.member.value,
-        });
+        await _database.upsertGroupMember({...member, 'roleLevel': GroupRoleLevel.member.value});
         break;
       }
     }
@@ -352,10 +333,7 @@ class GroupManager {
     // 设置新群主
     final newOwner = await _database.getGroupMember(groupID, userID);
     if (newOwner != null) {
-      await _database.upsertGroupMember({
-        ...newOwner,
-        'roleLevel': GroupRoleLevel.owner.value,
-      });
+      await _database.upsertGroupMember({...newOwner, 'roleLevel': GroupRoleLevel.owner.value});
     }
 
     _log.info('群主已转让: group=$groupID, newOwner=$userID, oldOwner=$oldOwnerID');
@@ -399,11 +377,7 @@ class GroupManager {
     });
     _log.info('已申请加入群: $groupID');
 
-    final resp = await _api.joinGroup(
-      groupID: groupID,
-      reqMessage: reason,
-      joinSource: joinSource,
-    );
+    final resp = await _api.joinGroup(groupID: groupID, reqMessage: reason, joinSource: joinSource);
     if (resp.errCode != 0) {
       _log.warning('申请加入群失败: ${resp.errMsg}');
     }
@@ -416,10 +390,7 @@ class GroupManager {
     await _database.deleteGroup(groupID);
     _log.info('已退出群: $groupID');
 
-    final resp = await _api.quitGroup(
-      userID: _database.currentUserID,
-      groupID: groupID,
-    );
+    final resp = await _api.quitGroup(userID: _database.currentUserID, groupID: groupID);
     if (resp.errCode != 0) {
       _log.warning('退出群失败: ${resp.errMsg}');
     }
@@ -446,10 +417,7 @@ class GroupManager {
   /// 群组全员禁言/解除禁言
   /// [groupID] 群组ID
   /// [mute] true:禁言, false:解除禁言
-  Future<void> changeGroupMute({
-    required String groupID,
-    required bool mute,
-  }) async {
+  Future<void> changeGroupMute({required String groupID, required bool mute}) async {
     final existing = await _database.getGroupByID(groupID);
     if (existing != null) {
       await _database.upsertGroup({
@@ -478,22 +446,13 @@ class GroupManager {
   }) async {
     final member = await _database.getGroupMember(groupID, userID);
     if (member != null) {
-      final muteEndTime = seconds > 0
-          ? DateTime.now().millisecondsSinceEpoch + seconds * 1000
-          : 0;
-      await _database.upsertGroupMember({
-        ...member,
-        'muteEndTime': muteEndTime,
-      });
+      final muteEndTime = seconds > 0 ? DateTime.now().millisecondsSinceEpoch + seconds * 1000 : 0;
+      await _database.upsertGroupMember({...member, 'muteEndTime': muteEndTime});
     }
     _log.info('群成员禁言: group=$groupID, user=$userID, seconds=$seconds');
 
     final resp = seconds > 0
-        ? await _api.muteGroupMember(
-            groupID: groupID,
-            userID: userID,
-            mutedSeconds: seconds,
-          )
+        ? await _api.muteGroupMember(groupID: groupID, userID: userID, mutedSeconds: seconds)
         : await _api.cancelMuteGroupMember(groupID: groupID, userID: userID);
     if (resp.errCode != 0) {
       _log.warning('设置群成员禁言失败: ${resp.errMsg}');
@@ -601,9 +560,7 @@ class GroupManager {
 
   /// 获取未处理的入群申请数量
   /// [req] 查询参数
-  Future<int> getGroupApplicationUnhandledCount(
-    GetGroupApplicationUnhandledCountReq req,
-  ) async {
+  Future<int> getGroupApplicationUnhandledCount(GetGroupApplicationUnhandledCountReq req) async {
     return _database.getGroupRequestUnhandledCount();
   }
 
@@ -652,6 +609,184 @@ class GroupManager {
   }
 
   // ---------------------------------------------------------------------------
+  // 兼容 open-im-sdk-flutter 的方法
+  // ---------------------------------------------------------------------------
+
+  /// 获取群成员列表（返回原始 Map）
+  /// [groupID] 群组ID
+  /// [filter] 成员过滤
+  /// [offset] 起始索引
+  /// [count] 数量
+  Future<List<dynamic>> getGroupMemberListMap({
+    required String groupID,
+    int filter = 0,
+    int offset = 0,
+    int count = 0,
+    String? operationID,
+  }) async {
+    final members = await getGroupMemberList(
+      groupID: groupID,
+      filter: filter,
+      offset: offset,
+      count: count,
+    );
+    return members.map((m) => m.toJson()).toList();
+  }
+
+  /// 获取已加入的群组列表（返回原始 Map）
+  Future<List<dynamic>> getJoinedGroupListMap({String? operationID}) async {
+    final groups = await getJoinedGroupList();
+    return groups.map((g) => g.toJson()).toList();
+  }
+
+  /// 设置群成员昵称
+  @Deprecated('Use [setGroupMemberInfo] instead')
+  Future<dynamic> setGroupMemberNickname({
+    required String groupID,
+    required String userID,
+    String? groupNickname,
+    String? operationID,
+  }) {
+    return setGroupMemberInfo(
+      groupMembersInfo: SetGroupMemberInfo(
+        groupID: groupID,
+        userID: userID,
+        nickname: groupNickname,
+      ),
+    );
+  }
+
+  /// 设置群成员角色等级
+  @Deprecated('Use [setGroupMemberInfo] instead')
+  Future<dynamic> setGroupMemberRoleLevel({
+    required String groupID,
+    required String userID,
+    required int roleLevel,
+    String? operationID,
+  }) {
+    return setGroupMemberInfo(
+      groupMembersInfo: SetGroupMemberInfo(groupID: groupID, userID: userID, roleLevel: roleLevel),
+    );
+  }
+
+  /// 设置群组验证方式
+  @Deprecated('Use [setGroupInfo] instead')
+  Future<dynamic> setGroupVerification({
+    required String groupID,
+    required int needVerification,
+    String? operationID,
+  }) {
+    GroupVerification? verification;
+    for (final v in GroupVerification.values) {
+      if (v.value == needVerification) {
+        verification = v;
+        break;
+      }
+    }
+    return setGroupInfo(
+      groupInfo: GroupInfo(groupID: groupID, needVerification: verification),
+    );
+  }
+
+  /// 设置群组是否允许查看成员信息
+  @Deprecated('Use [setGroupInfo] instead')
+  Future<dynamic> setGroupLookMemberInfo({
+    required String groupID,
+    required int status,
+    String? operationID,
+  }) {
+    return setGroupInfo(
+      groupInfo: GroupInfo(groupID: groupID, lookMemberInfo: status),
+    );
+  }
+
+  /// 设置群组是否允许添加成员好友
+  @Deprecated('Use [setGroupInfo] instead')
+  Future<dynamic> setGroupApplyMemberFriend({
+    required String groupID,
+    required int status,
+    String? operationID,
+  }) {
+    return setGroupInfo(
+      groupInfo: GroupInfo(groupID: groupID, applyMemberFriend: status),
+    );
+  }
+
+  /// 按入群时间获取群成员列表
+  /// [groupID] 群组ID
+  /// [offset] 起始索引
+  /// [count] 数量
+  /// [joinTimeBegin] 入群开始时间
+  /// [joinTimeEnd] 入群结束时间
+  /// [filterUserIDList] 过滤用户ID列表
+  Future<List<GroupMembersInfo>> getGroupMemberListByJoinTime({
+    required String groupID,
+    int offset = 0,
+    int count = 0,
+    int joinTimeBegin = 0,
+    int joinTimeEnd = 0,
+    List<String> filterUserIDList = const [],
+    String? operationID,
+  }) async {
+    final dataList = await _database.getGroupMembersPage(
+      groupID,
+      offset: offset,
+      count: count == 0 ? 40 : count,
+    );
+    var members = dataList.map(_convertGroupMembersInfo).toList();
+
+    // 按入群时间过滤
+    if (joinTimeBegin > 0 || joinTimeEnd > 0) {
+      members = members.where((m) {
+        final jt = m.joinTime ?? 0;
+        if (joinTimeBegin > 0 && jt < joinTimeBegin) return false;
+        if (joinTimeEnd > 0 && jt > joinTimeEnd) return false;
+        return true;
+      }).toList();
+    }
+
+    // 过滤指定用户
+    if (filterUserIDList.isNotEmpty) {
+      members.removeWhere((m) => filterUserIDList.contains(m.userID));
+    }
+
+    return members;
+  }
+
+  /// 搜索群成员（返回原始 Map）
+  Future<List<dynamic>> searchGroupMembersListMap({
+    required String groupID,
+    List<String> keywordList = const [],
+    bool isSearchUserID = false,
+    bool isSearchMemberNickname = false,
+    int offset = 0,
+    int count = 40,
+    String? operationID,
+  }) async {
+    final members = await searchGroupMembers(
+      groupID: groupID,
+      keywordList: keywordList,
+      isSearchUserID: isSearchUserID,
+      isSearchMemberNickname: isSearchMemberNickname,
+      offset: offset,
+      count: count,
+    );
+    return members.map((m) => m.toJson()).toList();
+  }
+
+  /// 获取群内指定用户信息（检查用户是否在群内）
+  /// [groupID] 群组ID
+  /// [userIDs] 用户ID列表
+  Future<dynamic> getUsersInGroup(
+    String groupID,
+    List<String> userIDs, {
+    String? operationID,
+  }) async {
+    final members = await getGroupMembersInfo(groupID: groupID, userIDList: userIDs);
+    return members.map((m) => m.toJson()).toList();
+  }
+
+  // ---------------------------------------------------------------------------
   // 私有辅助方法
   // ---------------------------------------------------------------------------
 
@@ -670,9 +805,7 @@ class GroupManager {
       creatorUserID: data['creatorUserID'] as String?,
       groupType: _intToGroupType(data['groupType'] as int?),
       ex: data['ex'] as String?,
-      needVerification: _intToGroupVerification(
-        data['needVerification'] as int?,
-      ),
+      needVerification: _intToGroupVerification(data['needVerification'] as int?),
       lookMemberInfo: data['lookMemberInfo'] as int?,
       applyMemberFriend: data['applyMemberFriend'] as int?,
       notificationUpdateTime: data['notificationUpdateTime'] as int?,

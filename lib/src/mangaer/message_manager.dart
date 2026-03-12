@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/network/ws_constants.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
+import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 /// 消息管理器
@@ -21,6 +24,9 @@ class MessageManager {
 
   ImApiService get _api =>
       GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+
+  WebSocketService get _ws =>
+      GetIt.instance.get<WebSocketService>(instanceName: InstanceName.webSocketService);
 
   /// 消息监听器
   OnAdvancedMsgListener? msgListener;
@@ -359,17 +365,46 @@ class MessageManager {
 
     _log.info('消息已发送到本地: ${sendMsg.clientMsgID}');
 
-    // TODO: 通过 WebSocket 发送到服务器，收到响应后更新状态
-    final sentMsg = sendMsg.copyWith(status: MessageStatus.succeeded, sendTime: _nowMillis());
-    await _database.updateMessage(sentMsg.clientMsgID!, {
-      'status': MessageStatus.succeeded.value,
-      'sendTime': sentMsg.sendTime,
-    });
-    await _database.deleteSendingMessage(sentMsg.clientMsgID!);
+    // 通过 REST API 发送消息（避免 WebSocket protobuf 编码问题）
+    final apiMsgData = _buildRestApiMsgData(sendMsg, isOnlineOnly: isOnlineOnly);
 
-    await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+    try {
+      final resp = await _api.sendMsg(msgData: apiMsgData);
 
-    return sentMsg;
+      if (resp.errCode == 0) {
+        final respData = resp.data as Map<String, dynamic>? ?? {};
+        final serverMsgID = respData['serverMsgID'] as String?;
+        final serverSendTime = respData['sendTime'] as int? ?? _nowMillis();
+
+        final sentMsg = sendMsg.copyWith(
+          status: MessageStatus.succeeded,
+          sendTime: serverSendTime,
+          serverMsgID: serverMsgID,
+        );
+        await _database.updateMessage(sentMsg.clientMsgID!, {
+          'status': MessageStatus.succeeded.value,
+          'sendTime': sentMsg.sendTime,
+          'serverMsgID': serverMsgID,
+        });
+        await _database.deleteSendingMessage(sentMsg.clientMsgID!);
+        await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+        return sentMsg;
+      } else {
+        _log.warning('消息发送失败: ${resp.errMsg}');
+        final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
+        await _database.updateMessage(failedMsg.clientMsgID!, {
+          'status': MessageStatus.failed.value,
+        });
+        await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+        return failedMsg;
+      }
+    } catch (e) {
+      _log.warning('消息发送异常: $e');
+      final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
+      await _database.updateMessage(failedMsg.clientMsgID!, {'status': MessageStatus.failed.value});
+      await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+      return failedMsg;
+    }
   }
 
   /// 发送消息（不通过OSS上传）
@@ -433,58 +468,73 @@ class MessageManager {
       count: queryCount + 1,
     );
 
-    // 如果本地数据不足，且起始消息在远端可能有更早的数据，则尝试从云端拉取
-    if (dataList.length <= queryCount && startMsg != null && (startMsg.seq ?? 0) > 1) {
-      int currentSeq = startMsg.seq ?? 0;
-      if (dataList.isNotEmpty) {
-        currentSeq = dataList.last['seq'] as int? ?? currentSeq;
+    // 如果本地数据不足，尝试从云端拉取
+    // 对应 Go SDK 的 fetchMessagesWithGapCheck：先本地后云端
+    final convMaxSeq = conv['maxSeq'] as int? ?? 0;
+    if (dataList.length <= queryCount && convMaxSeq > 0) {
+      // 确定从哪个 seq 开始向前拉取
+      int currentSeq;
+      if (startMsg != null && (startMsg.seq ?? 0) > 1) {
+        currentSeq = startMsg.seq!;
+        if (dataList.isNotEmpty) {
+          currentSeq = dataList.last['seq'] as int? ?? currentSeq;
+        }
+      } else if (dataList.isNotEmpty) {
+        // 有本地数据但不足，从最早一条的 seq 向前拉取
+        currentSeq = dataList.last['seq'] as int? ?? convMaxSeq;
+      } else {
+        // 无本地数据，从会话 maxSeq 开始拉取最新消息
+        currentSeq = convMaxSeq + 1;
       }
 
       if (currentSeq > 1) {
         final beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
-        try {
-          final resp = await _api.pullMsgBySeqs(
-            userID: _database.currentUserID,
-            seqRanges: [
-              {
-                'conversationID': conversationID,
-                'begin': beginSeq,
-                'end': currentSeq - 1,
-                'num': queryCount,
-              },
-            ],
-            order: 1, // 降序
-          );
-          if (resp.errCode == 0) {
-            final data = resp.data as Map<String, dynamic>? ?? {};
-            final msgsJson = data['msgs'] as Map<String, dynamic>? ?? {};
-            final convMsgs = msgsJson[conversationID] as Map<String, dynamic>? ?? {};
-            final pulledMsgs = (convMsgs['Msgs'] ?? convMsgs['msgs']) as List? ?? [];
+        final endSeq = currentSeq - 1;
+        if (endSeq >= beginSeq) {
+          try {
+            final resp = await _api.pullMsgBySeqs(
+              userID: _database.currentUserID,
+              seqRanges: [
+                {
+                  'conversationID': conversationID,
+                  'begin': beginSeq,
+                  'end': endSeq,
+                  'num': queryCount,
+                },
+              ],
+              order: 1, // 降序
+            );
+            if (resp.errCode == 0) {
+              final data = resp.data as Map<String, dynamic>? ?? {};
+              final msgsJson = data['msgs'] as Map<String, dynamic>? ?? {};
+              final convMsgs = msgsJson[conversationID] as Map<String, dynamic>? ?? {};
+              final pulledMsgs = (convMsgs['Msgs'] ?? convMsgs['msgs']) as List? ?? [];
 
-            final batchInsert = <Map<String, dynamic>>[];
-            for (final netMsg in pulledMsgs) {
-              if (netMsg is Map) {
-                final m = Map<String, dynamic>.from(netMsg);
-                m['conversationID'] = conversationID;
-                if ((m['contentType'] as int? ?? 0) < 1000) {
-                  batchInsert.add(m);
+              final batchInsert = <Map<String, dynamic>>[];
+              for (final netMsg in pulledMsgs) {
+                if (netMsg is Map) {
+                  final m = Map<String, dynamic>.from(netMsg);
+                  m['conversationID'] = conversationID;
+                  if ((m['contentType'] as int? ?? 0) < 1000) {
+                    batchInsert.add(m);
+                  }
                 }
               }
+              if (batchInsert.isNotEmpty) {
+                await _database.batchInsertMessages(batchInsert);
+                // 重新查询使得本地有序并拼接新数据
+                dataList = await _database.getHistoryMessages(
+                  conversationID: conversationID ?? '',
+                  startTime: startTime,
+                  startSeq: startMsg?.seq ?? 0,
+                  startClientMsgID: startMsg?.clientMsgID ?? '',
+                  count: queryCount + 1,
+                );
+              }
             }
-            if (batchInsert.isNotEmpty) {
-              await _database.batchInsertMessages(batchInsert);
-              // 重新查询使得本地有序并拼接新数据
-              dataList = await _database.getHistoryMessages(
-                conversationID: conversationID ?? '',
-                startTime: startTime,
-                startSeq: startMsg.seq ?? 0,
-                startClientMsgID: startMsg.clientMsgID ?? '',
-                count: queryCount + 1,
-              );
-            }
+          } catch (e) {
+            _log.warning('云端历史消息拉取失败: $e');
           }
-        } catch (e) {
-          _log.warning('Fallback history pull failed: $e');
         }
       }
     }
@@ -598,6 +648,10 @@ class MessageManager {
   /// [conversationID] 会话ID
   /// [clientMsgID] 消息ID
   Future<void> revokeMessage({required String conversationID, required String clientMsgID}) async {
+    // 获取消息的 seq 用于服务端撤回
+    final msgData = await _database.getMessage(clientMsgID);
+    final seq = msgData?['seq'] as int? ?? 0;
+
     await _database.updateMessage(clientMsgID, {
       'contentType': MessageType.revokeNotification.value,
     });
@@ -611,7 +665,17 @@ class MessageManager {
       ),
     );
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    if (seq > 0) {
+      final resp = await _api.revokeMsg(
+        userID: _database.currentUserID,
+        conversationID: conversationID,
+        seq: seq,
+      );
+      if (resp.errCode != 0) {
+        _log.warning('撤回消息同步服务器失败: ${resp.errMsg}');
+      }
+    }
   }
 
   /// 删除消息（仅从本地存储删除）
@@ -632,10 +696,24 @@ class MessageManager {
     required String conversationID,
     required String clientMsgID,
   }) async {
+    // 获取消息的 seq 用于服务端删除
+    final msgData = await _database.getMessage(clientMsgID);
+    final seq = msgData?['seq'] as int? ?? 0;
+
     await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地和服务器删除: $clientMsgID');
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    if (seq > 0) {
+      final resp = await _api.deleteMsgs(
+        userID: _database.currentUserID,
+        conversationID: conversationID,
+        seqs: [seq],
+      );
+      if (resp.errCode != 0) {
+        _log.warning('删除消息同步服务器失败: ${resp.errMsg}');
+      }
+    }
   }
 
   /// 删除所有本地消息
@@ -649,7 +727,11 @@ class MessageManager {
     await _database.deleteAllMessages();
     _log.info('所有消息已从本地和服务器删除');
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    final resp = await _api.clearAllMsg(userID: _database.currentUserID);
+    if (resp.errCode != 0) {
+      _log.warning('清空所有消息同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 标记消息已读
@@ -714,9 +796,102 @@ class MessageManager {
 
   /// 设置应用角标
   /// [count] 角标数量
-  Future<void> setAppBadge(int count) async {
+  Future<void> setAppBadge(int count, {String? operationID}) async {
     // TODO: 调用原生平台设置角标
     _log.info('设置应用角标: $count');
+  }
+
+  // ---------------------------------------------------------------------------
+  // 兼容 open-im-sdk-flutter 的 FullPath 方法
+  // ---------------------------------------------------------------------------
+
+  /// 创建图片消息（通过完整文件路径）
+  /// [imagePath] 图片的完整路径
+  Message createImageMessageFromFullPath({required String imagePath, String? operationID}) {
+    return createImageMessage(imagePath: imagePath);
+  }
+
+  /// 创建语音消息（通过完整文件路径）
+  /// [soundPath] 语音文件的完整路径
+  /// [duration] 时长（秒）
+  Message createSoundMessageFromFullPath({
+    required String soundPath,
+    required int duration,
+    String? operationID,
+  }) {
+    return createSoundMessage(soundPath: soundPath, duration: duration);
+  }
+
+  /// 创建视频消息（通过完整文件路径）
+  /// [videoPath] 视频文件的完整路径
+  /// [videoType] 视频MIME类型
+  /// [duration] 时长（秒）
+  /// [snapshotPath] 缩略图完整路径
+  Message createVideoMessageFromFullPath({
+    required String videoPath,
+    required String videoType,
+    required int duration,
+    required String snapshotPath,
+    String? operationID,
+  }) {
+    return createVideoMessage(
+      videoPath: videoPath,
+      videoType: videoType,
+      duration: duration,
+      snapshotPath: snapshotPath,
+    );
+  }
+
+  /// 创建文件消息（通过完整文件路径）
+  /// [filePath] 文件的完整路径
+  /// [fileName] 文件名
+  Message createFileMessageFromFullPath({
+    required String filePath,
+    required String fileName,
+    String? operationID,
+  }) {
+    return createFileMessage(filePath: filePath, fileName: fileName);
+  }
+
+  /// 输入状态更新
+  /// [userID] 用户ID
+  /// [msgTip] 提示消息
+  @Deprecated('Use ConversationManager.changeInputStates instead')
+  Future typingStatusUpdate({required String userID, String? msgTip, String? operationID}) async {
+    final focus = msgTip != null && msgTip.isNotEmpty && msgTip != 'no';
+    final msgData = _buildTypingMsgData(
+      conversationID: '',
+      focus: focus,
+      recvID: userID,
+      sessionType: ConversationType.single,
+    );
+    try {
+      final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
+      await _ws.sendReqWaitResp(reqIdentifier: WsReqIdentifier.sendMsg, data: wsData);
+    } catch (e) {
+      _log.warning('发送输入状态失败: $e');
+    }
+  }
+
+  /// 创建图片消息通过URL（兼容 open-im-sdk-flutter 3参数签名）
+  /// [sourcePicture] 原图信息
+  /// [bigPicture] 大图信息
+  /// [snapshotPicture] 缩略图信息
+  /// [sourcePath] 原图路径
+  @Deprecated('Use [createImageMessageByURL] instead')
+  Message createImageMessageByURLCompat({
+    required PictureInfo sourcePicture,
+    required PictureInfo bigPicture,
+    required PictureInfo snapshotPicture,
+    String? sourcePath,
+    String? operationID,
+  }) {
+    return createImageMessageByURL(
+      sourcePicture: sourcePicture,
+      bigPicture: bigPicture,
+      snapshotPicture: snapshotPicture,
+      sourcePath: sourcePath,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -736,6 +911,86 @@ class MessageManager {
   // ---------------------------------------------------------------------------
   // 私有辅助方法
   // ---------------------------------------------------------------------------
+
+  /// 构造 REST API 发送消息的请求体
+  ///
+  /// 对应 Go SDK api_msg_sender.go 中的 SendMsgReq 结构，
+  /// content 字段为 Map，内含 JSON 序列化后的元素内容。
+  Map<String, dynamic> _buildRestApiMsgData(Message msg, {bool isOnlineOnly = false}) {
+    final content = _extractContent(msg);
+
+    final data = <String, dynamic>{
+      'sendID': msg.sendID,
+      'recvID': msg.recvID ?? '',
+      'groupID': msg.groupID ?? '',
+      'senderNickname': msg.senderNickname ?? '',
+      'senderFaceURL': msg.senderFaceUrl ?? '',
+      'senderPlatformID': msg.senderPlatformID?.value ?? PlatformUtils.currentPlatform.value,
+      'contentType': msg.contentType?.value ?? MessageType.text.value,
+      'sessionType': msg.sessionType?.value ?? ConversationType.single.value,
+      'content': {'content': content},
+      'isOnlineOnly': isOnlineOnly,
+    };
+
+    // 离线推送信息
+    if (msg.offlinePush != null) {
+      data['offlinePushInfo'] = msg.offlinePush!.toJson();
+    }
+
+    return data;
+  }
+
+  /// 从消息对象中提取 content 字符串（JSON 编码的 Elem）
+  String _extractContent(Message msg) {
+    if (msg.textElem != null) return jsonEncode(msg.textElem!.toJson());
+    if (msg.pictureElem != null) return jsonEncode(msg.pictureElem!.toJson());
+    if (msg.soundElem != null) return jsonEncode(msg.soundElem!.toJson());
+    if (msg.videoElem != null) return jsonEncode(msg.videoElem!.toJson());
+    if (msg.fileElem != null) return jsonEncode(msg.fileElem!.toJson());
+    if (msg.locationElem != null) return jsonEncode(msg.locationElem!.toJson());
+    if (msg.customElem != null) return jsonEncode(msg.customElem!.toJson());
+    if (msg.quoteElem != null) return jsonEncode(msg.quoteElem!.toJson());
+    if (msg.mergeElem != null) return jsonEncode(msg.mergeElem!.toJson());
+    if (msg.faceElem != null) return jsonEncode(msg.faceElem!.toJson());
+    if (msg.cardElem != null) return jsonEncode(msg.cardElem!.toJson());
+    if (msg.atTextElem != null) return jsonEncode(msg.atTextElem!.toJson());
+    if (msg.advancedTextElem != null) return jsonEncode(msg.advancedTextElem!.toJson());
+    return '';
+  }
+
+  /// 构造输入状态（Typing）消息的 MsgData
+  Map<String, dynamic> _buildTypingMsgData({
+    required String conversationID,
+    required bool focus,
+    String? recvID,
+    String? groupID,
+    ConversationType sessionType = ConversationType.single,
+  }) {
+    final typingElem = {'msgTips': focus ? 'yes' : 'no'};
+    final options = <String, bool>{
+      'history': false,
+      'persistent': false,
+      'senderSync': false,
+      'conversationUpdate': false,
+      'senderConversationUpdate': false,
+      'unreadCount': false,
+      'offlinePush': false,
+    };
+    return {
+      'sendID': _database.currentUserID,
+      'recvID': recvID ?? '',
+      'groupID': groupID ?? '',
+      'clientMsgID': _generateClientMsgID(),
+      'sessionType': sessionType.value,
+      'msgFrom': 100,
+      'contentType': 113, // Typing
+      'content': jsonEncode(typingElem),
+      'senderPlatformID': PlatformUtils.currentPlatform.value,
+      'createTime': _nowMillis(),
+      'sendTime': 0,
+      'options': options,
+    };
+  }
 
   /// 生成唯一消息 ID
   String _generateClientMsgID() {

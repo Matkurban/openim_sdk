@@ -1,29 +1,26 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
-import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../network/ws_codec.dart';
 import '../network/ws_constants.dart';
 
 /// WebSocket 长连接管理器
-///
-/// 对应 Go SDK 的 LongConnMgr，负责：
-/// - 建立/断开 WebSocket 连接
-/// - 心跳保活
-/// - 自动重连（指数退避）
-/// - 请求/响应匹配
-/// - 推送消息分发
 class WebSocketService {
-  final Logger _log = Logger('WsConnectionManager');
+  final Logger _log = Logger('WebSocketService');
 
   // ---- 配置 ----
-  late String _wsUrl;
+  final String wsUrl;
+
+  final int platformID;
+
+  WebSocketService({required this.wsUrl, required this.platformID});
+
   late String _userID;
   late String _token;
-  late int _platformID;
   late bool _compression;
 
   // ---- 编解码 ----
@@ -33,11 +30,6 @@ class WebSocketService {
   WebSocketChannel? _channel;
   WsConnStatus _connStatus = WsConnStatus.notConnected;
   StreamSubscription? _subscription;
-
-  // ---- 心跳 ----
-  /// Go SDK 使用 WebSocket 协议级 PING/PONG，不是业务消息。
-  /// 通过 IOWebSocketChannel.pingInterval 实现，无需手动发送。
-  static const _pingInterval = Duration(seconds: 24);
 
   // ---- 重连 ----
   static const _maxReconnectAttempts = 300;
@@ -50,9 +42,19 @@ class WebSocketService {
   // ---- 重连定时器 ----
   Timer? _reconnectTimer;
 
+  // ---- 心跳 ----
+  static const _pingPeriod = Duration(seconds: 24);
+  Timer? _heartbeatTimer;
+  DateTime? _lastPong;
+
+  // ---- 连接握手 ----
+  bool _awaitingAuthResponse = false;
+  Completer<void>? _authCompleter;
+
   // ---- 请求/响应异步匹配 ----
   int _msgIncrCounter = 0;
   final Map<String, Completer<GeneralWsResp>> _pendingRequests = {};
+
   static const _requestTimeout = Duration(seconds: 10);
 
   // ---- 回调 ----
@@ -80,8 +82,6 @@ class WebSocketService {
   /// 用户在线状态变更
   void Function(GeneralWsResp resp)? onUserOnlineStatusChanged;
 
-  WebSocketService();
-
   /// 当前连接状态
   WsConnStatus get connStatus => _connStatus;
 
@@ -100,16 +100,12 @@ class WebSocketService {
   /// [platformID] 平台 ID
   /// [compression] 是否启用 gzip 压缩
   Future<void> connect({
-    required String wsUrl,
     required String userID,
     required String token,
-    required int platformID,
     bool compression = true,
   }) async {
-    _wsUrl = wsUrl;
     _userID = userID;
     _token = token;
-    _platformID = platformID;
     _compression = compression;
     _codec = WsCodec(enableCompression: compression);
     _userDisconnected = false;
@@ -123,6 +119,7 @@ class WebSocketService {
     _userDisconnected = true;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _stopHeartbeat();
     _cancelAllPendingRequests('connection closed by user');
     await _subscription?.cancel();
     _subscription = null;
@@ -164,9 +161,7 @@ class WebSocketService {
       if (_pendingRequests.containsKey(msgIncr)) {
         _pendingRequests.remove(msgIncr);
         if (!completer.isCompleted) {
-          completer.completeError(
-            TimeoutException('WebSocket 请求超时', _requestTimeout),
-          );
+          completer.completeError(TimeoutException('WebSocket 请求超时', _requestTimeout));
         }
       }
     });
@@ -194,35 +189,49 @@ class WebSocketService {
     _log.info('正在连接 WebSocket: $url');
 
     try {
-      // 使用 IOWebSocketChannel 以支持协议级 PING/PONG（同 Go SDK）
-      _channel = IOWebSocketChannel.connect(url, pingInterval: _pingInterval);
+      _channel = WebSocketChannel.connect(Uri.parse(url));
       await _channel!.ready;
+
+      // --- 等待服务端连接认证响应（ws_js.go dial 中的第一条消息） ---
+      _awaitingAuthResponse = true;
+      _authCompleter = Completer<void>();
+      _startListening();
+
+      // 等待认证消息到达并处理
+      await _authCompleter!.future.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('等待连接认证响应超时');
+        },
+      );
 
       // 连接成功
       _setStatus(WsConnStatus.connected);
       _reconnectAttempts = 0;
       _reconnectIndex = -1;
 
-      _startListening();
+      _startHeartbeat();
 
       onConnectSuccess?.call();
       _log.info('WebSocket 连接成功');
     } catch (e) {
       _log.warning('WebSocket 连接失败: $e');
       _setStatus(WsConnStatus.closed);
+      _stopHeartbeat();
       onConnectFailed?.call(-1, e.toString());
       _scheduleReconnect();
     }
   }
 
   String _buildWsUrl() {
-    final sb = StringBuffer(_wsUrl);
+    final sb = StringBuffer(wsUrl);
     sb.write('?sendID=$_userID');
     sb.write('&token=$_token');
-    sb.write('&platformID=$_platformID');
+    sb.write('&platformID=$platformID');
     sb.write('&operationID=${_generateOperationID()}');
     sb.write('&isBackground=false');
     sb.write('&sdkType=js');
+    sb.write('&isMsgResp=true');
     if (_compression) {
       sb.write('&compression=gzip');
     }
@@ -231,20 +240,70 @@ class WebSocketService {
 
   void _startListening() {
     _subscription?.cancel();
-    _subscription = _channel?.stream.listen(
-      _onMessage,
-      onError: _onError,
-      onDone: _onDone,
-    );
+    _subscription = _channel?.stream.listen(_onMessage, onError: _onError, onDone: _onDone);
   }
 
   void _onMessage(dynamic message) {
-    _log.info('WebSocket：$message');
+    _log.fine('WebSocket 收到消息: ${message.runtimeType}');
+
+    // --- 第一条消息：连接认证响应 ---
+    if (_awaitingAuthResponse) {
+      _awaitingAuthResponse = false;
+      _handleAuthResponse(message);
+      return;
+    }
+
     if (message is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(message));
     } else if (message is String) {
-      // 文本消息不支持
-      _log.warning('收到不支持的文本消息');
+      _handleTextMessage(message);
+    }
+  }
+
+  /// 处理服务端连接认证响应（对应 ws_js.go dial 中 JSON {errCode,errMsg,errDlt}）
+  void _handleAuthResponse(dynamic message) {
+    try {
+      String jsonStr;
+      if (message is String) {
+        jsonStr = message;
+      } else if (message is List<int>) {
+        jsonStr = utf8.decode(message);
+      } else {
+        _authCompleter?.completeError(StateError('未知的认证响应类型: ${message.runtimeType}'));
+        return;
+      }
+
+      final resp = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final errCode = resp['errCode'] as int? ?? 0;
+      final errMsg = resp['errMsg'] as String? ?? '';
+      final errDlt = resp['errDlt'] as String? ?? '';
+
+      if (errCode != 0) {
+        _log.warning('连接认证失败: errCode=$errCode, errMsg=$errMsg, errDlt=$errDlt');
+        _authCompleter?.completeError(StateError('连接认证失败($errCode): $errMsg $errDlt'));
+      } else {
+        _log.info('连接认证成功');
+        _authCompleter?.complete();
+      }
+    } catch (e) {
+      _authCompleter?.completeError(StateError('解析认证响应失败: $e'));
+    }
+  }
+
+  /// 处理文本消息（ping/pong，对应 ws_js.go handlerText）
+  void _handleTextMessage(String text) {
+    try {
+      final msg = jsonDecode(text) as Map<String, dynamic>;
+      final type = msg['type'] as String? ?? '';
+      switch (type) {
+        case 'pong':
+          _lastPong = DateTime.now();
+          _log.fine('收到 pong');
+        default:
+          _log.warning('未知文本消息类型: $type');
+      }
+    } catch (e) {
+      _log.warning('解析文本消息失败: $e');
     }
   }
 
@@ -260,10 +319,42 @@ class WebSocketService {
 
   void _handleDisconnect() {
     _setStatus(WsConnStatus.closed);
+    _stopHeartbeat();
     _cancelAllPendingRequests('connection lost');
     if (!_userDisconnected) {
       _scheduleReconnect();
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 心跳（对应 Go SDK heartbeat + ws_js.go sendText）
+  // ---------------------------------------------------------------------------
+
+  void _startHeartbeat() {
+    _stopHeartbeat();
+    _lastPong = DateTime.now();
+    _heartbeatTimer = Timer.periodic(_pingPeriod, (_) => _sendPing());
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
+  /// 发送 ping 文本消息（对应 ws_js.go WriteMessage(PingMessage, ...)）
+  void _sendPing() {
+    if (_channel == null || !isConnected) return;
+    // 检测连接健康：如果超过 2 个心跳周期未收到 pong，视为连接断开
+    if (_lastPong != null &&
+        DateTime.now().difference(_lastPong!).inSeconds > _pingPeriod.inSeconds * 2) {
+      _log.warning('超时未收到 pong，连接可能已断开');
+      _handleDisconnect();
+      return;
+    }
+    final opID = _generateOperationID();
+    final ping = jsonEncode({'type': 'ping', 'body': jsonEncode(opID)});
+    _channel!.sink.add(ping);
+    _log.fine('发送 ping: $opID');
   }
 
   // ---------------------------------------------------------------------------
@@ -348,8 +439,7 @@ class WebSocketService {
 
     _isReconnecting = true;
     _reconnectIndex++;
-    final interval =
-        _backoffIntervals[_reconnectIndex % _backoffIntervals.length];
+    final interval = _backoffIntervals[_reconnectIndex % _backoffIntervals.length];
     _reconnectAttempts++;
 
     _log.info('将在 ${interval}s 后重连 (第 $_reconnectAttempts 次)');

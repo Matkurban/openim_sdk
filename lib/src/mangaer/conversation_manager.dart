@@ -1,11 +1,15 @@
-import 'package:openim_sdk/src/services/im_api_service.dart';
-import 'package:get_it/get_it.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/network/ws_constants.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
+import 'package:openim_sdk/src/services/im_api_service.dart';
+import 'package:openim_sdk/src/services/web_socket_service.dart';
+import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 /// 会话管理器
 /// 对应 open-im-sdk-flutter 中 ConversationManager。
@@ -13,10 +17,12 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class ConversationManager {
   static final Logger _log = Logger('ConversationManager');
 
-  ImApiService get _api => GetIt.instance.get<ImApiService>();
-  DatabaseService get _database => GetIt.instance.get<DatabaseService>(
-    instanceName: InstanceName.databaseService,
-  );
+  ImApiService get _api =>
+      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  WebSocketService get _ws =>
+      GetIt.instance.get<WebSocketService>(instanceName: InstanceName.webSocketService);
 
   /// 会话变更监听器
   OnConversationListener? listener;
@@ -82,10 +88,7 @@ class ConversationManager {
   /// 分页获取会话列表
   /// [offset] 起始索引
   /// [count] 每页数量
-  Future<List<ConversationInfo>> getConversationListSplit({
-    int offset = 0,
-    int count = 20,
-  }) async {
+  Future<List<ConversationInfo>> getConversationListSplit({int offset = 0, int count = 20}) async {
     final dataList = await _database.getConversationsPage(offset, count);
     return _batchConvertConversations(dataList);
   }
@@ -122,9 +125,7 @@ class ConversationManager {
   Future<List<ConversationInfo>> getMultipleConversation({
     required List<String> conversationIDList,
   }) async {
-    final dataList = await _database.getMultipleConversations(
-      conversationIDList,
-    );
+    final dataList = await _database.getMultipleConversations(conversationIDList);
     return _batchConvertConversations(dataList);
   }
 
@@ -137,29 +138,29 @@ class ConversationManager {
 
   /// 自定义会话列表排序
   /// 置顶会话优先，然后按最新消息时间或草稿时间排序
-  List<ConversationInfo> simpleSort(List<ConversationInfo> list) =>
-      list..sort((a, b) {
-        if ((a.isPinned == true && b.isPinned == true) ||
-            (a.isPinned != true && b.isPinned != true)) {
-          final aCompare = (a.draftTextTime ?? 0) > (a.latestMsgSendTime ?? 0)
-              ? (a.draftTextTime ?? 0)
-              : (a.latestMsgSendTime ?? 0);
-          final bCompare = (b.draftTextTime ?? 0) > (b.latestMsgSendTime ?? 0)
-              ? (b.draftTextTime ?? 0)
-              : (b.latestMsgSendTime ?? 0);
-          if (aCompare > bCompare) {
-            return -1;
-          } else if (aCompare < bCompare) {
-            return 1;
-          } else {
-            return 0;
-          }
-        } else if (a.isPinned == true && b.isPinned != true) {
+  List<ConversationInfo> simpleSort(List<ConversationInfo> list) => list
+    ..sort((a, b) {
+      if ((a.isPinned == true && b.isPinned == true) ||
+          (a.isPinned != true && b.isPinned != true)) {
+        final aCompare = (a.draftTextTime ?? 0) > (a.latestMsgSendTime ?? 0)
+            ? (a.draftTextTime ?? 0)
+            : (a.latestMsgSendTime ?? 0);
+        final bCompare = (b.draftTextTime ?? 0) > (b.latestMsgSendTime ?? 0)
+            ? (b.draftTextTime ?? 0)
+            : (b.latestMsgSendTime ?? 0);
+        if (aCompare > bCompare) {
           return -1;
-        } else {
+        } else if (aCompare < bCompare) {
           return 1;
+        } else {
+          return 0;
         }
-      });
+      } else if (a.isPinned == true && b.isPinned != true) {
+        return -1;
+      } else {
+        return 1;
+      }
+    });
 
   // ---------------------------------------------------------------------------
   // 会话修改操作
@@ -178,15 +179,20 @@ class ConversationManager {
     }
     _log.info('会话属性已更新: $conversationID');
     await _notifyConversationChanged([conversationID]);
+
+    // 同步到服务器
+    final resp = await _api.setConversations(
+      req: {'userID': _database.currentUserID, 'conversationID': conversationID, ...updateData},
+    );
+    if (resp.errCode != 0) {
+      _log.warning('同步会话属性到服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 置顶会话
   /// [conversationID] 会话ID
   /// [isPinned] true: 置顶, false: 取消置顶
-  Future<void> pinConversation({
-    required String conversationID,
-    required bool isPinned,
-  }) {
+  Future<void> pinConversation({required String conversationID, required bool isPinned}) {
     final req = ConversationReq(isPinned: isPinned);
     return setConversation(conversationID: conversationID, req: req);
   }
@@ -227,15 +233,29 @@ class ConversationManager {
 
   /// 标记会话消息已读
   /// [conversationID] 会话ID
-  Future<void> markConversationMessageAsRead({
-    required String conversationID,
-  }) async {
+  Future<void> markConversationMessageAsRead({required String conversationID}) async {
+    // 获取当前会话的 maxSeq 用于服务端标记已读
+    final conv = await _database.getConversation(conversationID);
+    final hasReadSeq = conv?['maxSeq'] as int? ?? 0;
+
     await _database.clearConversationUnreadCount(conversationID);
     _log.info('会话已标记已读: $conversationID');
 
     final total = await getTotalUnreadMsgCount();
     listener?.totalUnreadMessageCountChanged(total);
     await _notifyConversationChanged([conversationID]);
+
+    // 同步到服务器
+    if (hasReadSeq > 0) {
+      final resp = await _api.markConversationAsRead(
+        userID: _database.currentUserID,
+        conversationID: conversationID,
+        hasReadSeq: hasReadSeq,
+      );
+      if (resp.errCode != 0) {
+        _log.warning('标记会话已读同步服务器失败: ${resp.errMsg}');
+      }
+    }
   }
 
   /// 标记所有会话消息已读
@@ -251,9 +271,7 @@ class ConversationManager {
 
   /// 删除会话及其所有消息（本地和服务器）
   /// [conversationID] 会话ID
-  Future<void> deleteConversationAndDeleteAllMsg({
-    required String conversationID,
-  }) async {
+  Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
     await _clearConversationMessages(conversationID);
     await _database.deleteConversation(conversationID);
     _log.info('会话及消息已删除: $conversationID');
@@ -269,9 +287,7 @@ class ConversationManager {
 
   /// 清空会话消息
   /// [conversationID] 会话ID
-  Future<void> clearConversationAndDeleteAllMsg({
-    required String conversationID,
-  }) async {
+  Future<void> clearConversationAndDeleteAllMsg({required String conversationID}) async {
     await _clearConversationMessages(conversationID);
     await _database.deleteConversation(conversationID);
     _log.info('会话及消息已清空: $conversationID');
@@ -292,27 +308,170 @@ class ConversationManager {
   /// 更新输入状态
   /// [conversationID] 会话ID
   /// [focus] 是否正在输入
-  Future<void> changeInputStates({
-    required String conversationID,
-    required bool focus,
-  }) async {
+  Future<void> changeInputStates({required String conversationID, required bool focus}) async {
     _log.fine('输入状态变更: $conversationID, focus=$focus');
-    // TODO: 实现通过 WebSocket/message_manager 发送信令消息 (WsReqIdentifier.sendSignalMsg)
+
+    // 获取会话信息以确定接收方
+    final conv = await _database.getConversation(conversationID);
+    if (conv == null) return;
+
+    final recvID = conv['userID'] as String? ?? '';
+    final groupID = conv['groupID'] as String? ?? '';
+    final convType = conv['conversationType'] as int? ?? 1;
+
+    // 构造 Typing 消息（对应 Go SDK 的 entering.go）
+    final typingElem = {'msgTips': focus ? 'yes' : 'no'};
+    final options = <String, bool>{
+      'history': false,
+      'persistent': false,
+      'senderSync': false,
+      'conversationUpdate': false,
+      'senderConversationUpdate': false,
+      'unreadCount': false,
+      'offlinePush': false,
+    };
+    final msgData = {
+      'sendID': _database.currentUserID,
+      'recvID': recvID,
+      'groupID': groupID,
+      'clientMsgID': '${DateTime.now().microsecondsSinceEpoch}',
+      'sessionType': convType,
+      'msgFrom': 100,
+      'contentType': 113, // Typing
+      'content': jsonEncode(typingElem),
+      'senderPlatformID': PlatformUtils.currentPlatform.value,
+      'createTime': DateTime.now().millisecondsSinceEpoch,
+      'sendTime': 0,
+      'options': options,
+    };
+
+    try {
+      final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
+      await _ws.sendReqWaitResp(reqIdentifier: WsReqIdentifier.sendMsg, data: wsData);
+    } catch (e) {
+      _log.warning('发送输入状态失败: $e');
+    }
   }
 
   /// 获取对方输入状态
   /// [conversationID] 会话ID
   /// [userID] 对方用户ID
-  Future<List<int>?> getInputStates(
-    String conversationID,
-    String userID,
-  ) async {
+  Future<List<int>?> getInputStates(String conversationID, String userID) async {
     // 监听端提供平台列表，通常为实时响应
     return [];
   }
 
   // ---------------------------------------------------------------------------
   // 本地数据操作（供内部模块调用）
+  // ---------------------------------------------------------------------------
+
+  // ---------------------------------------------------------------------------
+  // 兼容 open-im-sdk-flutter 的已废弃方法
+  // ---------------------------------------------------------------------------
+
+  /// 设置会话消息接收选项
+  /// [conversationID] 会话ID
+  /// [status] 0: 正常接收; 1: 不接收; 2: 接收但不通知
+  @Deprecated('Use [setConversation] instead')
+  Future<dynamic> setConversationRecvMessageOpt({
+    required String conversationID,
+    required int status,
+    String? operationID,
+  }) {
+    return setConversation(
+      conversationID: conversationID,
+      req: ConversationReq(recvMsgOpt: status),
+    );
+  }
+
+  /// 获取会话消息接收选项
+  /// [conversationIDList] 会话ID列表
+  Future<List<dynamic>> getConversationRecvMessageOpt({
+    required List<String> conversationIDList,
+    String? operationID,
+  }) async {
+    final convs = await getMultipleConversation(conversationIDList: conversationIDList);
+    return convs
+        .map((c) => {'conversationID': c.conversationID, 'result': c.recvMsgOpt?.value ?? 0})
+        .toList();
+  }
+
+  /// 设置会话是否为阅后即焚
+  @Deprecated('Use [setConversation] instead')
+  Future<dynamic> setConversationPrivateChat({
+    required String conversationID,
+    required bool isPrivate,
+    String? operationID,
+  }) {
+    return setConversation(
+      conversationID: conversationID,
+      req: ConversationReq(isPrivateChat: isPrivate),
+    );
+  }
+
+  /// 删除所有本地会话
+  @Deprecated('Use hideAllConversations instead')
+  Future<dynamic> deleteAllConversationFromLocal({String? operationID}) {
+    return hideAllConversations();
+  }
+
+  /// 重置会话群 @ 类型
+  @Deprecated('Use [setConversation] instead')
+  Future<dynamic> resetConversationGroupAtType({
+    required String conversationID,
+    String? operationID,
+  }) {
+    return setConversation(
+      conversationID: conversationID,
+      req: ConversationReq(groupAtType: GroupAtType.atNormal.value),
+    );
+  }
+
+  /// 设置全局消息接收选项
+  @Deprecated('Use UserManager.setSelfInfo instead')
+  Future<dynamic> setGlobalRecvMessageOpt({required int status, String? operationID}) async {
+    // 由 UserManager 处理
+    _log.warning('setGlobalRecvMessageOpt is deprecated, use UserManager.setSelfInfo');
+  }
+
+  /// 设置会话消息销毁时限
+  @Deprecated('Use [setConversation] instead')
+  Future<dynamic> setConversationBurnDuration({
+    required String conversationID,
+    int burnDuration = 30,
+    String? operationID,
+  }) {
+    return setConversation(
+      conversationID: conversationID,
+      req: ConversationReq(burnDuration: burnDuration),
+    );
+  }
+
+  /// 设置会话扩展信息
+  @Deprecated('Use [setConversation] instead')
+  Future setConversationEx(String conversationID, {String? ex, String? operationID}) {
+    return setConversation(
+      conversationID: conversationID,
+      req: ConversationReq(ex: ex),
+    );
+  }
+
+  /// 获取会话ID（兼容返回dynamic）
+  Future<dynamic> getConversationIDBySessionTypeCompat({
+    required String sourceID,
+    required int sessionType,
+    String? operationID,
+  }) {
+    return getConversationIDBySessionType(sourceID: sourceID, sessionType: sessionType);
+  }
+
+  /// 获取未读消息总数（兼容返回dynamic）
+  Future<dynamic> getTotalUnreadMsgCountCompat({String? operationID}) {
+    return getTotalUnreadMsgCount();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 本地数据操作（供内部模块调用）——续
   // ---------------------------------------------------------------------------
 
   /// 保存或更新会话到本地
@@ -322,9 +481,7 @@ class ConversationManager {
   }
 
   /// 批量保存或更新会话到本地
-  Future<void> batchSaveConversationsToLocal(
-    List<ConversationInfo> conversations,
-  ) async {
+  Future<void> batchSaveConversationsToLocal(List<ConversationInfo> conversations) async {
     final dataList = conversations.map(_conversationToDbMap).toList();
     await _database.batchUpsertConversations(dataList);
   }
@@ -347,9 +504,7 @@ class ConversationManager {
 
   /// 通知会话变更
   Future<void> _notifyConversationChanged(List<String> conversationIDs) async {
-    final conversations = await getMultipleConversation(
-      conversationIDList: conversationIDs,
-    );
+    final conversations = await getMultipleConversation(conversationIDList: conversationIDs);
     if (conversations.isNotEmpty) {
       listener?.conversationChanged(conversations);
     }
@@ -368,9 +523,7 @@ class ConversationManager {
 
     return ConversationInfo(
       conversationID: data['conversationID'] as String,
-      conversationType: _intToConversationType(
-        data['conversationType'] as int?,
-      ),
+      conversationType: _intToConversationType(data['conversationType'] as int?),
       userID: data['userID'] as String?,
       groupID: data['groupID'] as String?,
       showName: data['showName'] as String?,
@@ -393,9 +546,7 @@ class ConversationManager {
   }
 
   /// 批量转换会话数据
-  List<ConversationInfo> _batchConvertConversations(
-    List<Map<String, dynamic>> dataList,
-  ) {
+  List<ConversationInfo> _batchConvertConversations(List<Map<String, dynamic>> dataList) {
     return dataList.map(_convertConversation).toList();
   }
 
@@ -410,9 +561,7 @@ class ConversationManager {
       'faceURL': c.faceURL,
       'recvMsgOpt': c.recvMsgOpt?.value,
       'unreadCount': c.unreadCount,
-      'latestMsg': c.latestMsg != null
-          ? jsonEncode(c.latestMsg!.toJson())
-          : null,
+      'latestMsg': c.latestMsg != null ? jsonEncode(c.latestMsg!.toJson()) : null,
       'latestMsgSendTime': c.latestMsgSendTime,
       'draftText': c.draftText,
       'draftTextTime': c.draftTextTime,
@@ -471,9 +620,7 @@ class ConversationManager {
     } catch (_) {}
     if (contentMap == null) {
       try {
-        contentMap =
-            jsonDecode(utf8.decode(base64Decode(rawContent)))
-                as Map<String, dynamic>;
+        contentMap = jsonDecode(utf8.decode(base64Decode(rawContent))) as Map<String, dynamic>;
       } catch (_) {}
     }
     if (contentMap == null) return msg;

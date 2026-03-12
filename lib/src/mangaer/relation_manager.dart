@@ -3,6 +3,7 @@ import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
+import 'package:openim_sdk/src/services/im_api_service.dart';
 
 /// 好友关系管理器
 /// 对应 open-im-sdk-flutter 中 FriendshipManager。
@@ -10,9 +11,11 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class FriendshipManager {
   static final Logger _log = Logger('FriendshipManager');
 
-  DatabaseService get _database => GetIt.instance.get<DatabaseService>(
-    instanceName: InstanceName.databaseService,
-  );
+  DatabaseService get _database =>
+      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+
+  ImApiService get _api =>
+      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
 
   /// 关系链监听器
   OnFriendshipListener? listener;
@@ -42,9 +45,7 @@ class FriendshipManager {
     }
     if (filterBlack) {
       final blackList = await _database.getBlackList();
-      final blackIDs = blackList
-          .map((b) => b['blockUserID'] as String?)
-          .toSet();
+      final blackIDs = blackList.map((b) => b['blockUserID'] as String?).toSet();
       results.removeWhere((f) => blackIDs.contains(f.friendUserID));
     }
     return results;
@@ -64,7 +65,15 @@ class FriendshipManager {
     });
     _log.info('已发送好友申请: toUserID=$userID');
 
-    // TODO: 通过服务器发送好友申请
+    // 同步到服务器
+    final resp = await _api.addFriend(
+      fromUserID: _database.currentUserID,
+      toUserID: userID,
+      reqMsg: reason,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('发送好友申请同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 获取收到的好友申请列表
@@ -74,10 +83,7 @@ class FriendshipManager {
   }) async {
     final offset = req?.offset ?? 0;
     final count = req?.count ?? 40;
-    final dataList = await _database.getFriendRequestsAsRecipient(
-      offset: offset,
-      count: count,
-    );
+    final dataList = await _database.getFriendRequestsAsRecipient(offset: offset, count: count);
     return dataList.map(_convertFriendApplicationInfo).toList();
   }
 
@@ -88,10 +94,7 @@ class FriendshipManager {
   }) async {
     final offset = req?.offset ?? 0;
     final count = req?.count ?? 40;
-    final dataList = await _database.getFriendRequestsAsApplicant(
-      offset: offset,
-      count: count,
-    );
+    final dataList = await _database.getFriendRequestsAsApplicant(offset: offset, count: count);
     return dataList.map(_convertFriendApplicationInfo).toList();
   }
 
@@ -102,9 +105,7 @@ class FriendshipManager {
     var list = dataList.map(_convertFriendInfo).toList();
     if (filterBlack) {
       final blackList = await _database.getBlackList();
-      final blackIDs = blackList
-          .map((b) => b['blockUserID'] as String?)
-          .toSet();
+      final blackIDs = blackList.map((b) => b['blockUserID'] as String?).toSet();
       list.removeWhere((f) => blackIDs.contains(f.friendUserID));
     }
     return list;
@@ -123,9 +124,7 @@ class FriendshipManager {
     var list = dataList.map(_convertFriendInfo).toList();
     if (filterBlack) {
       final blackList = await _database.getBlackList();
-      final blackIDs = blackList
-          .map((b) => b['blockUserID'] as String?)
-          .toSet();
+      final blackIDs = blackList.map((b) => b['blockUserID'] as String?).toSet();
       list.removeWhere((f) => blackIDs.contains(f.friendUserID));
     }
     return list;
@@ -135,10 +134,7 @@ class FriendshipManager {
   /// [userID] 好友用户ID
   /// [remark] 备注名
   @Deprecated('Use [updateFriends] instead')
-  Future<void> setFriendRemark({
-    required String userID,
-    required String remark,
-  }) {
+  Future<void> setFriendRemark({required String userID, required String remark}) {
     final req = UpdateFriendsReq(friendUserIDs: [userID], remark: remark);
     return updateFriends(updateFriendsReq: req);
   }
@@ -165,7 +161,15 @@ class FriendshipManager {
       ),
     );
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    final resp = await _api.addBlack(
+      ownerUserID: _database.currentUserID,
+      blackUserID: userID,
+      ex: ex,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('添加黑名单同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 获取黑名单列表
@@ -184,23 +188,23 @@ class FriendshipManager {
       BlacklistInfo(ownerUserID: _database.currentUserID, blockUserID: userID),
     );
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    final resp = await _api.removeBlack(ownerUserID: _database.currentUserID, blackUserID: userID);
+    if (resp.errCode != 0) {
+      _log.warning('移除黑名单同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 检查好友关系
   /// [userIDList] 用户ID列表
-  Future<List<FriendshipInfo>> checkFriend({
-    required List<String> userIDList,
-  }) async {
+  Future<List<FriendshipInfo>> checkFriend({required List<String> userIDList}) async {
     final results = <FriendshipInfo>[];
     for (final uid in userIDList) {
       final friend = await _database.getFriendByUserID(uid);
       results.add(
         FriendshipInfo(
           userID: uid,
-          result: friend != null
-              ? Relationship.friend.value
-              : Relationship.black.value,
+          result: friend != null ? Relationship.friend.value : Relationship.black.value,
         ),
       );
     }
@@ -215,16 +219,20 @@ class FriendshipManager {
 
     listener?.friendDeleted(FriendInfo(friendUserID: userID));
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    final resp = await _api.deleteFriend(
+      ownerUserID: _database.currentUserID,
+      friendUserID: userID,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('删除好友同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 接受好友申请
   /// [userID] 申请者用户ID
   /// [handleMsg] 处理消息
-  Future<void> acceptFriendApplication({
-    required String userID,
-    String? handleMsg,
-  }) async {
+  Future<void> acceptFriendApplication({required String userID, String? handleMsg}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database.upsertFriendRequest({
       'fromUserID': userID,
@@ -244,23 +252,25 @@ class FriendshipManager {
     _log.info('好友申请已接受: userID=$userID');
 
     listener?.friendAdded(
-      FriendInfo(
-        ownerUserID: _database.currentUserID,
-        friendUserID: userID,
-        createTime: now,
-      ),
+      FriendInfo(ownerUserID: _database.currentUserID, friendUserID: userID, createTime: now),
     );
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    final resp = await _api.addFriendResponse(
+      fromUserID: userID,
+      toUserID: _database.currentUserID,
+      handleResult: 1,
+      handleMsg: handleMsg,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('接受好友申请同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 拒绝好友申请
   /// [userID] 申请者用户ID
   /// [handleMsg] 拒绝理由
-  Future<void> refuseFriendApplication({
-    required String userID,
-    String? handleMsg,
-  }) async {
+  Future<void> refuseFriendApplication({required String userID, String? handleMsg}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database.upsertFriendRequest({
       'fromUserID': userID,
@@ -273,7 +283,16 @@ class FriendshipManager {
 
     _log.info('好友申请已拒绝: userID=$userID');
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    final resp = await _api.addFriendResponse(
+      fromUserID: userID,
+      toUserID: _database.currentUserID,
+      handleResult: -1,
+      handleMsg: handleMsg,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('拒绝好友申请同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 搜索好友
@@ -324,12 +343,8 @@ class FriendshipManager {
 
   /// 更新好友信息（备注、扩展信息等）
   /// [updateFriendsReq] 更新请求
-  Future<void> updateFriends({
-    required UpdateFriendsReq updateFriendsReq,
-  }) async {
-    if (updateFriendsReq.friendUserIDs == null ||
-        updateFriendsReq.friendUserIDs!.isEmpty)
-      return;
+  Future<void> updateFriends({required UpdateFriendsReq updateFriendsReq}) async {
+    if (updateFriendsReq.friendUserIDs == null || updateFriendsReq.friendUserIDs!.isEmpty) return;
 
     for (final friendUserID in updateFriendsReq.friendUserIDs!) {
       final existing = await _database.getFriendByUserID(friendUserID);
@@ -339,10 +354,8 @@ class FriendshipManager {
         'friendUserID': friendUserID,
         'ownerUserID': _database.currentUserID,
       };
-      if (updateFriendsReq.remark != null)
-        updateData['remark'] = updateFriendsReq.remark;
-      if (updateFriendsReq.isPinned != null)
-        updateData['isPinned'] = updateFriendsReq.isPinned;
+      if (updateFriendsReq.remark != null) updateData['remark'] = updateFriendsReq.remark;
+      if (updateFriendsReq.isPinned != null) updateData['isPinned'] = updateFriendsReq.isPinned;
       if (updateFriendsReq.ex != null) updateData['ex'] = updateFriendsReq.ex;
 
       await _database.upsertFriend({...existing, ...updateData});
@@ -355,14 +368,24 @@ class FriendshipManager {
 
     _log.info('好友信息已更新: ${updateFriendsReq.friendUserIDs}');
 
-    // TODO: 同步到服务器
+    // 同步到服务器
+    final resp = await _api.updateFriends(
+      req: {
+        'ownerUserID': _database.currentUserID,
+        'friendUserIDs': updateFriendsReq.friendUserIDs,
+        if (updateFriendsReq.remark != null) 'remark': updateFriendsReq.remark,
+        if (updateFriendsReq.isPinned != null) 'isPinned': updateFriendsReq.isPinned,
+        if (updateFriendsReq.ex != null) 'ex': updateFriendsReq.ex,
+      },
+    );
+    if (resp.errCode != 0) {
+      _log.warning('更新好友信息同步服务器失败: ${resp.errMsg}');
+    }
   }
 
   /// 获取未处理的好友申请数量
   /// [req] 查询参数
-  Future<int> getFriendApplicationUnhandledCount(
-    GetFriendApplicationUnhandledCountReq req,
-  ) async {
+  Future<int> getFriendApplicationUnhandledCount(GetFriendApplicationUnhandledCountReq req) async {
     return _database.getFriendRequestUnhandledCount();
   }
 
@@ -401,6 +424,27 @@ class FriendshipManager {
   }
 
   // ---------------------------------------------------------------------------
+  // 兼容 open-im-sdk-flutter 的方法
+  // ---------------------------------------------------------------------------
+
+  /// 获取好友列表（返回原始 Map）
+  Future<List<dynamic>> getFriendListMap({bool filterBlack = false, String? operationID}) async {
+    final friends = await getFriendList(filterBlack: filterBlack);
+    return friends.map((f) => f.toJson()).toList();
+  }
+
+  /// 获取好友列表分页（返回原始 Map）
+  Future<List<dynamic>> getFriendListPageMap({
+    bool filterBlack = false,
+    int offset = 0,
+    int count = 40,
+    String? operationID,
+  }) async {
+    final friends = await getFriendListPage(filterBlack: filterBlack, offset: offset, count: count);
+    return friends.map((f) => f.toJson()).toList();
+  }
+
+  // ---------------------------------------------------------------------------
   // 私有辅助方法
   // ---------------------------------------------------------------------------
 
@@ -421,9 +465,7 @@ class FriendshipManager {
   }
 
   /// 数据库 Map 转 FriendApplicationInfo
-  FriendApplicationInfo _convertFriendApplicationInfo(
-    Map<String, dynamic> data,
-  ) {
+  FriendApplicationInfo _convertFriendApplicationInfo(Map<String, dynamic> data) {
     return FriendApplicationInfo(
       fromUserID: data['fromUserID'] as String?,
       fromNickname: data['fromNickname'] as String?,

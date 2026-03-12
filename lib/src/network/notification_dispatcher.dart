@@ -432,16 +432,21 @@ class NotificationDispatcher {
           final updates = <String, dynamic>{};
           if (conv.conversationID.isNotEmpty) {
             // 服务端推送的字段直接覆写到本地
-            if (conv.recvMsgOpt != null)
+            if (conv.recvMsgOpt != null) {
               updates['recvMsgOpt'] = conv.recvMsgOpt;
-            if (conv.isPinned != null)
+            }
+            if (conv.isPinned != null) {
               updates['isPinned'] = conv.isPinned! ? 1 : 0;
-            if (conv.isPrivateChat != null)
+            }
+            if (conv.isPrivateChat != null) {
               updates['isPrivateChat'] = conv.isPrivateChat! ? 1 : 0;
-            if (conv.burnDuration != null)
+            }
+            if (conv.burnDuration != null) {
               updates['burnDuration'] = conv.burnDuration;
-            if (conv.groupAtType != null)
+            }
+            if (conv.groupAtType != null) {
               updates['groupAtType'] = conv.groupAtType;
+            }
             if (conv.ex != null) updates['ex'] = conv.ex;
             if (conv.showName != null) updates['showName'] = conv.showName;
             if (conv.faceURL != null) updates['faceURL'] = conv.faceURL;
