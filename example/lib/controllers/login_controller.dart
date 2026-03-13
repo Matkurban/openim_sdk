@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import '../routes/app_routes.dart';
+import 'im_listener_service.dart';
 
 class LoginController extends GetxController {
   final accountCtrl = TextEditingController();
@@ -50,6 +51,9 @@ class LoginController extends GetxController {
     dev.log('[Login] account=$account, areaCode=$areaCode');
 
     try {
+      // 在 login 之前注册所有 SDK 监听，确保 doConnectedSync 的回调不会丢失
+      Get.put(IMListenerService(), permanent: true).initialize();
+
       if (loginMode.value == 0) {
         dev.log('[Login] calling loginByPhone(areaCode=$areaCode, phone=$account)');
         await OpenIM.iMManager.userManager.loginByPhone(

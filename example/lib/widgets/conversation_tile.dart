@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 
@@ -123,11 +125,24 @@ class ConversationTile extends StatelessWidget {
         return '[表情]';
       case MessageType.typing:
         return '对方正在输入...';
+      case MessageType.oaNotification:
+        return _getOANotificationPreview(msg);
       default:
         if (msg.contentType != null && msg.contentType!.value >= 1000) {
           return '[系统通知]';
         }
         return '[消息]';
+    }
+  }
+
+  String _getOANotificationPreview(Message msg) {
+    final detail = msg.notificationElem?.detail;
+    if (detail == null || detail.isEmpty) return '[通知]';
+    try {
+      final map = jsonDecode(detail) as Map<String, dynamic>;
+      return map['text'] as String? ?? '[通知]';
+    } catch (_) {
+      return '[通知]';
     }
   }
 

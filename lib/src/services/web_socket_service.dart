@@ -291,7 +291,7 @@ class WebSocketService {
     final opID = ImUtils.generateOperationID();
     final ping = jsonEncode({'type': 'ping', 'body': opID});
     _channel!.sink.add(ping);
-    _log.fine('发送 ping: $opID');
+    _log.info('发送 ping: $opID');
   }
 
   // ---------------------------------------------------------------------------

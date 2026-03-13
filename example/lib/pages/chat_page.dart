@@ -43,22 +43,6 @@ class ChatPage extends GetView<ChatController> {
           // Messages
           Expanded(
             child: Obx(() {
-              if (controller.messages.isEmpty && controller.isLoading.value) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (controller.messages.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey[300]),
-                      const SizedBox(height: 8),
-                      Text('暂无消息', style: TextStyle(color: Colors.grey[500])),
-                    ],
-                  ),
-                );
-              }
-
               return NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
                   if (notification is ScrollEndNotification &&
@@ -71,14 +55,8 @@ class ChatPage extends GetView<ChatController> {
                   controller: controller.scrollCtrl,
                   reverse: true,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  itemCount: controller.messages.length + (controller.hasMore.value ? 1 : 0),
+                  itemCount: controller.messages.length,
                   itemBuilder: (context, index) {
-                    if (index == controller.messages.length) {
-                      return const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                      );
-                    }
                     final msg = controller.messages[index];
                     final isMe = controller.isMyMessage(msg);
 

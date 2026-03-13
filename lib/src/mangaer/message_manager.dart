@@ -494,7 +494,10 @@ class MessageManager {
                 if (netMsg is Map) {
                   final m = Map<String, dynamic>.from(netMsg);
                   m['conversationID'] = conversationID;
-                  if ((m['contentType'] as int? ?? 0) < 1000) {
+                  final contentType = m['contentType'] as int? ?? 0;
+                  final sessionType = m['sessionType'] as int? ?? 0;
+                  // 普通消息 + 通知会话(sessionType=4)的 OA 消息 都要存储
+                  if (contentType < 1000 || sessionType == 4) {
                     batchInsert.add(m);
                   }
                 }

@@ -602,7 +602,7 @@ class DatabaseService {
         .query(DbTableName.localChatLog)
         .whereEqual('clientMsgID', clientMsgID)
         .first();
-    return data != null ? _convertMessage(data) : null;
+    return data != null ? convertMessage(data) : null;
   }
 
   /// 获取会话的历史消息（按发送时间倒序）
@@ -649,7 +649,7 @@ class DatabaseService {
       }).toList();
     }
 
-    return dataList.take(count).toList().map(_convertMessage).toList();
+    return dataList.take(count).toList().map(convertMessage).toList();
   }
 
   /// 更新消息状态
@@ -718,7 +718,7 @@ class DatabaseService {
     }
 
     final result = await query.orderByDesc('sendTime').offset(offset).limit(count);
-    return result.data.map(_convertMessage).toList();
+    return result.data.map(convertMessage).toList();
   }
 
   /// 标记消息已读
@@ -952,7 +952,7 @@ class DatabaseService {
     if (latestMsgStr != null && latestMsgStr.isNotEmpty) {
       try {
         final rawMap = jsonDecode(latestMsgStr) as Map<String, dynamic>;
-        latestMsg = _convertMessage(_normalizeRawMsg(rawMap));
+        latestMsg = convertMessage(_normalizeRawMsg(rawMap));
       } catch (_) {}
     }
 
@@ -1007,7 +1007,7 @@ class DatabaseService {
   }
 
   /// 数据库 Map 转 Message 对象
-  Message _convertMessage(Map<String, dynamic> data) {
+  Message convertMessage(Map<String, dynamic> data) {
     final contentTypeValue = data['contentType'] as int?;
     final content = data['content'] as String?;
     Map<String, dynamic>? contentMap;
@@ -1080,7 +1080,23 @@ class DatabaseService {
       atTextElem: contentTypeValue == MessageType.atText.value && contentMap != null
           ? AtTextElem.fromJson(contentMap)
           : null,
+      notificationElem: contentTypeValue != null && contentTypeValue >= 1000 && contentMap != null
+          ? _parseNotificationElem(contentMap)
+          : null,
     );
+  }
+
+  /// 解析通知消息的 content → NotificationElem
+  ///
+  /// OA 通知消息 (contentType=1400) 的 content 结构:
+  /// {"detail": "{\"text\":\"...\",\"pictureElem\":{...},\"mixType\":0,...}"}
+  /// 提取 detail 字段作为 NotificationElem.detail
+  static NotificationElem _parseNotificationElem(Map<String, dynamic> contentMap) {
+    final detailRaw = contentMap['detail'];
+    if (detailRaw is String && detailRaw.isNotEmpty) {
+      return NotificationElem(detail: detailRaw);
+    }
+    return NotificationElem(detail: jsonEncode(contentMap));
   }
 
   /// Message 转数据库 Map

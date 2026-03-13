@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'im_listener_service.dart';
 
 class ContactsController extends GetxController {
   final friends = <FriendInfo>[].obs;
@@ -10,6 +13,8 @@ class ContactsController extends GetxController {
   final isLoading = false.obs;
   final tabIndex = 0.obs;
 
+  final _subs = <StreamSubscription>[];
+
   @override
   void onInit() {
     super.onInit();
@@ -17,36 +22,42 @@ class ContactsController extends GetxController {
     refresh();
   }
 
-  void _setupListeners() {
-    OpenIM.iMManager.friendshipManager.setFriendshipListener(
-      OnFriendshipListener(
-        onFriendAdded: (_) => _loadFriends(),
-        onFriendDeleted: (_) => _loadFriends(),
-        onFriendInfoChanged: (_) => _loadFriends(),
-        onBlackAdded: (_) => _loadBlacklist(),
-        onBlackDeleted: (_) => _loadBlacklist(),
-        onFriendApplicationAdded: (_) => _loadFriendRequests(),
-        onFriendApplicationAccepted: (_) {
-          _loadFriendRequests();
-          _loadFriends();
-        },
-        onFriendApplicationRejected: (_) => _loadFriendRequests(),
-      ),
-    );
+  @override
+  void onClose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    super.onClose();
+  }
 
-    OpenIM.iMManager.groupManager.setGroupListener(
-      OnGroupListener(
-        onJoinedGroupAdded: (_) => _loadGroups(),
-        onJoinedGroupDeleted: (_) => _loadGroups(),
-        onGroupInfoChanged: (_) => _loadGroups(),
-        onGroupApplicationAdded: (_) => _loadGroupRequests(),
-        onGroupApplicationAccepted: (_) {
-          _loadGroupRequests();
-          _loadGroups();
-        },
-        onGroupApplicationRejected: (_) => _loadGroupRequests(),
-      ),
+  void _setupListeners() {
+    final svc = Get.find<IMListenerService>();
+
+    _subs.add(svc.friendAdded.stream.listen((_) => _loadFriends()));
+    _subs.add(svc.friendDeleted.stream.listen((_) => _loadFriends()));
+    _subs.add(svc.friendInfoChanged.stream.listen((_) => _loadFriends()));
+    _subs.add(svc.blackAdded.stream.listen((_) => _loadBlacklist()));
+    _subs.add(svc.blackDeleted.stream.listen((_) => _loadBlacklist()));
+    _subs.add(svc.friendApplicationAdded.stream.listen((_) => _loadFriendRequests()));
+    _subs.add(
+      svc.friendApplicationAccepted.stream.listen((_) {
+        _loadFriendRequests();
+        _loadFriends();
+      }),
     );
+    _subs.add(svc.friendApplicationRejected.stream.listen((_) => _loadFriendRequests()));
+
+    _subs.add(svc.joinedGroupAdded.stream.listen((_) => _loadGroups()));
+    _subs.add(svc.joinedGroupDeleted.stream.listen((_) => _loadGroups()));
+    _subs.add(svc.groupInfoChanged.stream.listen((_) => _loadGroups()));
+    _subs.add(svc.groupApplicationAdded.stream.listen((_) => _loadGroupRequests()));
+    _subs.add(
+      svc.groupApplicationAccepted.stream.listen((_) {
+        _loadGroupRequests();
+        _loadGroups();
+      }),
+    );
+    _subs.add(svc.groupApplicationRejected.stream.listen((_) => _loadGroupRequests()));
   }
 
   @override

@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'im_listener_service.dart';
 
 class ChatController extends GetxController {
   late final ConversationInfo conversation;
@@ -14,6 +16,7 @@ class ChatController extends GetxController {
   final scrollCtrl = ScrollController();
 
   Timer? _typingTimer;
+  final _subs = <StreamSubscription>[];
 
   @override
   void onInit() {
@@ -30,6 +33,9 @@ class ChatController extends GetxController {
 
   @override
   void onClose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
     inputCtrl.dispose();
     scrollCtrl.dispose();
     _typingTimer?.cancel();
@@ -37,43 +43,45 @@ class ChatController extends GetxController {
   }
 
   void _setupListener() {
-    OpenIM.iMManager.messageManager.setAdvancedMsgListener(
-      OnAdvancedMsgListener(
-        onRecvNewMessage: (msg) {
-          // Only add messages for this conversation
-          if (_belongsToThisConversation(msg)) {
-            messages.insert(0, msg);
-            // Mark as read immediately
-            OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
-              conversationID: conversation.conversationID,
-            );
-          }
-        },
-        onNewRecvMessageRevoked: (info) {
-          final idx = messages.indexWhere((m) => m.clientMsgID == info.clientMsgID);
-          if (idx >= 0) {
-            messages.removeAt(idx);
-          }
-        },
-        onMsgDeleted: (msg) {
-          messages.removeWhere((m) => m.clientMsgID == msg.clientMsgID);
-        },
-      ),
+    final svc = Get.find<IMListenerService>();
+
+    _subs.add(
+      svc.recvNewMessage.stream.listen((msg) {
+        if (_belongsToThisConversation(msg)) {
+          messages.insert(0, msg);
+          _scrollToBottom();
+          OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
+            conversationID: conversation.conversationID,
+          );
+        }
+      }),
     );
 
-    // Typing indicator listener
-    OpenIM.iMManager.conversationManager.setConversationListener(
-      OnConversationListener(
-        onInputStatusChanged: (data) {
-          if (data.conversationID == conversation.conversationID) {
-            isTyping.value = true;
-            _typingTimer?.cancel();
-            _typingTimer = Timer(const Duration(seconds: 3), () {
-              isTyping.value = false;
-            });
-          }
-        },
-      ),
+    _subs.add(
+      svc.recvMessageRevoked.stream.listen((info) {
+        final idx = messages.indexWhere((m) => m.clientMsgID == info.clientMsgID);
+        if (idx >= 0) {
+          messages.removeAt(idx);
+        }
+      }),
+    );
+
+    _subs.add(
+      svc.msgDeleted.stream.listen((msg) {
+        messages.removeWhere((m) => m.clientMsgID == msg.clientMsgID);
+      }),
+    );
+
+    _subs.add(
+      svc.inputStatusChanged.stream.listen((data) {
+        if (data.conversationID == conversation.conversationID) {
+          isTyping.value = true;
+          _typingTimer?.cancel();
+          _typingTimer = Timer(const Duration(seconds: 3), () {
+            isTyping.value = false;
+          });
+        }
+      }),
     );
   }
 
@@ -266,11 +274,27 @@ class ChatController extends GetxController {
         return '[自定义消息]';
       case MessageType.customFace:
         return '[表情]';
+      case MessageType.oaNotification:
+        return _getOANotificationText(msg);
       default:
         if (msg.contentType != null && msg.contentType!.value >= 1000) {
-          return '[系统通知]';
+          return msg.notificationElem?.detail ?? '[系统通知]';
         }
         return '[未知消息]';
+    }
+  }
+
+  /// 解析 OA 通知消息的展示文本
+  ///
+  /// detail JSON 结构: {"text":"...","mixType":0|1,"notificationName":"...","pictureElem":{...}}
+  String _getOANotificationText(Message msg) {
+    final detail = msg.notificationElem?.detail;
+    if (detail == null || detail.isEmpty) return '[通知]';
+    try {
+      final map = jsonDecode(detail) as Map<String, dynamic>;
+      return map['text'] as String? ?? '[通知]';
+    } catch (_) {
+      return detail;
     }
   }
 

@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import '../routes/app_routes.dart';
+import 'im_listener_service.dart';
 
 class HomeController extends GetxController {
   final currentTab = 0.obs;
   final conversations = <ConversationInfo>[].obs;
   final totalUnread = 0.obs;
   final isSyncing = false.obs;
+
+  final _subs = <StreamSubscription>[];
 
   @override
   void onInit() {
@@ -15,42 +20,56 @@ class HomeController extends GetxController {
     _loadConversations();
   }
 
+  @override
+  void onClose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
+    super.onClose();
+  }
+
   void _setupListeners() {
-    OpenIM.iMManager.conversationManager.setConversationListener(
-      OnConversationListener(
-        onConversationChanged: (list) {
-          for (final c in list) {
-            final idx = conversations.indexWhere((e) => e.conversationID == c.conversationID);
-            if (idx >= 0) {
-              conversations[idx] = c;
-            } else {
-              conversations.insert(0, c);
-            }
+    final svc = Get.find<IMListenerService>();
+
+    _subs.add(
+      svc.conversationChanged.stream.listen((list) {
+        for (final c in list) {
+          final idx = conversations.indexWhere((e) => e.conversationID == c.conversationID);
+          if (idx >= 0) {
+            conversations[idx] = c;
+          } else {
+            conversations.insert(0, c);
           }
-          _sortConversations();
-        },
-        onNewConversation: (list) {
-          conversations.insertAll(0, list);
-          _sortConversations();
-        },
-        onTotalUnreadMessageCountChanged: (count) {
-          totalUnread.value = count;
-        },
-        onSyncServerStart: (_) => isSyncing.value = true,
-        onSyncServerFinish: (_) {
-          isSyncing.value = false;
-          _loadConversations();
-        },
-        onSyncServerFailed: (_) => isSyncing.value = false,
-      ),
+        }
+        _sortConversations();
+      }),
     );
 
-    OpenIM.iMManager.messageManager.setAdvancedMsgListener(
-      OnAdvancedMsgListener(
-        onRecvNewMessage: (msg) => _loadConversations(),
-        onRecvOfflineNewMessage: (msg) => _loadConversations(),
-      ),
+    _subs.add(
+      svc.newConversation.stream.listen((list) {
+        conversations.insertAll(0, list);
+        _sortConversations();
+      }),
     );
+
+    _subs.add(
+      svc.totalUnreadCount.stream.listen((count) {
+        totalUnread.value = count;
+      }),
+    );
+
+    _subs.add(svc.syncStarted.stream.listen((_) => isSyncing.value = true));
+
+    _subs.add(
+      svc.syncFinished.stream.listen((_) {
+        isSyncing.value = false;
+        _loadConversations();
+      }),
+    );
+
+    _subs.add(svc.syncFailed.stream.listen((_) => isSyncing.value = false));
+
+    _subs.add(svc.recvNewMessage.stream.listen((_) => _loadConversations()));
   }
 
   Future<void> _loadConversations() async {

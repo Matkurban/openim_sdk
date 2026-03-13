@@ -76,12 +76,14 @@ class MessageBubble extends StatelessWidget {
     if (url != null && url.isNotEmpty) {
       return CircleAvatar(radius: 18, backgroundImage: NetworkImage(url));
     }
+    final name = [
+      message.senderNickname,
+      message.sendID,
+      '?',
+    ].firstWhere((s) => s != null && s.isNotEmpty)!;
     return CircleAvatar(
       radius: 18,
-      child: Text(
-        (message.senderNickname ?? message.sendID ?? '?')[0].toUpperCase(),
-        style: const TextStyle(fontSize: 14),
-      ),
+      child: Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 14)),
     );
   }
 

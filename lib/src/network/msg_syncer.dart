@@ -36,7 +36,22 @@ class MsgSyncer {
 
   final NotificationDispatcher notificationDispatcher;
 
-  MsgSyncer({required this.database, required this.api, required this.notificationDispatcher});
+  // -- 通过 Manager 间接访问 Listener（延迟求值，避免快照失效） --
+  final MessageManager messageManager;
+  final ConversationManager conversationManager;
+  OnListenerForService? listenerForService;
+
+  // 便捷访问器
+  OnAdvancedMsgListener? get msgListener => messageManager.msgListener;
+  OnConversationListener? get conversationListener => conversationManager.listener;
+
+  MsgSyncer({
+    required this.database,
+    required this.api,
+    required this.notificationDispatcher,
+    required this.messageManager,
+    required this.conversationManager,
+  });
 
   late String _userID;
 
@@ -51,11 +66,6 @@ class MsgSyncer {
 
   /// 是否为重新安装（本地无数据）
   bool _reinstalled = false;
-
-  // -- Listeners (由 IMManager 注入) --
-  OnAdvancedMsgListener? msgListener;
-  OnConversationListener? conversationListener;
-  OnListenerForService? listenerForService;
 
   /// 设置当前用户 ID
   void setLoginUserID(String userID) {
@@ -504,9 +514,11 @@ class MsgSyncer {
           // 将 content 解码为原始 JSON 字符串，保持与 WebSocket 推送一致
           _decodeContentIfBase64(msg);
 
-          // 仅存储 contentType < 1000 的普通消息到 chatLog
           final contentType = msg['contentType'] as int? ?? 0;
-          if (contentType < 1000) {
+          final sessionType = msg['sessionType'] as int? ?? 0;
+          // 通知会话(sessionType=4)的 OA 消息也要存储到 chatLog
+          final isStorable = contentType < 1000 || sessionType == 4;
+          if (isStorable) {
             msgMaps.add(msg);
           }
           final seq = msg['seq'] as int? ?? 0;
@@ -514,8 +526,7 @@ class MsgSyncer {
           if (seq > maxSeq) {
             maxSeq = seq;
           }
-          // latestMsg 选 sendTime 最新的普通消息（非通知）
-          if (contentType < 1000 && sendTime >= latestSendTime) {
+          if (isStorable && sendTime >= latestSendTime) {
             latestSendTime = sendTime;
             latestMsg = msg;
           }
@@ -710,7 +721,8 @@ class MsgSyncer {
       return;
     }
 
-    // 通知消息（contentType >= 1000）不存储到 chatLog，路由到 NotificationDispatcher
+    // 通知消息（contentType >= 1000）路由到 NotificationDispatcher
+    // 但通知会话（sn_ 前缀 / sessionType=4）的 OA 消息需要同时存储到 chatLog 用于展示
     if (contentType >= 1000) {
       if (seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
         _syncedMaxSeqs[conversationID] = seq;
@@ -718,6 +730,13 @@ class MsgSyncer {
       }
       final content = msg['content'] as String? ?? '';
       notificationDispatcher.dispatch(contentType, content);
+
+      // OA 通知消息(1400) 或通知会话消息 → 存储并触发回调
+      final sessionType = msg['sessionType'] as int? ?? 0;
+      if (sessionType == 4 || conversationID.startsWith('sn_')) {
+        database.insertMessage({...msg, 'conversationID': conversationID});
+        _fireNewMessage(msg);
+      }
       return;
     }
 
@@ -927,20 +946,11 @@ class MsgSyncer {
   // ---------------------------------------------------------------------------
 
   /// 将消息 Map 转为 Message 对象并触发消息监听
+  ///
+  /// 使用 DatabaseService.convertMessage 统一解析 content → 对应 Elem，
+  /// 与从数据库加载消息走同一条路径，确保 textElem 等字段正确填充。
   void _fireNewMessage(Map<String, dynamic> msg) {
-    final message = Message(
-      clientMsgID: msg['clientMsgID'] as String?,
-      serverMsgID: msg['serverMsgID'] as String?,
-      sendID: msg['sendID'] as String?,
-      recvID: msg['recvID'] as String?,
-      groupID: msg['groupID'] as String?,
-      senderNickname: msg['senderNickname'] as String?,
-      senderFaceUrl: msg['senderFaceURL'] as String?,
-      seq: msg['seq'] as int?,
-      sendTime: msg['sendTime'] as int?,
-      createTime: msg['createTime'] as int?,
-      status: MessageStatus.succeeded,
-    );
+    final message = database.convertMessage(msg);
     msgListener?.recvNewMessage(message);
     listenerForService?.recvNewMessage(message);
   }

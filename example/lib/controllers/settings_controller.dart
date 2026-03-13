@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'im_listener_service.dart';
 
 class SettingsController extends GetxController {
   final userInfo = Rxn<UserInfo>();
   final isEditing = false.obs;
   final nicknameCtrl = TextEditingController();
   final faceURLCtrl = TextEditingController();
+
+  final _subs = <StreamSubscription>[];
 
   @override
   void onInit() {
@@ -17,18 +22,20 @@ class SettingsController extends GetxController {
 
   @override
   void onClose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
     nicknameCtrl.dispose();
     faceURLCtrl.dispose();
     super.onClose();
   }
 
   void _setupListener() {
-    OpenIM.iMManager.userManager.setUserListener(
-      OnUserListener(
-        onSelfInfoUpdated: (info) {
-          userInfo.value = info;
-        },
-      ),
+    final svc = Get.find<IMListenerService>();
+    _subs.add(
+      svc.selfInfoUpdated.stream.listen((info) {
+        userInfo.value = info;
+      }),
     );
   }
 

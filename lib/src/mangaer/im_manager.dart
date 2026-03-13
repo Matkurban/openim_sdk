@@ -235,26 +235,28 @@ class IMManager {
     );
     await webSocketService.connect(userID: userID, token: token);
 
-    // 初始化通知分发器
-    final dispatcher = NotificationDispatcher(database: databaseService, api: imApiService);
+    // 初始化通知分发器（通过 Manager 间接引用 Listener，支持延迟设置）
+    final dispatcher = NotificationDispatcher(
+      database: databaseService,
+      api: imApiService,
+      friendshipManager: friendshipManager,
+      groupManager: groupManager,
+      userManager: userManager,
+      conversationManager: conversationManager,
+      messageManager: messageManager,
+    );
     dispatcher.setLoginUserID(userID);
-    dispatcher.friendshipListener = friendshipManager.listener;
-    dispatcher.groupListener = groupManager.listener;
-    dispatcher.userListener = userManager.listener;
-    dispatcher.conversationListener = conversationManager.listener;
-    dispatcher.msgListener = messageManager.msgListener;
-    dispatcher.customBusinessListener = messageManager.customBusinessListener;
     dispatcher.listenerForService = listenerForService;
 
-    // 初始化消息同步器
+    // 初始化消息同步器（同样通过 Manager 间接引用 Listener）
     final msgSyncer = MsgSyncer(
       database: databaseService,
       api: imApiService,
       notificationDispatcher: dispatcher,
+      messageManager: messageManager,
+      conversationManager: conversationManager,
     );
     msgSyncer.setLoginUserID(userID);
-    msgSyncer.msgListener = messageManager.msgListener;
-    msgSyncer.conversationListener = conversationManager.listener;
     msgSyncer.listenerForService = listenerForService;
 
     // WS 推送 → MsgSyncer 处理

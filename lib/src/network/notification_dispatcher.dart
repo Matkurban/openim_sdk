@@ -21,16 +21,31 @@ class NotificationDispatcher {
   final ImApiService api;
   late String _userID;
 
-  // -- Listeners (由 IMManager 注入) --
-  OnFriendshipListener? friendshipListener;
-  OnGroupListener? groupListener;
-  OnUserListener? userListener;
-  OnConversationListener? conversationListener;
-  OnAdvancedMsgListener? msgListener;
-  OnCustomBusinessListener? customBusinessListener;
+  // -- 通过 Manager 间接访问 Listener（延迟求值，避免快照失效） --
+  final FriendshipManager friendshipManager;
+  final GroupManager groupManager;
+  final UserManager userManager;
+  final ConversationManager conversationManager;
+  final MessageManager messageManager;
   OnListenerForService? listenerForService;
 
-  NotificationDispatcher({required this.database, required this.api});
+  // 便捷访问器
+  OnFriendshipListener? get friendshipListener => friendshipManager.listener;
+  OnGroupListener? get groupListener => groupManager.listener;
+  OnUserListener? get userListener => userManager.listener;
+  OnConversationListener? get conversationListener => conversationManager.listener;
+  OnAdvancedMsgListener? get msgListener => messageManager.msgListener;
+  OnCustomBusinessListener? get customBusinessListener => messageManager.customBusinessListener;
+
+  NotificationDispatcher({
+    required this.database,
+    required this.api,
+    required this.friendshipManager,
+    required this.groupManager,
+    required this.userManager,
+    required this.conversationManager,
+    required this.messageManager,
+  });
 
   void setLoginUserID(String userID) {
     _userID = userID;
