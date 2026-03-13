@@ -5,9 +5,6 @@ import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
-/// 好友关系管理器
-/// 对应 open-im-sdk-flutter 中 FriendshipManager。
-/// 负责好友管理、好友申请、黑名单等关系链操作。
 class FriendshipManager {
   static final Logger _log = Logger('FriendshipManager');
 
@@ -25,9 +22,35 @@ class FriendshipManager {
     this.listener = listener;
   }
 
-  // ---------------------------------------------------------------------------
-  // 好友信息查询
-  // ---------------------------------------------------------------------------
+  /// 处理服务器推送的好友新增通知
+  void onFriendAdded(FriendInfo info) {
+    listener?.friendAdded(info);
+  }
+
+  /// 处理服务器推送的好友删除通知
+  void onFriendDeleted(FriendInfo info) {
+    listener?.friendDeleted(info);
+  }
+
+  /// 处理服务器推送的好友信息变更通知
+  void onFriendInfoChanged(FriendInfo info) {
+    listener?.friendInfoChanged(info);
+  }
+
+  /// 处理服务器推送的好友申请通知
+  void onFriendApplicationAdded(FriendApplicationInfo info) {
+    listener?.friendApplicationAdded(info);
+  }
+
+  /// 处理服务器推送的好友申请已接受通知
+  void onFriendApplicationAccepted(FriendApplicationInfo info) {
+    listener?.friendApplicationAccepted(info);
+  }
+
+  /// 处理服务器推送的好友申请已拒绝通知
+  void onFriendApplicationRejected(FriendApplicationInfo info) {
+    listener?.friendApplicationRejected(info);
+  }
 
   /// 查询好友信息
   /// [userIDList] 用户ID列表
@@ -128,15 +151,6 @@ class FriendshipManager {
       list.removeWhere((f) => blackIDs.contains(f.friendUserID));
     }
     return list;
-  }
-
-  /// 设置好友备注
-  /// [userID] 好友用户ID
-  /// [remark] 备注名
-  @Deprecated('Use [updateFriends] instead')
-  Future<void> setFriendRemark({required String userID, required String remark}) {
-    final req = UpdateFriendsReq(friendUserIDs: [userID], remark: remark);
-    return updateFriends(updateFriendsReq: req);
   }
 
   /// 添加到黑名单
@@ -334,13 +348,6 @@ class FriendshipManager {
     }).toList();
   }
 
-  /// 设置好友扩展信息
-  @Deprecated('Use [updateFriends] instead')
-  Future<void> setFriendsEx(List<String> friendIDs, {String? ex}) {
-    final req = UpdateFriendsReq(friendUserIDs: friendIDs, ex: ex);
-    return updateFriends(updateFriendsReq: req);
-  }
-
   /// 更新好友信息（备注、扩展信息等）
   /// [updateFriendsReq] 更新请求
   Future<void> updateFriends({required UpdateFriendsReq updateFriendsReq}) async {
@@ -388,65 +395,6 @@ class FriendshipManager {
   Future<int> getFriendApplicationUnhandledCount(GetFriendApplicationUnhandledCountReq req) async {
     return _database.getFriendRequestUnhandledCount();
   }
-
-  // ---------------------------------------------------------------------------
-  // 内部回调方法（供服务器推送消息处理使用）
-  // ---------------------------------------------------------------------------
-
-  /// 处理服务器推送的好友新增通知
-  void onFriendAdded(FriendInfo info) {
-    listener?.friendAdded(info);
-  }
-
-  /// 处理服务器推送的好友删除通知
-  void onFriendDeleted(FriendInfo info) {
-    listener?.friendDeleted(info);
-  }
-
-  /// 处理服务器推送的好友信息变更通知
-  void onFriendInfoChanged(FriendInfo info) {
-    listener?.friendInfoChanged(info);
-  }
-
-  /// 处理服务器推送的好友申请通知
-  void onFriendApplicationAdded(FriendApplicationInfo info) {
-    listener?.friendApplicationAdded(info);
-  }
-
-  /// 处理服务器推送的好友申请已接受通知
-  void onFriendApplicationAccepted(FriendApplicationInfo info) {
-    listener?.friendApplicationAccepted(info);
-  }
-
-  /// 处理服务器推送的好友申请已拒绝通知
-  void onFriendApplicationRejected(FriendApplicationInfo info) {
-    listener?.friendApplicationRejected(info);
-  }
-
-  // ---------------------------------------------------------------------------
-  // 兼容 open-im-sdk-flutter 的方法
-  // ---------------------------------------------------------------------------
-
-  /// 获取好友列表（返回原始 Map）
-  Future<List<dynamic>> getFriendListMap({bool filterBlack = false, String? operationID}) async {
-    final friends = await getFriendList(filterBlack: filterBlack);
-    return friends.map((f) => f.toJson()).toList();
-  }
-
-  /// 获取好友列表分页（返回原始 Map）
-  Future<List<dynamic>> getFriendListPageMap({
-    bool filterBlack = false,
-    int offset = 0,
-    int count = 40,
-    String? operationID,
-  }) async {
-    final friends = await getFriendListPage(filterBlack: filterBlack, offset: offset, count: count);
-    return friends.map((f) => f.toJson()).toList();
-  }
-
-  // ---------------------------------------------------------------------------
-  // 私有辅助方法
-  // ---------------------------------------------------------------------------
 
   /// 数据库 Map 转 FriendInfo
   FriendInfo _convertFriendInfo(Map<String, dynamic> data) {

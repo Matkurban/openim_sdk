@@ -5,9 +5,6 @@ import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 
-/// 群组管理器
-/// 对应 open-im-sdk-flutter 中 GroupManager。
-/// 负责群组创建、加入/退出、成员管理、群信息修改和监听回调。
 class GroupManager {
   static final Logger _log = Logger('GroupManager');
 
@@ -15,17 +12,14 @@ class GroupManager {
       GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
 
   /// 群组监听器
-  ImApiService get _api => GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+  ImApiService get _api =>
+      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
   OnGroupListener? listener;
 
   /// 设置群组监听器
   void setGroupListener(OnGroupListener listener) {
     this.listener = listener;
   }
-
-  // ---------------------------------------------------------------------------
-  // 群组信息查询
-  // ---------------------------------------------------------------------------
 
   /// 查询群组信息
   /// [groupIDList] 群组ID列表
@@ -60,10 +54,6 @@ class GroupManager {
     final data = await _database.getGroupByID(groupID);
     return data != null;
   }
-
-  // ---------------------------------------------------------------------------
-  // 群组创建与修改
-  // ---------------------------------------------------------------------------
 
   /// 创建群组
   /// [groupInfo] 群组基本信息
@@ -156,10 +146,6 @@ class GroupManager {
       _log.warning('同步群组信息失败: ${resp.errMsg}');
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 群成员管理
-  // ---------------------------------------------------------------------------
 
   /// 邀请用户入群（无需审批直接加入）
   /// [groupID] 群组ID
@@ -564,10 +550,6 @@ class GroupManager {
     return _database.getGroupRequestUnhandledCount();
   }
 
-  // ---------------------------------------------------------------------------
-  // 搜索
-  // ---------------------------------------------------------------------------
-
   /// 搜索群组
   /// [keywordList] 搜索关键字
   /// [isSearchGroupID] 是否搜索群组ID
@@ -589,10 +571,6 @@ class GroupManager {
     return dataList.map(_convertGroupInfo).toList();
   }
 
-  // ---------------------------------------------------------------------------
-  // 内部回调方法（供服务器推送消息处理使用）
-  // ---------------------------------------------------------------------------
-
   /// 处理服务器推送的群信息变更
   void onGroupInfoChanged(GroupInfo info) {
     listener?.groupInfoChanged(info);
@@ -606,110 +584,6 @@ class GroupManager {
   /// 处理服务器推送的群成员退出
   void onGroupMemberDeleted(GroupMembersInfo info) {
     listener?.groupMemberDeleted(info);
-  }
-
-  // ---------------------------------------------------------------------------
-  // 兼容 open-im-sdk-flutter 的方法
-  // ---------------------------------------------------------------------------
-
-  /// 获取群成员列表（返回原始 Map）
-  /// [groupID] 群组ID
-  /// [filter] 成员过滤
-  /// [offset] 起始索引
-  /// [count] 数量
-  Future<List<dynamic>> getGroupMemberListMap({
-    required String groupID,
-    int filter = 0,
-    int offset = 0,
-    int count = 0,
-    String? operationID,
-  }) async {
-    final members = await getGroupMemberList(
-      groupID: groupID,
-      filter: filter,
-      offset: offset,
-      count: count,
-    );
-    return members.map((m) => m.toJson()).toList();
-  }
-
-  /// 获取已加入的群组列表（返回原始 Map）
-  Future<List<dynamic>> getJoinedGroupListMap({String? operationID}) async {
-    final groups = await getJoinedGroupList();
-    return groups.map((g) => g.toJson()).toList();
-  }
-
-  /// 设置群成员昵称
-  @Deprecated('Use [setGroupMemberInfo] instead')
-  Future<dynamic> setGroupMemberNickname({
-    required String groupID,
-    required String userID,
-    String? groupNickname,
-    String? operationID,
-  }) {
-    return setGroupMemberInfo(
-      groupMembersInfo: SetGroupMemberInfo(
-        groupID: groupID,
-        userID: userID,
-        nickname: groupNickname,
-      ),
-    );
-  }
-
-  /// 设置群成员角色等级
-  @Deprecated('Use [setGroupMemberInfo] instead')
-  Future<dynamic> setGroupMemberRoleLevel({
-    required String groupID,
-    required String userID,
-    required int roleLevel,
-    String? operationID,
-  }) {
-    return setGroupMemberInfo(
-      groupMembersInfo: SetGroupMemberInfo(groupID: groupID, userID: userID, roleLevel: roleLevel),
-    );
-  }
-
-  /// 设置群组验证方式
-  @Deprecated('Use [setGroupInfo] instead')
-  Future<dynamic> setGroupVerification({
-    required String groupID,
-    required int needVerification,
-    String? operationID,
-  }) {
-    GroupVerification? verification;
-    for (final v in GroupVerification.values) {
-      if (v.value == needVerification) {
-        verification = v;
-        break;
-      }
-    }
-    return setGroupInfo(
-      groupInfo: GroupInfo(groupID: groupID, needVerification: verification),
-    );
-  }
-
-  /// 设置群组是否允许查看成员信息
-  @Deprecated('Use [setGroupInfo] instead')
-  Future<dynamic> setGroupLookMemberInfo({
-    required String groupID,
-    required int status,
-    String? operationID,
-  }) {
-    return setGroupInfo(
-      groupInfo: GroupInfo(groupID: groupID, lookMemberInfo: status),
-    );
-  }
-
-  /// 设置群组是否允许添加成员好友
-  @Deprecated('Use [setGroupInfo] instead')
-  Future<dynamic> setGroupApplyMemberFriend({
-    required String groupID,
-    required int status,
-    String? operationID,
-  }) {
-    return setGroupInfo(
-      groupInfo: GroupInfo(groupID: groupID, applyMemberFriend: status),
-    );
   }
 
   /// 按入群时间获取群成员列表
@@ -785,10 +659,6 @@ class GroupManager {
     final members = await getGroupMembersInfo(groupID: groupID, userIDList: userIDs);
     return members.map((m) => m.toJson()).toList();
   }
-
-  // ---------------------------------------------------------------------------
-  // 私有辅助方法
-  // ---------------------------------------------------------------------------
 
   /// 数据库 Map 转 GroupInfo
   GroupInfo _convertGroupInfo(Map<String, dynamic> data) {

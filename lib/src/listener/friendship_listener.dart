@@ -1,27 +1,45 @@
 import 'package:openim_sdk/openim_sdk.dart';
 
 /// Friendship Listener
+/// 好友及黑名单关系链监听器，当好友及黑名单信息改变时回调。
 class OnFriendshipListener {
-  void Function(BlacklistInfo info)? onBlackAdded;
-  void Function(BlacklistInfo info)? onBlackDeleted;
-  void Function(FriendInfo info)? onFriendAdded;
+  ///好友申请被接受
   void Function(FriendApplicationInfo info)? onFriendApplicationAccepted;
+
+  ///好友申请新增通知
   void Function(FriendApplicationInfo info)? onFriendApplicationAdded;
+
+  ///好友申请被删除
   void Function(FriendApplicationInfo info)? onFriendApplicationDeleted;
+
+  ///好友申请被拒绝
   void Function(FriendApplicationInfo info)? onFriendApplicationRejected;
+
+  ///好友新增通知
+  void Function(FriendInfo info)? onFriendAdded;
+
+  ///好友删除通知
   void Function(FriendInfo info)? onFriendDeleted;
+
+  ///好友资料变更通知
   void Function(FriendInfo info)? onFriendInfoChanged;
 
+  ///黑名单新增通知
+  void Function(BlacklistInfo info)? onBlackAdded;
+
+  ///黑名单删除通知
+  void Function(BlacklistInfo info)? onBlackDeleted;
+
   OnFriendshipListener({
-    this.onBlackAdded,
-    this.onBlackDeleted,
-    this.onFriendAdded,
     this.onFriendApplicationAccepted,
     this.onFriendApplicationAdded,
     this.onFriendApplicationDeleted,
     this.onFriendApplicationRejected,
+    this.onFriendAdded,
     this.onFriendDeleted,
     this.onFriendInfoChanged,
+    this.onBlackAdded,
+    this.onBlackDeleted,
   });
 
   /// Added to the blacklist

@@ -1,9 +1,19 @@
 /// SDK Connection State Listener
+/// SDK 连接状态监听器，当连接状态变化时回调。
 class OnConnectListener {
+  ///SDK 连接服务器失败
   void Function(int? code, String? errorMsg)? onConnectFailed;
+
+  ///SDK 连接服务器成功
   void Function()? onConnectSuccess;
+
+  ///SDK 正在连接服务器
   void Function()? onConnecting;
+
+  ///账号已在其他地方登录，当前设备被踢下线
   void Function()? onKickedOffline;
+
+  ///登录凭证过期，需要重新登录
   void Function()? onUserTokenExpired;
   void Function()? onUserTokenInvalid;
 

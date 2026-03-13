@@ -1,11 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_platform/universal_platform.dart';
 
 sealed class ImUtils {
+  ///生成唯一的操作ID
+  static String generateOperationID({String operationName = 'openim_sdk'}) {
+    return '${operationName}_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
+  }
+
   ///生成md5
   static String? generateMD5(String? data) {
     if (null == data) return null;
@@ -25,5 +31,22 @@ sealed class ImUtils {
     }
     Directory directory = await getApplicationSupportDirectory();
     return '${directory.path}/kurban_open_im_sdk';
+  }
+
+  /// 生成单聊会话ID
+  static String genSingleConversationID(String userID1, String userID2) {
+    final sorted = [userID1, userID2]..sort();
+    return 'si_${sorted[0]}_${sorted[1]}';
+  }
+
+  /// 生成群聊会话ID
+  static String genGroupConversationID(String groupID) {
+    return 'sg_$groupID';
+  }
+
+  /// 生成通知会话ID
+  static String genNotificationConversationID(String userID1, String userID2) {
+    final sorted = [userID1, userID2]..sort();
+    return 'sn_${sorted[0]}_${sorted[1]}';
   }
 }

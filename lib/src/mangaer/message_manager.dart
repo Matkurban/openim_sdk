@@ -12,23 +12,24 @@ import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
+import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 
-/// 消息管理器
-/// 对应 open-im-sdk-flutter 中 MessageManager。
-/// 负责消息的创建、发送、接收、查询、删除和监听回调。
 class MessageManager {
   static final Logger _log = Logger('MessageManager');
 
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  DatabaseService get _database {
+    return GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  }
 
-  ImApiService get _api =>
-      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+  ImApiService get _api {
+    return GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+  }
 
-  WebSocketService get _ws =>
-      GetIt.instance.get<WebSocketService>(instanceName: InstanceName.webSocketService);
+  WebSocketService get _ws {
+    return GetIt.instance.get<WebSocketService>(instanceName: InstanceName.webSocketService);
+  }
 
   /// 消息监听器
   OnAdvancedMsgListener? msgListener;
@@ -359,8 +360,8 @@ class MessageManager {
     );
 
     final conversationID = isGroupMsg
-        ? ConversationManager.genGroupConversationID(groupID)
-        : ConversationManager.genSingleConversationID(_database.currentUserID, userID!);
+        ? ImUtils.genGroupConversationID(groupID)
+        : ImUtils.genSingleConversationID(_database.currentUserID, userID!);
 
     await _database.insertMessage(_messageToDbMap(sendMsg));
     await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
@@ -845,7 +846,7 @@ class MessageManager {
     );
     try {
       final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
-      await _ws.sendReqWaitResp(reqIdentifier: WebSocketIdentifier.sendMsg, data: wsData);
+      await _ws.sendRequestWaitResponse(reqIdentifier: WebSocketIdentifier.sendMsg, data: wsData);
     } catch (e) {
       _log.warning('发送输入状态失败: $e');
     }
@@ -1211,7 +1212,7 @@ class MessageManager {
     }
 
     try {
-      final resp = await _ws.sendReqWaitResp(
+      final resp = await _ws.sendRequestWaitResponse(
         reqIdentifier: WebSocketIdentifier.sendMsg,
         data: msgDataBytes,
       );

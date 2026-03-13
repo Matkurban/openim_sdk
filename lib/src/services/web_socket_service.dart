@@ -5,9 +5,10 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/enums/web_socket_status.dart';
+import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../models/ws_codec.dart';
+import '../models/web_socket_codec.dart';
 import '../models/web_socket_identifier.dart';
 
 /// WebSocket 长连接管理器
@@ -28,7 +29,7 @@ class WebSocketService {
   late bool _compression;
 
   // ---- 编解码 ----
-  late WsCodec _codec;
+  late WebSocketCodec _codec;
 
   // ---- 连接 ----
   WebSocketChannel? _channel;
@@ -54,15 +55,15 @@ class WebSocketService {
   // ---- 请求/响应异步匹配 ----
   int _msgIncrCounter = 0;
 
-  final Map<String, Completer<GeneralWsResp>> _pendingRequests = {};
+  final Map<String, Completer<WebSocketResponse>> _pendingRequests = {};
 
   static const _requestTimeout = Duration(seconds: 10);
 
   /// 收到推送消息（原始 JSON data）
-  void Function(GeneralWsResp resp)? onPushMsg;
+  void Function(WebSocketResponse resp)? onPushMsg;
 
   /// 用户在线状态变更
-  void Function(GeneralWsResp resp)? onUserOnlineStatusChanged;
+  void Function(WebSocketResponse resp)? onUserOnlineStatusChanged;
 
   /// 当前连接状态
   WebSocketStatus get connStatus => _connStatus;
@@ -89,7 +90,7 @@ class WebSocketService {
     _userID = userID;
     _token = token;
     _compression = compression;
-    _codec = WsCodec(enableCompression: compression);
+    _codec = WebSocketCodec(enableCompression: compression);
     _userDisconnected = false;
     _reconnectAttempts = 0;
     _reconnectIndex = -1;
@@ -121,7 +122,7 @@ class WebSocketService {
   /// [reqIdentifier] 请求类型
   /// [data] 请求数据（protobuf 序列化后的字节，即 proto.Marshal 的结果）
   /// 返回服务端响应
-  Future<GeneralWsResp> sendReqWaitResp({
+  Future<WebSocketResponse> sendRequestWaitResponse({
     required int reqIdentifier,
     Uint8List? data,
     String? operationID,
@@ -129,9 +130,9 @@ class WebSocketService {
     if (!isConnected) {
       throw StateError('WebSocket 未连接');
     }
-    final opID = operationID ?? _generateOperationID();
+    final opID = operationID ?? ImUtils.generateOperationID();
     final msgIncr = _generateMsgIncr();
-    final req = GeneralWsReq(
+    final req = WebSocketRequest(
       reqIdentifier: reqIdentifier,
       token: _token,
       sendID: _userID,
@@ -140,7 +141,7 @@ class WebSocketService {
       data: data,
     );
 
-    final completer = Completer<GeneralWsResp>();
+    final completer = Completer<WebSocketResponse>();
     _pendingRequests[msgIncr] = completer;
 
     // 超时处理
@@ -203,7 +204,7 @@ class WebSocketService {
     sb.write('?sendID=$_userID');
     sb.write('&token=$_token');
     sb.write('&platformID=$platformID');
-    sb.write('&operationID=${_generateOperationID()}');
+    sb.write('&operationID=${ImUtils.generateOperationID()}');
     sb.write('&isBackground=false');
     sb.write('&sdkType=js');
     sb.write('&isMsgResp=true');
@@ -287,8 +288,8 @@ class WebSocketService {
       _handleDisconnect();
       return;
     }
-    final opID = _generateOperationID();
-    final ping = jsonEncode({'type': 'ping', 'body': jsonEncode(opID)});
+    final opID = ImUtils.generateOperationID();
+    final ping = jsonEncode({'type': 'ping', 'body': opID});
     _channel!.sink.add(ping);
     _log.fine('发送 ping: $opID');
   }
@@ -299,9 +300,9 @@ class WebSocketService {
 
   void _handleBinaryMessage(Uint8List raw) {
     // gzip 解压 + JSON 解码（sdkType=js 协议，data 字段为 base64 编码的 protobuf）
-    GeneralWsResp resp;
+    WebSocketResponse resp;
     try {
-      resp = _codec.decodeResp(raw);
+      resp = _codec.decodeResponse(raw);
     } catch (e) {
       _log.warning('消息解码失败: $e');
       return;
@@ -347,7 +348,7 @@ class WebSocketService {
   }
 
   /// 将服务端响应路由到等待中的请求 Completer
-  void _notifyResponse(GeneralWsResp resp) {
+  void _notifyResponse(WebSocketResponse resp) {
     final completer = _pendingRequests.remove(resp.msgIncr);
     if (completer != null && !completer.isCompleted) {
       completer.complete(resp);
@@ -356,10 +357,10 @@ class WebSocketService {
     }
   }
 
-  void _sendBinary(GeneralWsReq req) {
+  void _sendBinary(WebSocketRequest req) {
     if (_channel == null) return;
     // JSON 编码 + gzip 压缩（sdkType=js 协议）
-    final encoded = _codec.encodeReq(req);
+    final encoded = _codec.encodeRequest(req);
     _channel!.sink.add(encoded);
   }
 
@@ -395,10 +396,6 @@ class WebSocketService {
 
   void _setStatus(WebSocketStatus status) {
     _connStatus = status;
-  }
-
-  String _generateOperationID() {
-    return '${_userID}_${DateTime.now().millisecondsSinceEpoch}';
   }
 
   String _generateMsgIncr() {

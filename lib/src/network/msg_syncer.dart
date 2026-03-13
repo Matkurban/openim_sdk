@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:openim_sdk/src/services/database_service.dart';
-import 'package:openim_sdk/src/models/ws_codec.dart';
+import 'package:openim_sdk/src/models/web_socket_codec.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
 /// 会话批量更新信息（聚合同一会话的多条推送消息）
@@ -598,7 +598,7 @@ class MsgSyncer {
   /// 2. 验证 SEQ 连续性，发现缺口时触发同步
   /// 3. 存储消息并更新会话（latestMsg, unreadCount, maxSeq）
   /// 4. 触发回调通知上层
-  void handlePushMsg(GeneralWsResp resp) {
+  void handlePushMsg(WebSocketResponse resp) {
     if (resp.data.isEmpty) return;
 
     try {

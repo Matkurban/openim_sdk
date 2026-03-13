@@ -8,16 +8,16 @@ import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
-/// 用户管理器
-/// 对应 open-im-sdk-flutter 中 UserManager。
-/// 负责用户信息的获取、修改、缓存和监听回调。
 class UserManager {
   static final Logger _log = Logger('UserManager');
 
-  ImApiService get _api =>
-      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  ImApiService get _api {
+    return GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+  }
+
+  DatabaseService get _database {
+    return GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  }
 
   /// 用户信息变更监听器
   OnUserListener? listener;
@@ -27,24 +27,17 @@ class UserManager {
     this.listener = listener;
   }
 
-  // ---------------------------------------------------------------------------
-  // 登录相关
-  // ---------------------------------------------------------------------------
-
   /// Chat 服务端登录（内部方法）
   /// 向 chatAddr + /account/login 发起请求，返回 {userID, imToken, chatToken}
   Future<Map<String, dynamic>> _chatLogin(Map<String, dynamic> body) async {
     final GetIt getIt = GetIt.instance;
-    final config = getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
-    final chatAddr = config.chatAddr;
+    final InitConfig config = getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
+    final String? chatAddr = config.chatAddr;
     if (chatAddr == null || chatAddr.isEmpty) {
       throw Exception('chatAddr 未配置，请在 InitConfig 中设置 chatAddr');
     }
 
-    _log.info('[_chatLogin] chatAddr=$chatAddr');
-    _log.info('[_chatLogin] requestBody=$body');
-
-    final dio = Dio(
+    final Dio dio = Dio(
       BaseOptions(
         baseUrl: chatAddr,
         connectTimeout: const Duration(seconds: 30),
@@ -56,15 +49,12 @@ class UserManager {
     );
 
     try {
-      final response = await dio.post('/account/login', data: body);
-      _log.info('[_chatLogin] statusCode=${response.statusCode}');
-      _log.info('[_chatLogin] responseData=${response.data}');
-
-      final data = response.data as Map<String, dynamic>;
-      final errCode = (data['errCode'] as int?) ?? -1;
+      final Response response = await dio.post('/account/login', data: body);
+      final Map<String, dynamic> data = response.data as Map<String, dynamic>;
+      final int errCode = (data['errCode'] as int?) ?? -1;
       if (errCode != 0) {
-        final errMsg = data['errMsg'] ?? '未知错误';
-        final errDlt = data['errDlt'] ?? '';
+        final String errMsg = data['errMsg'] ?? '未知错误';
+        final String errDlt = data['errDlt'] ?? '';
         _log.severe('[_chatLogin] 登录失败: errCode=$errCode, errMsg=$errMsg, errDlt=$errDlt');
         throw Exception('登录失败($errCode): $errMsg $errDlt');
       }
@@ -111,10 +101,6 @@ class UserManager {
     _log.info('手机号 Chat 登录成功: $areaCode$phoneNumber, userID=$userID');
     return OpenIM.iMManager.login(userID: userID, token: imToken);
   }
-
-  // ---------------------------------------------------------------------------
-  // 用户信息操作
-  // ---------------------------------------------------------------------------
 
   /// 获取用户信息（走缓存机制）
   /// [userIDList] 用户ID列表
@@ -269,10 +255,6 @@ class UserManager {
     return [];
   }
 
-  // ---------------------------------------------------------------------------
-  // 本地数据操作
-  // ---------------------------------------------------------------------------
-
   /// 将用户信息保存到本地数据库
   Future<void> saveUserToLocal(UserInfo userInfo) async {
     final data = userInfo.toJson()..removeWhere((_, v) => v == null);
@@ -289,15 +271,5 @@ class UserManager {
   /// 通知用户状态变更（供内部调用）
   void notifyUserStatusChanged(UserStatusInfo statusInfo) {
     listener?.userStatusChanged(statusInfo);
-  }
-
-  // ---------------------------------------------------------------------------
-  // 兼容 open-im-sdk-flutter 的方法
-  // ---------------------------------------------------------------------------
-
-  /// 设置全局免打扰
-  @Deprecated('Use [ConversationManager.setConversation] instead')
-  Future<dynamic> setGlobalRecvMessageOpt({required int status, String? operationID}) async {
-    return setSelfInfo(globalRecvMsgOpt: status);
   }
 }

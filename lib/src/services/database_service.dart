@@ -1,17 +1,12 @@
 import 'dart:convert';
 
-import 'package:logging/logging.dart';
 import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:tostore/tostore.dart';
 
 import '../db/db_schema.dart';
 
 /// 数据库服务层
-/// 封装 Tostore 操作，提供统一的本地数据库访问接口。
-/// 对应 Go SDK 中 pkg/db/ 下的数据库接口抽象。
 class DatabaseService {
-  static final Logger _log = Logger('DatabaseService');
-
   final ToStore toStore;
 
   DatabaseService({required this.toStore});
@@ -20,21 +15,16 @@ class DatabaseService {
 
   String get currentUserID => _currentUserID!;
 
-  Future<void> switchSpace({required String userID}) async {
+  Future<bool> switchSpace({required String userID}) async {
     _currentUserID = userID;
-    await toStore.switchSpace(spaceName: ImUtils.generateSpaceName(userID));
+    return toStore.switchSpace(spaceName: ImUtils.generateSpaceName(userID));
   }
 
   /// 关闭数据库
   Future<void> close() async {
     await toStore.close();
     _currentUserID = null;
-    _log.info('数据库已关闭');
   }
-
-  // ---------------------------------------------------------------------------
-  // 通用 CRUD 操作
-  // ---------------------------------------------------------------------------
 
   /// 插入一条记录
   Future<DbResult> insert(String table, Map<String, dynamic> data) {

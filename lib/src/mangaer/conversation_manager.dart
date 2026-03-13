@@ -9,11 +9,9 @@ import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
+import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
-/// 会话管理器
-/// 对应 open-im-sdk-flutter 中 ConversationManager。
-/// 负责会话的增删改查、未读计数、草稿管理和监听回调。
 class ConversationManager {
   static final Logger _log = Logger('ConversationManager');
 
@@ -39,38 +37,18 @@ class ConversationManager {
   /// 根据会话类型生成会话ID
   /// [sourceID] 单聊为用户ID，群聊为群组ID
   /// [sessionType] 会话类型
-  Future<String> getConversationIDBySessionType({
-    required String sourceID,
-    required int sessionType,
-  }) async {
+  String getConversationIDBySessionType({required String sourceID, required int sessionType}) {
     if (sessionType == ConversationType.single.value) {
-      return genSingleConversationID(_database.currentUserID, sourceID);
+      return ImUtils.genSingleConversationID(_database.currentUserID, sourceID);
     } else if (sessionType == ConversationType.superGroup.value) {
-      return genGroupConversationID(sourceID);
+      return ImUtils.genGroupConversationID(sourceID);
     } else {
-      return genNotificationConversationID(_database.currentUserID, sourceID);
+      return ImUtils.genNotificationConversationID(_database.currentUserID, sourceID);
     }
   }
 
-  /// 生成单聊会话ID
-  static String genSingleConversationID(String userID1, String userID2) {
-    final sorted = [userID1, userID2]..sort();
-    return 'si_${sorted[0]}_${sorted[1]}';
-  }
-
-  /// 生成群聊会话ID
-  static String genGroupConversationID(String groupID) {
-    return 'sg_$groupID';
-  }
-
-  /// 生成通知会话ID
-  static String genNotificationConversationID(String userID1, String userID2) {
-    final sorted = [userID1, userID2]..sort();
-    return 'sn_${sorted[0]}_${sorted[1]}';
-  }
-
   /// 获取 @所有人 标识
-  Future<String> getAtAllTag() async => 'AtAllTag';
+  String getAtAllTag() => atAllTag;
 
   /// @所有人 标识
   String get atAllTag => 'AtAllTag';
@@ -100,7 +78,7 @@ class ConversationManager {
     required String sourceID,
     required int sessionType,
   }) async {
-    final conversationID = await getConversationIDBySessionType(
+    final conversationID = getConversationIDBySessionType(
       sourceID: sourceID,
       sessionType: sessionType,
     );
@@ -347,7 +325,7 @@ class ConversationManager {
 
     try {
       final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
-      await _ws.sendReqWaitResp(reqIdentifier: WebSocketIdentifier.sendMsg, data: wsData);
+      await _ws.sendRequestWaitResponse(reqIdentifier: WebSocketIdentifier.sendMsg, data: wsData);
     } catch (e) {
       _log.warning('发送输入状态失败: $e');
     }
@@ -359,29 +337,6 @@ class ConversationManager {
   Future<List<int>?> getInputStates(String conversationID, String userID) async {
     // 监听端提供平台列表，通常为实时响应
     return [];
-  }
-
-  // ---------------------------------------------------------------------------
-  // 本地数据操作（供内部模块调用）
-  // ---------------------------------------------------------------------------
-
-  // ---------------------------------------------------------------------------
-  // 兼容 open-im-sdk-flutter 的已废弃方法
-  // ---------------------------------------------------------------------------
-
-  /// 设置会话消息接收选项
-  /// [conversationID] 会话ID
-  /// [status] 0: 正常接收; 1: 不接收; 2: 接收但不通知
-  @Deprecated('Use [setConversation] instead')
-  Future<dynamic> setConversationRecvMessageOpt({
-    required String conversationID,
-    required int status,
-    String? operationID,
-  }) {
-    return setConversation(
-      conversationID: conversationID,
-      req: ConversationReq(recvMsgOpt: status),
-    );
   }
 
   /// 获取会话消息接收选项
@@ -396,78 +351,10 @@ class ConversationManager {
         .toList();
   }
 
-  /// 设置会话是否为阅后即焚
-  @Deprecated('Use [setConversation] instead')
-  Future<dynamic> setConversationPrivateChat({
-    required String conversationID,
-    required bool isPrivate,
-    String? operationID,
-  }) {
-    return setConversation(
-      conversationID: conversationID,
-      req: ConversationReq(isPrivateChat: isPrivate),
-    );
-  }
-
   /// 删除所有本地会话
   @Deprecated('Use hideAllConversations instead')
   Future<dynamic> deleteAllConversationFromLocal({String? operationID}) {
     return hideAllConversations();
-  }
-
-  /// 重置会话群 @ 类型
-  @Deprecated('Use [setConversation] instead')
-  Future<dynamic> resetConversationGroupAtType({
-    required String conversationID,
-    String? operationID,
-  }) {
-    return setConversation(
-      conversationID: conversationID,
-      req: ConversationReq(groupAtType: GroupAtType.atNormal.value),
-    );
-  }
-
-  /// 设置全局消息接收选项
-  @Deprecated('Use UserManager.setSelfInfo instead')
-  Future<dynamic> setGlobalRecvMessageOpt({required int status, String? operationID}) async {
-    // 由 UserManager 处理
-    _log.warning('setGlobalRecvMessageOpt is deprecated, use UserManager.setSelfInfo');
-  }
-
-  /// 设置会话消息销毁时限
-  @Deprecated('Use [setConversation] instead')
-  Future<dynamic> setConversationBurnDuration({
-    required String conversationID,
-    int burnDuration = 30,
-    String? operationID,
-  }) {
-    return setConversation(
-      conversationID: conversationID,
-      req: ConversationReq(burnDuration: burnDuration),
-    );
-  }
-
-  /// 设置会话扩展信息
-  @Deprecated('Use [setConversation] instead')
-  Future setConversationEx(String conversationID, {String? ex, String? operationID}) {
-    return setConversation(
-      conversationID: conversationID,
-      req: ConversationReq(ex: ex),
-    );
-  }
-
-  /// 获取会话ID（兼容返回dynamic）
-  Future<dynamic> getConversationIDBySessionTypeCompat({
-    required String sourceID,
-    required int sessionType,
-    String? operationID,
-  }) {
-    return getConversationIDBySessionType(sourceID: sourceID, sessionType: sessionType);
-  }
-
-  /// 获取未读消息总数（兼容返回dynamic）
-  Future<dynamic> getTotalUnreadMsgCountCompat({String? operationID}) {
-    return getTotalUnreadMsgCount();
   }
 
   // ---------------------------------------------------------------------------
