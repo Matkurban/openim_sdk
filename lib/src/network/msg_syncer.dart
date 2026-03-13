@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
+import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/models/web_socket_codec.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
@@ -33,7 +34,9 @@ class MsgSyncer {
 
   final ImApiService api;
 
-  MsgSyncer({required this.database, required this.api});
+  final NotificationDispatcher notificationDispatcher;
+
+  MsgSyncer({required this.database, required this.api, required this.notificationDispatcher});
 
   late String _userID;
 
@@ -49,31 +52,10 @@ class MsgSyncer {
   /// 是否为重新安装（本地无数据）
   bool _reinstalled = false;
 
-  // -- 以下为测试可见的读取器 --
-
-  /// 推送消息处理回调
-  void Function(Map<String, dynamic> msg)? onNewMsg;
-
-  /// 会话变更回调（通知上层刷新 UI）
-  void Function(List<String> conversationIDs)? onConversationChanged;
-
-  /// 新会话回调
-  void Function(List<String> conversationIDs)? onNewConversation;
-
-  /// 未读总数变更回调
-  void Function()? onTotalUnreadCountChanged;
-
-  /// 同步开始
-  void Function(bool reinstalled)? onSyncStart;
-
-  /// 同步进度 0-100
-  void Function(int progress)? onSyncProgress;
-
-  /// 同步完成
-  void Function(bool reinstalled)? onSyncFinish;
-
-  /// 同步失败
-  void Function(bool reinstalled)? onSyncFailed;
+  // -- Listeners (由 IMManager 注入) --
+  OnAdvancedMsgListener? msgListener;
+  OnConversationListener? conversationListener;
+  OnListenerForService? listenerForService;
 
   /// 设置当前用户 ID
   void setLoginUserID(String userID) {
@@ -95,30 +77,30 @@ class MsgSyncer {
     try {
       // 检测是否为重新安装
       await _loadSeqs();
-      onSyncStart?.call(_reinstalled);
-      onSyncProgress?.call(0);
+      conversationListener?.syncServerStart(_reinstalled);
+      conversationListener?.syncServerProgress(0);
 
       // 1. 同步好友/群组（先同步，后续补充会话名称需要用到）
       await Future.wait([_syncFriends(), _syncJoinedGroups()]);
-      onSyncProgress?.call(30);
+      conversationListener?.syncServerProgress(30);
 
       // 2. 同步会话列表 + seq + 未读计数 + showName/faceURL
       await _syncConversationsAndSeqs();
-      onSyncProgress?.call(70);
+      conversationListener?.syncServerProgress(70);
 
       // 3. 同步消息缺口
       await _syncMessages();
-      onSyncProgress?.call(90);
+      conversationListener?.syncServerProgress(90);
 
       // 4. 同步自身用户信息
       await _syncSelfUserInfo();
-      onSyncProgress?.call(100);
+      conversationListener?.syncServerProgress(100);
 
-      onSyncFinish?.call(_reinstalled);
+      conversationListener?.syncServerFinish(_reinstalled);
       _log.info('数据同步完成');
     } catch (e, s) {
       _log.severe('数据同步失败', e, s);
-      onSyncFailed?.call(_reinstalled);
+      conversationListener?.syncServerFailed(_reinstalled);
     } finally {
       // 5 秒冷却期后才允许下次同步（对应 Go SDK startSync 的防重入机制）
       Future.delayed(const Duration(seconds: 5), () {
@@ -724,17 +706,18 @@ class MsgSyncer {
 
     // seq == 0 的消息是临时消息（如 typing），不存储
     if (seq == 0) {
-      onNewMsg?.call(msg);
+      _fireNewMessage(msg);
       return;
     }
 
-    // 通知消息（contentType >= 1000）不存储到 chatLog，只更新 seq 并分发
+    // 通知消息（contentType >= 1000）不存储到 chatLog，路由到 NotificationDispatcher
     if (contentType >= 1000) {
       if (seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
         _syncedMaxSeqs[conversationID] = seq;
         database.updateConversation(conversationID, {'maxSeq': seq});
       }
-      onNewMsg?.call(msg);
+      final content = msg['content'] as String? ?? '';
+      notificationDispatcher.dispatch(contentType, content);
       return;
     }
 
@@ -757,7 +740,7 @@ class MsgSyncer {
     if (!isSelfMsg && isNewSeq) update.newUnreadCount++;
 
     // 触发新消息回调
-    onNewMsg?.call(msg);
+    _fireNewMessage(msg);
   }
 
   /// 批量应用会话更新到 DB，并触发通知
@@ -839,15 +822,15 @@ class MsgSyncer {
       _syncMissingMessages(gapConvIDs);
     }
 
-    // 通知 UI
+    // 通知 UI：通过 Listener 回调
     if (changedConvIDs.isNotEmpty) {
-      onConversationChanged?.call(changedConvIDs.toList());
+      _fireConversationChanged(changedConvIDs);
     }
     if (newConvIDs.isNotEmpty) {
-      onNewConversation?.call(newConvIDs.toList());
+      _fireNewConversation(newConvIDs);
     }
     if (changedConvIDs.isNotEmpty || newConvIDs.isNotEmpty) {
-      onTotalUnreadCountChanged?.call();
+      _fireTotalUnreadCountChanged();
     }
   }
 
@@ -897,9 +880,10 @@ class MsgSyncer {
   ///
   /// 通知消息不存入 chatLog，但需要：
   /// 1. 更新 seq 追踪
-  /// 2. 通过 onNewMsg 分发给 NotificationDispatcher
+  /// 2. 路由到 NotificationDispatcher 进行解析和回调
   void _processNotificationMessage(Map<String, dynamic> msg, String conversationID) {
     final seq = msg['seq'] as int? ?? 0;
+    final contentType = msg['contentType'] as int? ?? 0;
 
     // 更新 seq
     if (seq > 0 && seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
@@ -907,8 +891,9 @@ class MsgSyncer {
       database.updateConversation(conversationID, {'maxSeq': seq});
     }
 
-    // 通知消息通过 onNewMsg 分发，由上层 NotificationDispatcher 解析
-    onNewMsg?.call(msg);
+    // 路由到通知分发器
+    final content = msg['content'] as String? ?? '';
+    notificationDispatcher.dispatch(contentType, content);
   }
 
   /// 检测并同步 SEQ 缺口（对应 Go SDK compareSeqsAndBatchSync 的部分逻辑）
@@ -935,5 +920,62 @@ class MsgSyncer {
     } catch (e) {
       _log.warning('缺口同步失败: $e');
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Listener 回调辅助
+  // ---------------------------------------------------------------------------
+
+  /// 将消息 Map 转为 Message 对象并触发消息监听
+  void _fireNewMessage(Map<String, dynamic> msg) {
+    final message = Message(
+      clientMsgID: msg['clientMsgID'] as String?,
+      serverMsgID: msg['serverMsgID'] as String?,
+      sendID: msg['sendID'] as String?,
+      recvID: msg['recvID'] as String?,
+      groupID: msg['groupID'] as String?,
+      senderNickname: msg['senderNickname'] as String?,
+      senderFaceUrl: msg['senderFaceURL'] as String?,
+      seq: msg['seq'] as int?,
+      sendTime: msg['sendTime'] as int?,
+      createTime: msg['createTime'] as int?,
+      status: MessageStatus.succeeded,
+    );
+    msgListener?.recvNewMessage(message);
+    listenerForService?.recvNewMessage(message);
+  }
+
+  /// 从 DB 加载会话并触发 conversationChanged
+  Future<void> _fireConversationChanged(Set<String> convIDs) async {
+    final convList = <ConversationInfo>[];
+    for (final id in convIDs) {
+      final conv = await database.getConversation(id);
+      if (conv != null) convList.add(conv);
+    }
+    if (convList.isNotEmpty) {
+      conversationListener?.conversationChanged(convList);
+    }
+  }
+
+  /// 从 DB 加载会话并触发 newConversation
+  Future<void> _fireNewConversation(Set<String> convIDs) async {
+    final convList = <ConversationInfo>[];
+    for (final id in convIDs) {
+      final conv = await database.getConversation(id);
+      if (conv != null) convList.add(conv);
+    }
+    if (convList.isNotEmpty) {
+      conversationListener?.newConversation(convList);
+    }
+  }
+
+  /// 计算总未读数并触发回调
+  Future<void> _fireTotalUnreadCountChanged() async {
+    final conversations = await database.getAllConversations();
+    int total = 0;
+    for (final c in conversations) {
+      total += c.unreadCount;
+    }
+    conversationListener?.totalUnreadMessageCountChanged(total);
   }
 }

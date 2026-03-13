@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
+import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/db/db_schema.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
@@ -234,8 +235,32 @@ class IMManager {
     );
     await webSocketService.connect(userID: userID, token: token);
 
-    final MsgSyncer msgSyncer = MsgSyncer(database: databaseService, api: imApiService);
+    // 初始化通知分发器
+    final dispatcher = NotificationDispatcher(database: databaseService, api: imApiService);
+    dispatcher.setLoginUserID(userID);
+    dispatcher.friendshipListener = friendshipManager.listener;
+    dispatcher.groupListener = groupManager.listener;
+    dispatcher.userListener = userManager.listener;
+    dispatcher.conversationListener = conversationManager.listener;
+    dispatcher.msgListener = messageManager.msgListener;
+    dispatcher.customBusinessListener = messageManager.customBusinessListener;
+    dispatcher.listenerForService = listenerForService;
+
+    // 初始化消息同步器
+    final msgSyncer = MsgSyncer(
+      database: databaseService,
+      api: imApiService,
+      notificationDispatcher: dispatcher,
+    );
     msgSyncer.setLoginUserID(userID);
+    msgSyncer.msgListener = messageManager.msgListener;
+    msgSyncer.conversationListener = conversationManager.listener;
+    msgSyncer.listenerForService = listenerForService;
+
+    // WS 推送 → MsgSyncer 处理
+    webSocketService.onPushMsg = msgSyncer.handlePushMsg;
+
+    // 启动初始同步
     msgSyncer.doConnectedSync();
 
     _log.info('用户已登录: $userID');

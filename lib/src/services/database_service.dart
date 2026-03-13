@@ -234,6 +234,13 @@ class DatabaseService {
         .whereEqual('blockUserID', blockUserID);
   }
 
+  /// 批量插入/更新黑名单
+  Future<void> batchUpsertBlacks(List<Map<String, dynamic>> blacks) async {
+    for (final b in blacks) {
+      await toStore.upsert(DbTableName.localBlack, b);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Group 操作 - 对应 Go SDK GroupModel
   // ---------------------------------------------------------------------------
