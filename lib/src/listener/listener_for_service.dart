@@ -7,6 +7,7 @@ class OnListenerForService {
   void Function(GroupApplicationInfo info)? onGroupApplicationAccepted;
   void Function(GroupApplicationInfo info)? onGroupApplicationAdded;
   void Function(Message msg)? onRecvNewMessage;
+  void Function(Message msg)? onRecvOnlineOnlyMessage;
 
   OnListenerForService({
     this.onFriendApplicationAdded,
@@ -14,6 +15,7 @@ class OnListenerForService {
     this.onGroupApplicationAccepted,
     this.onGroupApplicationAdded,
     this.onRecvNewMessage,
+    this.onRecvOnlineOnlyMessage,
   });
 
   void friendApplicationAccepted(FriendApplicationInfo u) {
@@ -34,5 +36,9 @@ class OnListenerForService {
 
   void recvNewMessage(Message msg) {
     onRecvNewMessage?.call(msg);
+  }
+
+  void recvOnlineOnlyMessage(Message msg) {
+    onRecvOnlineOnlyMessage?.call(msg);
   }
 }

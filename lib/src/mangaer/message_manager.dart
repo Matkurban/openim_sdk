@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:fixnum/fixnum.dart';
@@ -363,10 +362,13 @@ class MessageManager {
         ? ImUtils.genGroupConversationID(groupID)
         : ImUtils.genSingleConversationID(_database.currentUserID, userID!);
 
-    await _database.insertMessage(DatabaseService.messageToDbMap(sendMsg));
-    await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
+    // 仅在线消息不存储到本地
+    if (!isOnlineOnly) {
+      await _database.insertMessage(DatabaseService.messageToDbMap(sendMsg));
+      await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
+    }
 
-    _log.info('消息已发送到本地: ${sendMsg.clientMsgID}');
+    _log.info('消息已发送${isOnlineOnly ? "(仅在线)" : "到本地"}: ${sendMsg.clientMsgID}');
 
     // 通过 WebSocket 发送消息（使用 protobuf 编码，与 Go SDK 保持一致）
     try {
@@ -380,8 +382,12 @@ class MessageManager {
     } catch (e) {
       _log.warning('消息发送异常: $e');
       final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
-      await _database.updateMessage(failedMsg.clientMsgID!, {'status': MessageStatus.failed.value});
-      await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+      if (!isOnlineOnly) {
+        await _database.updateMessage(failedMsg.clientMsgID!, {
+          'status': MessageStatus.failed.value,
+        });
+        await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+      }
       return failedMsg;
     }
   }
@@ -716,18 +722,6 @@ class MessageManager {
     }
   }
 
-  /// 标记消息已读
-  /// [conversationID] 会话ID
-  /// [messageIDList] 消息clientMsgID列表
-  @Deprecated('Use markConversationMessageAsRead instead')
-  Future<void> markMessagesAsReadByMsgID({
-    required String conversationID,
-    required List<String> messageIDList,
-  }) async {
-    await _database.markMessagesAsRead(messageIDList);
-    _log.info('消息已标记已读: ${messageIDList.length}条');
-  }
-
   /// 设置消息本地扩展信息
   /// [conversationID] 会话ID
   /// [clientMsgID] 消息ID
@@ -775,17 +769,6 @@ class MessageManager {
     await _database.insertMessage(DatabaseService.messageToDbMap(msg));
     return msg;
   }
-
-  /// 设置应用角标
-  /// [count] 角标数量
-  Future<void> setAppBadge(int count, {String? operationID}) async {
-    // TODO: 调用原生平台设置角标
-    _log.info('设置应用角标: $count');
-  }
-
-  // ---------------------------------------------------------------------------
-  // 兼容 open-im-sdk-flutter 的 FullPath 方法
-  // ---------------------------------------------------------------------------
 
   /// 创建图片消息（通过完整文件路径）
   /// [imagePath] 图片的完整路径
@@ -835,51 +818,6 @@ class MessageManager {
     return createFileMessage(filePath: filePath, fileName: fileName);
   }
 
-  /// 输入状态更新
-  /// [userID] 用户ID
-  /// [msgTip] 提示消息
-  @Deprecated('Use ConversationManager.changeInputStates instead')
-  Future typingStatusUpdate({required String userID, String? msgTip, String? operationID}) async {
-    final focus = msgTip != null && msgTip.isNotEmpty && msgTip != 'no';
-    final msgData = _buildTypingMsgData(
-      conversationID: '',
-      focus: focus,
-      recvID: userID,
-      sessionType: ConversationType.single,
-    );
-    try {
-      final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
-      await _ws.sendRequestWaitResponse(reqIdentifier: WebSocketIdentifier.sendMsg, data: wsData);
-    } catch (e) {
-      _log.warning('发送输入状态失败: $e');
-    }
-  }
-
-  /// 创建图片消息通过URL（兼容 open-im-sdk-flutter 3参数签名）
-  /// [sourcePicture] 原图信息
-  /// [bigPicture] 大图信息
-  /// [snapshotPicture] 缩略图信息
-  /// [sourcePath] 原图路径
-  @Deprecated('Use [createImageMessageByURL] instead')
-  Message createImageMessageByURLCompat({
-    required PictureInfo sourcePicture,
-    required PictureInfo bigPicture,
-    required PictureInfo snapshotPicture,
-    String? sourcePath,
-    String? operationID,
-  }) {
-    return createImageMessageByURL(
-      sourcePicture: sourcePicture,
-      bigPicture: bigPicture,
-      snapshotPicture: snapshotPicture,
-      sourcePath: sourcePath,
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // 消息接收处理（供内部模块调用）
-  // ---------------------------------------------------------------------------
-
   /// 处理收到的新消息
   void onRecvNewMessage(Message message) {
     msgListener?.recvNewMessage(message);
@@ -888,6 +826,11 @@ class MessageManager {
   /// 处理收到的离线消息
   void onRecvOfflineNewMessage(Message message) {
     msgListener?.recvOfflineNewMessage(message);
+  }
+
+  /// 处理收到的仅在线消息
+  void onRecvOnlineOnlyMessage(Message message) {
+    msgListener?.recvOnlineOnlyMessage(message);
   }
 
   // ---------------------------------------------------------------------------
@@ -910,40 +853,6 @@ class MessageManager {
     if (msg.atTextElem != null) return jsonEncode(msg.atTextElem!.toJson());
     if (msg.advancedTextElem != null) return jsonEncode(msg.advancedTextElem!.toJson());
     return '';
-  }
-
-  /// 构造输入状态（Typing）消息的 MsgData
-  Map<String, dynamic> _buildTypingMsgData({
-    required String conversationID,
-    required bool focus,
-    String? recvID,
-    String? groupID,
-    ConversationType sessionType = ConversationType.single,
-  }) {
-    final typingElem = {'msgTips': focus ? 'yes' : 'no'};
-    final options = <String, bool>{
-      'history': false,
-      'persistent': false,
-      'senderSync': false,
-      'conversationUpdate': false,
-      'senderConversationUpdate': false,
-      'unreadCount': false,
-      'offlinePush': false,
-    };
-    return {
-      'sendID': _database.currentUserID,
-      'recvID': recvID ?? '',
-      'groupID': groupID ?? '',
-      'clientMsgID': _generateClientMsgID(),
-      'sessionType': sessionType.value,
-      'msgFrom': 100,
-      'contentType': 113, // Typing
-      'content': jsonEncode(typingElem),
-      'senderPlatformID': PlatformUtils.currentPlatform.value,
-      'createTime': _nowMillis(),
-      'sendTime': 0,
-      'options': options,
-    };
   }
 
   /// 生成唯一消息 ID
@@ -1024,7 +933,6 @@ class MessageManager {
   }
 
   /// 通过 WebSocket 发送消息（使用 protobuf）
-  /// 对应 Go SDK 的 Conversation.SendMessage -> sendMsg
   Future<Message> _sendMsgViaWebSocket(
     Message message,
     String conversationID,
@@ -1052,20 +960,25 @@ class MessageManager {
         // 解析响应：服务器返回修改后的消息或发送结果
         final sentMsg = message.copyWith(status: MessageStatus.succeeded, sendTime: _nowMillis());
 
-        await _database.updateMessage(sentMsg.clientMsgID!, {
-          'status': MessageStatus.succeeded.value,
-          'sendTime': sentMsg.sendTime,
-        });
-        await _database.deleteSendingMessage(sentMsg.clientMsgID!);
-        await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+        // 仅在线消息不更新本地存储和会话
+        if (!isOnlineOnly) {
+          await _database.updateMessage(sentMsg.clientMsgID!, {
+            'status': MessageStatus.succeeded.value,
+            'sendTime': sentMsg.sendTime,
+          });
+          await _database.deleteSendingMessage(sentMsg.clientMsgID!);
+          await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+        }
         return sentMsg;
       } else {
         _log.warning('消息发送失败: ${resp.errMsg}');
         final failedMsg = message.copyWith(status: MessageStatus.failed);
-        await _database.updateMessage(failedMsg.clientMsgID!, {
-          'status': MessageStatus.failed.value,
-        });
-        await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+        if (!isOnlineOnly) {
+          await _database.updateMessage(failedMsg.clientMsgID!, {
+            'status': MessageStatus.failed.value,
+          });
+          await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+        }
         return failedMsg;
       }
     } catch (e) {
@@ -1098,8 +1011,21 @@ class MessageManager {
     );
 
     // 添加离线推送信息
-    if (msg.offlinePush != null) {
+    if (msg.offlinePush != null && !isOnlineOnly) {
       msgData.offlinePushInfo = _buildOfflinePushInfo(msg.offlinePush!);
+    }
+
+    // 仅在线消息：设置 options 标记，服务端不持久化、不推离线、不更新会话
+    if (isOnlineOnly) {
+      msgData.options.addEntries(const [
+        MapEntry('history', false),
+        MapEntry('persistent', false),
+        MapEntry('senderSync', false),
+        MapEntry('conversationUpdate', false),
+        MapEntry('senderConversationUpdate', false),
+        MapEntry('unreadCount', false),
+        MapEntry('offlinePush', false),
+      ]);
     }
 
     return msgData;

@@ -674,6 +674,7 @@ class MsgSyncer {
       'createTime': msg.createTime.toInt(),
       'status': msg.status,
       'isRead': msg.isRead,
+      'options': Map<String, bool>.from(msg.options),
       'attachedInfo': msg.attachedInfo,
       'ex': msg.ex,
     };
@@ -714,6 +715,16 @@ class MsgSyncer {
     final sendTime = msg['sendTime'] as int? ?? 0;
     final sendID = msg['sendID'] as String? ?? '';
     final isSelfMsg = sendID == _userID;
+
+    // 检查是否为仅在线消息（options 中 history == false）
+    final options = msg['options'] as Map<String, bool>? ?? const {};
+    final isHistory = options['history'] ?? true;
+
+    // 仅在线消息：不存储，仅触发 onRecvOnlineOnlyMessage
+    if (!isHistory) {
+      _fireOnlineOnlyMessage(msg);
+      return;
+    }
 
     // seq == 0 的消息是临时消息（如 typing），不存储
     if (seq == 0) {
@@ -953,6 +964,13 @@ class MsgSyncer {
     final message = database.convertMessage(msg);
     msgListener?.recvNewMessage(message);
     listenerForService?.recvNewMessage(message);
+  }
+
+  /// 仅在线消息：不存储到本地，仅触发 onRecvOnlineOnlyMessage
+  void _fireOnlineOnlyMessage(Map<String, dynamic> msg) {
+    final message = database.convertMessage(msg);
+    msgListener?.recvOnlineOnlyMessage(message);
+    listenerForService?.recvOnlineOnlyMessage(message);
   }
 
   /// 从 DB 加载会话并触发 conversationChanged
