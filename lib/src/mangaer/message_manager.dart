@@ -363,7 +363,7 @@ class MessageManager {
         ? ImUtils.genGroupConversationID(groupID)
         : ImUtils.genSingleConversationID(_database.currentUserID, userID!);
 
-    await _database.insertMessage(_messageToDbMap(sendMsg));
+    await _database.insertMessage(DatabaseService.messageToDbMap(sendMsg));
     await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
 
     _log.info('消息已发送到本地: ${sendMsg.clientMsgID}');
@@ -427,8 +427,8 @@ class MessageManager {
     int startTime = startMsg?.sendTime ?? 0;
 
     if (startMsg?.clientMsgID != null && startMsg!.clientMsgID!.isNotEmpty) {
-      final data = await _database.getMessage(startMsg.clientMsgID!);
-      final dbSendTime = (data?['sendTime'] as int?) ?? 0;
+      final existingMsg = await _database.getMessage(startMsg.clientMsgID!);
+      final dbSendTime = existingMsg?.sendTime ?? 0;
       if (dbSendTime > 0) {
         startTime = dbSendTime;
       }
@@ -449,18 +449,18 @@ class MessageManager {
 
     // 如果本地数据不足，尝试从云端拉取
     // 对应 Go SDK 的 fetchMessagesWithGapCheck：先本地后云端
-    final convMaxSeq = conv['maxSeq'] as int? ?? 0;
+    final convMaxSeq = await _database.getConversationMaxSeq(conversationID ?? '');
     if (dataList.length <= queryCount && convMaxSeq > 0) {
       // 确定从哪个 seq 开始向前拉取
       int currentSeq;
       if (startMsg != null && (startMsg.seq ?? 0) > 1) {
         currentSeq = startMsg.seq!;
         if (dataList.isNotEmpty) {
-          currentSeq = dataList.last['seq'] as int? ?? currentSeq;
+          currentSeq = dataList.last.seq ?? currentSeq;
         }
       } else if (dataList.isNotEmpty) {
         // 有本地数据但不足，从最早一条的 seq 向前拉取
-        currentSeq = dataList.last['seq'] as int? ?? convMaxSeq;
+        currentSeq = dataList.last.seq ?? convMaxSeq;
       } else {
         // 无本地数据，从会话 maxSeq 开始拉取最新消息
         currentSeq = convMaxSeq + 1;
@@ -521,7 +521,7 @@ class MessageManager {
     final isEnd = dataList.length <= queryCount;
     final actualData = isEnd ? dataList : dataList.sublist(0, queryCount);
 
-    return AdvancedMessage(messageList: actualData.map(_convertMessage).toList(), isEnd: isEnd);
+    return AdvancedMessage(messageList: actualData, isEnd: isEnd);
   }
 
   /// 反向获取历史消息（startMsg之后接收的消息）
@@ -554,8 +554,8 @@ class MessageManager {
       if (param.clientMsgIDList == null || param.clientMsgIDList!.isEmpty) continue;
       final messages = <Message>[];
       for (final id in param.clientMsgIDList!) {
-        final data = await _database.getMessage(id);
-        if (data != null) messages.add(_convertMessage(data));
+        final msg = await _database.getMessage(id);
+        if (msg != null) messages.add(msg);
       }
       if (messages.isNotEmpty) {
         totalCount += messages.length;
@@ -606,7 +606,7 @@ class MessageManager {
       count: count,
     );
 
-    final messages = dataList.map(_convertMessage).toList();
+    final messages = dataList;
     return SearchResult(
       totalCount: messages.length,
       searchResultItems: [
@@ -628,8 +628,8 @@ class MessageManager {
   /// [clientMsgID] 消息ID
   Future<void> revokeMessage({required String conversationID, required String clientMsgID}) async {
     // 获取消息的 seq 用于服务端撤回
-    final msgData = await _database.getMessage(clientMsgID);
-    final seq = msgData?['seq'] as int? ?? 0;
+    final msg = await _database.getMessage(clientMsgID);
+    final seq = msg?.seq ?? 0;
 
     await _database.updateMessage(clientMsgID, {
       'contentType': MessageType.revokeNotification.value,
@@ -676,8 +676,8 @@ class MessageManager {
     required String clientMsgID,
   }) async {
     // 获取消息的 seq 用于服务端删除
-    final msgData = await _database.getMessage(clientMsgID);
-    final seq = msgData?['seq'] as int? ?? 0;
+    final msg = await _database.getMessage(clientMsgID);
+    final seq = msg?.seq ?? 0;
 
     await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地和服务器删除: $clientMsgID');
@@ -751,7 +751,7 @@ class MessageManager {
       recvID: receiverID,
       sessionType: ConversationType.single,
     );
-    await _database.insertMessage(_messageToDbMap(msg));
+    await _database.insertMessage(DatabaseService.messageToDbMap(msg));
     return msg;
   }
 
@@ -769,7 +769,7 @@ class MessageManager {
       groupID: groupID,
       sessionType: ConversationType.superGroup,
     );
-    await _database.insertMessage(_messageToDbMap(msg));
+    await _database.insertMessage(DatabaseService.messageToDbMap(msg));
     return msg;
   }
 
@@ -1018,178 +1018,6 @@ class MessageManager {
         'unreadCount': 0,
       });
     }
-  }
-
-  /// 数据库 Map 转 Message 对象
-  Message _convertMessage(Map<String, dynamic> data) {
-    final contentTypeValue = data['contentType'] as int?;
-    final content = data['content'] as String?;
-    Map<String, dynamic>? contentMap;
-    if (content != null && content.isNotEmpty) {
-      try {
-        contentMap = jsonDecode(content) as Map<String, dynamic>;
-      } catch (_) {
-        // content 可能是 base64 编码的（proto3 JSON 中 bytes 字段的格式）
-        try {
-          contentMap = jsonDecode(utf8.decode(base64Decode(content))) as Map<String, dynamic>;
-        } catch (_) {}
-      }
-    }
-
-    return Message(
-      clientMsgID: data['clientMsgID'] as String?,
-      serverMsgID: data['serverMsgID'] as String?,
-      createTime: data['createTime'] as int?,
-      sendTime: data['sendTime'] as int?,
-      sessionType: _intToConversationType(data['sessionType'] as int?),
-      sendID: data['sendID'] as String?,
-      recvID: data['recvID'] as String?,
-      msgFrom: data['msgFrom'] as int?,
-      contentType: _intToMessageType(contentTypeValue),
-      senderPlatformID: _intToIMPlatform(data['senderPlatformID'] as int?),
-      senderNickname: data['senderNickname'] as String?,
-      senderFaceUrl: data['senderFaceUrl'] as String?,
-      groupID: data['groupID'] as String?,
-      localEx: data['localEx'] as String?,
-      seq: data['seq'] as int?,
-      isRead: data['isRead'] as bool?,
-      hasReadTime: data['hasReadTime'] as int?,
-      status: _intToMessageStatus(data['status'] as int?),
-      isReact: data['isReact'] as bool?,
-      isExternalExtensions: data['isExternalExtensions'] as bool?,
-      attachedInfo: data['attachedInfo'] as String?,
-      ex: data['ex'] as String?,
-      textElem: contentTypeValue == MessageType.text.value && contentMap != null
-          ? TextElem.fromJson(contentMap)
-          : null,
-      pictureElem: contentTypeValue == MessageType.picture.value && contentMap != null
-          ? PictureElem.fromJson(contentMap)
-          : null,
-      soundElem: contentTypeValue == MessageType.voice.value && contentMap != null
-          ? SoundElem.fromJson(contentMap)
-          : null,
-      videoElem: contentTypeValue == MessageType.video.value && contentMap != null
-          ? VideoElem.fromJson(contentMap)
-          : null,
-      fileElem: contentTypeValue == MessageType.file.value && contentMap != null
-          ? FileElem.fromJson(contentMap)
-          : null,
-      locationElem: contentTypeValue == MessageType.location.value && contentMap != null
-          ? LocationElem.fromJson(contentMap)
-          : null,
-      customElem: contentTypeValue == MessageType.custom.value && contentMap != null
-          ? CustomElem.fromJson(contentMap)
-          : null,
-      quoteElem: contentTypeValue == MessageType.quote.value && contentMap != null
-          ? QuoteElem.fromJson(contentMap)
-          : null,
-      mergeElem: contentTypeValue == MessageType.merger.value && contentMap != null
-          ? MergeElem.fromJson(contentMap)
-          : null,
-      faceElem: contentTypeValue == MessageType.customFace.value && contentMap != null
-          ? FaceElem.fromJson(contentMap)
-          : null,
-      cardElem: contentTypeValue == MessageType.card.value && contentMap != null
-          ? CardElem.fromJson(contentMap)
-          : null,
-      atTextElem: contentTypeValue == MessageType.atText.value && contentMap != null
-          ? AtTextElem.fromJson(contentMap)
-          : null,
-    );
-  }
-
-  /// Message 转数据库 Map
-  Map<String, dynamic> _messageToDbMap(Message msg) {
-    String? content;
-    if (msg.textElem != null) {
-      content = jsonEncode(msg.textElem!.toJson());
-    } else if (msg.pictureElem != null) {
-      content = jsonEncode(msg.pictureElem!.toJson());
-    } else if (msg.soundElem != null) {
-      content = jsonEncode(msg.soundElem!.toJson());
-    } else if (msg.videoElem != null) {
-      content = jsonEncode(msg.videoElem!.toJson());
-    } else if (msg.fileElem != null) {
-      content = jsonEncode(msg.fileElem!.toJson());
-    } else if (msg.locationElem != null) {
-      content = jsonEncode(msg.locationElem!.toJson());
-    } else if (msg.customElem != null) {
-      content = jsonEncode(msg.customElem!.toJson());
-    } else if (msg.quoteElem != null) {
-      content = jsonEncode(msg.quoteElem!.toJson());
-    } else if (msg.mergeElem != null) {
-      content = jsonEncode(msg.mergeElem!.toJson());
-    } else if (msg.faceElem != null) {
-      content = jsonEncode(msg.faceElem!.toJson());
-    } else if (msg.cardElem != null) {
-      content = jsonEncode(msg.cardElem!.toJson());
-    } else if (msg.atTextElem != null) {
-      content = jsonEncode(msg.atTextElem!.toJson());
-    } else if (msg.advancedTextElem != null) {
-      content = jsonEncode(msg.advancedTextElem!.toJson());
-    }
-
-    return {
-      'clientMsgID': msg.clientMsgID,
-      'serverMsgID': msg.serverMsgID,
-      'sendID': msg.sendID,
-      'recvID': msg.recvID,
-      'senderPlatformID': msg.senderPlatformID?.value,
-      'senderNickname': msg.senderNickname,
-      'senderFaceUrl': msg.senderFaceUrl,
-      'groupID': msg.groupID,
-      'sessionType': msg.sessionType?.value,
-      'msgFrom': msg.msgFrom,
-      'contentType': msg.contentType?.value,
-      'content': content,
-      'isRead': msg.isRead ?? false,
-      'status': msg.status?.value,
-      'seq': msg.seq ?? 0,
-      'sendTime': msg.sendTime,
-      'createTime': msg.createTime,
-      'attachedInfo': msg.attachedInfo,
-      'ex': msg.ex,
-      'localEx': msg.localEx,
-      'isReact': msg.isReact ?? false,
-      'isExternalExtensions': msg.isExternalExtensions ?? false,
-      'hasReadTime': msg.hasReadTime,
-    };
-  }
-
-  /// int 转 ConversationType
-  static ConversationType? _intToConversationType(int? value) {
-    if (value == null) return null;
-    return ConversationType.values.cast<ConversationType?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
-
-  /// int 转 MessageType
-  static MessageType? _intToMessageType(int? value) {
-    if (value == null) return null;
-    return MessageType.values.cast<MessageType?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
-
-  /// int 转 MessageStatus
-  static MessageStatus? _intToMessageStatus(int? value) {
-    if (value == null) return null;
-    return MessageStatus.values.cast<MessageStatus?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
-
-  /// int 转 IMPlatform
-  static IMPlatform? _intToIMPlatform(int? value) {
-    if (value == null) return null;
-    return IMPlatform.values.cast<IMPlatform?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
   }
 
   /// 通过 WebSocket 发送消息（使用 protobuf）

@@ -117,7 +117,7 @@ class UserManager {
 
     // 1. 查询本地数据库
     final dbUsers = await _database.getUsersByIDs(userIDList);
-    result = dbUsers.map((d) => UserInfo.fromJson(d)).toList();
+    result = dbUsers.toList();
 
     // 2. 对比找出未缓存的用户 ID
     for (var id in userIDList) {
@@ -149,9 +149,7 @@ class UserManager {
 
   /// 获取当前登录用户信息
   Future<UserInfo?> getSelfUserInfo() async {
-    final data = await _database.getLoginUser();
-    if (data == null) return null;
-    return UserInfo.fromJson(data);
+    return _database.getLoginUser();
   }
 
   /// 修改当前登录用户信息
@@ -176,7 +174,7 @@ class UserManager {
     // 获取当前用户信息并合并更新
     final current = await _database.getLoginUser();
     if (current != null) {
-      await _database.insertOrUpdateUser({...current, ...updateData});
+      await _database.insertOrUpdateUser({...current.toJson(), ...updateData});
     }
 
     _log.info('用户信息已更新');
@@ -188,7 +186,7 @@ class UserManager {
     }
 
     // 5. 同步到服务器
-    updateData['userID'] = current?['userID'];
+    updateData['userID'] = current?.userID;
     final resp = await _api.updateUserInfo(userInfo: updateData);
     if (resp.errCode != 0) {
       _log.warning('同步用户信息到服务器失败: ${resp.errMsg}');

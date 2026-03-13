@@ -63,12 +63,12 @@ class FriendshipManager {
     for (final uid in userIDList) {
       final data = await _database.getFriendByUserID(uid);
       if (data != null) {
-        results.add(_convertFriendInfo(data));
+        results.add(data);
       }
     }
     if (filterBlack) {
       final blackList = await _database.getBlackList();
-      final blackIDs = blackList.map((b) => b['blockUserID'] as String?).toSet();
+      final blackIDs = blackList.map((b) => b.blockUserID).toSet();
       results.removeWhere((f) => blackIDs.contains(f.friendUserID));
     }
     return results;
@@ -107,7 +107,7 @@ class FriendshipManager {
     final offset = req?.offset ?? 0;
     final count = req?.count ?? 40;
     final dataList = await _database.getFriendRequestsAsRecipient(offset: offset, count: count);
-    return dataList.map(_convertFriendApplicationInfo).toList();
+    return dataList;
   }
 
   /// 获取已发送的好友申请列表
@@ -118,18 +118,17 @@ class FriendshipManager {
     final offset = req?.offset ?? 0;
     final count = req?.count ?? 40;
     final dataList = await _database.getFriendRequestsAsApplicant(offset: offset, count: count);
-    return dataList.map(_convertFriendApplicationInfo).toList();
+    return dataList;
   }
 
   /// 获取好友列表（包含已加入黑名单的好友）
   /// [filterBlack] 是否过滤黑名单用户
   Future<List<FriendInfo>> getFriendList({bool filterBlack = false}) async {
-    final dataList = await _database.getAllFriends();
-    var list = dataList.map(_convertFriendInfo).toList();
+    var list = await _database.getAllFriends();
     if (filterBlack) {
       final blackList = await _database.getBlackList();
-      final blackIDs = blackList.map((b) => b['blockUserID'] as String?).toSet();
-      list.removeWhere((f) => blackIDs.contains(f.friendUserID));
+      final blackIDs = blackList.map((b) => b.blockUserID).toSet();
+      list = list.where((f) => !blackIDs.contains(f.friendUserID)).toList();
     }
     return list;
   }
@@ -143,12 +142,11 @@ class FriendshipManager {
     int offset = 0,
     int count = 40,
   }) async {
-    final dataList = await _database.getFriendsPage(offset, count);
-    var list = dataList.map(_convertFriendInfo).toList();
+    var list = await _database.getFriendsPage(offset, count);
     if (filterBlack) {
       final blackList = await _database.getBlackList();
-      final blackIDs = blackList.map((b) => b['blockUserID'] as String?).toSet();
-      list.removeWhere((f) => blackIDs.contains(f.friendUserID));
+      final blackIDs = blackList.map((b) => b.blockUserID).toSet();
+      list = list.where((f) => !blackIDs.contains(f.friendUserID)).toList();
     }
     return list;
   }
@@ -188,8 +186,7 @@ class FriendshipManager {
 
   /// 获取黑名单列表
   Future<List<BlacklistInfo>> getBlacklist() async {
-    final dataList = await _database.getBlackList();
-    return dataList.map(_convertBlacklistInfo).toList();
+    return _database.getBlackList();
   }
 
   /// 从黑名单中移除
@@ -330,8 +327,7 @@ class FriendshipManager {
       searchRemark: isSearchRemark,
     );
 
-    return dataList.map((data) {
-      final friend = _convertFriendInfo(data);
+    return dataList.map((friend) {
       return SearchFriendsInfo(
         relationship: Relationship.friend.value,
         ownerUserID: friend.ownerUserID,
@@ -357,19 +353,18 @@ class FriendshipManager {
       final existing = await _database.getFriendByUserID(friendUserID);
       if (existing == null) continue;
 
-      final updateData = <String, dynamic>{
-        'friendUserID': friendUserID,
-        'ownerUserID': _database.currentUserID,
-      };
+      final updateData = <String, dynamic>{};
       if (updateFriendsReq.remark != null) updateData['remark'] = updateFriendsReq.remark;
       if (updateFriendsReq.isPinned != null) updateData['isPinned'] = updateFriendsReq.isPinned;
       if (updateFriendsReq.ex != null) updateData['ex'] = updateFriendsReq.ex;
 
-      await _database.upsertFriend({...existing, ...updateData});
+      if (updateData.isNotEmpty) {
+        await _database.updateFriend(friendUserID, updateData);
+      }
 
       final updated = await _database.getFriendByUserID(friendUserID);
       if (updated != null) {
-        listener?.friendInfoChanged(_convertFriendInfo(updated));
+        listener?.friendInfoChanged(updated);
       }
     }
 
@@ -394,55 +389,5 @@ class FriendshipManager {
   /// [req] 查询参数
   Future<int> getFriendApplicationUnhandledCount(GetFriendApplicationUnhandledCountReq req) async {
     return _database.getFriendRequestUnhandledCount();
-  }
-
-  /// 数据库 Map 转 FriendInfo
-  FriendInfo _convertFriendInfo(Map<String, dynamic> data) {
-    return FriendInfo(
-      ownerUserID: data['ownerUserID'] as String?,
-      userID: data['friendUserID'] as String?,
-      nickname: data['nickname'] as String?,
-      faceURL: data['faceURL'] as String?,
-      friendUserID: data['friendUserID'] as String?,
-      remark: data['remark'] as String?,
-      ex: data['ex'] as String?,
-      createTime: data['createTime'] as int?,
-      addSource: data['addSource'] as int?,
-      operatorUserID: data['operatorUserID'] as String?,
-    );
-  }
-
-  /// 数据库 Map 转 FriendApplicationInfo
-  FriendApplicationInfo _convertFriendApplicationInfo(Map<String, dynamic> data) {
-    return FriendApplicationInfo(
-      fromUserID: data['fromUserID'] as String?,
-      fromNickname: data['fromNickname'] as String?,
-      fromFaceURL: data['fromFaceURL'] as String?,
-      toUserID: data['toUserID'] as String?,
-      toNickname: data['toNickname'] as String?,
-      toFaceURL: data['toFaceURL'] as String?,
-      handleResult: data['handleResult'] as int?,
-      reqMsg: data['reqMsg'] as String?,
-      createTime: data['createTime'] as int?,
-      handlerUserID: data['handlerUserID'] as String?,
-      handleMsg: data['handleMsg'] as String?,
-      handleTime: data['handleTime'] as int?,
-      ex: data['ex'] as String?,
-    );
-  }
-
-  /// 数据库 Map 转 BlacklistInfo
-  BlacklistInfo _convertBlacklistInfo(Map<String, dynamic> data) {
-    return BlacklistInfo(
-      ownerUserID: data['ownerUserID'] as String?,
-      blockUserID: data['blockUserID'] as String?,
-      nickname: data['nickname'] as String?,
-      faceURL: data['faceURL'] as String?,
-      gender: data['gender'] as int?,
-      createTime: data['createTime'] as int?,
-      addSource: data['addSource'] as int?,
-      operatorUserID: data['operatorUserID'] as String?,
-      ex: data['ex'] as String?,
-    );
   }
 }

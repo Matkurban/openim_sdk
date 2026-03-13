@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:logging/logging.dart';
+import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/models/web_socket_codec.dart';
@@ -139,12 +140,10 @@ class MsgSyncer {
     _reinstalled = false;
 
     for (final conv in conversations) {
-      final conversationID = conv['conversationID'] as String?;
-      final maxSeq = conv['maxSeq'] as int? ?? 0;
-      if (conversationID != null) {
-        _syncedMaxSeqs[conversationID] = maxSeq;
-        _localMaxSeqsBeforeSync[conversationID] = maxSeq;
-      }
+      final conversationID = conv.conversationID;
+      final maxSeq = await database.getConversationMaxSeq(conversationID);
+      _syncedMaxSeqs[conversationID] = maxSeq;
+      _localMaxSeqsBeforeSync[conversationID] = maxSeq;
     }
     _log.info('已加载 ${_syncedMaxSeqs.length} 个会话的 seq');
   }
@@ -248,22 +247,22 @@ class MsgSyncer {
     }
 
     // 批量查好友信息（优先使用备注）
-    final friendMap = <String, Map<String, dynamic>>{};
+    final friendMap = <String, FriendInfo>{};
     if (userIDs.isNotEmpty) {
       final friends = await database.getFriendsByUserIDs(userIDs.toList());
       for (final f in friends) {
-        final fid = f['friendUserID'] as String?;
+        final fid = f.friendUserID;
         if (fid != null) friendMap[fid] = f;
       }
     }
 
     // 不在好友中的 userID，从用户表查
-    final userMap = <String, Map<String, dynamic>>{};
+    final userMap = <String, UserInfo>{};
     final notInFriendIDs = userIDs.where((id) => !friendMap.containsKey(id)).toList();
     if (notInFriendIDs.isNotEmpty) {
       final users = await database.getUsersByIDs(notInFriendIDs);
       for (final u in users) {
-        final uid = u['userID'] as String?;
+        final uid = u.userID;
         if (uid != null) userMap[uid] = u;
       }
 
@@ -278,7 +277,7 @@ class MsgSyncer {
               if (u is Map<String, dynamic>) {
                 final uid = u['userID'] as String?;
                 if (uid != null) {
-                  userMap[uid] = u;
+                  userMap[uid] = UserInfo.fromJson(u);
                   // Cache it so future syncs have it
                   await database.insertOrUpdateUser(u);
                 }
@@ -290,12 +289,11 @@ class MsgSyncer {
     }
 
     // 批量查群组信息
-    final groupMap = <String, Map<String, dynamic>>{};
+    final groupMap = <String, GroupInfo>{};
     if (groupIDs.isNotEmpty) {
       final groups = await database.getGroupsByIDs(groupIDs.toList());
       for (final g in groups) {
-        final gid = g['groupID'] as String?;
-        if (gid != null) groupMap[gid] = g;
+        groupMap[g.groupID] = g;
       }
 
       final notInGroupMap = groupIDs.where((id) => !groupMap.containsKey(id)).toList();
@@ -308,7 +306,7 @@ class MsgSyncer {
               if (g is Map<String, dynamic>) {
                 final gid = g['groupID'] as String?;
                 if (gid != null) {
-                  groupMap[gid] = g;
+                  groupMap[gid] = GroupInfo.fromJson(g);
                   await database.upsertGroup(g);
                 }
               }
@@ -325,22 +323,22 @@ class MsgSyncer {
         final uid = conv['userID'] as String? ?? '';
         final friend = friendMap[uid];
         if (friend != null) {
-          final remark = friend['remark'] as String? ?? '';
-          conv['showName'] = remark.isNotEmpty ? remark : (friend['nickname'] as String? ?? '');
-          conv['faceURL'] = friend['faceURL'] as String? ?? '';
+          final remark = friend.remark ?? '';
+          conv['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+          conv['faceURL'] = friend.faceURL ?? '';
         } else {
           final user = userMap[uid];
           if (user != null) {
-            conv['showName'] = user['nickname'] as String? ?? '';
-            conv['faceURL'] = user['faceURL'] as String? ?? '';
+            conv['showName'] = user.nickname ?? '';
+            conv['faceURL'] = user.faceURL ?? '';
           }
         }
       } else if (type == 3) {
         final gid = conv['groupID'] as String? ?? '';
         final group = groupMap[gid];
         if (group != null) {
-          conv['showName'] = group['groupName'] as String? ?? '';
-          conv['faceURL'] = group['faceURL'] as String? ?? '';
+          conv['showName'] = group.groupName ?? '';
+          conv['faceURL'] = group.faceURL ?? '';
         }
       }
     }
@@ -779,16 +777,16 @@ class MsgSyncer {
         if (existing != null) {
           // 更新已有会话
           final updates = <String, dynamic>{};
-          final existingLatestTime = existing['latestMsgSendTime'] as int? ?? 0;
+          final existingLatestTime = existing.latestMsgSendTime ?? 0;
           if (update.latestMsgSendTime >= existingLatestTime) {
             updates['latestMsg'] = jsonEncode(update.latestMsg);
             updates['latestMsgSendTime'] = update.latestMsgSendTime;
           }
           if (update.newUnreadCount > 0) {
-            final oldUnread = existing['unreadCount'] as int? ?? 0;
+            final oldUnread = existing.unreadCount;
             updates['unreadCount'] = oldUnread + update.newUnreadCount;
           }
-          final oldMaxSeq = existing['maxSeq'] as int? ?? 0;
+          final oldMaxSeq = await database.getConversationMaxSeq(convID);
           if (update.maxSeq > oldMaxSeq) {
             updates['maxSeq'] = update.maxSeq;
           }
@@ -867,23 +865,23 @@ class MsgSyncer {
         // 单聊/通知：优先用好友备注
         final friend = await database.getFriendByUserID(userID);
         if (friend != null) {
-          final remark = friend['remark'] as String? ?? '';
-          updates['showName'] = remark.isNotEmpty ? remark : (friend['nickname'] as String? ?? '');
-          updates['faceURL'] = friend['faceURL'] as String? ?? '';
+          final remark = friend.remark ?? '';
+          updates['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+          updates['faceURL'] = friend.faceURL ?? '';
         } else {
           // 从用户表查
           final users = await database.getUsersByIDs([userID]);
           if (users.isNotEmpty) {
-            updates['showName'] = users.first['nickname'] as String? ?? '';
-            updates['faceURL'] = users.first['faceURL'] as String? ?? '';
+            updates['showName'] = users.first.nickname ?? '';
+            updates['faceURL'] = users.first.faceURL ?? '';
           }
         }
       } else if (sessionType == 3 && groupID != null && groupID.isNotEmpty) {
         // 群聊：用群组名称
         final group = await database.getGroupByID(groupID);
         if (group != null) {
-          updates['showName'] = group['groupName'] as String? ?? '';
-          updates['faceURL'] = group['faceURL'] as String? ?? '';
+          updates['showName'] = group.groupName ?? '';
+          updates['faceURL'] = group.faceURL ?? '';
         }
       }
 
