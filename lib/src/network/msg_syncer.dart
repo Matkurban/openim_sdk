@@ -40,6 +40,10 @@ class MsgSyncer {
 
   final ConversationManager conversationManager;
 
+  final MomentsManager momentsManager;
+
+  final FavoriteManager favoriteManager;
+
   OnListenerForService? listenerForService;
 
   OnAdvancedMsgListener? get msgListener => messageManager.msgListener;
@@ -52,6 +56,8 @@ class MsgSyncer {
     required this.notificationDispatcher,
     required this.messageManager,
     required this.conversationManager,
+    required this.momentsManager,
+    required this.favoriteManager,
   });
 
   late String _userID;
@@ -105,6 +111,16 @@ class MsgSyncer {
 
       conversationListener?.syncServerFinish(_reinstalled);
       _log.info('数据同步完成');
+
+      // 4. 低优先级同步：朋友圈 + 收藏夹（不阻塞主同步，后台并行）
+      unawaited(
+        Future.wait([
+          momentsManager.syncFromServer(),
+          favoriteManager.syncFromServer(),
+        ]).then((_) {}).catchError((Object e) {
+          _log.warning('朋友圈/收藏夹同步异常: $e');
+        }),
+      );
     } catch (e, s) {
       _log.severe('数据同步失败', e, s);
       conversationListener?.syncServerFailed(_reinstalled);

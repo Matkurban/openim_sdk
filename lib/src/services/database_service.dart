@@ -1312,4 +1312,168 @@ class DatabaseService {
         return null;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Moment 操作 - 朋友圈动态本地存储
+  // ---------------------------------------------------------------------------
+
+  /// 插入或更新单条动态
+  Future<void> upsertMoment(MomentInfo moment) async {
+    await toStore.upsert(DbTableName.localMoment, _momentToRow(moment));
+  }
+
+  /// 批量插入或更新动态
+  Future<void> batchUpsertMoments(List<MomentInfo> moments) async {
+    if (moments.isEmpty) return;
+    await toStore.batchUpsert(DbTableName.localMoment, moments.map(_momentToRow).toList());
+  }
+
+  /// 分页获取动态列表（按 createTime 降序）
+  Future<List<MomentInfo>> getMoments({int offset = 0, int count = 20}) async {
+    final result = await toStore
+        .query(DbTableName.localMoment)
+        .orderByDesc('createTime')
+        .limit(count)
+        .offset(offset);
+    return result.data.map(_rowToMoment).toList();
+  }
+
+  /// 获取某用户的动态列表
+  Future<List<MomentInfo>> getMomentsByUserID(
+    String userID, {
+    int offset = 0,
+    int count = 20,
+  }) async {
+    final result = await toStore
+        .query(DbTableName.localMoment)
+        .whereEqual('userID', userID)
+        .orderByDesc('createTime')
+        .limit(count)
+        .offset(offset);
+    return result.data.map(_rowToMoment).toList();
+  }
+
+  /// 根据 momentID 获取单条动态
+  Future<MomentInfo?> getMomentByID(String momentID) async {
+    final row = await toStore
+        .query(DbTableName.localMoment)
+        .whereEqual('momentID', momentID)
+        .first();
+    return row != null ? _rowToMoment(row) : null;
+  }
+
+  /// 删除本地动态
+  Future<void> deleteMoment(String momentID) async {
+    await toStore.delete(DbTableName.localMoment).whereEqual('momentID', momentID);
+  }
+
+  /// 清空所有本地动态
+  Future<void> clearAllMoments() async {
+    await toStore.delete(DbTableName.localMoment);
+  }
+
+  // -- Moment row ↔ model 转换 --
+
+  static Map<String, dynamic> _momentToRow(MomentInfo m) {
+    return {
+      'momentID': m.momentID,
+      'userID': m.userID,
+      'content': m.content,
+      'media': jsonEncode(m.media.map((e) => e.toJson()).toList()),
+      'visibleType': m.visibleType.value,
+      'visibleGroupIDs': jsonEncode(m.visibleGroupIDs),
+      'status': m.status,
+      'createTime': m.createTime,
+      'updateTime': m.updateTime,
+      'likeCount': m.likeCount,
+      'commentCount': m.commentCount,
+      'extra': m.extra,
+      'likes': jsonEncode(m.likes.map((e) => e.toJson()).toList()),
+      'comments': jsonEncode(m.comments.map((e) => e.toJson()).toList()),
+    };
+  }
+
+  static MomentInfo _rowToMoment(Map<String, dynamic> row) {
+    return MomentInfo.fromJson({
+      ...row,
+      'media': _decodeJsonField(row['media']),
+      'visibleGroupIDs': _decodeJsonField(row['visibleGroupIDs']),
+      'likes': _decodeJsonField(row['likes']),
+      'comments': _decodeJsonField(row['comments']),
+    });
+  }
+
+  static dynamic _decodeJsonField(dynamic v) {
+    if (v is String && v.isNotEmpty) {
+      try {
+        return jsonDecode(v);
+      } catch (_) {}
+    }
+    return v ?? [];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Favorite 操作 - 收藏夹本地存储
+  // ---------------------------------------------------------------------------
+
+  /// 插入或更新单条收藏
+  Future<void> upsertFavorite(FavoriteItem item) async {
+    await toStore.upsert(DbTableName.localFavorite, item.toJson());
+  }
+
+  /// 批量插入或更新收藏
+  Future<void> batchUpsertFavorites(List<FavoriteItem> items) async {
+    if (items.isEmpty) return;
+    await toStore.batchUpsert(DbTableName.localFavorite, items.map((f) => f.toJson()).toList());
+  }
+
+  /// 分页获取收藏列表（按 createTime 降序）
+  Future<List<FavoriteItem>> getFavorites({int offset = 0, int count = 20}) async {
+    final result = await toStore
+        .query(DbTableName.localFavorite)
+        .whereEqual('userID', _currentUserID)
+        .orderByDesc('createTime')
+        .limit(count)
+        .offset(offset);
+    return result.data.map((r) => FavoriteItem.fromJson(r)).toList();
+  }
+
+  /// 根据 favoriteID 获取单条收藏
+  Future<FavoriteItem?> getFavoriteByID(String favoriteID) async {
+    final row = await toStore
+        .query(DbTableName.localFavorite)
+        .whereEqual('favoriteID', favoriteID)
+        .first();
+    return row != null ? FavoriteItem.fromJson(row) : null;
+  }
+
+  /// 根据 targetType + targetID 查找收藏（检查是否已收藏）
+  Future<FavoriteItem?> getFavoriteByTarget(String targetType, String targetID) async {
+    final row = await toStore
+        .query(DbTableName.localFavorite)
+        .whereEqual('userID', _currentUserID)
+        .whereEqual('targetType', targetType)
+        .whereEqual('targetID', targetID)
+        .first();
+    return row != null ? FavoriteItem.fromJson(row) : null;
+  }
+
+  /// 删除本地收藏
+  Future<void> deleteFavoriteByID(String favoriteID) async {
+    await toStore.delete(DbTableName.localFavorite).whereEqual('favoriteID', favoriteID);
+  }
+
+  /// 按 targetType + targetID 删除收藏
+  Future<void> deleteFavoriteByTarget(String targetType, String targetID) async {
+    await toStore
+        .delete(DbTableName.localFavorite)
+        .whereEqual('userID', _currentUserID)
+        .whereEqual('targetType', targetType)
+        .whereEqual('targetID', targetID);
+  }
+
+  /// 清空所有本地收藏
+  Future<void> clearAllFavorites() async {
+    await toStore.delete(DbTableName.localFavorite).whereEqual('userID', _currentUserID);
+  }
 }

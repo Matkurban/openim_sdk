@@ -15,14 +15,21 @@ class ContactsPage extends GetView<ContactsController> {
           title: const Text('通讯录'),
           actions: [
             IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: '搜索',
+              onPressed: () => _showSearchDialog(context),
+            ),
+            IconButton(
               icon: const Icon(Icons.person_add),
               tooltip: '添加好友',
               onPressed: () => Get.toNamed(AppRoutes.addFriend),
             ),
-            IconButton(
-              icon: const Icon(Icons.group_add),
-              tooltip: '创建群组',
-              onPressed: () => Get.toNamed(AppRoutes.createGroup),
+            PopupMenuButton<String>(
+              onSelected: (v) => _handleMenu(context, v),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'create_group', child: Text('创建群组')),
+                PopupMenuItem(value: 'join_group', child: Text('加入群组')),
+              ],
             ),
           ],
           bottom: TabBar(
@@ -30,9 +37,7 @@ class ContactsPage extends GetView<ContactsController> {
               Obx(() => Tab(text: '好友 (${controller.friends.length})')),
               Obx(() => Tab(text: '群组 (${controller.groups.length})')),
               Obx(() {
-                final pending = controller.friendRequests
-                    .where((r) => r.handleResult == 0)
-                    .length;
+                final pending = controller.friendRequests.where((r) => r.handleResult == 0).length;
                 return Tab(text: pending > 0 ? '申请 ($pending)' : '申请');
               }),
               Obx(() => Tab(text: '黑名单 (${controller.blacklist.length})')),
@@ -58,6 +63,131 @@ class ContactsPage extends GetView<ContactsController> {
     );
   }
 
+  void _handleMenu(BuildContext context, String action) {
+    switch (action) {
+      case 'create_group':
+        Get.toNamed(AppRoutes.createGroup);
+      case 'join_group':
+        _showJoinGroupDialog(context);
+    }
+  }
+
+  void _showJoinGroupDialog(BuildContext context) {
+    final ctrl = TextEditingController();
+    final reasonCtrl = TextEditingController(text: '请添加');
+    Get.dialog(
+      AlertDialog(
+        title: const Text('加入群组'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: ctrl,
+              decoration: const InputDecoration(labelText: '群组 ID'),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(labelText: '验证信息'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('取消')),
+          FilledButton(
+            onPressed: () {
+              Get.back();
+              controller.joinGroup(ctrl.text.trim(), reason: reasonCtrl.text);
+            },
+            child: const Text('申请'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSearchDialog(BuildContext context) {
+    final searchCtrl = TextEditingController();
+    final friendResults = <dynamic>[].obs;
+    final groupResults = <dynamic>[].obs;
+    Get.dialog(
+      AlertDialog(
+        title: const Text('搜索'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: searchCtrl,
+                decoration: const InputDecoration(labelText: '关键词(ID/昵称/备注)'),
+                autofocus: true,
+                onChanged: (v) async {
+                  friendResults.value = await controller.searchFriends(v);
+                  groupResults.value = await controller.searchGroups(v);
+                },
+              ),
+              const SizedBox(height: 8),
+              Obx(
+                () => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (friendResults.isNotEmpty) ...[
+                      Text(
+                        '好友 (${friendResults.length})',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      ...friendResults
+                          .take(5)
+                          .map(
+                            (f) => ListTile(
+                              dense: true,
+                              title: Text(f.remark ?? f.nickname ?? f.friendUserID ?? ''),
+                              subtitle: Text('ID: ${f.friendUserID}'),
+                              onTap: () {
+                                Get.back();
+                                controller.startChat(f);
+                              },
+                            ),
+                          ),
+                    ],
+                    if (groupResults.isNotEmpty) ...[
+                      Text(
+                        '群组 (${groupResults.length})',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      ...groupResults
+                          .take(5)
+                          .map(
+                            (g) => ListTile(
+                              dense: true,
+                              title: Text(g.groupName ?? g.groupID),
+                              subtitle: Text('${g.memberCount ?? 0} 人'),
+                              onTap: () {
+                                Get.back();
+                                controller.startGroupChat(g);
+                              },
+                            ),
+                          ),
+                    ],
+                    if (friendResults.isEmpty && groupResults.isEmpty && searchCtrl.text.isNotEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('无匹配结果', style: TextStyle(color: Colors.grey)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [TextButton(onPressed: () => Get.back(), child: const Text('关闭'))],
+      ),
+    );
+  }
+
   Widget _buildFriendList() {
     return Obx(() {
       if (controller.friends.isEmpty) {
@@ -71,12 +201,17 @@ class ContactsPage extends GetView<ContactsController> {
             final f = controller.friends[index];
             return ListTile(
               leading: CircleAvatar(
-                child: Text(
-                  (f.remark ?? f.friendUserID ?? '?')[0].toUpperCase(),
-                ),
+                backgroundImage: f.faceURL != null && f.faceURL!.isNotEmpty
+                    ? NetworkImage(f.faceURL!)
+                    : null,
+                child: f.faceURL == null || f.faceURL!.isEmpty
+                    ? Text((f.remark ?? f.nickname ?? f.friendUserID ?? '?')[0].toUpperCase())
+                    : null,
               ),
-              title: Text(f.remark ?? f.friendUserID ?? ''),
-              subtitle: f.remark != null ? Text('ID: ${f.friendUserID}') : null,
+              title: Text(f.remark ?? f.nickname ?? f.friendUserID ?? ''),
+              subtitle: f.remark != null
+                  ? Text('昵称: ${f.nickname ?? f.friendUserID}')
+                  : Text('ID: ${f.friendUserID}'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => controller.startChat(f),
               onLongPress: () => _showFriendActions(context, f),
@@ -101,7 +236,12 @@ class ContactsPage extends GetView<ContactsController> {
             return ListTile(
               leading: CircleAvatar(
                 backgroundColor: Colors.blue[100],
-                child: const Icon(Icons.group, color: Colors.blue),
+                backgroundImage: g.faceURL != null && g.faceURL!.isNotEmpty
+                    ? NetworkImage(g.faceURL!)
+                    : null,
+                child: g.faceURL == null || g.faceURL!.isEmpty
+                    ? const Icon(Icons.group, color: Colors.blue)
+                    : null,
               ),
               title: Text(g.groupName ?? g.groupID),
               subtitle: Text('${g.memberCount ?? 0} 人'),
@@ -119,7 +259,6 @@ class ContactsPage extends GetView<ContactsController> {
     return Obx(() {
       final allRequests = <Widget>[];
 
-      // Friend requests
       for (final r in controller.friendRequests) {
         final isPending = r.handleResult == 0;
         allRequests.add(
@@ -153,7 +292,6 @@ class ContactsPage extends GetView<ContactsController> {
         );
       }
 
-      // Group requests
       for (final r in controller.groupRequests) {
         final isPending = r.handleResult == 0;
         allRequests.add(
@@ -259,11 +397,16 @@ class ContactsPage extends GetView<ContactsController> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.edit),
+              title: const Text('修改备注'),
+              onTap: () {
+                Get.back();
+                _showRemarkDialog(context, f);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.block, color: Colors.orange),
-              title: const Text(
-                '加入黑名单',
-                style: TextStyle(color: Colors.orange),
-              ),
+              title: const Text('加入黑名单', style: TextStyle(color: Colors.orange)),
               onTap: () {
                 Get.back();
                 controller.addToBlacklist(f.friendUserID!);
@@ -283,6 +426,30 @@ class ContactsPage extends GetView<ContactsController> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+    );
+  }
+
+  void _showRemarkDialog(BuildContext context, dynamic f) {
+    final ctrl = TextEditingController(text: f.remark ?? '');
+    Get.dialog(
+      AlertDialog(
+        title: const Text('修改备注'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(labelText: '备注名'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('取消')),
+          FilledButton(
+            onPressed: () {
+              Get.back();
+              controller.updateFriendRemark(f.friendUserID!, ctrl.text.trim());
+            },
+            child: const Text('保存'),
+          ),
+        ],
       ),
     );
   }

@@ -9,6 +9,8 @@ export 'src/mangaer/group_manager.dart';
 export 'src/mangaer/message_manager.dart';
 export 'src/mangaer/relation_manager.dart';
 export 'src/mangaer/user_manager.dart';
+export 'src/mangaer/moments_manager.dart';
+export 'src/mangaer/favorite_manager.dart';
 
 /// Listeners
 export 'src/listener/advanced_msg_listener.dart';
@@ -21,6 +23,8 @@ export 'src/listener/listener_for_service.dart';
 export 'src/listener/msg_send_progress_listener.dart';
 export 'src/listener/upload_file_listener.dart';
 export 'src/listener/user_listener.dart';
+export 'src/listener/moments_listener.dart';
+export 'src/listener/favorite_listener.dart';
 
 /// Models
 export 'src/models/api_response.dart';
@@ -34,6 +38,15 @@ export 'src/models/search_info.dart';
 export 'src/models/set_group_member_info.dart';
 export 'src/models/update_req.dart';
 export 'src/models/user_info.dart';
+export 'src/models/moment_media.dart';
+export 'src/models/moment_user_info.dart';
+export 'src/models/moment_like.dart';
+export 'src/models/moment_comment.dart';
+export 'src/models/moment_info.dart';
+export 'src/models/moment_create_req.dart';
+export 'src/models/moment_list_response.dart';
+export 'src/models/favorite_item.dart';
+export 'src/models/favorite_list_response.dart';
 
 /// Enums
 export 'src/enums/allow_type.dart';
@@ -52,3 +65,4 @@ export 'src/enums/message_type.dart';
 export 'src/enums/receive_message_opt.dart';
 export 'src/enums/relationship.dart';
 export 'src/enums/sdk_error_code.dart';
+export 'src/enums/visible_type.dart';

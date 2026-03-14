@@ -36,6 +36,10 @@ class NotificationDispatcher {
 
   final MessageManager messageManager;
 
+  final MomentsManager momentsManager;
+
+  final FavoriteManager favoriteManager;
+
   OnListenerForService? listenerForService;
 
   OnFriendshipListener? get friendshipListener => friendshipManager.listener;
@@ -58,6 +62,8 @@ class NotificationDispatcher {
     required this.userManager,
     required this.conversationManager,
     required this.messageManager,
+    required this.momentsManager,
+    required this.favoriteManager,
   });
 
   // ---------------------------------------------------------------------------
@@ -436,8 +442,36 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onBusinessNotification(Map<String, dynamic> detail) {
+    // The detail from openim-server BusinessNotification wraps key+data in a nested structure.
+    // Structure: { "detail": "{\"key\":\"moment_created\",\"data\":\"{...}\"}" }
+    // At this point, `detail` is already the parsed inner JSON.
+    final key = detail['key'] as String?;
+    final dataStr = detail['data'] as String?;
+
+    if (key != null && dataStr != null) {
+      // Try to route to moment/favorite managers
+      if (key.startsWith('moment_') || key.startsWith('favorite_')) {
+        _onMomentOrFavoriteNotification(key, dataStr);
+        return;
+      }
+    }
+
+    // Fallback: pass to custom business listener
     final detailStr = detail['detail'] as String? ?? jsonEncode(detail);
     customBusinessListener?.recvCustomBusinessMessage(detailStr);
+  }
+
+  void _onMomentOrFavoriteNotification(String key, String dataStr) {
+    try {
+      final data = jsonDecode(dataStr) as Map<String, dynamic>;
+      if (key.startsWith('moment_')) {
+        momentsManager.handleNotification(key, data);
+      } else if (key.startsWith('favorite_')) {
+        favoriteManager.handleNotification(key, data);
+      }
+    } catch (e) {
+      _log.warning('解析 moment/favorite 通知失败: key=$key, error=$e');
+    }
   }
 
   void _onRevokeMsg(Map<String, dynamic> detail) {

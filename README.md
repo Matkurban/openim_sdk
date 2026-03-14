@@ -1,39 +1,253 @@
-<!-- 
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# OpenIM SDK for Dart/Flutter
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages). 
+纯 Dart 实现的 OpenIM 客户端 SDK，兼容 Flutter 全平台（iOS / Android / Web / macOS / Windows / Linux），提供完整的即时通讯能力。
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages). 
--->
+## 功能特性
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+- **完整的即时通讯能力** — 单聊、群聊、系统通知等消息收发
+- **24 种消息类型** — 文本、图片、语音、视频、文件、名片、位置、自定义消息等
+- **会话管理** — 会话列表、置顶、免打扰、草稿、未读数、已读回执
+- **群组管理** — 创建/解散群、邀请/踢出成员、群公告、禁言、角色管理
+- **好友管理** — 添加/删除好友、好友申请、黑名单、好友备注
+- **用户管理** — 用户资料、在线状态订阅、客户端配置
+- **实时通信** — WebSocket 长连接、心跳保活、断线重连
+- **本地存储** — 基于 ToStore 的本地持久化，支持离线消息
+- **文件上传** — 分片上传、秒传、进度回调
+- **推送支持** — FCM Token 管理、App 角标设置
 
-## Features
+## 快速开始
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+### 安装
 
-## Getting started
+在 `pubspec.yaml` 中添加依赖：
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder. 
-
-```dart
-const like = 'sample';
+```yaml
+dependencies:
+  openim_sdk: ^1.0.0
 ```
 
-## Additional information
+### 初始化
 
-TODO: Tell users more about the package: where to find more information, how to 
-contribute to the package, how to file issues, what response they can expect 
-from the package authors, and more.
+```dart
+import 'package:openim_sdk/openim_sdk.dart';
+
+// 1. 初始化 SDK
+await OpenIM.iMManager.initSDK(
+  apiAddr: 'http://your-server:10002',
+  wsAddr: 'ws://your-server:10001',
+  chatAddr: 'http://your-server:10008',
+  listener: OnConnectListener(
+    onConnectSuccess: () => print('连接成功'),
+    onConnecting: () => print('连接中...'),
+    onConnectFailed: (code, msg) => print('连接失败: $code $msg'),
+    onKickedOffline: () => print('被踢下线'),
+    onUserTokenExpired: () => print('Token 过期'),
+  ),
+);
+
+// 2. 登录
+final userInfo = await OpenIM.iMManager.login(
+  userID: 'user_001',
+  token: 'your_im_token',
+);
+```
+
+### 设置监听器
+
+```dart
+// 消息监听
+OpenIM.iMManager.messageManager.setAdvancedMsgListener(
+  OnAdvancedMsgListener(
+    onRecvNewMessage: (msg) {
+      print('收到新消息: ${msg.contentType} ${msg.textElem?.content}');
+    },
+    onNewRecvMessageRevoked: (info) {
+      print('消息被撤回: ${info.clientMsgID}');
+    },
+  ),
+);
+
+// 会话监听
+OpenIM.iMManager.conversationManager.setConversationListener(
+  OnConversationListener(
+    onConversationChanged: (list) {
+      print('会话变更: ${list.length} 个');
+    },
+    onTotalUnreadMessageCountChanged: (count) {
+      print('未读总数: $count');
+    },
+  ),
+);
+
+// 好友监听
+OpenIM.iMManager.friendshipManager.setFriendshipListener(
+  OnFriendshipListener(
+    onFriendAdded: (info) => print('新增好友: ${info.nickname}'),
+    onFriendDeleted: (info) => print('好友已删除: ${info.userID}'),
+  ),
+);
+
+// 群组监听
+OpenIM.iMManager.groupManager.setGroupListener(
+  OnGroupListener(
+    onGroupInfoChanged: (info) => print('群信息变更: ${info.groupName}'),
+    onGroupMemberAdded: (member) => print('新成员: ${member.nickname}'),
+  ),
+);
+```
+
+### 发送消息
+
+```dart
+// 发送文本
+final msg = OpenIM.iMManager.messageManager.createTextMessage(text: '你好!');
+await OpenIM.iMManager.messageManager.sendMessage(
+  message: msg,
+  userID: 'receiver_001',  // 单聊
+);
+
+// 发送图片
+final imgMsg = OpenIM.iMManager.messageManager.createImageMessageByURL(
+  sourcePath: '/path/to/image.jpg',
+  sourcePicture: PictureInfo(url: 'https://...', width: 800, height: 600),
+  bigPicture: PictureInfo(url: 'https://...', width: 800, height: 600),
+  snapshotPicture: PictureInfo(url: 'https://...', width: 200, height: 150),
+);
+await OpenIM.iMManager.messageManager.sendMessage(
+  message: imgMsg,
+  groupID: 'group_001',  // 群聊
+);
+
+// 发送 @消息
+final atMsg = OpenIM.iMManager.messageManager.createTextAtMessage(
+  text: '@张三 开会了',
+  atUserIDList: ['user_zhangsan'],
+  atUserInfoList: [AtUserInfo(atUserID: 'user_zhangsan', groupNickname: '张三')],
+);
+```
+
+### 会话操作
+
+```dart
+// 获取会话列表
+final conversations = await OpenIM.iMManager.conversationManager.getAllConversationList();
+
+// 标记已读
+await OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
+  conversationID: 'si_user001_user002',
+);
+
+// 按消息 ID 标记已读
+await OpenIM.iMManager.conversationManager.markMessagesAsReadByMsgID(
+  conversationID: 'si_user001_user002',
+  clientMsgIDs: ['msg_001', 'msg_002'],
+);
+
+// 获取历史消息
+final history = await OpenIM.iMManager.messageManager.getAdvancedHistoryMessageList(
+  conversationID: 'si_user001_user002',
+  count: 20,
+);
+```
+
+### 群组操作
+
+```dart
+// 创建群组
+final groupInfo = await OpenIM.iMManager.groupManager.createGroup(
+  groupName: '技术讨论组',
+  memberUserIDs: ['user_002', 'user_003'],
+);
+
+// 获取已加入的群列表
+final groups = await OpenIM.iMManager.groupManager.getJoinedGroupList();
+
+// 检查用户是否在群内
+final usersInGroup = await OpenIM.iMManager.groupManager.getUsersInGroup(
+  groupID: 'group_001',
+  userIDList: ['user_002', 'user_003'],
+);
+```
+
+### 好友操作
+
+```dart
+// 添加好友
+await OpenIM.iMManager.friendshipManager.addFriend(userID: 'user_002', reqMsg: '你好');
+
+// 获取好友列表
+final friends = await OpenIM.iMManager.friendshipManager.getFriendList();
+
+// 搜索好友
+final results = await OpenIM.iMManager.friendshipManager.searchFriends(
+  keywordList: ['张三'],
+  isSearchNickname: true,
+);
+```
+
+## API 参考
+
+### 核心管理器
+
+| 管理器 | 访问方式 | 说明 |
+|--------|---------|------|
+| `IMManager` | `OpenIM.iMManager` | SDK 初始化、登录登出、文件上传 |
+| `ConversationManager` | `OpenIM.iMManager.conversationManager` | 会话列表与状态管理 |
+| `MessageManager` | `OpenIM.iMManager.messageManager` | 消息创建、发送、查询 |
+| `GroupManager` | `OpenIM.iMManager.groupManager` | 群组与群成员管理 |
+| `FriendshipManager` | `OpenIM.iMManager.friendshipManager` | 好友与黑名单管理 |
+| `UserManager` | `OpenIM.iMManager.userManager` | 用户信息与在线状态 |
+
+### 监听器
+
+| 监听器 | 说明 |
+|--------|------|
+| `OnConnectListener` | 连接状态回调 |
+| `OnAdvancedMsgListener` | 新消息、撤回、已读回执 |
+| `OnConversationListener` | 会话变更、未读数、同步状态 |
+| `OnFriendshipListener` | 好友增删、申请、黑名单变更 |
+| `OnGroupListener` | 群信息变更、成员进出、申请 |
+| `OnUserListener` | 用户信息变更 |
+| `OnMsgSendProgressListener` | 消息发送进度 |
+| `OnUploadFileListener` | 文件上传进度 |
+| `OnCustomBusinessListener` | 自定义业务消息 |
+| `OnListenerForService` | 后台服务监听 |
+
+### 支持的消息类型
+
+| 类型 | ContentType | 创建方法 |
+|------|-------------|---------|
+| 文本 | 101 | `createTextMessage` |
+| 图片 | 102 | `createImageMessage` / `createImageMessageByURL` |
+| 语音 | 103 | `createSoundMessage` / `createSoundMessageByURL` |
+| 视频 | 104 | `createVideoMessage` / `createVideoMessageByURL` |
+| 文件 | 105 | `createFileMessage` / `createFileMessageByURL` |
+| @文本 | 106 | `createTextAtMessage` |
+| 合并 | 107 | `createMergerMessage` |
+| 名片 | 108 | `createCardMessage` |
+| 位置 | 109 | `createLocationMessage` |
+| 自定义 | 110 | `createCustomMessage` |
+| 引用 | 114 | `createQuoteMessage` |
+| 表情 | 115 | `createFaceMessage` |
+| 高级文本 | 117 | `createAdvancedTextMessage` |
+| 转发 | — | `createForwardMessage` |
+
+## 平台支持
+
+| 平台 | 支持 |
+|------|------|
+| Android | ✅ |
+| iOS | ✅ |
+| Web | ✅ |
+| macOS | ✅ |
+| Windows | ✅ |
+| Linux | ✅ |
+
+## 环境要求
+
+- Dart SDK: `^3.11.1`
+- Flutter: 3.x+（使用 Flutter 时）
+
+## 许可证
+
+见 [LICENSE](LICENSE) 文件。

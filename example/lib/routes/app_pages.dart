@@ -35,7 +35,11 @@ class AppPages {
     GetPage(
       name: AppRoutes.home,
       page: () => const HomePage(),
-      binding: BindingsBuilder(() => Get.lazyPut(() => HomeController())),
+      binding: BindingsBuilder(() {
+        Get.lazyPut(() => HomeController());
+        Get.lazyPut(() => ContactsController());
+        Get.lazyPut(() => SettingsController());
+      }),
     ),
     GetPage(
       name: AppRoutes.chat,
@@ -48,10 +52,7 @@ class AppPages {
       binding: BindingsBuilder(() => Get.lazyPut(() => ContactsController())),
     ),
     GetPage(name: AppRoutes.addFriend, page: () => const AddFriendPage()),
-    GetPage(
-      name: AppRoutes.friendRequests,
-      page: () => const FriendRequestsPage(),
-    ),
+    GetPage(name: AppRoutes.friendRequests, page: () => const FriendRequestsPage()),
     GetPage(name: AppRoutes.userProfile, page: () => const UserProfilePage()),
     GetPage(name: AppRoutes.createGroup, page: () => const CreateGroupPage()),
     GetPage(name: AppRoutes.groupInfo, page: () => const GroupInfoPage()),

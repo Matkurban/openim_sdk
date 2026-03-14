@@ -43,6 +43,12 @@ class IMManager {
   /// 用户管理
   late UserManager userManager;
 
+  /// 朋友圈管理
+  late MomentsManager momentsManager;
+
+  /// 收藏夹管理
+  late FavoriteManager favoriteManager;
+
   /// 服务监听（可选）
   OnListenerForService? _listenerForService;
 
@@ -67,6 +73,8 @@ class IMManager {
     messageManager = MessageManager();
     groupManager = GroupManager();
     userManager = UserManager();
+    momentsManager = MomentsManager();
+    favoriteManager = FavoriteManager();
   }
 
   final GetIt _getIt = GetIt.instance;
@@ -258,6 +266,8 @@ class IMManager {
     messageManager.setCurrentUserID(userID);
     friendshipManager.setCurrentUserID(userID);
     userManager.setCurrentUserID(userID);
+    momentsManager.setCurrentUserID(userID);
+    favoriteManager.setCurrentUserID(userID);
     // 初始化数据库（以用户维度）
     await databaseService.switchSpace(userID: userID);
     _loginStatus = LoginStatus.logged;
@@ -270,6 +280,8 @@ class IMManager {
       userManager: userManager,
       conversationManager: conversationManager,
       messageManager: messageManager,
+      momentsManager: momentsManager,
+      favoriteManager: favoriteManager,
     );
     dispatcher.setLoginUserID(userID);
     dispatcher.listenerForService = _listenerForService;
@@ -281,6 +293,8 @@ class IMManager {
       notificationDispatcher: dispatcher,
       messageManager: messageManager,
       conversationManager: conversationManager,
+      momentsManager: momentsManager,
+      favoriteManager: favoriteManager,
     );
     msgSyncer.setLoginUserID(userID);
     msgSyncer.listenerForService = _listenerForService;

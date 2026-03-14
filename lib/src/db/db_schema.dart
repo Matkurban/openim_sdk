@@ -32,6 +32,12 @@ sealed class DbTableName {
 
   /// 本地发送中消息表
   static const String localSendingMessage = 'local_sending_messages';
+
+  /// 本地朋友圈动态表
+  static const String localMoment = 'local_moments';
+
+  /// 本地收藏夹表
+  static const String localFavorite = 'local_favorites';
 }
 
 /// 数据库表结构定义
@@ -340,6 +346,50 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地朋友圈动态表结构
+  ///
+  /// 存储完整的朋友圈动态信息，包含内嵌的点赞和评论列表（JSON text）。
+  /// 点赞/评论写入 moment 记录的 likes/comments 字段即可，无需独立子表。
+  static final localMoment = TableSchema(
+    name: DbTableName.localMoment,
+    primaryKeyConfig: const PrimaryKeyConfig(name: 'momentID', type: PrimaryKeyType.none),
+    fields: [
+      const FieldSchema(name: 'userID', type: DataType.text, nullable: false),
+      const FieldSchema(name: 'content', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'media', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'visibleType', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'visibleGroupIDs', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'status', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'createTime', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'updateTime', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'likeCount', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'commentCount', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'extra', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'likes', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'comments', type: DataType.text, nullable: true),
+    ],
+    indexes: [
+      const IndexSchema(fields: ['userID', 'createTime']),
+    ],
+  );
+
+  /// 本地收藏夹表结构
+  static final localFavorite = TableSchema(
+    name: DbTableName.localFavorite,
+    primaryKeyConfig: const PrimaryKeyConfig(name: 'favoriteID', type: PrimaryKeyType.none),
+    fields: [
+      const FieldSchema(name: 'userID', type: DataType.text, nullable: false),
+      const FieldSchema(name: 'targetType', type: DataType.text, nullable: false),
+      const FieldSchema(name: 'targetID', type: DataType.text, nullable: false),
+      const FieldSchema(name: 'data', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'createTime', type: DataType.integer, nullable: true),
+    ],
+    indexes: [
+      const IndexSchema(fields: ['userID', 'createTime']),
+      const IndexSchema(fields: ['targetType', 'targetID']),
+    ],
+  );
+
   /// 获取所有表结构定义列表，用于数据库初始化
   static List<TableSchema> get allSchemas => [
     localUser,
@@ -352,5 +402,7 @@ sealed class DbSchema {
     localConversation,
     localChatLog,
     localSendingMessage,
+    localMoment,
+    localFavorite,
   ];
 }

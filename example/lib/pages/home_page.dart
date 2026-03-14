@@ -4,9 +4,70 @@ import 'package:openim_sdk/openim_sdk.dart';
 import '../controllers/home_controller.dart';
 import '../routes/app_routes.dart';
 import '../widgets/conversation_tile.dart';
+import 'contacts_page.dart';
+import 'settings_page.dart';
 
 class HomePage extends GetView<HomeController> {
   const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final tabIndex = controller.currentTab.value;
+      return Scaffold(
+        body: PageView(
+          controller: controller.pageController,
+          onPageChanged: (i) => controller.currentTab.value = i,
+          children: [
+            _ConversationTab(controller: controller),
+            const ContactsPage(),
+            const SettingsPage(),
+          ],
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: tabIndex,
+          onDestinationSelected: controller.switchTab,
+          destinations: [
+            NavigationDestination(
+              icon: Obx(() {
+                final unread = controller.totalUnread.value;
+                return Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(Icons.chat_outlined),
+                );
+              }),
+              selectedIcon: Obx(() {
+                final unread = controller.totalUnread.value;
+                return Badge(
+                  isLabelVisible: unread > 0,
+                  label: Text('$unread'),
+                  child: const Icon(Icons.chat),
+                );
+              }),
+              label: '会话',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.contacts_outlined),
+              selectedIcon: Icon(Icons.contacts),
+              label: '联系人',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: '我的',
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+/// 会话列表 Tab
+class _ConversationTab extends StatelessWidget {
+  final HomeController controller;
+  const _ConversationTab({required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +75,7 @@ class HomePage extends GetView<HomeController> {
       appBar: AppBar(
         title: Obx(() {
           final unread = controller.totalUnread.value;
-          return Text(unread > 0 ? 'OpenIM ($unread)' : 'OpenIM');
+          return Text(unread > 0 ? '会话 ($unread)' : '会话');
         }),
         leading: Obx(
           () => controller.isSyncing.value
@@ -29,65 +90,31 @@ class HomePage extends GetView<HomeController> {
               : const SizedBox.shrink(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.people_alt),
-            tooltip: '通讯录',
-            onPressed: () => Get.toNamed(AppRoutes.contacts),
-          ),
           PopupMenuButton<String>(
-            onSelected: (v) {
-              switch (v) {
-                case 'new_chat':
-                  _showNewChatDialog(context);
-                case 'create_group':
-                  Get.toNamed(AppRoutes.createGroup);
-                case 'add_friend':
-                  Get.toNamed(AppRoutes.addFriend);
-                case 'settings':
-                  Get.toNamed(AppRoutes.settings);
-                case 'logout':
-                  controller.logout();
-              }
-            },
+            onSelected: (v) => _handleMenuAction(context, v),
             itemBuilder: (_) => const [
               PopupMenuItem(
                 value: 'new_chat',
-                child: ListTile(
-                  leading: Icon(Icons.chat),
-                  title: Text('发起聊天'),
-                  dense: true,
-                ),
+                child: ListTile(leading: Icon(Icons.chat), title: Text('发起聊天'), dense: true),
               ),
               PopupMenuItem(
                 value: 'create_group',
-                child: ListTile(
-                  leading: Icon(Icons.group_add),
-                  title: Text('创建群组'),
-                  dense: true,
-                ),
+                child: ListTile(leading: Icon(Icons.group_add), title: Text('创建群组'), dense: true),
               ),
               PopupMenuItem(
                 value: 'add_friend',
-                child: ListTile(
-                  leading: Icon(Icons.person_add),
-                  title: Text('添加好友'),
-                  dense: true,
-                ),
+                child: ListTile(leading: Icon(Icons.person_add), title: Text('添加好友'), dense: true),
               ),
               PopupMenuDivider(),
               PopupMenuItem(
-                value: 'settings',
-                child: ListTile(
-                  leading: Icon(Icons.settings),
-                  title: Text('设置'),
-                  dense: true,
-                ),
+                value: 'mark_all_read',
+                child: ListTile(leading: Icon(Icons.done_all), title: Text('全部已读'), dense: true),
               ),
               PopupMenuItem(
-                value: 'logout',
+                value: 'hide_all',
                 child: ListTile(
-                  leading: Icon(Icons.logout, color: Colors.red),
-                  title: Text('退出登录', style: TextStyle(color: Colors.red)),
+                  leading: Icon(Icons.visibility_off),
+                  title: Text('隐藏所有会话'),
                   dense: true,
                 ),
               ),
@@ -95,48 +122,122 @@ class HomePage extends GetView<HomeController> {
           ),
         ],
       ),
-      body: Obx(() {
-        if (controller.conversations.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline,
-                  size: 64,
-                  color: Colors.grey[300],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '暂无会话',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => controller.refreshConversations(),
-                  child: const Text('刷新'),
-                ),
-              ],
+      body: Column(
+        children: [
+          // 搜索栏
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: '搜索会话...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
+              ),
+              onChanged: controller.searchConversations,
             ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: controller.refreshConversations,
-          child: ListView.builder(
-            itemCount: controller.conversations.length,
-            itemBuilder: (context, index) {
-              final conv = controller.conversations[index];
-              return ConversationTile(
-                conversation: conv,
-                onTap: () => controller.openChat(conv),
-                onLongPress: () => _showConversationActions(context, conv),
+          ),
+          // 会话列表
+          Expanded(
+            child: Obx(() {
+              if (controller.isSearching.value) {
+                return _buildSearchResults(context);
+              }
+              if (controller.conversations.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[300]),
+                      const SizedBox(height: 16),
+                      Text('暂无会话', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => controller.refreshConversations(),
+                        child: const Text('刷新'),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return RefreshIndicator(
+                onRefresh: controller.refreshConversations,
+                child: ListView.builder(
+                  itemCount: controller.conversations.length,
+                  itemBuilder: (context, index) {
+                    final conv = controller.conversations[index];
+                    return ConversationTile(
+                      conversation: conv,
+                      onTap: () => controller.openChat(conv),
+                      onLongPress: () => _showConversationActions(context, conv),
+                    );
+                  },
+                ),
               );
-            },
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchResults(BuildContext context) {
+    if (controller.searchResults.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off, size: 48, color: Colors.grey[300]),
+            const SizedBox(height: 8),
+            Text('无匹配会话', style: TextStyle(color: Colors.grey[500])),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      itemCount: controller.searchResults.length,
+      itemBuilder: (context, index) {
+        final conv = controller.searchResults[index];
+        return ConversationTile(
+          conversation: conv,
+          onTap: () {
+            controller.clearSearch();
+            controller.openChat(conv);
+          },
+        );
+      },
+    );
+  }
+
+  void _handleMenuAction(BuildContext context, String action) {
+    switch (action) {
+      case 'new_chat':
+        _showNewChatDialog(context);
+      case 'create_group':
+        Get.toNamed(AppRoutes.createGroup);
+      case 'add_friend':
+        Get.toNamed(AppRoutes.addFriend);
+      case 'mark_all_read':
+        controller.markAllAsRead();
+      case 'hide_all':
+        Get.dialog(
+          AlertDialog(
+            title: const Text('隐藏所有会话'),
+            content: const Text('确定隐藏所有会话？会话不会删除，收到新消息时将重新显示。'),
+            actions: [
+              TextButton(onPressed: () => Get.back(), child: const Text('取消')),
+              FilledButton(
+                onPressed: () {
+                  Get.back();
+                  controller.hideAllConversations();
+                },
+                child: const Text('隐藏'),
+              ),
+            ],
           ),
         );
-      }),
-    );
+    }
   }
 
   void _showNewChatDialog(BuildContext context) {
@@ -157,8 +258,10 @@ class HomePage extends GetView<HomeController> {
               if (userID.isEmpty) return;
               Get.back();
               try {
-                final conv = await OpenIM.iMManager.conversationManager
-                    .getOneConversation(sourceID: userID, sessionType: 1);
+                final conv = await OpenIM.iMManager.conversationManager.getOneConversation(
+                  sourceID: userID,
+                  sessionType: 1,
+                );
                 Get.toNamed(AppRoutes.chat, arguments: conv);
               } catch (e) {
                 Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
@@ -172,17 +275,14 @@ class HomePage extends GetView<HomeController> {
   }
 
   void _showConversationActions(BuildContext context, ConversationInfo conv) {
+    final isDND = (conv.recvMsgOpt ?? 0) != 0;
     Get.bottomSheet(
       SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon(
-                (conv.isPinned ?? false)
-                    ? Icons.push_pin_outlined
-                    : Icons.push_pin,
-              ),
+              leading: Icon((conv.isPinned ?? false) ? Icons.push_pin_outlined : Icons.push_pin),
               title: Text((conv.isPinned ?? false) ? '取消置顶' : '置顶'),
               onTap: () {
                 Get.back();
@@ -198,6 +298,30 @@ class HomePage extends GetView<HomeController> {
               },
             ),
             ListTile(
+              leading: Icon(isDND ? Icons.notifications : Icons.notifications_off),
+              title: Text(isDND ? '取消免打扰' : '设为免打扰'),
+              onTap: () {
+                Get.back();
+                controller.setConversationDND(conv, isDND ? 0 : 2);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.local_fire_department),
+              title: const Text('阅后即焚'),
+              onTap: () {
+                Get.back();
+                _showBurnDialog(context, conv);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.visibility_off),
+              title: const Text('隐藏会话'),
+              onTap: () {
+                Get.back();
+                controller.hideConversation(conv);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
               title: const Text('删除会话', style: TextStyle(color: Colors.red)),
               onTap: () {
@@ -207,18 +331,13 @@ class HomePage extends GetView<HomeController> {
                     title: const Text('确认删除'),
                     content: Text('删除与 ${conv.showName ?? "未知"} 的会话？'),
                     actions: [
-                      TextButton(
-                        onPressed: () => Get.back(),
-                        child: const Text('取消'),
-                      ),
+                      TextButton(onPressed: () => Get.back(), child: const Text('取消')),
                       FilledButton(
                         onPressed: () {
                           Get.back();
                           controller.deleteConversation(conv);
                         },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: Colors.red,
-                        ),
+                        style: FilledButton.styleFrom(backgroundColor: Colors.red),
                         child: const Text('删除'),
                       ),
                     ],
@@ -232,6 +351,38 @@ class HomePage extends GetView<HomeController> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+    );
+  }
+
+  void _showBurnDialog(BuildContext context, ConversationInfo conv) {
+    Get.dialog(
+      AlertDialog(
+        title: const Text('阅后即焚'),
+        content: const Text('开启后消息在阅读后自动销毁'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back();
+              controller.setConversationBurn(conv, false);
+            },
+            child: const Text('关闭'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Get.back();
+              controller.setConversationBurn(conv, true, burnDuration: 30);
+            },
+            child: const Text('开启(30秒)'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Get.back();
+              controller.setConversationBurn(conv, true, burnDuration: 120);
+            },
+            child: const Text('开启(2分钟)'),
+          ),
+        ],
       ),
     );
   }
