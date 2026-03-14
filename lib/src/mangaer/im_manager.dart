@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
@@ -5,9 +6,12 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
+import 'package:openim_sdk/src/models/auth_cache_data.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -137,6 +141,8 @@ class IMManager {
         instanceName: InstanceName.webSocketService,
       );
 
+      await checkLoginStatus(toStore);
+
       _log.info('OpenIM SDK initialized successfully');
       return true;
     } catch (e, s) {
@@ -157,6 +163,19 @@ class IMManager {
       dbName: dbName ?? 'kurban_openim_sdk',
       schemas: [...DbSchema.allSchemas, ...schemas],
     );
+  }
+
+  @internal
+  Future<void> checkLoginStatus(ToStore toStore) async {
+    String? value = await toStore.getValue(CacheKey.loginUserData, isGlobal: true);
+    if (value != null) {
+      try {
+        AuthCacheData authCacheData = AuthCacheData.fromJson(jsonDecode(value));
+        await login(userID: authCacheData.userID, token: authCacheData.imToken);
+      } catch (e, s) {
+        _log.severe(e.toString(), e, s);
+      }
+    }
   }
 
   ToStore getDatabaseInstance() {
