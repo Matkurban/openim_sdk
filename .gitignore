@@ -10,3 +10,4 @@ pubspec.lock
 kurban_open_im/
 build/
 .flutter-plugins-dependencies
+openim_sdk.iml
