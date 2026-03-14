@@ -5,7 +5,6 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
-import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
@@ -47,11 +46,9 @@ class IMManager {
   OnUploadLogsListener? _uploadLogsListener;
 
   /// 当前登录用户 ID
-  @internal
   late String userID;
 
   /// 当前登录用户信息
-  @internal
   late UserInfo userInfo;
 
   /// 当前登录状态
