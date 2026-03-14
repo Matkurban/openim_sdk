@@ -1,6 +1,9 @@
 name: openim_sdk
 description: A starting point for Dart libraries or applications.
 version: 1.0.0
+homepage: https://jsontodart.cn
+repository: https://github.com/Matkurban/openim_sdk
+topics: [openim, im, sdk, flutter]
 
 environment:
   sdk: ^3.11.1
