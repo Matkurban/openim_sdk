@@ -112,6 +112,27 @@ class WebSocketService {
     _log.info('WebSocket 已主动断开');
   }
 
+  /// 设置前后台状态
+  void setBackground(bool isBackground) {
+    _log.info('setBackground: $isBackground');
+  }
+
+  /// 断开后重连（对应 Go SDK NetworkStatusChanged → Close → 自动重连）
+  Future<void> reconnect() async {
+    if (_userDisconnected) return;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _stopHeartbeat();
+    _cancelAllPendingRequests('network status changed');
+    await _subscription?.cancel();
+    _subscription = null;
+    await _channel?.sink.close();
+    _channel = null;
+    _reconnectAttempts = 0;
+    _reconnectIndex = -1;
+    await _doConnect();
+  }
+
   /// 发送请求并等待响应
   ///
   /// 对应 Go SDK SendReqWaitResp (long_conn_mgr.go)：

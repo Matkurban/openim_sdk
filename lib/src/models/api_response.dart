@@ -1,6 +1,3 @@
-import 'package:meta/meta.dart';
-
-@internal
 class ApiResponse {
   final int errCode;
   final String errMsg;

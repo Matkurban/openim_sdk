@@ -82,6 +82,7 @@ class UserManager {
   /// 使用邮箱登录（包含 SDK login）
   /// 调用 chat 服务端登录后，自动使用返回的 userID 和 imToken 完成 SDK 登录。
   Future<UserInfo> loginByEmail({required String email, required String password}) async {
+    _log.info('loginByEmail: email=$email');
     final loginData = await _chatLogin({
       'email': email,
       'password': ImUtils.generateMD5(password),
@@ -100,6 +101,7 @@ class UserManager {
     required String phoneNumber,
     required String password,
   }) async {
+    _log.info('loginByPhone: areaCode=$areaCode, phoneNumber=$phoneNumber');
     final loginData = await _chatLogin({
       'areaCode': areaCode,
       'phoneNumber': phoneNumber,
@@ -115,26 +117,22 @@ class UserManager {
   /// 获取用户信息（走缓存机制）
   /// [userIDList] 用户ID列表
   Future<List<UserInfo>> getUsersInfo({required List<String> userIDList}) async {
+    _log.info('getUsersInfo: userIDList=$userIDList');
     return getUsersInfoWithCache(userIDList: userIDList);
   }
 
   /// 从缓存获取用户信息，缺失部分从服务器获取并回写本地
   Future<List<UserInfo>> getUsersInfoWithCache({required List<String> userIDList}) async {
+    _log.info('getUsersInfoWithCache: userIDList=$userIDList');
     if (userIDList.isEmpty) return [];
-
-    List<UserInfo> result = [];
-    List<String> missingIDs = [];
 
     // 1. 查询本地数据库
     final dbUsers = await _database.getUsersByIDs(userIDList);
-    result = dbUsers.toList();
+    final result = dbUsers.toList();
 
-    // 2. 对比找出未缓存的用户 ID
-    for (var id in userIDList) {
-      if (!result.any((u) => u.userID == id)) {
-        missingIDs.add(id);
-      }
-    }
+    // 2. 对比找出未缓存的用户 ID（Set O(1) 查找）
+    final cachedIDs = result.map((u) => u.userID).toSet();
+    final missingIDs = userIDList.where((id) => !cachedIDs.contains(id)).toList();
 
     // 3. 远程拉取缺失数据
     if (missingIDs.isNotEmpty) {
@@ -149,6 +147,7 @@ class UserManager {
 
   /// 强制从服务器获取用户信息
   Future<List<UserInfo>> getUsersInfoFromSrv({required List<String> userIDList}) async {
+    _log.info('getUsersInfoFromSrv: userIDList=$userIDList');
     if (userIDList.isEmpty) return [];
     final resp = await _api.getUsersInfo(userIDs: userIDList);
     if (resp.errCode == 0 && resp.data is List) {
@@ -159,6 +158,7 @@ class UserManager {
 
   /// 获取当前登录用户信息
   Future<UserInfo?> getSelfUserInfo() async {
+    _log.info('getSelfUserInfo');
     return _database.getLoginUser();
   }
 
@@ -173,6 +173,9 @@ class UserManager {
     int? globalRecvMsgOpt,
     String? ex,
   }) async {
+    _log.info(
+      'setSelfInfo: nickname=$nickname, faceURL=$faceURL, globalRecvMsgOpt=$globalRecvMsgOpt',
+    );
     final updateData = <String, dynamic>{};
     if (nickname != null) updateData['nickname'] = nickname;
     if (faceURL != null) updateData['faceURL'] = faceURL;
@@ -206,7 +209,7 @@ class UserManager {
   /// 订阅用户在线状态
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> subscribeUsersStatus(List<String> userIDs) async {
-    _log.info('订阅用户状态: $userIDs');
+    _log.info('subscribeUsersStatus: userIDs=$userIDs');
     final resp = await _api.subscribeUsersStatus(
       userID: _currentUserID,
       userIDs: userIDs,
@@ -225,7 +228,7 @@ class UserManager {
   /// 取消订阅用户在线状态
   /// [userIDs] 用户ID列表
   Future<void> unsubscribeUsersStatus(List<String> userIDs) async {
-    _log.info('取消订阅用户状态: $userIDs');
+    _log.info('unsubscribeUsersStatus: userIDs=$userIDs');
     final resp = await _api.subscribeUsersStatus(
       userID: _currentUserID,
       userIDs: userIDs,
@@ -238,6 +241,7 @@ class UserManager {
 
   /// 获取已订阅用户的在线状态
   Future<List<UserStatusInfo>> getSubscribeUsersStatus() async {
+    _log.info('getSubscribeUsersStatus');
     final resp = await _api.getSubscribeUsersStatus(userID: _currentUserID);
     if (resp.errCode != 0) {
       throw Exception('获取已订阅用户状态失败: ${resp.errMsg}');
@@ -252,6 +256,7 @@ class UserManager {
   /// 获取用户在线状态
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> getUserStatus(List<String> userIDs) async {
+    _log.info('getUserStatus: userIDs=$userIDs');
     final resp = await _api.getUserStatus(userID: _currentUserID, userIDs: userIDs);
     if (resp.errCode != 0) {
       throw Exception('获取用户状态失败: ${resp.errMsg}');
@@ -261,5 +266,21 @@ class UserManager {
       return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
     }
     return [];
+  }
+
+  /// 获取用户客户端配置
+  /// 对应 Go SDK GetUserClientConfig
+  /// 返回服务端下发的配置 KV 对
+  Future<Map<String, String>> getUserClientConfig() async {
+    _log.info('getUserClientConfig');
+    final resp = await _api.getUserClientConfig(userID: _currentUserID);
+    if (resp.errCode != 0) {
+      throw Exception('获取用户客户端配置失败: ${resp.errMsg}');
+    }
+    final data = resp.data;
+    if (data is Map && data['configs'] is Map) {
+      return (data['configs'] as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
+    }
+    return {};
   }
 }

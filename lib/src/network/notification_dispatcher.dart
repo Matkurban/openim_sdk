@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:logging/logging.dart';
@@ -59,8 +60,68 @@ class NotificationDispatcher {
     required this.messageManager,
   });
 
+  // ---------------------------------------------------------------------------
+  // 防抖同步：多条通知在短时间内到达时只触发一次同步
+  // 对应 Go SDK 的增量同步思路 —— 减少不必要的全量网络请求
+  // ---------------------------------------------------------------------------
+
+  Timer? _friendSyncTimer;
+  Timer? _groupSyncTimer;
+  Timer? _conversationSyncTimer;
+  bool _friendSyncPending = false;
+  bool _groupSyncPending = false;
+  bool _conversationSyncPending = false;
+
+  static const _syncDebounce = Duration(milliseconds: 200);
+
+  /// 防抖触发好友同步（多条好友通知合并为一次同步）
+  void _debounceSyncFriends() {
+    _friendSyncPending = true;
+    _friendSyncTimer?.cancel();
+    _friendSyncTimer = Timer(_syncDebounce, () {
+      if (_friendSyncPending) {
+        _friendSyncPending = false;
+        _syncFriends();
+      }
+    });
+  }
+
+  /// 防抖触发群组同步
+  void _debounceSyncJoinedGroups() {
+    _groupSyncPending = true;
+    _groupSyncTimer?.cancel();
+    _groupSyncTimer = Timer(_syncDebounce, () {
+      if (_groupSyncPending) {
+        _groupSyncPending = false;
+        _syncJoinedGroups();
+      }
+    });
+  }
+
+  /// 防抖触发会话同步
+  void _debounceSyncConversations() {
+    _conversationSyncPending = true;
+    _conversationSyncTimer?.cancel();
+    _conversationSyncTimer = Timer(_syncDebounce, () {
+      if (_conversationSyncPending) {
+        _conversationSyncPending = false;
+        _syncConversations();
+      }
+    });
+  }
+
   void setLoginUserID(String userID) {
     _userID = userID;
+  }
+
+  /// 取消所有防抖 Timer，释放资源（登出时调用）
+  void dispose() {
+    _friendSyncTimer?.cancel();
+    _friendSyncTimer = null;
+    _groupSyncTimer?.cancel();
+    _groupSyncTimer = null;
+    _conversationSyncTimer?.cancel();
+    _conversationSyncTimer = null;
   }
 
   // ---------------------------------------------------------------------------
@@ -135,7 +196,7 @@ class NotificationDispatcher {
     _log.info('FriendNotification: contentType=$ct, detail=$detail');
     switch (ct) {
       case 1201: // friendApplicationApproved
-        _syncFriends();
+        _debounceSyncFriends();
         final info = FriendApplicationInfo.fromJson(detail);
         friendshipListener?.friendApplicationAccepted(info);
         listenerForService?.friendApplicationAccepted(info);
@@ -150,14 +211,14 @@ class NotificationDispatcher {
         listenerForService?.friendApplicationAdded(info);
 
       case 1204: // friendAdded
-        _syncFriends();
+        _debounceSyncFriends();
         if (detail['friend'] != null) {
           final info = FriendInfo.fromJson(detail['friend'] as Map<String, dynamic>);
           friendshipListener?.friendAdded(info);
         }
 
       case 1205: // friendDeleted
-        _syncFriends();
+        _debounceSyncFriends();
         if (detail['fromToUserID'] != null) {
           final fromTo = detail['fromToUserID'] as Map<String, dynamic>;
           final deletedUserID = fromTo['toUserID'] as String? ?? '';
@@ -165,7 +226,7 @@ class NotificationDispatcher {
         }
 
       case 1206: // friendRemarkSet
-        _syncFriends();
+        _syncFriendsAndNotifyChanged(detail);
 
       case 1207: // blackAdded
         _syncBlackList();
@@ -192,10 +253,10 @@ class NotificationDispatcher {
         }
 
       case 1209: // friendInfoUpdated
-        _syncFriends();
+        _syncFriendsAndNotifyChanged(detail);
 
       case 1210: // friendsInfoUpdate
-        _syncFriends();
+        _syncFriendsAndNotifyChanged(detail);
     }
   }
 
@@ -228,10 +289,10 @@ class NotificationDispatcher {
   void _onGroupNotification(int ct, Map<String, dynamic> detail) {
     switch (ct) {
       case 1501: // groupCreated
-        _syncJoinedGroups();
+        _syncJoinedGroupsAndNotifyAdded();
 
       case 1502: // groupInfoSet
-        _syncJoinedGroups();
+        _debounceSyncJoinedGroups();
         if (detail['group'] != null) {
           groupListener?.groupInfoChanged(
             GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
@@ -246,7 +307,7 @@ class NotificationDispatcher {
       case 1504: // memberQuit
         final quitUserID = (detail['quitUser'] as Map<String, dynamic>?)?['userID'] as String?;
         if (quitUserID == _userID) {
-          _syncJoinedGroups();
+          _syncJoinedGroupsAndNotifyDeleted(detail);
         }
         if (detail['quitUser'] != null) {
           groupListener?.groupMemberDeleted(
@@ -255,7 +316,7 @@ class NotificationDispatcher {
         }
 
       case 1505: // groupApplicationAccepted
-        _syncJoinedGroups();
+        _syncJoinedGroupsAndNotifyAdded();
         final info = GroupApplicationInfo.fromJson(detail);
         groupListener?.groupApplicationAccepted(info);
         listenerForService?.groupApplicationAccepted(info);
@@ -265,7 +326,7 @@ class NotificationDispatcher {
         groupListener?.groupApplicationRejected(info);
 
       case 1507: // groupOwnerTransferred
-        _syncJoinedGroups();
+        _debounceSyncJoinedGroups();
         if (detail['group'] != null) {
           groupListener?.groupInfoChanged(
             GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
@@ -277,7 +338,7 @@ class NotificationDispatcher {
         final isSelf =
             kickedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
         if (isSelf) {
-          _syncJoinedGroups();
+          _syncJoinedGroupsAndNotifyDeleted(detail);
         }
         if (kickedList != null) {
           for (final u in kickedList) {
@@ -292,7 +353,7 @@ class NotificationDispatcher {
         final isSelf =
             invitedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
         if (isSelf) {
-          _syncJoinedGroups();
+          _syncJoinedGroupsAndNotifyAdded();
         }
         if (invitedList != null) {
           for (final u in invitedList) {
@@ -306,7 +367,7 @@ class NotificationDispatcher {
         final entrantUserID =
             (detail['entrantUser'] as Map<String, dynamic>?)?['userID'] as String?;
         if (entrantUserID == _userID) {
-          _syncJoinedGroups();
+          _syncJoinedGroupsAndNotifyAdded();
         }
         if (detail['entrantUser'] != null) {
           groupListener?.groupMemberAdded(
@@ -315,7 +376,7 @@ class NotificationDispatcher {
         }
 
       case 1511: // groupDismissed
-        _syncJoinedGroups();
+        _debounceSyncJoinedGroups();
         if (detail['group'] != null) {
           groupListener?.groupDismissed(
             GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
@@ -329,7 +390,7 @@ class NotificationDispatcher {
       case 1516: // groupMemberInfoSet
       case 1517: // groupMemberSetToAdmin
       case 1518: // groupMemberSetToOrdinaryUser
-        _syncJoinedGroups();
+        _debounceSyncJoinedGroups();
         if (detail['group'] != null) {
           groupListener?.groupInfoChanged(
             GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
@@ -348,7 +409,7 @@ class NotificationDispatcher {
 
       case 1519: // groupInfoSetAnnouncement
       case 1520: // groupInfoSetName
-        _syncJoinedGroups();
+        _debounceSyncJoinedGroups();
         if (detail['group'] != null) {
           groupListener?.groupInfoChanged(
             GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
@@ -363,11 +424,11 @@ class NotificationDispatcher {
 
   void _onConversationChanged(Map<String, dynamic> detail) {
     // 服务端会话设置变更 → 重新同步会话
-    _syncConversations();
+    _debounceSyncConversations();
   }
 
   void _onConversationPrivateChat(Map<String, dynamic> detail) {
-    _syncConversations();
+    _debounceSyncConversations();
   }
 
   // ---------------------------------------------------------------------------
@@ -445,6 +506,7 @@ class NotificationDispatcher {
     try {
       int pageNumber = 1;
       const pageSize = 100;
+      final allFriends = <Map<String, dynamic>>[];
       while (true) {
         final resp = await api.getFriendList(
           userID: _userID,
@@ -454,11 +516,10 @@ class NotificationDispatcher {
         if (resp.errCode != 0) break;
         final friends = resp.data?['friendsInfo'] as List? ?? [];
         if (friends.isEmpty) break;
-        final batch = <Map<String, dynamic>>[];
         for (final f in friends) {
           if (f is Map<String, dynamic>) {
             final friendUser = f['friendUser'] as Map<String, dynamic>? ?? {};
-            batch.add({
+            allFriends.add({
               'friendUserID': friendUser['userID'] ?? f['userID'],
               'ownerUserID': f['ownerUserID'],
               'nickname': friendUser['nickname'],
@@ -472,10 +533,10 @@ class NotificationDispatcher {
             });
           }
         }
-        if (batch.isNotEmpty) await database.batchUpsertFriends(batch);
         if (friends.length < pageSize) break;
         pageNumber++;
       }
+      if (allFriends.isNotEmpty) await database.batchUpsertFriends(allFriends);
     } catch (e) {
       _log.warning('同步好友异常: $e');
     }
@@ -505,6 +566,7 @@ class NotificationDispatcher {
     try {
       int pageNumber = 1;
       const pageSize = 100;
+      final allGroups = <Map<String, dynamic>>[];
       while (true) {
         final resp = await api.getJoinedGroupList(
           fromUserID: _userID,
@@ -514,14 +576,13 @@ class NotificationDispatcher {
         if (resp.errCode != 0) break;
         final groups = resp.data?['groups'] as List? ?? [];
         if (groups.isEmpty) break;
-        final batch = <Map<String, dynamic>>[];
         for (final g in groups) {
-          if (g is Map<String, dynamic>) batch.add(g);
+          if (g is Map<String, dynamic>) allGroups.add(g);
         }
-        if (batch.isNotEmpty) await database.batchUpsertGroups(batch);
         if (groups.length < pageSize) break;
         pageNumber++;
       }
+      if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
     } catch (e) {
       _log.warning('同步群组异常: $e');
     }
@@ -561,18 +622,14 @@ class NotificationDispatcher {
       }
       if (convMaps.isNotEmpty) {
         await database.batchUpsertConversations(convMaps);
-        // 通知 UI 刷新
+        // 通知 UI 刷新（批量读取代替逐个查询）
         final ids = convMaps
             .map((c) => c['conversationID'] as String?)
             .where((id) => id != null)
             .cast<String>()
             .toList();
         if (ids.isNotEmpty) {
-          final convList = <ConversationInfo>[];
-          for (final id in ids) {
-            final conv = await database.getConversation(id);
-            if (conv != null) convList.add(conv);
-          }
+          final convList = await database.getMultipleConversations(ids);
           if (convList.isNotEmpty) {
             conversationListener?.conversationChanged(convList);
           }
@@ -593,5 +650,58 @@ class NotificationDispatcher {
       if (e.value == value) return e;
     }
     return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // 带回调通知的同步方法
+  // ---------------------------------------------------------------------------
+
+  /// 同步好友并对比变更，触发 OnFriendInfoChanged
+  ///
+  /// 对应 Go SDK 的 IncrSyncFriends → syncer.Update → OnFriendInfoChanged
+  Future<void> _syncFriendsAndNotifyChanged(Map<String, dynamic> detail) async {
+    // 提取变更用户 ID
+    final fromTo = detail['fromToUserID'] as Map<String, dynamic>?;
+    final userID = detail['userID'] as String?;
+    final changedUserID = fromTo?['toUserID'] as String? ?? userID;
+
+    await _syncFriends();
+
+    // 同步完成后用最新数据通知
+    if (changedUserID != null && changedUserID.isNotEmpty) {
+      final updated = await database.getFriendByUserID(changedUserID);
+      if (updated != null) {
+        friendshipListener?.friendInfoChanged(updated);
+      }
+    }
+  }
+
+  /// 同步已加入群组并通知新增群（自己加入了新群）
+  ///
+  /// 对应 Go SDK 的 IncrSyncJoinGroup → syncer.Insert → OnJoinedGroupAdded
+  Future<void> _syncJoinedGroupsAndNotifyAdded() async {
+    final oldGroupIDs = (await database.getJoinedGroupList()).map((g) => g.groupID).toSet();
+    await _syncJoinedGroups();
+    final newGroups = await database.getJoinedGroupList();
+    for (final g in newGroups) {
+      if (!oldGroupIDs.contains(g.groupID)) {
+        groupListener?.joinedGroupAdded(g);
+      }
+    }
+  }
+
+  /// 同步已加入群组并通知删除群（自己退出/被踢出群）
+  ///
+  /// 对应 Go SDK 的 IncrSyncJoinGroup → syncer.Delete → OnJoinedGroupDeleted
+  Future<void> _syncJoinedGroupsAndNotifyDeleted(Map<String, dynamic> detail) async {
+    final oldGroups = await database.getJoinedGroupList();
+    final oldGroupMap = {for (final g in oldGroups) g.groupID: g};
+    await _syncJoinedGroups();
+    final newGroupIDs = (await database.getJoinedGroupList()).map((g) => g.groupID).toSet();
+    for (final entry in oldGroupMap.entries) {
+      if (!newGroupIDs.contains(entry.key)) {
+        groupListener?.joinedGroupDeleted(entry.value);
+      }
+    }
   }
 }

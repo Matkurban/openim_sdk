@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -10,8 +11,8 @@ import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
-import 'package:openim_sdk/src/models/api_response.dart';
 import 'package:openim_sdk/src/models/auth_cache_data.dart';
+import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -21,6 +22,7 @@ import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
+import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:tostore/tostore.dart';
 
 class IMManager {
@@ -47,7 +49,8 @@ class IMManager {
   /// 文件上传监听（可选）
   OnUploadFileListener? _uploadFileListener;
 
-  OnUploadLogsListener? _uploadLogsListener;
+  /// 通知分发器（登录时创建，登出时清理）
+  NotificationDispatcher? _notificationDispatcher;
 
   /// 当前登录用户 ID
   late String userID;
@@ -87,6 +90,9 @@ class IMManager {
     String? operationID,
     List<TableSchema> schemas = const [],
   }) async {
+    _log.info(
+      'initSDK: platformID=$platformID, apiAddr=$apiAddr, wsAddr=$wsAddr, chatAddr=$chatAddr, dataDir=$dataDir, logLevel=$logLevel',
+    );
     final InitConfig config = InitConfig(
       platformID: platformID,
       apiAddr: apiAddr,
@@ -111,6 +117,10 @@ class IMManager {
 
       // 初始化 HTTP 层
       HttpClient().init(baseUrl: config.apiAddr);
+
+      // 设置 API 错误回调（对应 Go SDK 的 apiErrCallback）
+      // 拦截 token 过期/无效等全局错误，触发 OnConnectListener 回调
+      HttpClient().onApiError = _createApiErrorHandler(listener);
 
       ToStore toStore = await _initDatabase(
         dbPath: config.dbPath ?? await ImUtils.defaultDbPath(),
@@ -184,6 +194,7 @@ class IMManager {
 
   ///
   Future<void> unInitSDK() async {
+    _log.info('unInitSDK');
     if (_getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
       await _getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
     }
@@ -208,6 +219,7 @@ class IMManager {
     required String token,
     Future<UserInfo> Function()? defaultValue,
   }) async {
+    _log.info('login: userID=$userID');
     _loginStatus = LoginStatus.logging;
 
     // 设置 HTTP token
@@ -261,6 +273,7 @@ class IMManager {
     );
     dispatcher.setLoginUserID(userID);
     dispatcher.listenerForService = _listenerForService;
+    _notificationDispatcher = dispatcher;
 
     final msgSyncer = MsgSyncer(
       database: databaseService,
@@ -287,12 +300,17 @@ class IMManager {
 
   /// 登出
   Future<void> logout() async {
+    _log.info('logout');
     _loginStatus = LoginStatus.logout;
     final WebSocketService webSocketService = _getIt.get<WebSocketService>(
       instanceName: InstanceName.webSocketService,
     );
     // 断开 WebSocket
     await webSocketService.disconnect();
+
+    // 取消防抖 Timer
+    _notificationDispatcher?.dispose();
+    _notificationDispatcher = null;
 
     // 清除 HTTP token
     HttpClient().setToken(null);
@@ -315,10 +333,6 @@ class IMManager {
     _uploadFileListener = listener;
   }
 
-  void setUploadLogsListener(OnUploadLogsListener listener) {
-    _uploadLogsListener = listener;
-  }
-
   /// 获取登录状态
   /// 1: logout  2: logging  3: logged
   int get getLoginStatus {
@@ -338,6 +352,9 @@ class IMManager {
     String? contentType,
     String? cause,
   }) async {
+    _log.info(
+      'uploadFile: id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause',
+    );
     final file = File(filePath);
     if (!await file.exists()) {
       throw Exception(SDKErrorCode.uploadFileNotExist.message);
@@ -452,5 +469,126 @@ class IMManager {
   /// 获取当前登录用户信息
   UserInfo getLoginUserInfo() {
     return userInfo;
+  }
+
+  /// 获取 SDK 版本号
+  /// 对应 Go SDK GetSdkVersion
+  String getSdkVersion() {
+    return '1.0.0';
+  }
+
+  /// 设置 App 前后台状态
+  /// 对应 Go SDK SetAppBackgroundStatus
+  /// [isBackground] true=后台, false=前台
+  Future<void> setAppBackgroundStatus({required bool isBackground}) async {
+    _log.info('setAppBackgroundStatus: isBackground=$isBackground');
+    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    );
+    webSocketService.setBackground(isBackground);
+    try {
+      await webSocketService.sendRequestWaitResponse(
+        reqIdentifier: WebSocketIdentifier.setBackgroundStatus,
+        data: _encodeBackgroundStatusReq(isBackground),
+      );
+    } catch (e) {
+      _log.warning('setAppBackgroundStatus 请求失败: $e');
+    }
+  }
+
+  Uint8List _encodeBackgroundStatusReq(bool isBackground) {
+    final req = sdkws.SetAppBackgroundStatusReq()
+      ..userID = userID
+      ..isBackground = isBackground;
+    return req.writeToBuffer();
+  }
+
+  /// 网络状态变更通知
+  /// 对应 Go SDK NetworkStatusChanged —— 关闭长连接触发自动重连
+  Future<void> networkStatusChanged() async {
+    _log.info('networkStatusChanged');
+    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    );
+    await webSocketService.reconnect();
+  }
+
+  /// 更新 FCM 推送 Token
+  /// 对应 Go SDK UpdateFcmToken
+  /// [fcmToken] FCM 设备令牌
+  /// [expireTime] 过期时间（秒级时间戳）
+  Future<void> updateFcmToken({required String fcmToken, int expireTime = 0}) async {
+    _log.info('updateFcmToken: fcmToken=${fcmToken.substring(0, fcmToken.length.clamp(0, 8))}...');
+    final ImApiService imApiService = _getIt.get<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    );
+    final resp = await imApiService.fcmUpdateToken(
+      platformID: PlatformUtils.platformID.toString(),
+      fcmToken: fcmToken,
+      account: userID,
+      expireTime: expireTime,
+    );
+    if (resp.errCode != 0) {
+      _log.warning('更新 FCM Token 失败: ${resp.errMsg}');
+    }
+  }
+
+  /// 设置 App 角标未读数
+  /// 对应 Go SDK SetAppBadge
+  /// [appUnreadCount] 角标显示的未读数量
+  Future<void> setAppBadge({required int appUnreadCount}) async {
+    _log.info('setAppBadge: appUnreadCount=$appUnreadCount');
+    final ImApiService imApiService = _getIt.get<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    );
+    final resp = await imApiService.setAppBadge(userID: userID, appUnreadCount: appUnreadCount);
+    if (resp.errCode != 0) {
+      _log.warning('设置 App 角标失败: ${resp.errMsg}');
+    }
+  }
+
+  /// 创建 API 错误处理器
+  ///
+  /// 对应 Go SDK 的 apiErrCallback.OnError：
+  /// - TokenExpiredError (1501) → OnUserTokenExpired
+  /// - TokenInvalidError/TokenMalformedError/TokenNotValidYetError/
+  ///   TokenUnknownError/TokenNotExistError (1502-1505,1507) → OnUserTokenInvalid
+  /// - TokenKickedError (1506) → OnKickedOffline
+  ///
+  /// 使用原子状态防止重复触发（每类只触发一次）
+  void Function(int, String) _createApiErrorHandler(OnConnectListener listener) {
+    bool tokenExpiredFired = false;
+    bool tokenInvalidFired = false;
+    bool kickedOfflineFired = false;
+
+    return (int errCode, String errMsg) {
+      switch (errCode) {
+        case 1501: // TokenExpiredError
+          if (!tokenExpiredFired) {
+            tokenExpiredFired = true;
+            _log.warning('Token 已过期');
+            listener.userTokenExpired();
+            logout();
+          }
+        case 1502: // TokenInvalidError
+        case 1503: // TokenMalformedError
+        case 1504: // TokenNotValidYetError
+        case 1505: // TokenUnknownError
+        case 1507: // TokenNotExistError
+          if (!tokenInvalidFired) {
+            tokenInvalidFired = true;
+            _log.warning('Token 无效: $errMsg');
+            listener.userTokenInvalid();
+            logout();
+          }
+        case 1506: // TokenKickedError
+          if (!kickedOfflineFired) {
+            kickedOfflineFired = true;
+            _log.warning('被踢下线 (Token Kicked)');
+            listener.kickedOffline();
+            logout();
+          }
+      }
+    };
   }
 }

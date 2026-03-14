@@ -17,6 +17,10 @@ class HttpClient {
 
   String? _token;
 
+  /// API 错误回调（用于拦截 token 过期等全局错误）
+  /// 对应 Go SDK 的 apiErrCallback.OnError
+  void Function(int errCode, String errMsg)? onApiError;
+
   HttpClient._internal() {
     _dio = Dio(
       BaseOptions(
@@ -214,7 +218,11 @@ class HttpClient {
   ApiResponse _handleResponse(Response response) {
     final data = response.data;
     if (data is Map<String, dynamic>) {
-      return ApiResponse.fromJson(data);
+      final resp = ApiResponse.fromJson(data);
+      if (resp.errCode != 0) {
+        onApiError?.call(resp.errCode, resp.errMsg);
+      }
+      return resp;
     }
     return ApiResponse(errCode: 0, errMsg: '', errDlt: '', data: data);
   }

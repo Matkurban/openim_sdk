@@ -58,6 +58,7 @@ class MessageManager {
   /// 创建文本消息
   /// [text] 文本内容
   Message createTextMessage({required String text}) {
+    _log.info('createTextMessage: text=$text');
     return _createMessage(
       contentType: MessageType.text,
       textElem: TextElem(content: text),
@@ -75,6 +76,7 @@ class MessageManager {
     List<AtUserInfo> atUserInfoList = const [],
     Message? quoteMessage,
   }) {
+    _log.info('createTextAtMessage: text=$text, atUserIDList=$atUserIDList');
     return _createMessage(
       contentType: MessageType.atText,
       atTextElem: AtTextElem(
@@ -89,6 +91,7 @@ class MessageManager {
   /// 创建图片消息（本地文件路径）
   /// [imagePath] 图片路径
   Message createImageMessage({required String imagePath}) {
+    _log.info('createImageMessage: imagePath=$imagePath');
     return _createMessage(
       contentType: MessageType.picture,
       pictureElem: PictureElem(sourcePath: imagePath),
@@ -99,6 +102,7 @@ class MessageManager {
   /// [soundPath] 语音文件路径
   /// [duration] 时长（秒）
   Message createSoundMessage({required String soundPath, required int duration}) {
+    _log.info('createSoundMessage: soundPath=$soundPath, duration=$duration');
     return _createMessage(
       contentType: MessageType.voice,
       soundElem: SoundElem(soundPath: soundPath, duration: duration),
@@ -116,6 +120,7 @@ class MessageManager {
     required int duration,
     required String snapshotPath,
   }) {
+    _log.info('createVideoMessage: videoPath=$videoPath, videoType=$videoType, duration=$duration');
     return _createMessage(
       contentType: MessageType.video,
       videoElem: VideoElem(
@@ -131,6 +136,7 @@ class MessageManager {
   /// [filePath] 文件路径
   /// [fileName] 文件名
   Message createFileMessage({required String filePath, required String fileName}) {
+    _log.info('createFileMessage: filePath=$filePath, fileName=$fileName');
     return _createMessage(
       contentType: MessageType.file,
       fileElem: FileElem(filePath: filePath, fileName: fileName),
@@ -146,6 +152,7 @@ class MessageManager {
     required String title,
     required List<String> summaryList,
   }) {
+    _log.info('createMergerMessage: title=$title, messageCount=${messageList.length}');
     return _createMessage(
       contentType: MessageType.merger,
       mergeElem: MergeElem(title: title, abstractList: summaryList, multiMessage: messageList),
@@ -155,6 +162,7 @@ class MessageManager {
   /// 创建转发消息
   /// [message] 被转发的消息
   Message createForwardMessage({required Message message}) {
+    _log.info('createForwardMessage: clientMsgID=${message.clientMsgID}');
     return message.copyWith(
       clientMsgID: ImUtils.generateClientMsgID(_currentUserID),
       createTime: _nowMillis(),
@@ -173,6 +181,9 @@ class MessageManager {
     required double longitude,
     required String description,
   }) {
+    _log.info(
+      'createLocationMessage: latitude=$latitude, longitude=$longitude, description=$description',
+    );
     return _createMessage(
       contentType: MessageType.location,
       locationElem: LocationElem(
@@ -192,6 +203,7 @@ class MessageManager {
     required String extension,
     required String description,
   }) {
+    _log.info('createCustomMessage: description=$description');
     return _createMessage(
       contentType: MessageType.custom,
       customElem: CustomElem(data: data, extension: extension, description: description),
@@ -202,6 +214,7 @@ class MessageManager {
   /// [text] 回复内容
   /// [quoteMsg] 被引用的消息
   Message createQuoteMessage({required String text, required Message quoteMsg}) {
+    _log.info('createQuoteMessage: text=$text, quoteMsgID=${quoteMsg.clientMsgID}');
     return _createMessage(
       contentType: MessageType.quote,
       quoteElem: QuoteElem(text: text, quoteMessage: quoteMsg),
@@ -219,6 +232,7 @@ class MessageManager {
     String? faceURL,
     String? ex,
   }) {
+    _log.info('createCardMessage: userID=$userID, nickname=$nickname');
     return _createMessage(
       contentType: MessageType.card,
       cardElem: CardElem(userID: userID, nickname: nickname, faceURL: faceURL, ex: ex),
@@ -229,6 +243,7 @@ class MessageManager {
   /// [index] 位置表情，根据index匹配
   /// [data] URL表情，直接使用URL展示
   Message createFaceMessage({int index = -1, String? data}) {
+    _log.info('createFaceMessage: index=$index');
     return _createMessage(
       contentType: MessageType.customFace,
       faceElem: FaceElem(index: index, data: data ?? ''),
@@ -239,6 +254,7 @@ class MessageManager {
   /// [text] 输入内容
   /// [list] 富文本消息详情
   Message createAdvancedTextMessage({required String text, List<RichMessageInfo> list = const []}) {
+    _log.info('createAdvancedTextMessage: text=$text, listCount=${list.length}');
     return _createMessage(
       contentType: MessageType.advancedText,
       advancedTextElem: AdvancedTextElem(
@@ -267,6 +283,7 @@ class MessageManager {
     required Message quoteMsg,
     List<RichMessageInfo> list = const [],
   }) {
+    _log.info('createAdvancedQuoteMessage: text=$text, quoteMsgID=${quoteMsg.clientMsgID}');
     final entities = list
         .map(
           (e) => MessageEntity(
@@ -297,6 +314,7 @@ class MessageManager {
     required PictureInfo snapshotPicture,
     String? sourcePath,
   }) {
+    _log.info('createImageMessageByURL: sourcePath=$sourcePath');
     return _createMessage(
       contentType: MessageType.picture,
       pictureElem: PictureElem(
@@ -311,18 +329,23 @@ class MessageManager {
   /// 通过URL创建语音消息
   /// [soundElem] 语音消息元素
   Message createSoundMessageByURL({required SoundElem soundElem}) {
+    _log.info('createSoundMessageByURL: duration=${soundElem.duration}');
     return _createMessage(contentType: MessageType.voice, soundElem: soundElem);
   }
 
   /// 通过URL创建视频消息
   /// [videoElem] 视频消息元素
   Message createVideoMessageByURL({required VideoElem videoElem}) {
+    _log.info(
+      'createVideoMessageByURL: videoType=${videoElem.videoType}, duration=${videoElem.duration}',
+    );
     return _createMessage(contentType: MessageType.video, videoElem: videoElem);
   }
 
   /// 通过URL创建文件消息
   /// [fileElem] 文件消息元素
   Message createFileMessageByURL({required FileElem fileElem}) {
+    _log.info('createFileMessageByURL: fileName=${fileElem.fileName}');
     return _createMessage(contentType: MessageType.file, fileElem: fileElem);
   }
 
@@ -343,6 +366,9 @@ class MessageManager {
     String? groupID,
     bool isOnlineOnly = false,
   }) async {
+    _log.info(
+      'sendMessage: clientMsgID=${message.clientMsgID}, contentType=${message.contentType}, userID=$userID, groupID=$groupID, isOnlineOnly=$isOnlineOnly',
+    );
     final isGroupMsg = groupID != null && groupID.isNotEmpty;
     final sessionType = isGroupMsg ? ConversationType.superGroup : ConversationType.single;
 
@@ -426,6 +452,9 @@ class MessageManager {
     GetHistoryViewType viewType = GetHistoryViewType.history,
     int? count,
   }) async {
+    _log.info(
+      'getAdvancedHistoryMessageList: conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, viewType=$viewType, count=$count',
+    );
     final queryCount = count ?? 40;
     int startTime = startMsg?.sendTime ?? 0;
 
@@ -452,73 +481,75 @@ class MessageManager {
 
     // 如果本地数据不足，尝试从云端拉取
     // 对应 Go SDK 的 fetchMessagesWithGapCheck：先本地后云端
-    final convMaxSeq = await _database.getConversationMaxSeq(conversationID ?? '');
-    if (dataList.length <= queryCount && convMaxSeq > 0) {
-      // 确定从哪个 seq 开始向前拉取
-      int currentSeq;
-      if (startMsg != null && (startMsg.seq ?? 0) > 1) {
-        currentSeq = startMsg.seq!;
-        if (dataList.isNotEmpty) {
-          currentSeq = dataList.last.seq ?? currentSeq;
+    if (dataList.length <= queryCount) {
+      final convMaxSeq = await _database.getConversationMaxSeq(conversationID ?? '');
+      if (convMaxSeq > 0) {
+        // 确定从哪个 seq 开始向前拉取
+        int currentSeq;
+        if (startMsg != null && (startMsg.seq ?? 0) > 1) {
+          currentSeq = startMsg.seq!;
+          if (dataList.isNotEmpty) {
+            currentSeq = dataList.last.seq ?? currentSeq;
+          }
+        } else if (dataList.isNotEmpty) {
+          // 有本地数据但不足，从最早一条的 seq 向前拉取
+          currentSeq = dataList.last.seq ?? convMaxSeq;
+        } else {
+          // 无本地数据，从会话 maxSeq 开始拉取最新消息
+          currentSeq = convMaxSeq + 1;
         }
-      } else if (dataList.isNotEmpty) {
-        // 有本地数据但不足，从最早一条的 seq 向前拉取
-        currentSeq = dataList.last.seq ?? convMaxSeq;
-      } else {
-        // 无本地数据，从会话 maxSeq 开始拉取最新消息
-        currentSeq = convMaxSeq + 1;
-      }
 
-      if (currentSeq > 1) {
-        final beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
-        final endSeq = currentSeq - 1;
-        if (endSeq >= beginSeq) {
-          try {
-            final resp = await _api.pullMsgBySeqs(
-              userID: _currentUserID,
-              seqRanges: [
-                {
-                  'conversationID': conversationID,
-                  'begin': beginSeq,
-                  'end': endSeq,
-                  'num': queryCount,
-                },
-              ],
-              order: 1, // 降序
-            );
-            if (resp.errCode == 0) {
-              final data = resp.data as Map<String, dynamic>? ?? {};
-              final msgsJson = data['msgs'] as Map<String, dynamic>? ?? {};
-              final convMsgs = msgsJson[conversationID] as Map<String, dynamic>? ?? {};
-              final pulledMsgs = (convMsgs['Msgs'] ?? convMsgs['msgs']) as List? ?? [];
+        if (currentSeq > 1) {
+          final beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
+          final endSeq = currentSeq - 1;
+          if (endSeq >= beginSeq) {
+            try {
+              final resp = await _api.pullMsgBySeqs(
+                userID: _currentUserID,
+                seqRanges: [
+                  {
+                    'conversationID': conversationID,
+                    'begin': beginSeq,
+                    'end': endSeq,
+                    'num': queryCount,
+                  },
+                ],
+                order: 1, // 降序
+              );
+              if (resp.errCode == 0) {
+                final data = resp.data as Map<String, dynamic>? ?? {};
+                final msgsJson = data['msgs'] as Map<String, dynamic>? ?? {};
+                final convMsgs = msgsJson[conversationID] as Map<String, dynamic>? ?? {};
+                final pulledMsgs = (convMsgs['Msgs'] ?? convMsgs['msgs']) as List? ?? [];
 
-              final batchInsert = <Map<String, dynamic>>[];
-              for (final netMsg in pulledMsgs) {
-                if (netMsg is Map) {
-                  final m = Map<String, dynamic>.from(netMsg);
-                  m['conversationID'] = conversationID;
-                  final contentType = m['contentType'] as int? ?? 0;
-                  final sessionType = m['sessionType'] as int? ?? 0;
-                  // 普通消息 + 通知会话(sessionType=4)的 OA 消息 都要存储
-                  if (contentType < 1000 || sessionType == 4) {
-                    batchInsert.add(m);
+                final batchInsert = <Map<String, dynamic>>[];
+                for (final netMsg in pulledMsgs) {
+                  if (netMsg is Map) {
+                    final m = Map<String, dynamic>.from(netMsg);
+                    m['conversationID'] = conversationID;
+                    final contentType = m['contentType'] as int? ?? 0;
+                    final sessionType = m['sessionType'] as int? ?? 0;
+                    // 普通消息 + 通知会话(sessionType=4)的 OA 消息 都要存储
+                    if (contentType < 1000 || sessionType == 4) {
+                      batchInsert.add(m);
+                    }
                   }
                 }
+                if (batchInsert.isNotEmpty) {
+                  await _database.batchInsertMessages(batchInsert);
+                  // 重新查询使得本地有序并拼接新数据
+                  dataList = await _database.getHistoryMessages(
+                    conversationID: conversationID ?? '',
+                    startTime: startTime,
+                    startSeq: startMsg?.seq ?? 0,
+                    startClientMsgID: startMsg?.clientMsgID ?? '',
+                    count: queryCount + 1,
+                  );
+                }
               }
-              if (batchInsert.isNotEmpty) {
-                await _database.batchInsertMessages(batchInsert);
-                // 重新查询使得本地有序并拼接新数据
-                dataList = await _database.getHistoryMessages(
-                  conversationID: conversationID ?? '',
-                  startTime: startTime,
-                  startSeq: startMsg?.seq ?? 0,
-                  startClientMsgID: startMsg?.clientMsgID ?? '',
-                  count: queryCount + 1,
-                );
-              }
+            } catch (e) {
+              _log.warning('云端历史消息拉取失败: $e');
             }
-          } catch (e) {
-            _log.warning('云端历史消息拉取失败: $e');
           }
         }
       }
@@ -541,6 +572,9 @@ class MessageManager {
     GetHistoryViewType viewType = GetHistoryViewType.history,
     int? count,
   }) async {
+    _log.info(
+      'getAdvancedHistoryMessageListReverse: conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, count=$count',
+    );
     final result = await getAdvancedHistoryMessageList(
       conversationID: conversationID,
       startMsg: startMsg,
@@ -553,16 +587,13 @@ class MessageManager {
   /// 根据消息ID列表查找消息
   /// [searchParams] 搜索参数列表
   Future<SearchResult> findMessageList({required List<SearchParams> searchParams}) async {
+    _log.info('findMessageList: searchParamsCount=${searchParams.length}');
     final resultItems = <SearchResultItems>[];
     int totalCount = 0;
 
     for (final param in searchParams) {
       if (param.clientMsgIDList == null || param.clientMsgIDList!.isEmpty) continue;
-      final messages = <Message>[];
-      for (final id in param.clientMsgIDList!) {
-        final msg = await _database.getMessage(id);
-        if (msg != null) messages.add(msg);
-      }
+      final messages = await _database.getMessagesByClientMsgIDs(param.clientMsgIDList!);
       if (messages.isNotEmpty) {
         totalCount += messages.length;
         resultItems.add(
@@ -599,6 +630,9 @@ class MessageManager {
     int pageIndex = 1,
     int count = 40,
   }) async {
+    _log.info(
+      'searchLocalMessages: conversationID=$conversationID, keywordList=$keywordList, pageIndex=$pageIndex, count=$count',
+    );
     final keyword = keywordList.isNotEmpty ? keywordList.first : null;
     final offset = (pageIndex - 1) * count;
 
@@ -633,6 +667,7 @@ class MessageManager {
   /// [conversationID] 会话ID
   /// [clientMsgID] 消息ID
   Future<void> revokeMessage({required String conversationID, required String clientMsgID}) async {
+    _log.info('revokeMessage: conversationID=$conversationID, clientMsgID=$clientMsgID');
     // 获取消息的 seq 用于服务端撤回
     final msg = await _database.getMessage(clientMsgID);
     final seq = msg?.seq ?? 0;
@@ -666,8 +701,15 @@ class MessageManager {
     required String conversationID,
     required String clientMsgID,
   }) async {
+    _log.info(
+      'deleteMessageFromLocalStorage: conversationID=$conversationID, clientMsgID=$clientMsgID',
+    );
+    final deletedMsg = await _database.getMessage(clientMsgID);
     await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地删除: $clientMsgID');
+    if (deletedMsg != null) {
+      msgListener?.msgDeleted(deletedMsg);
+    }
   }
 
   /// 删除消息（本地和服务器）
@@ -677,12 +719,18 @@ class MessageManager {
     required String conversationID,
     required String clientMsgID,
   }) async {
+    _log.info(
+      'deleteMessageFromLocalAndSvr: conversationID=$conversationID, clientMsgID=$clientMsgID',
+    );
     // 获取消息的 seq 用于服务端删除
     final msg = await _database.getMessage(clientMsgID);
     final seq = msg?.seq ?? 0;
 
     await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地和服务器删除: $clientMsgID');
+    if (msg != null) {
+      msgListener?.msgDeleted(msg);
+    }
 
     // 同步到服务器
     if (seq > 0) {
@@ -699,12 +747,14 @@ class MessageManager {
 
   /// 删除所有本地消息
   Future<void> deleteAllMsgFromLocal() async {
+    _log.info('deleteAllMsgFromLocal');
     await _database.deleteAllMessages();
     _log.info('所有本地消息已删除');
   }
 
   /// 删除所有消息（本地和服务器）
   Future<void> deleteAllMsgFromLocalAndSvr() async {
+    _log.info('deleteAllMsgFromLocalAndSvr');
     await _database.deleteAllMessages();
     _log.info('所有消息已从本地和服务器删除');
 
@@ -724,6 +774,7 @@ class MessageManager {
     required String clientMsgID,
     required String localEx,
   }) async {
+    _log.info('setMessageLocalEx: conversationID=$conversationID, clientMsgID=$clientMsgID');
     await _database.updateMessage(clientMsgID, {'localEx': localEx});
   }
 
@@ -736,6 +787,7 @@ class MessageManager {
     String? senderID,
     Message? message,
   }) async {
+    _log.info('insertSingleMessageToLocalStorage: receiverID=$receiverID, senderID=$senderID');
     final msg = (message ?? _createMessage(contentType: MessageType.text)).copyWith(
       sendID: senderID,
       recvID: receiverID,
@@ -754,6 +806,7 @@ class MessageManager {
     String? senderID,
     Message? message,
   }) async {
+    _log.info('insertGroupMessageToLocalStorage: groupID=$groupID, senderID=$senderID');
     final msg = (message ?? _createMessage(contentType: MessageType.text)).copyWith(
       sendID: senderID,
       groupID: groupID,
@@ -766,6 +819,7 @@ class MessageManager {
   /// 创建图片消息（通过完整文件路径）
   /// [imagePath] 图片的完整路径
   Message createImageMessageFromFullPath({required String imagePath, String? operationID}) {
+    _log.info('createImageMessageFromFullPath: imagePath=$imagePath');
     return createImageMessage(imagePath: imagePath);
   }
 
@@ -777,6 +831,7 @@ class MessageManager {
     required int duration,
     String? operationID,
   }) {
+    _log.info('createSoundMessageFromFullPath: soundPath=$soundPath, duration=$duration');
     return createSoundMessage(soundPath: soundPath, duration: duration);
   }
 
@@ -792,6 +847,9 @@ class MessageManager {
     required String snapshotPath,
     String? operationID,
   }) {
+    _log.info(
+      'createVideoMessageFromFullPath: videoPath=$videoPath, videoType=$videoType, duration=$duration',
+    );
     return createVideoMessage(
       videoPath: videoPath,
       videoType: videoType,
@@ -808,6 +866,7 @@ class MessageManager {
     required String fileName,
     String? operationID,
   }) {
+    _log.info('createFileMessageFromFullPath: filePath=$filePath, fileName=$fileName');
     return createFileMessage(filePath: filePath, fileName: fileName);
   }
 

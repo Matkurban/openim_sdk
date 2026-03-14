@@ -125,6 +125,11 @@ class ImApiService {
     return HttpClient().post(ImApiUrl.updateUserInfoEx, data: userInfo);
   }
 
+  /// 获取用户客户端配置
+  Future<ApiResponse> getUserClientConfig({required String userID}) async {
+    return HttpClient().post(ImApiUrl.getUserClientConfig, data: {'userID': userID});
+  }
+
   // ---------------------------------------------------------------------------
   // Friend / Relation
   // ---------------------------------------------------------------------------

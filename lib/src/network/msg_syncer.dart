@@ -99,12 +99,8 @@ class MsgSyncer {
       await _syncConversationsAndSeqs();
       conversationListener?.syncServerProgress(70);
 
-      // 3. 同步消息缺口
-      await _syncMessages();
-      conversationListener?.syncServerProgress(90);
-
-      // 4. 同步自身用户信息
-      await _syncSelfUserInfo();
+      // 3. 同步消息缺口 + 自身用户信息（并行，互不依赖）
+      await Future.wait([_syncMessages(), _syncSelfUserInfo()]);
       conversationListener?.syncServerProgress(100);
 
       conversationListener?.syncServerFinish(_reinstalled);
@@ -132,9 +128,11 @@ class MsgSyncer {
     }
     _reinstalled = false;
 
+    // 批量获取所有会话的 maxSeq（一次查询代替 N 次逐个查询）
+    final allSeqs = await database.getAllConversationMaxSeqs();
     for (final conv in conversations) {
       final conversationID = conv.conversationID;
-      final maxSeq = await database.getConversationMaxSeq(conversationID);
+      final maxSeq = allSeqs[conversationID] ?? 0;
       _syncedMaxSeqs[conversationID] = maxSeq;
       _localMaxSeqsBeforeSync[conversationID] = maxSeq;
     }
@@ -342,6 +340,7 @@ class MsgSyncer {
     try {
       int pageNumber = 1;
       const pageSize = 100;
+      final allFriends = <Map<String, dynamic>>[];
       while (true) {
         final resp = await api.getFriendList(
           userID: _userID,
@@ -351,13 +350,12 @@ class MsgSyncer {
         if (resp.errCode != 0) break;
         final friends = resp.data?['friendsInfo'] as List? ?? [];
         if (friends.isEmpty) break;
-        final batch = <Map<String, dynamic>>[];
         for (final f in friends) {
           if (f is Map<String, dynamic>) {
             // 服务端返回的好友信息中，对方的详细信息在嵌套的 friendUser 字段中
             // 需要将其扁平化为 DB 表格的结构（主键 friendUserID = friendUser.userID）
             final friendUser = f['friendUser'] as Map<String, dynamic>? ?? {};
-            batch.add({
+            allFriends.add({
               'friendUserID': friendUser['userID'] ?? f['userID'],
               'ownerUserID': f['ownerUserID'],
               'nickname': friendUser['nickname'],
@@ -371,10 +369,10 @@ class MsgSyncer {
             });
           }
         }
-        if (batch.isNotEmpty) await database.batchUpsertFriends(batch);
         if (friends.length < pageSize) break;
         pageNumber++;
       }
+      if (allFriends.isNotEmpty) await database.batchUpsertFriends(allFriends);
       _log.info('好友同步完成');
     } catch (e) {
       _log.warning('同步好友异常: $e');
@@ -386,6 +384,7 @@ class MsgSyncer {
     try {
       int pageNumber = 1;
       const pageSize = 100;
+      final allGroups = <Map<String, dynamic>>[];
       while (true) {
         final resp = await api.getJoinedGroupList(
           fromUserID: _userID,
@@ -395,16 +394,13 @@ class MsgSyncer {
         if (resp.errCode != 0) break;
         final groups = resp.data?['groups'] as List? ?? [];
         if (groups.isEmpty) break;
-        final batch = <Map<String, dynamic>>[];
         for (final g in groups) {
-          if (g is Map<String, dynamic>) {
-            batch.add(g);
-          }
+          if (g is Map<String, dynamic>) allGroups.add(g);
         }
-        if (batch.isNotEmpty) await database.batchUpsertGroups(batch);
         if (groups.length < pageSize) break;
         pageNumber++;
       }
+      if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
       _log.info('群组同步完成');
     } catch (e) {
       _log.warning('同步群组异常: $e');
@@ -723,6 +719,10 @@ class MsgSyncer {
 
     // 仅在线消息：不存储，仅触发 onRecvOnlineOnlyMessage
     if (!isHistory) {
+      // Typing 消息（contentType=113）触发输入状态变更回调
+      if (contentType == 113) {
+        _fireInputStatusChanged(msg, conversationID);
+      }
       _fireOnlineOnlyMessage(msg);
       return;
     }
@@ -972,6 +972,33 @@ class MsgSyncer {
     final message = database.convertMessage(msg);
     msgListener?.recvOnlineOnlyMessage(message);
     listenerForService?.recvOnlineOnlyMessage(message);
+  }
+
+  /// Typing 消息触发输入状态变更回调
+  ///
+  /// 对应 Go SDK 的 entering.go，收到 contentType=113 的在线消息时
+  /// 解析 content 中的 msgTips 字段，触发 OnConversationUserInputStatusChanged
+  void _fireInputStatusChanged(Map<String, dynamic> msg, String conversationID) {
+    try {
+      final sendID = msg['sendID'] as String? ?? '';
+      final content = msg['content'] as String? ?? '';
+      final platformID = msg['senderPlatformID'] as int? ?? 0;
+      Map<String, dynamic>? contentMap;
+      try {
+        contentMap = jsonDecode(content) as Map<String, dynamic>?;
+      } catch (_) {}
+      final msgTips = contentMap?['msgTips'] as String? ?? '';
+      final platformIDs = msgTips == 'yes' && platformID > 0 ? [platformID] : <int>[];
+      conversationListener?.conversationUserInputStatusChanged(
+        InputStatusChangedData(
+          conversationID: conversationID,
+          userID: sendID,
+          platformIDs: platformIDs,
+        ),
+      );
+    } catch (e) {
+      _log.fine('处理输入状态变更失败: $e');
+    }
   }
 
   /// 从 DB 加载会话并触发 conversationChanged

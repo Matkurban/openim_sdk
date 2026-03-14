@@ -3,6 +3,7 @@ library;
 export 'src/open_im.dart';
 
 /// Managers
+export 'src/mangaer/im_manager.dart';
 export 'src/mangaer/conversation_manager.dart';
 export 'src/mangaer/group_manager.dart';
 export 'src/mangaer/message_manager.dart';
@@ -22,6 +23,7 @@ export 'src/listener/upload_file_listener.dart';
 export 'src/listener/user_listener.dart';
 
 /// Models
+export 'src/models/api_response.dart';
 export 'src/models/conversation_info.dart';
 export 'src/models/group_info.dart';
 export 'src/models/init_config.dart';

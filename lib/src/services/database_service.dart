@@ -87,6 +87,20 @@ class DatabaseService {
     return result.data.map(_convertFriendInfo).toList();
   }
 
+  /// 分页获取好友（排除指定用户ID）
+  Future<List<FriendInfo>> getFriendsPageExcluding(
+    int offset,
+    int count,
+    Set<String> excludeUserIDs,
+  ) async {
+    var query = toStore.query(DbTableName.localFriend).whereEqual('ownerUserID', _currentUserID);
+    if (excludeUserIDs.isNotEmpty) {
+      query = query.whereNotIn('friendUserID', excludeUserIDs.toList());
+    }
+    final result = await query.limit(count).offset(offset);
+    return result.data.map(_convertFriendInfo).toList();
+  }
+
   /// 根据好友用户ID获取好友信息
   Future<FriendInfo?> getFriendByUserID(String friendUserID) async {
     final data = await toStore
@@ -203,9 +217,8 @@ class DatabaseService {
 
   /// 批量插入/更新黑名单
   Future<void> batchUpsertBlacks(List<Map<String, dynamic>> blacks) async {
-    for (final b in blacks) {
-      await toStore.upsert(DbTableName.localBlack, b);
-    }
+    if (blacks.isEmpty) return;
+    await toStore.batchUpsert(DbTableName.localBlack, blacks);
   }
 
   // ---------------------------------------------------------------------------
@@ -328,6 +341,19 @@ class DatabaseService {
         .whereEqual('userID', userID)
         .first();
     return data != null ? _convertGroupMembersInfo(data) : null;
+  }
+
+  /// 批量获取指定群成员信息
+  Future<List<GroupMembersInfo>> getGroupMembersByUserIDs(
+    String groupID,
+    List<String> userIDs,
+  ) async {
+    if (userIDs.isEmpty) return [];
+    final result = await toStore
+        .query(DbTableName.localGroupMember)
+        .whereEqual('groupID', groupID)
+        .whereIn('userID', userIDs);
+    return result.data.map(_convertGroupMembersInfo).toList();
   }
 
   /// 删除群成员
@@ -508,13 +534,20 @@ class DatabaseService {
 
   /// 获取未读消息总数
   Future<int> getTotalUnreadCount() async {
-    // ToStore sum() 对 integer 字段有 bug，手动聚合
-    final result = await toStore.query(DbTableName.localConversation);
+    final result = await toStore.query(DbTableName.localConversation).where('unreadCount', '>', 0);
     int total = 0;
     for (final row in result.data) {
       total += (row['unreadCount'] as int?) ?? 0;
     }
     return total;
+  }
+
+  /// 获取黑名单用户ID集合
+  Future<Set<String>> getBlackUserIDSet() async {
+    final result = await toStore
+        .query(DbTableName.localBlack)
+        .whereEqual('ownerUserID', _currentUserID);
+    return result.data.map((b) => b['blockUserID'] as String).toSet();
   }
 
   /// 更新会话草稿
@@ -532,6 +565,37 @@ class DatabaseService {
     await toStore
         .update(DbTableName.localConversation, {'unreadCount': 0})
         .whereEqual('conversationID', conversationID);
+  }
+
+  /// 减少会话未读数
+  Future<void> decrConversationUnreadCount(String conversationID, int decrCount) async {
+    if (decrCount <= 0) return;
+    final data = await toStore
+        .query(DbTableName.localConversation)
+        .whereEqual('conversationID', conversationID)
+        .first();
+    if (data == null) return;
+    final current = (data['unreadCount'] as int?) ?? 0;
+    final newCount = (current - decrCount).clamp(0, current);
+    await toStore
+        .update(DbTableName.localConversation, {'unreadCount': newCount})
+        .whereEqual('conversationID', conversationID);
+  }
+
+  /// 批量标记消息已读，返回实际标记的条数
+  Future<int> markConversationMessageAsReadDB(
+    String conversationID,
+    List<String> clientMsgIDs,
+  ) async {
+    if (clientMsgIDs.isEmpty) return 0;
+    int count = 0;
+    for (final msgID in clientMsgIDs) {
+      await toStore
+          .update(DbTableName.localChatLog, {'isRead': true})
+          .whereEqual('clientMsgID', msgID);
+      count++;
+    }
+    return count;
   }
 
   /// 清空所有会话未读数
@@ -570,6 +634,15 @@ class DatabaseService {
         .whereEqual('clientMsgID', clientMsgID)
         .first();
     return data != null ? convertMessage(data) : null;
+  }
+
+  /// 批量根据 clientMsgID 列表获取消息
+  Future<List<Message>> getMessagesByClientMsgIDs(List<String> clientMsgIDs) async {
+    if (clientMsgIDs.isEmpty) return [];
+    final result = await toStore
+        .query(DbTableName.localChatLog)
+        .whereIn('clientMsgID', clientMsgIDs);
+    return result.data.map(convertMessage).toList();
   }
 
   /// 获取会话的历史消息（按发送时间倒序）
@@ -616,7 +689,7 @@ class DatabaseService {
       }).toList();
     }
 
-    return dataList.take(count).toList().map(convertMessage).toList();
+    return dataList.take(count).map(convertMessage).toList();
   }
 
   /// 更新消息状态
@@ -785,6 +858,19 @@ class DatabaseService {
         .whereEqual('conversationID', conversationID)
         .first();
     return (data?['maxSeq'] as int?) ?? 0;
+  }
+
+  /// 批量获取所有会话的 maxSeq（单次查询）
+  Future<Map<String, int>> getAllConversationMaxSeqs() async {
+    final result = await toStore.query(DbTableName.localConversation);
+    final seqs = <String, int>{};
+    for (final row in result.data) {
+      final convID = row['conversationID'] as String?;
+      if (convID != null) {
+        seqs[convID] = (row['maxSeq'] as int?) ?? 0;
+      }
+    }
+    return seqs;
   }
 
   /// 保存会话对象到数据库
@@ -1125,96 +1211,49 @@ class DatabaseService {
   }
 
   // ---------------------------------------------------------------------------
-  // 枚举转换辅助方法
+  // 枚举转换辅助方法（静态 Map O(1) 查找，替代 firstWhere O(n)）
   // ---------------------------------------------------------------------------
 
-  static ConversationType? _intToConversationType(int? value) {
-    if (value == null) return null;
-    return ConversationType.values.cast<ConversationType?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static final _convTypeMap = {for (final e in ConversationType.values) e.value: e};
+  static final _recvMsgOptMap = {for (final e in ReceiveMessageOpt.values) e.value: e};
+  static final _groupAtTypeMap = {for (final e in GroupAtType.values) e.value: e};
+  static final _groupTypeMap = {for (final e in GroupType.values) e.value: e};
+  static final _groupStatusMap = {for (final e in GroupStatus.values) e.value: e};
+  static final _groupVerifMap = {for (final e in GroupVerification.values) e.value: e};
+  static final _groupRoleLevelMap = {for (final e in GroupRoleLevel.values) e.value: e};
+  static final _joinSourceMap = {for (final e in JoinSource.values) e.value: e};
+  static final _msgTypeMap = {for (final e in MessageType.values) e.value: e};
+  static final _msgStatusMap = {for (final e in MessageStatus.values) e.value: e};
+  static final _platformMap = {for (final e in IMPlatform.values) e.value: e};
 
-  static ReceiveMessageOpt? _intToReceiveMessageOpt(int? value) {
-    if (value == null) return null;
-    return ReceiveMessageOpt.values.cast<ReceiveMessageOpt?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static ConversationType? _intToConversationType(int? value) =>
+      value == null ? null : _convTypeMap[value];
 
-  static GroupAtType? _intToGroupAtType(int? value) {
-    if (value == null) return null;
-    return GroupAtType.values.cast<GroupAtType?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static ReceiveMessageOpt? _intToReceiveMessageOpt(int? value) =>
+      value == null ? null : _recvMsgOptMap[value];
 
-  static GroupType? _intToGroupType(int? value) {
-    if (value == null) return null;
-    return GroupType.values.cast<GroupType?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static GroupAtType? _intToGroupAtType(int? value) =>
+      value == null ? null : _groupAtTypeMap[value];
 
-  static GroupStatus? _intToGroupStatus(int? value) {
-    if (value == null) return null;
-    return GroupStatus.values.cast<GroupStatus?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static GroupType? _intToGroupType(int? value) => value == null ? null : _groupTypeMap[value];
 
-  static GroupVerification? _intToGroupVerification(int? value) {
-    if (value == null) return null;
-    return GroupVerification.values.cast<GroupVerification?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static GroupStatus? _intToGroupStatus(int? value) =>
+      value == null ? null : _groupStatusMap[value];
 
-  static GroupRoleLevel? _intToGroupRoleLevel(int? value) {
-    if (value == null) return null;
-    return GroupRoleLevel.values.cast<GroupRoleLevel?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static GroupVerification? _intToGroupVerification(int? value) =>
+      value == null ? null : _groupVerifMap[value];
 
-  static JoinSource? _intToJoinSource(int? value) {
-    if (value == null) return null;
-    return JoinSource.values.cast<JoinSource?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static GroupRoleLevel? _intToGroupRoleLevel(int? value) =>
+      value == null ? null : _groupRoleLevelMap[value];
 
-  static MessageType? _intToMessageType(int? value) {
-    if (value == null) return null;
-    return MessageType.values.cast<MessageType?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static JoinSource? _intToJoinSource(int? value) => value == null ? null : _joinSourceMap[value];
 
-  static MessageStatus? _intToMessageStatus(int? value) {
-    if (value == null) return null;
-    return MessageStatus.values.cast<MessageStatus?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static MessageType? _intToMessageType(int? value) => value == null ? null : _msgTypeMap[value];
 
-  static IMPlatform? _intToIMPlatform(int? value) {
-    if (value == null) return null;
-    return IMPlatform.values.cast<IMPlatform?>().firstWhere(
-      (e) => e?.value == value,
-      orElse: () => null,
-    );
-  }
+  static MessageStatus? _intToMessageStatus(int? value) =>
+      value == null ? null : _msgStatusMap[value];
+
+  static IMPlatform? _intToIMPlatform(int? value) => value == null ? null : _platformMap[value];
 
   /// 规范化原始服务端消息 Map
   static Map<String, dynamic> _normalizeRawMsg(Map<String, dynamic> msg) {
