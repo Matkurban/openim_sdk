@@ -124,6 +124,7 @@ class HttpClient {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
+    void Function(int, int)? onSendProgress,
   }) async {
     return _request(
       () => _dio.put(
@@ -131,6 +132,7 @@ class HttpClient {
         data: data,
         queryParameters: queryParameters,
         options: options,
+        onSendProgress: onSendProgress,
         cancelToken: cancelToken,
       ),
     );

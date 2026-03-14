@@ -5,8 +5,10 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/models/api_response.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -37,15 +39,19 @@ class IMManager {
   late UserManager userManager;
 
   /// 服务监听（可选）
-  OnListenerForService? listenerForService;
+  OnListenerForService? _listenerForService;
 
   /// 文件上传监听（可选）
-  OnUploadFileListener? uploadFileListener;
+  OnUploadFileListener? _uploadFileListener;
+
+  OnUploadLogsListener? _uploadLogsListener;
 
   /// 当前登录用户 ID
+  @internal
   late String userID;
 
   /// 当前登录用户信息
+  @internal
   late UserInfo userInfo;
 
   /// 当前登录状态
@@ -200,10 +206,10 @@ class IMManager {
     );
 
     // 从服务端获取当前用户信息并存入本地
-    final resp = await imApiService.getUsersInfo(userIDs: [userID]);
+    final ApiResponse response = await imApiService.getUsersInfo(userIDs: [userID]);
     UserInfo? loginUser;
-    if (resp.errCode == 0 && resp.data != null) {
-      final dataMap = resp.data as Map<String, dynamic>;
+    if (response.isSuccess) {
+      final dataMap = response.data as Map<String, dynamic>;
       final users = dataMap['usersInfo'] as List?;
       if (users != null && users.isNotEmpty) {
         final userData = Map<String, dynamic>.from(users.first as Map);
@@ -238,7 +244,7 @@ class IMManager {
       messageManager: messageManager,
     );
     dispatcher.setLoginUserID(userID);
-    dispatcher.listenerForService = listenerForService;
+    dispatcher.listenerForService = _listenerForService;
 
     final msgSyncer = MsgSyncer(
       database: databaseService,
@@ -248,7 +254,7 @@ class IMManager {
       conversationManager: conversationManager,
     );
     msgSyncer.setLoginUserID(userID);
-    msgSyncer.listenerForService = listenerForService;
+    msgSyncer.listenerForService = _listenerForService;
 
     final WebSocketService webSocketService = _getIt.get<WebSocketService>(
       instanceName: InstanceName.webSocketService,
@@ -285,17 +291,21 @@ class IMManager {
 
   /// 设置服务监听（用于后台推送等场景）
   void setListenerForService(OnListenerForService listener) {
-    listenerForService = listener;
+    _listenerForService = listener;
   }
 
   /// 设置文件上传进度监听
   void setUploadFileListener(OnUploadFileListener listener) {
-    uploadFileListener = listener;
+    _uploadFileListener = listener;
+  }
+
+  void setUploadLogsListener(OnUploadLogsListener listener) {
+    _uploadLogsListener = listener;
   }
 
   /// 获取登录状态
   /// 1: logout  2: logging  3: logged
-  int getLoginStatus() {
+  int get getLoginStatus {
     return _loginStatus.value;
   }
 
@@ -318,7 +328,7 @@ class IMManager {
     }
 
     final fileSize = await file.length();
-    uploadFileListener?.open(id, fileSize);
+    _uploadFileListener?.open(id, fileSize);
 
     // 计算文件 MD5
     final fileBytes = await file.readAsBytes();
@@ -327,7 +337,7 @@ class IMManager {
     // 分片大小: 2MB
     const partSize = 2 * 1024 * 1024;
     final partNum = (fileSize / partSize).ceil().clamp(1, 10000);
-    uploadFileListener?.partSize(id, partSize, partNum);
+    _uploadFileListener?.partSize(id, partSize, partNum);
 
     final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
@@ -352,13 +362,13 @@ class IMManager {
 
     // 如果服务端返回 url，说明文件已存在（秒传）
     if (url != null && url.isNotEmpty) {
-      uploadFileListener?.complete(id, fileSize, url, 0);
+      _uploadFileListener?.complete(id, fileSize, url, 0);
       return url;
     }
 
     final upload = respData['upload'] as Map<String, dynamic>? ?? {};
     final uploadID = upload['uploadID'] as String? ?? '';
-    uploadFileListener?.uploadID(id, uploadID);
+    _uploadFileListener?.uploadID(id, uploadID);
 
     final sign = upload['sign'] as Map<String, dynamic>? ?? {};
     final parts = sign['parts'] as List? ?? [];
@@ -371,7 +381,7 @@ class IMManager {
       final partBytes = fileBytes.sublist(start, end);
       final partHash = md5.convert(partBytes).toString();
 
-      uploadFileListener?.hashPartProgress(id, i, partBytes.length, partHash);
+      _uploadFileListener?.hashPartProgress(id, i, partBytes.length, partHash);
 
       if (i < parts.length) {
         final partInfo = parts[i] as Map<String, dynamic>;
@@ -381,7 +391,7 @@ class IMManager {
         );
 
         if (putUrl.isNotEmpty) {
-          await HttpClient().dio.put(
+          await HttpClient().put(
             putUrl,
             data: Stream.fromIterable([partBytes]),
             options: Options(
@@ -389,17 +399,17 @@ class IMManager {
               contentType: contentType ?? 'application/octet-stream',
             ),
             onSendProgress: (sent, total) {
-              uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
+              _uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
             },
           );
         }
       }
 
       partMd5s.add(partHash);
-      uploadFileListener?.uploadPartComplete(id, i, partBytes.length, partHash);
+      _uploadFileListener?.uploadPartComplete(id, i, partBytes.length, partHash);
     }
 
-    uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
+    _uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
 
     // 3. 完成分片上传
     final completeResp = await imApiService.completeMultipartUpload(
@@ -414,7 +424,7 @@ class IMManager {
     }
 
     final resultUrl = (completeResp.data?['url'] as String?) ?? '';
-    uploadFileListener?.complete(id, fileSize, resultUrl, 1);
+    _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
     return resultUrl;
   }
 

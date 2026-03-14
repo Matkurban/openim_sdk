@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
@@ -14,6 +15,7 @@ import 'package:openim_sdk/src/services/im_api_service.dart';
 /// - Conversation / Message (1300, 1701, 2001, 2101, 2102, 2200)
 ///
 /// 每个通知: 解析 detail JSON → 更新本地 DB → 触发 Listener 回调
+@internal
 class NotificationDispatcher {
   final Logger _log = Logger('NotificationDispatcher');
 
