@@ -49,4 +49,12 @@ sealed class ImUtils {
     final sorted = [userID1, userID2]..sort();
     return 'sn_${sorted[0]}_${sorted[1]}';
   }
+
+  /// 生成唯一消息 ID
+  static String generateClientMsgID(String currentUserID) {
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    final random = Random.secure().nextInt(999999999);
+    final raw = '$timestamp-$random-$currentUserID';
+    return md5.convert(utf8.encode(raw)).toString();
+  }
 }

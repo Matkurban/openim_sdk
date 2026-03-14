@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -8,48 +9,27 @@ import 'package:openim_sdk/src/services/im_api_service.dart';
 class FriendshipManager {
   static final Logger _log = Logger('FriendshipManager');
 
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  final GetIt _getIt = GetIt.instance;
 
-  ImApiService get _api =>
-      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+  DatabaseService get _database {
+    return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  }
 
-  /// 关系链监听器
+  ImApiService get _api {
+    return _getIt.get<ImApiService>(instanceName: InstanceName.imApiService);
+  }
+
   OnFriendshipListener? listener;
 
-  /// 设置好友关系监听器
+  late String _currentUserID;
+
   void setFriendshipListener(OnFriendshipListener listener) {
     this.listener = listener;
   }
 
-  /// 处理服务器推送的好友新增通知
-  void onFriendAdded(FriendInfo info) {
-    listener?.friendAdded(info);
-  }
-
-  /// 处理服务器推送的好友删除通知
-  void onFriendDeleted(FriendInfo info) {
-    listener?.friendDeleted(info);
-  }
-
-  /// 处理服务器推送的好友信息变更通知
-  void onFriendInfoChanged(FriendInfo info) {
-    listener?.friendInfoChanged(info);
-  }
-
-  /// 处理服务器推送的好友申请通知
-  void onFriendApplicationAdded(FriendApplicationInfo info) {
-    listener?.friendApplicationAdded(info);
-  }
-
-  /// 处理服务器推送的好友申请已接受通知
-  void onFriendApplicationAccepted(FriendApplicationInfo info) {
-    listener?.friendApplicationAccepted(info);
-  }
-
-  /// 处理服务器推送的好友申请已拒绝通知
-  void onFriendApplicationRejected(FriendApplicationInfo info) {
-    listener?.friendApplicationRejected(info);
+  @internal
+  void setCurrentUserID(String userID) {
+    _currentUserID = userID;
   }
 
   /// 查询好友信息
@@ -80,7 +60,7 @@ class FriendshipManager {
   Future<void> addFriend({required String userID, String? reason}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database.upsertFriendRequest({
-      'fromUserID': _database.currentUserID,
+      'fromUserID': _currentUserID,
       'toUserID': userID,
       'reqMsg': reason ?? '',
       'createTime': now,
@@ -89,11 +69,7 @@ class FriendshipManager {
     _log.info('已发送好友申请: toUserID=$userID');
 
     // 同步到服务器
-    final resp = await _api.addFriend(
-      fromUserID: _database.currentUserID,
-      toUserID: userID,
-      reqMsg: reason,
-    );
+    final resp = await _api.addFriend(fromUserID: _currentUserID, toUserID: userID, reqMsg: reason);
     if (resp.errCode != 0) {
       _log.warning('发送好友申请同步服务器失败: ${resp.errMsg}');
     }
@@ -157,7 +133,7 @@ class FriendshipManager {
   Future<void> addBlacklist({required String userID, String? ex}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database.insertBlack({
-      'ownerUserID': _database.currentUserID,
+      'ownerUserID': _currentUserID,
       'blockUserID': userID,
       'createTime': now,
       'ex': ex,
@@ -165,20 +141,11 @@ class FriendshipManager {
     _log.info('已添加黑名单: $userID');
 
     listener?.blackAdded(
-      BlacklistInfo(
-        ownerUserID: _database.currentUserID,
-        blockUserID: userID,
-        createTime: now,
-        ex: ex,
-      ),
+      BlacklistInfo(ownerUserID: _currentUserID, blockUserID: userID, createTime: now, ex: ex),
     );
 
     // 同步到服务器
-    final resp = await _api.addBlack(
-      ownerUserID: _database.currentUserID,
-      blackUserID: userID,
-      ex: ex,
-    );
+    final resp = await _api.addBlack(ownerUserID: _currentUserID, blackUserID: userID, ex: ex);
     if (resp.errCode != 0) {
       _log.warning('添加黑名单同步服务器失败: ${resp.errMsg}');
     }
@@ -195,12 +162,10 @@ class FriendshipManager {
     await _database.removeBlack(userID);
     _log.info('已移除黑名单: $userID');
 
-    listener?.blackDeleted(
-      BlacklistInfo(ownerUserID: _database.currentUserID, blockUserID: userID),
-    );
+    listener?.blackDeleted(BlacklistInfo(ownerUserID: _currentUserID, blockUserID: userID));
 
     // 同步到服务器
-    final resp = await _api.removeBlack(ownerUserID: _database.currentUserID, blackUserID: userID);
+    final resp = await _api.removeBlack(ownerUserID: _currentUserID, blackUserID: userID);
     if (resp.errCode != 0) {
       _log.warning('移除黑名单同步服务器失败: ${resp.errMsg}');
     }
@@ -231,10 +196,7 @@ class FriendshipManager {
     listener?.friendDeleted(FriendInfo(friendUserID: userID));
 
     // 同步到服务器
-    final resp = await _api.deleteFriend(
-      ownerUserID: _database.currentUserID,
-      friendUserID: userID,
-    );
+    final resp = await _api.deleteFriend(ownerUserID: _currentUserID, friendUserID: userID);
     if (resp.errCode != 0) {
       _log.warning('删除好友同步服务器失败: ${resp.errMsg}');
     }
@@ -247,15 +209,15 @@ class FriendshipManager {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database.upsertFriendRequest({
       'fromUserID': userID,
-      'toUserID': _database.currentUserID,
+      'toUserID': _currentUserID,
       'handleResult': 1,
       'handleMsg': handleMsg ?? '',
-      'handlerUserID': _database.currentUserID,
+      'handlerUserID': _currentUserID,
       'handleTime': now,
     });
 
     await _database.upsertFriend({
-      'ownerUserID': _database.currentUserID,
+      'ownerUserID': _currentUserID,
       'friendUserID': userID,
       'createTime': now,
     });
@@ -263,13 +225,13 @@ class FriendshipManager {
     _log.info('好友申请已接受: userID=$userID');
 
     listener?.friendAdded(
-      FriendInfo(ownerUserID: _database.currentUserID, friendUserID: userID, createTime: now),
+      FriendInfo(ownerUserID: _currentUserID, friendUserID: userID, createTime: now),
     );
 
     // 同步到服务器
     final resp = await _api.addFriendResponse(
       fromUserID: userID,
-      toUserID: _database.currentUserID,
+      toUserID: _currentUserID,
       handleResult: 1,
       handleMsg: handleMsg,
     );
@@ -285,10 +247,10 @@ class FriendshipManager {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database.upsertFriendRequest({
       'fromUserID': userID,
-      'toUserID': _database.currentUserID,
+      'toUserID': _currentUserID,
       'handleResult': -1,
       'handleMsg': handleMsg ?? '',
-      'handlerUserID': _database.currentUserID,
+      'handlerUserID': _currentUserID,
       'handleTime': now,
     });
 
@@ -297,7 +259,7 @@ class FriendshipManager {
     // 同步到服务器
     final resp = await _api.addFriendResponse(
       fromUserID: userID,
-      toUserID: _database.currentUserID,
+      toUserID: _currentUserID,
       handleResult: -1,
       handleMsg: handleMsg,
     );
@@ -373,7 +335,7 @@ class FriendshipManager {
     // 同步到服务器
     final resp = await _api.updateFriends(
       req: {
-        'ownerUserID': _database.currentUserID,
+        'ownerUserID': _currentUserID,
         'friendUserIDs': updateFriendsReq.friendUserIDs,
         if (updateFriendsReq.remark != null) 'remark': updateFriendsReq.remark,
         if (updateFriendsReq.isPinned != null) 'isPinned': updateFriendsReq.isPinned,

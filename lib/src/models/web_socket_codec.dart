@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:meta/meta.dart';
+
 /// 通用 WebSocket 请求
 /// 对应 JS SDK 的 GeneralWsReq
 ///
@@ -9,6 +11,7 @@ import 'dart:typed_data';
 /// 1. 消息编码：JSON（data 字段为 base64 编码的 protobuf 字节）
 /// 2. 传输方式：二进制 (gzip 压缩的 JSON) 或文本 (ping/pong)
 /// 3. 压缩：gzip（可选）
+@internal
 class WebSocketRequest {
   final int reqIdentifier;
   final String token;
@@ -56,11 +59,11 @@ class WebSocketResponse {
 //   发送: GeneralWsReq → JSON（data 为 base64） → gzip → conn.WriteMessage
 //   接收: conn.ReadMessage → gzip 解压 → JSON → GeneralWsResp（data 从 base64 还原）
 // ==========================================================================
-
-class WebSocketCodec {
+@internal
+class WebSocketCodecs {
   final bool enableCompression;
 
-  WebSocketCodec({this.enableCompression = true});
+  WebSocketCodecs({this.enableCompression = true});
 
   /// 编码 GeneralWsReq 为可发送的二进制数据（JSON + gzip 压缩）
   ///

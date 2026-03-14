@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:talker_dio_logger/talker_dio_logger_interceptor.dart';
 
 import '../models/api_response.dart';
@@ -11,7 +12,8 @@ class HttpClient {
   factory HttpClient() => _instance;
 
   late final Dio _dio;
-  final _log = Logger('HttpClient');
+
+  final Logger _log = Logger('HttpClient');
 
   String? _token;
 
@@ -45,8 +47,9 @@ class HttpClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          options.headers['operationID'] =
-              'op_${DateTime.now().millisecondsSinceEpoch}';
+          options.headers['operationID'] = ImUtils.generateOperationID(
+            operationName: 'openim_sdk_network_request',
+          );
           handler.next(options);
         },
       ),
@@ -201,12 +204,7 @@ class HttpClient {
       return _handleDioException(e);
     } catch (e, s) {
       _log.severe('Unknown error', e, s);
-      return ApiResponse(
-        errCode: -1,
-        errMsg: e.toString(),
-        errDlt: s.toString(),
-        data: null,
-      );
+      return ApiResponse(errCode: -1, errMsg: e.toString(), errDlt: s.toString(), data: null);
     }
   }
 

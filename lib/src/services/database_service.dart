@@ -14,11 +14,14 @@ class DatabaseService {
 
   String? _currentUserID;
 
-  String get currentUserID => _currentUserID!;
-
   Future<bool> switchSpace({required String userID}) async {
     _currentUserID = userID;
-    return toStore.switchSpace(spaceName: ImUtils.generateSpaceName(userID));
+    SpaceInfo spaceInfo = await toStore.getSpaceInfo();
+    String generateSpaceName = ImUtils.generateSpaceName(userID);
+    if (spaceInfo.spaceName == generateSpaceName) {
+      return true;
+    }
+    return toStore.switchSpace(spaceName: generateSpaceName);
   }
 
   /// 关闭数据库
@@ -27,61 +30,25 @@ class DatabaseService {
     _currentUserID = null;
   }
 
-  /// 插入一条记录
-  Future<DbResult> insert(String table, Map<String, dynamic> data) {
-    return toStore.insert(table, data);
-  }
-
-  /// 批量插入记录
-  Future<DbResult> batchInsert(String table, List<Map<String, dynamic>> dataList) {
-    return toStore.batchInsert(table, dataList);
-  }
-
-  /// 插入或更新记录（upsert）
-  Future<DbResult> upsert(String table, Map<String, dynamic> data) {
-    return toStore.upsert(table, data);
-  }
-
-  /// 批量插入或更新记录
-  Future<DbResult> batchUpsert(String table, List<Map<String, dynamic>> dataList) {
-    return toStore.batchUpsert(table, dataList);
-  }
-
-  /// 根据主键查询单条记录（主键字段名 + 值）
-  Future<Map<String, dynamic>?> queryByPrimaryKey(String table, String pkField, dynamic pk) async {
-    return toStore.query(table).whereEqual(pkField, pk).first();
-  }
-
-  /// 查询表中所有记录
-  Future<List<Map<String, dynamic>>> queryAll(String table) async {
-    final result = await toStore.query(table);
-    return result.data;
-  }
-
-  /// 根据主键删除记录
-  Future<void> deleteByPrimaryKey(String table, String pkField, dynamic pkValue) async {
-    await toStore.delete(table).whereEqual(pkField, pkValue);
-  }
-
-  /// 在事务中执行操作
-  Future<TransactionResult> transaction(Future<void> Function() action) {
-    return toStore.transaction(action);
-  }
-
   // ---------------------------------------------------------------------------
   // User 操作 - 对应 Go SDK UserModel
   // ---------------------------------------------------------------------------
 
   /// 插入或更新本地用户信息
-  Future<void> insertOrUpdateUser(Map<String, dynamic> userData) async {
+  Future<void> upsertUser(Map<String, dynamic> userData) async {
     await toStore.upsert(DbTableName.localUser, userData);
+  }
+
+  /// 插入或更新本地用户信息
+  Future<void> upsertUsers(List<Map<String, dynamic>> userDatas) async {
+    await toStore.batchUpsert(DbTableName.localUser, userDatas);
   }
 
   /// 获取当前登录用户信息
   Future<UserInfo?> getLoginUser() async {
     final data = await toStore
         .query(DbTableName.localUser)
-        .whereEqual('userID', currentUserID)
+        .whereEqual('userID', _currentUserID)
         .first();
     return data != null ? UserInfo.fromJson(data) : null;
   }
@@ -106,7 +73,7 @@ class DatabaseService {
   Future<List<FriendInfo>> getAllFriends() async {
     final result = await toStore
         .query(DbTableName.localFriend)
-        .whereEqual('ownerUserID', currentUserID);
+        .whereEqual('ownerUserID', _currentUserID);
     return result.data.map(_convertFriendInfo).toList();
   }
 
@@ -114,7 +81,7 @@ class DatabaseService {
   Future<List<FriendInfo>> getFriendsPage(int offset, int count) async {
     final result = await toStore
         .query(DbTableName.localFriend)
-        .whereEqual('ownerUserID', currentUserID)
+        .whereEqual('ownerUserID', _currentUserID)
         .limit(count)
         .offset(offset);
     return result.data.map(_convertFriendInfo).toList();
@@ -169,7 +136,7 @@ class DatabaseService {
 
     final result = await toStore
         .query(DbTableName.localFriend)
-        .whereEqual('ownerUserID', currentUserID)
+        .whereEqual('ownerUserID', _currentUserID)
         .condition(cond);
     return result.data.map(_convertFriendInfo).toList();
   }
@@ -190,7 +157,7 @@ class DatabaseService {
   }) async {
     final result = await toStore
         .query(DbTableName.localFriendRequest)
-        .whereEqual('toUserID', currentUserID)
+        .whereEqual('toUserID', _currentUserID)
         .limit(count)
         .offset(offset);
     return result.data.map(_convertFriendApplicationInfo).toList();
@@ -203,7 +170,7 @@ class DatabaseService {
   }) async {
     final result = await toStore
         .query(DbTableName.localFriendRequest)
-        .whereEqual('fromUserID', currentUserID)
+        .whereEqual('fromUserID', _currentUserID)
         .limit(count)
         .offset(offset);
     return result.data.map(_convertFriendApplicationInfo).toList();
@@ -222,7 +189,7 @@ class DatabaseService {
   Future<List<BlacklistInfo>> getBlackList() async {
     final result = await toStore
         .query(DbTableName.localBlack)
-        .whereEqual('ownerUserID', currentUserID);
+        .whereEqual('ownerUserID', _currentUserID);
     return result.data.map((d) => BlacklistInfo.fromJson(d)).toList();
   }
 
@@ -230,7 +197,7 @@ class DatabaseService {
   Future<void> removeBlack(String blockUserID) async {
     await toStore
         .delete(DbTableName.localBlack)
-        .whereEqual('ownerUserID', currentUserID)
+        .whereEqual('ownerUserID', _currentUserID)
         .whereEqual('blockUserID', blockUserID);
   }
 
@@ -423,7 +390,7 @@ class DatabaseService {
     // 查找当前用户是群主或管理员的群组ID
     final adminGroups = await toStore
         .query(DbTableName.localGroupMember)
-        .whereEqual('userID', currentUserID)
+        .whereEqual('userID', _currentUserID)
         .whereIn('roleLevel', [60, 100]);
     final myGroupIDs = adminGroups.data.map((m) => m['groupID'] as String).toList();
 
@@ -444,7 +411,7 @@ class DatabaseService {
   }) async {
     final result = await toStore
         .query(DbTableName.localGroupRequest)
-        .whereEqual('userID', currentUserID)
+        .whereEqual('userID', _currentUserID)
         .limit(count)
         .offset(offset);
     return result.data.map(_convertGroupApplicationInfo).toList();
@@ -454,7 +421,7 @@ class DatabaseService {
   Future<int> getFriendRequestUnhandledCount() async {
     return toStore
         .query(DbTableName.localFriendRequest)
-        .whereEqual('toUserID', currentUserID)
+        .whereEqual('toUserID', _currentUserID)
         .whereEqual('handleResult', 0)
         .count();
   }
@@ -463,7 +430,7 @@ class DatabaseService {
   Future<int> getGroupRequestUnhandledCount() async {
     final adminGroups = await toStore
         .query(DbTableName.localGroupMember)
-        .whereEqual('userID', currentUserID)
+        .whereEqual('userID', _currentUserID)
         .whereIn('roleLevel', [60, 100]);
     final myGroupIDs = adminGroups.data.map((m) => m['groupID'] as String).toList();
     if (myGroupIDs.isEmpty) return 0;

@@ -28,9 +28,14 @@ class SplashController extends GetxController {
         listener: OnConnectListener(
           onConnectSuccess: () => dev.log('[Splash] WS 已连接'),
           onConnecting: () => dev.log('[Splash] WS 连接中...'),
-          onConnectFailed: (code, msg) => dev.log('[Splash] WS 连接失败: $code $msg'),
+          onConnectFailed: (code, msg) =>
+              dev.log('[Splash] WS 连接失败: $code $msg'),
           onKickedOffline: () {
-            Get.snackbar('提示', '账号在其他设备登录', snackPosition: SnackPosition.BOTTOM);
+            Get.snackbar(
+              '提示',
+              '账号在其他设备登录',
+              snackPosition: SnackPosition.BOTTOM,
+            );
             Get.offAllNamed(AppRoutes.login);
           },
           onUserTokenExpired: () {

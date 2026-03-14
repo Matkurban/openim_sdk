@@ -24,14 +24,18 @@ class MessageBubble extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
-          mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+          mainAxisAlignment: isMe
+              ? MainAxisAlignment.end
+              : MainAxisAlignment.start,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!isMe) _buildAvatar(context),
             if (!isMe) const SizedBox(width: 8),
             Flexible(
               child: Column(
-                crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                crossAxisAlignment: isMe
+                    ? CrossAxisAlignment.end
+                    : CrossAxisAlignment.start,
                 children: [
                   if (!isMe && message.senderNickname != null)
                     Padding(
@@ -42,10 +46,17 @@ class MessageBubble extends StatelessWidget {
                       ),
                     ),
                   Container(
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.7),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.7,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+                      color: isMe
+                          ? colorScheme.primary
+                          : colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
@@ -58,7 +69,11 @@ class MessageBubble extends StatelessWidget {
                   if (message.status == MessageStatus.failed)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Icon(Icons.error_outline, size: 14, color: Colors.red[400]),
+                      child: Icon(
+                        Icons.error_outline,
+                        size: 14,
+                        color: Colors.red[400],
+                      ),
                     ),
                 ],
               ),
@@ -108,7 +123,9 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildImageContent() {
-    final url = message.pictureElem?.sourcePicture?.url ?? message.pictureElem?.bigPicture?.url;
+    final url =
+        message.pictureElem?.sourcePicture?.url ??
+        message.pictureElem?.bigPicture?.url;
     if (url != null && url.isNotEmpty) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(8),

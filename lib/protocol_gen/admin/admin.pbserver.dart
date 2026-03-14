@@ -78,10 +78,8 @@ abstract class adminServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.DelIPForbiddenReq request);
   $async.Future<$3.CancellationUserResp> cancellationUser(
       $pb.ServerContext ctx, $3.CancellationUserReq request);
-  $async.Future<$3.BlockUserResp> blockUser(
-      $pb.ServerContext ctx, $3.BlockUserReq request);
-  $async.Future<$3.UnblockUserResp> unblockUser(
-      $pb.ServerContext ctx, $3.UnblockUserReq request);
+  $async.Future<$3.BlockUserResp> blockUser($pb.ServerContext ctx, $3.BlockUserReq request);
+  $async.Future<$3.UnblockUserResp> unblockUser($pb.ServerContext ctx, $3.UnblockUserReq request);
   $async.Future<$3.SearchBlockUserResp> searchBlockUser(
       $pb.ServerContext ctx, $3.SearchBlockUserReq request);
   $async.Future<$3.FindUserBlockInfoResp> findUserBlockInfo(
@@ -90,18 +88,13 @@ abstract class adminServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.CheckRegisterForbiddenReq request);
   $async.Future<$3.CheckLoginForbiddenResp> checkLoginForbidden(
       $pb.ServerContext ctx, $3.CheckLoginForbiddenReq request);
-  $async.Future<$3.CreateTokenResp> createToken(
-      $pb.ServerContext ctx, $3.CreateTokenReq request);
-  $async.Future<$3.ParseTokenResp> parseToken(
-      $pb.ServerContext ctx, $3.ParseTokenReq request);
-  $async.Future<$3.AddAppletResp> addApplet(
-      $pb.ServerContext ctx, $3.AddAppletReq request);
-  $async.Future<$3.DelAppletResp> delApplet(
-      $pb.ServerContext ctx, $3.DelAppletReq request);
+  $async.Future<$3.CreateTokenResp> createToken($pb.ServerContext ctx, $3.CreateTokenReq request);
+  $async.Future<$3.ParseTokenResp> parseToken($pb.ServerContext ctx, $3.ParseTokenReq request);
+  $async.Future<$3.AddAppletResp> addApplet($pb.ServerContext ctx, $3.AddAppletReq request);
+  $async.Future<$3.DelAppletResp> delApplet($pb.ServerContext ctx, $3.DelAppletReq request);
   $async.Future<$3.UpdateAppletResp> updateApplet(
       $pb.ServerContext ctx, $3.UpdateAppletReq request);
-  $async.Future<$3.FindAppletResp> findApplet(
-      $pb.ServerContext ctx, $3.FindAppletReq request);
+  $async.Future<$3.FindAppletResp> findApplet($pb.ServerContext ctx, $3.FindAppletReq request);
   $async.Future<$3.SearchAppletResp> searchApplet(
       $pb.ServerContext ctx, $3.SearchAppletReq request);
   $async.Future<$3.GetClientConfigResp> getClientConfig(
@@ -236,8 +229,8 @@ abstract class adminServiceBase extends $pb.GeneratedService {
     }
   }
 
-  $async.Future<$pb.GeneratedMessage> handleCall($pb.ServerContext ctx,
-      $core.String methodName, $pb.GeneratedMessage request) {
+  $async.Future<$pb.GeneratedMessage> handleCall(
+      $pb.ServerContext ctx, $core.String methodName, $pb.GeneratedMessage request) {
     switch (methodName) {
       case 'Login':
         return login(ctx, request as $3.LoginReq);
@@ -284,8 +277,7 @@ abstract class adminServiceBase extends $pb.GeneratedService {
       case 'SearchInvitationCode':
         return searchInvitationCode(ctx, request as $3.SearchInvitationCodeReq);
       case 'SearchUserIPLimitLogin':
-        return searchUserIPLimitLogin(
-            ctx, request as $3.SearchUserIPLimitLoginReq);
+        return searchUserIPLimitLogin(ctx, request as $3.SearchUserIPLimitLoginReq);
       case 'AddUserIPLimitLogin':
         return addUserIPLimitLogin(ctx, request as $3.AddUserIPLimitLoginReq);
       case 'DelUserIPLimitLogin':
@@ -307,8 +299,7 @@ abstract class adminServiceBase extends $pb.GeneratedService {
       case 'FindUserBlockInfo':
         return findUserBlockInfo(ctx, request as $3.FindUserBlockInfoReq);
       case 'CheckRegisterForbidden':
-        return checkRegisterForbidden(
-            ctx, request as $3.CheckRegisterForbiddenReq);
+        return checkRegisterForbidden(ctx, request as $3.CheckRegisterForbiddenReq);
       case 'CheckLoginForbidden':
         return checkLoginForbidden(ctx, request as $3.CheckLoginForbiddenReq);
       case 'CreateToken':
@@ -336,26 +327,21 @@ abstract class adminServiceBase extends $pb.GeneratedService {
       case 'InvalidateToken':
         return invalidateToken(ctx, request as $3.InvalidateTokenReq);
       case 'LatestApplicationVersion':
-        return latestApplicationVersion(
-            ctx, request as $3.LatestApplicationVersionReq);
+        return latestApplicationVersion(ctx, request as $3.LatestApplicationVersionReq);
       case 'AddApplicationVersion':
-        return addApplicationVersion(
-            ctx, request as $3.AddApplicationVersionReq);
+        return addApplicationVersion(ctx, request as $3.AddApplicationVersionReq);
       case 'UpdateApplicationVersion':
-        return updateApplicationVersion(
-            ctx, request as $3.UpdateApplicationVersionReq);
+        return updateApplicationVersion(ctx, request as $3.UpdateApplicationVersionReq);
       case 'DeleteApplicationVersion':
-        return deleteApplicationVersion(
-            ctx, request as $3.DeleteApplicationVersionReq);
+        return deleteApplicationVersion(ctx, request as $3.DeleteApplicationVersionReq);
       case 'PageApplicationVersion':
-        return pageApplicationVersion(
-            ctx, request as $3.PageApplicationVersionReq);
+        return pageApplicationVersion(ctx, request as $3.PageApplicationVersionReq);
       default:
         throw $core.ArgumentError('Unknown method: $methodName');
     }
   }
 
   $core.Map<$core.String, $core.dynamic> get $json => adminServiceBase$json;
-  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
-      get $messageJson => adminServiceBase$messageJson;
+  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> get $messageJson =>
+      adminServiceBase$messageJson;
 }

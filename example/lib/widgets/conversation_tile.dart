@@ -21,7 +21,9 @@ class ConversationTile extends StatelessWidget {
 
     return Container(
       color: isPinned
-          ? Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3)
+          ? Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3)
           : null,
       child: ListTile(
         leading: _buildAvatar(),
@@ -35,7 +37,8 @@ class ConversationTile extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w500),
               ),
             ),
-            if (conversation.latestMsgSendTime != null && conversation.latestMsgSendTime! > 0)
+            if (conversation.latestMsgSendTime != null &&
+                conversation.latestMsgSendTime! > 0)
               Text(
                 _formatTime(conversation.latestMsgSendTime!),
                 style: TextStyle(fontSize: 12, color: Colors.grey[500]),
@@ -44,8 +47,12 @@ class ConversationTile extends StatelessWidget {
         ),
         subtitle: Row(
           children: [
-            if (conversation.draftText != null && conversation.draftText!.isNotEmpty)
-              Text('[草稿] ', style: TextStyle(color: Colors.red[400], fontSize: 13)),
+            if (conversation.draftText != null &&
+                conversation.draftText!.isNotEmpty)
+              Text(
+                '[草稿] ',
+                style: TextStyle(color: Colors.red[400], fontSize: 13),
+              ),
             Expanded(
               child: Text(
                 _getLastMsgContent(),
@@ -66,7 +73,9 @@ class ConversationTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  conversation.unreadCount > 99 ? '99+' : '${conversation.unreadCount}',
+                  conversation.unreadCount > 99
+                      ? '99+'
+                      : '${conversation.unreadCount}',
                   style: const TextStyle(color: Colors.white, fontSize: 11),
                 ),
               ),
@@ -88,7 +97,9 @@ class ConversationTile extends StatelessWidget {
         child: const Icon(Icons.group, color: Colors.blue),
       );
     }
-    return CircleAvatar(child: Text((conversation.showName ?? '?')[0].toUpperCase()));
+    return CircleAvatar(
+      child: Text((conversation.showName ?? '?')[0].toUpperCase()),
+    );
   }
 
   String _getLastMsgContent() {
@@ -159,7 +170,9 @@ class ConversationTile extends StatelessWidget {
     }
 
     final yesterday = now.subtract(const Duration(days: 1));
-    if (dt.year == yesterday.year && dt.month == yesterday.month && dt.day == yesterday.day) {
+    if (dt.year == yesterday.year &&
+        dt.month == yesterday.month &&
+        dt.day == yesterday.day) {
       return '昨天';
     }
 

@@ -36,13 +36,14 @@ class MsgSyncer {
 
   final NotificationDispatcher notificationDispatcher;
 
-  // -- 通过 Manager 间接访问 Listener（延迟求值，避免快照失效） --
   final MessageManager messageManager;
+
   final ConversationManager conversationManager;
+
   OnListenerForService? listenerForService;
 
-  // 便捷访问器
   OnAdvancedMsgListener? get msgListener => messageManager.msgListener;
+
   OnConversationListener? get conversationListener => conversationManager.listener;
 
   MsgSyncer({
@@ -271,7 +272,7 @@ class MsgSyncer {
                 if (uid != null) {
                   userMap[uid] = UserInfo.fromJson(u);
                   // Cache it so future syncs have it
-                  await database.insertOrUpdateUser(u);
+                  await database.upsertUser(u);
                 }
               }
             }
@@ -571,7 +572,7 @@ class MsgSyncer {
       if (resp.errCode != 0) return;
       final users = resp.data?['usersInfo'] as List? ?? [];
       if (users.isNotEmpty && users.first is Map<String, dynamic>) {
-        await database.insertOrUpdateUser(users.first as Map<String, dynamic>);
+        await database.upsertUser(users.first as Map<String, dynamic>);
       }
     } catch (e) {
       _log.warning('同步用户信息异常: $e');

@@ -1,3 +1,4 @@
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
@@ -8,17 +9,27 @@ import 'package:openim_sdk/src/services/database_service.dart';
 class GroupManager {
   static final Logger _log = Logger('GroupManager');
 
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  final GetIt _getIt = GetIt.instance;
 
-  /// 群组监听器
-  ImApiService get _api =>
-      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+  DatabaseService get _database {
+    return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  }
+
+  ImApiService get _api {
+    return _getIt.get<ImApiService>(instanceName: InstanceName.imApiService);
+  }
+
   OnGroupListener? listener;
 
-  /// 设置群组监听器
+  late String _currentUserID;
+
   void setGroupListener(OnGroupListener listener) {
     this.listener = listener;
+  }
+
+  @internal
+  void setCurrentUserID(String userID) {
+    _currentUserID = userID;
   }
 
   /// 查询群组信息
@@ -65,9 +76,7 @@ class GroupManager {
     String? ownerUserID,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final gid = groupInfo.groupID.isNotEmpty
-        ? groupInfo.groupID
-        : 'g_${now}_${_database.currentUserID}';
+    final gid = groupInfo.groupID.isNotEmpty ? groupInfo.groupID : 'g_${now}_$_currentUserID';
 
     final data = {
       'groupID': gid,
@@ -75,25 +84,25 @@ class GroupManager {
       'notification': groupInfo.notification,
       'introduction': groupInfo.introduction,
       'faceURL': groupInfo.faceURL,
-      'ownerUserID': ownerUserID ?? _database.currentUserID,
+      'ownerUserID': ownerUserID ?? _currentUserID,
       'createTime': now,
       'memberCount': memberUserIDs.length + adminUserIDs.length + 1,
       'status': GroupStatus.normal.value,
-      'creatorUserID': _database.currentUserID,
+      'creatorUserID': _currentUserID,
       'groupType': groupInfo.groupType?.value ?? GroupType.work.value,
       'ex': groupInfo.ex,
       'needVerification': groupInfo.needVerification,
       'lookMemberInfo': groupInfo.lookMemberInfo,
       'applyMemberFriend': groupInfo.applyMemberFriend,
       'notificationUpdateTime': now,
-      'notificationUserID': _database.currentUserID,
+      'notificationUserID': _currentUserID,
     };
     await _database.upsertGroup(data);
 
     // 添加群主
     await _database.upsertGroupMember({
       'groupID': gid,
-      'userID': ownerUserID ?? _database.currentUserID,
+      'userID': ownerUserID ?? _currentUserID,
       'roleLevel': GroupRoleLevel.owner.value,
       'joinTime': now,
       'joinSource': JoinSource.invited.value,
@@ -329,10 +338,6 @@ class GroupManager {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 加群与退群
-  // ---------------------------------------------------------------------------
-
   /// 申请加入群组
   /// [groupID] 群组ID
   /// [reason] 加入原因
@@ -347,7 +352,7 @@ class GroupManager {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _database.upsertGroupRequest({
       'groupID': groupID,
-      'userID': _database.currentUserID,
+      'userID': _currentUserID,
       'reqMsg': reason ?? '',
       'reqTime': now,
       'handleResult': 0,
@@ -365,11 +370,11 @@ class GroupManager {
   /// 退出群组
   /// [groupID] 群组ID
   Future<void> quitGroup({required String groupID}) async {
-    await _database.deleteGroupMember(groupID, _database.currentUserID);
+    await _database.deleteGroupMember(groupID, _currentUserID);
     await _database.deleteGroup(groupID);
     _log.info('已退出群: $groupID');
 
-    final resp = await _api.quitGroup(userID: _database.currentUserID, groupID: groupID);
+    final resp = await _api.quitGroup(userID: _currentUserID, groupID: groupID);
     if (resp.errCode != 0) {
       _log.warning('退出群失败: ${resp.errMsg}');
     }
@@ -388,10 +393,6 @@ class GroupManager {
       _log.warning('解散群组失败: ${resp.errMsg}');
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 群组禁言
-  // ---------------------------------------------------------------------------
 
   /// 群组全员禁言/解除禁言
   /// [groupID] 群组ID
@@ -436,10 +437,6 @@ class GroupManager {
       _log.warning('设置群成员禁言失败: ${resp.errMsg}');
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 入群审批
-  // ---------------------------------------------------------------------------
 
   /// 获取收到的入群申请列表（作为群主/管理员）
   /// [req] 查询参数
@@ -553,21 +550,6 @@ class GroupManager {
     );
   }
 
-  /// 处理服务器推送的群信息变更
-  void onGroupInfoChanged(GroupInfo info) {
-    listener?.groupInfoChanged(info);
-  }
-
-  /// 处理服务器推送的新群成员加入
-  void onGroupMemberAdded(GroupMembersInfo info) {
-    listener?.groupMemberAdded(info);
-  }
-
-  /// 处理服务器推送的群成员退出
-  void onGroupMemberDeleted(GroupMembersInfo info) {
-    listener?.groupMemberDeleted(info);
-  }
-
   /// 按入群时间获取群成员列表
   /// [groupID] 群组ID
   /// [offset] 起始索引
@@ -607,38 +589,5 @@ class GroupManager {
     }
 
     return members;
-  }
-
-  /// 搜索群成员（返回原始 Map）
-  Future<List<dynamic>> searchGroupMembersListMap({
-    required String groupID,
-    List<String> keywordList = const [],
-    bool isSearchUserID = false,
-    bool isSearchMemberNickname = false,
-    int offset = 0,
-    int count = 40,
-    String? operationID,
-  }) async {
-    final members = await searchGroupMembers(
-      groupID: groupID,
-      keywordList: keywordList,
-      isSearchUserID: isSearchUserID,
-      isSearchMemberNickname: isSearchMemberNickname,
-      offset: offset,
-      count: count,
-    );
-    return members.map((m) => m.toJson()).toList();
-  }
-
-  /// 获取群内指定用户信息（检查用户是否在群内）
-  /// [groupID] 群组ID
-  /// [userIDs] 用户ID列表
-  Future<dynamic> getUsersInGroup(
-    String groupID,
-    List<String> userIDs, {
-    String? operationID,
-  }) async {
-    final members = await getGroupMembersInfo(groupID: groupID, userIDList: userIDs);
-    return members.map((m) => m.toJson()).toList();
   }
 }

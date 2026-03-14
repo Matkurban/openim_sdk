@@ -54,8 +54,7 @@ class GroupInfo extends Equatable {
     this.notificationUserID,
   });
 
-  factory GroupInfo.fromJson(Map<String, dynamic> json) =>
-      _$GroupInfoFromJson(json);
+  factory GroupInfo.fromJson(Map<String, dynamic> json) => _$GroupInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$GroupInfoToJson(this);
 
@@ -94,8 +93,7 @@ class GroupInfo extends Equatable {
       needVerification: needVerification ?? this.needVerification,
       lookMemberInfo: lookMemberInfo ?? this.lookMemberInfo,
       applyMemberFriend: applyMemberFriend ?? this.applyMemberFriend,
-      notificationUpdateTime:
-          notificationUpdateTime ?? this.notificationUpdateTime,
+      notificationUpdateTime: notificationUpdateTime ?? this.notificationUpdateTime,
       notificationUserID: notificationUserID ?? this.notificationUserID,
     );
   }
@@ -159,8 +157,7 @@ class GroupMembersInfo extends Equatable {
     this.inviterUserID,
   });
 
-  factory GroupMembersInfo.fromJson(Map<String, dynamic> json) =>
-      _$GroupMembersInfoFromJson(json);
+  factory GroupMembersInfo.fromJson(Map<String, dynamic> json) => _$GroupMembersInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$GroupMembersInfoToJson(this);
 
@@ -221,16 +218,12 @@ class GroupMemberRole extends Equatable {
 
   const GroupMemberRole({this.userID, this.roleLevel});
 
-  factory GroupMemberRole.fromJson(Map<String, dynamic> json) =>
-      _$GroupMemberRoleFromJson(json);
+  factory GroupMemberRole.fromJson(Map<String, dynamic> json) => _$GroupMemberRoleFromJson(json);
 
   Map<String, dynamic> toJson() => _$GroupMemberRoleToJson(this);
 
   GroupMemberRole copyWith({String? userID, GroupRoleLevel? roleLevel}) {
-    return GroupMemberRole(
-      userID: userID ?? this.userID,
-      roleLevel: roleLevel ?? this.roleLevel,
-    );
+    return GroupMemberRole(userID: userID ?? this.userID, roleLevel: roleLevel ?? this.roleLevel);
   }
 
   @override
@@ -403,10 +396,7 @@ class GroupInviteResult extends Equatable {
   Map<String, dynamic> toJson() => _$GroupInviteResultToJson(this);
 
   GroupInviteResult copyWith({String? userID, int? result}) {
-    return GroupInviteResult(
-      userID: userID ?? this.userID,
-      result: result ?? this.result,
-    );
+    return GroupInviteResult(userID: userID ?? this.userID, result: result ?? this.result);
   }
 
   @override
@@ -427,12 +417,10 @@ class GetGroupApplicationListAsRecipientReq extends Equatable {
     required this.count,
   });
 
-  factory GetGroupApplicationListAsRecipientReq.fromJson(
-    Map<String, dynamic> json,
-  ) => _$GetGroupApplicationListAsRecipientReqFromJson(json);
+  factory GetGroupApplicationListAsRecipientReq.fromJson(Map<String, dynamic> json) =>
+      _$GetGroupApplicationListAsRecipientReqFromJson(json);
 
-  Map<String, dynamic> toJson() =>
-      _$GetGroupApplicationListAsRecipientReqToJson(this);
+  Map<String, dynamic> toJson() => _$GetGroupApplicationListAsRecipientReqToJson(this);
 
   GetGroupApplicationListAsRecipientReq copyWith({
     List<String>? groupIDs,
@@ -466,12 +454,10 @@ class GetGroupApplicationListAsApplicantReq extends Equatable {
     this.count = 40,
   });
 
-  factory GetGroupApplicationListAsApplicantReq.fromJson(
-    Map<String, dynamic> json,
-  ) => _$GetGroupApplicationListAsApplicantReqFromJson(json);
+  factory GetGroupApplicationListAsApplicantReq.fromJson(Map<String, dynamic> json) =>
+      _$GetGroupApplicationListAsApplicantReqFromJson(json);
 
-  Map<String, dynamic> toJson() =>
-      _$GetGroupApplicationListAsApplicantReqToJson(this);
+  Map<String, dynamic> toJson() => _$GetGroupApplicationListAsApplicantReqToJson(this);
 
   GetGroupApplicationListAsApplicantReq copyWith({
     List<String>? groupIDs,
@@ -497,12 +483,10 @@ class GetGroupApplicationUnhandledCountReq extends Equatable {
 
   const GetGroupApplicationUnhandledCountReq({this.time = 0});
 
-  factory GetGroupApplicationUnhandledCountReq.fromJson(
-    Map<String, dynamic> json,
-  ) => _$GetGroupApplicationUnhandledCountReqFromJson(json);
+  factory GetGroupApplicationUnhandledCountReq.fromJson(Map<String, dynamic> json) =>
+      _$GetGroupApplicationUnhandledCountReqFromJson(json);
 
-  Map<String, dynamic> toJson() =>
-      _$GetGroupApplicationUnhandledCountReqToJson(this);
+  Map<String, dynamic> toJson() => _$GetGroupApplicationUnhandledCountReqToJson(this);
 
   GetGroupApplicationUnhandledCountReq copyWith({int? time}) {
     return GetGroupApplicationUnhandledCountReq(time: time ?? this.time);

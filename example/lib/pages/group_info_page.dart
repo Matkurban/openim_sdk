@@ -25,7 +25,9 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
-      final groups = await OpenIM.iMManager.groupManager.getGroupsInfo(groupIDList: [groupID]);
+      final groups = await OpenIM.iMManager.groupManager.getGroupsInfo(
+        groupIDList: [groupID],
+      );
       if (groups.isNotEmpty) _group = groups.first;
 
       _members = await OpenIM.iMManager.groupManager.getGroupMemberList(
@@ -73,11 +75,19 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                         CircleAvatar(
                           radius: 40,
                           backgroundColor: Colors.blue[100],
-                          backgroundImage: _group!.faceURL != null && _group!.faceURL!.isNotEmpty
+                          backgroundImage:
+                              _group!.faceURL != null &&
+                                  _group!.faceURL!.isNotEmpty
                               ? NetworkImage(_group!.faceURL!)
                               : null,
-                          child: _group!.faceURL == null || _group!.faceURL!.isEmpty
-                              ? const Icon(Icons.group, size: 40, color: Colors.blue)
+                          child:
+                              _group!.faceURL == null ||
+                                  _group!.faceURL!.isEmpty
+                              ? const Icon(
+                                  Icons.group,
+                                  size: 40,
+                                  color: Colors.blue,
+                                )
                               : null,
                         ),
                         const SizedBox(height: 12),
@@ -89,7 +99,8 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                           '${_group!.memberCount ?? 0} 人',
                           style: TextStyle(color: Colors.grey[600]),
                         ),
-                        if (_group!.notification != null && _group!.notification!.isNotEmpty)
+                        if (_group!.notification != null &&
+                            _group!.notification!.isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(top: 12),
                             padding: const EdgeInsets.all(12),
@@ -103,10 +114,16 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                               children: [
                                 const Text(
                                   '群公告',
-                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(_group!.notification!, style: const TextStyle(fontSize: 13)),
+                                Text(
+                                  _group!.notification!,
+                                  style: const TextStyle(fontSize: 13),
+                                ),
                               ],
                             ),
                           ),
@@ -116,7 +133,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   const Divider(),
                   // Members
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Text(
                       '成员 (${_members.length})',
                       style: Theme.of(context).textTheme.titleMedium,
@@ -125,18 +145,27 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   ..._members.map(
                     (m) => ListTile(
                       leading: CircleAvatar(
-                        backgroundImage: m.faceURL != null && m.faceURL!.isNotEmpty
+                        backgroundImage:
+                            m.faceURL != null && m.faceURL!.isNotEmpty
                             ? NetworkImage(m.faceURL!)
                             : null,
                         child: m.faceURL == null || m.faceURL!.isEmpty
-                            ? Text((m.nickname ?? m.userID ?? '?')[0].toUpperCase())
+                            ? Text(
+                                (m.nickname ?? m.userID ?? '?')[0]
+                                    .toUpperCase(),
+                              )
                             : null,
                       ),
                       title: Text(m.nickname ?? m.userID ?? ''),
                       subtitle: Text(_roleName(m.roleLevel?.value)),
-                      trailing: m.roleLevel != GroupRoleLevel.owner && _isOwnerOrAdmin()
+                      trailing:
+                          m.roleLevel != GroupRoleLevel.owner &&
+                              _isOwnerOrAdmin()
                           ? IconButton(
-                              icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                              icon: const Icon(
+                                Icons.remove_circle_outline,
+                                color: Colors.red,
+                              ),
                               onPressed: () => _kickMember(m),
                             )
                           : null,
@@ -164,7 +193,8 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     return _members.any(
       (m) =>
           m.userID == myID &&
-          (m.roleLevel == GroupRoleLevel.owner || m.roleLevel == GroupRoleLevel.admin),
+          (m.roleLevel == GroupRoleLevel.owner ||
+              m.roleLevel == GroupRoleLevel.admin),
     );
   }
 
@@ -174,7 +204,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
         title: const Text('移除成员'),
         content: Text('确定移除 ${m.nickname ?? m.userID} 吗？'),
         actions: [
-          TextButton(onPressed: () => Get.back(result: false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Get.back(result: true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -336,7 +369,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
         title: const Text('解散群组'),
         content: const Text('确定要解散群组吗？此操作不可撤销。'),
         actions: [
-          TextButton(onPressed: () => Get.back(result: false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('取消'),
+          ),
           FilledButton(
             onPressed: () => Get.back(result: true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),

@@ -19,16 +19,10 @@ class ImApiService {
   }
 
   /// 获取用户 Token（管理端使用）
-  Future<ApiResponse> getUserToken({
-    required String userID,
-    int? platformID,
-  }) async {
+  Future<ApiResponse> getUserToken({required String userID, int? platformID}) async {
     return HttpClient().post(
       ImApiUrl.getUserToken,
-      data: {
-        'userID': userID,
-        'platformID': platformID ?? PlatformUtils.platformID,
-      },
+      data: {'userID': userID, 'platformID': platformID ?? PlatformUtils.platformID},
     );
   }
 
@@ -100,9 +94,7 @@ class ImApiService {
   }
 
   /// 更新用户信息
-  Future<ApiResponse> updateUserInfo({
-    required Map<String, dynamic> userInfo,
-  }) async {
+  Future<ApiResponse> updateUserInfo({required Map<String, dynamic> userInfo}) async {
     return HttpClient().post(ImApiUrl.updateUserInfo, data: userInfo);
   }
 
@@ -120,27 +112,16 @@ class ImApiService {
 
   /// 获取已订阅用户状态
   Future<ApiResponse> getSubscribeUsersStatus({required String userID}) async {
-    return HttpClient().post(
-      ImApiUrl.getSubscribeUsersStatus,
-      data: {'userID': userID},
-    );
+    return HttpClient().post(ImApiUrl.getSubscribeUsersStatus, data: {'userID': userID});
   }
 
   /// 获取用户在线状态
-  Future<ApiResponse> getUserStatus({
-    required String userID,
-    required List<String> userIDs,
-  }) async {
-    return HttpClient().post(
-      ImApiUrl.getUserStatus,
-      data: {'userID': userID, 'userIDs': userIDs},
-    );
+  Future<ApiResponse> getUserStatus({required String userID, required List<String> userIDs}) async {
+    return HttpClient().post(ImApiUrl.getUserStatus, data: {'userID': userID, 'userIDs': userIDs});
   }
 
   /// 更新用户扩展信息
-  Future<ApiResponse> updateUserInfoEx({
-    required Map<String, dynamic> userInfo,
-  }) async {
+  Future<ApiResponse> updateUserInfoEx({required Map<String, dynamic> userInfo}) async {
     return HttpClient().post(ImApiUrl.updateUserInfoEx, data: userInfo);
   }
 
@@ -257,18 +238,13 @@ class ImApiService {
   }
 
   /// 增量同步好友
-  Future<ApiResponse> getIncrementalFriends({
-    required Map<String, dynamic> req,
-  }) async {
+  Future<ApiResponse> getIncrementalFriends({required Map<String, dynamic> req}) async {
     return HttpClient().post(ImApiUrl.getIncrementalFriends, data: req);
   }
 
   /// 获取完整好友 ID 列表
   Future<ApiResponse> getFullFriendUserIDs({required String userID}) async {
-    return HttpClient().post(
-      ImApiUrl.getFullFriendUserIDs,
-      data: {'userID': userID},
-    );
+    return HttpClient().post(ImApiUrl.getFullFriendUserIDs, data: {'userID': userID});
   }
 
   /// 添加黑名单
@@ -279,11 +255,7 @@ class ImApiService {
   }) async {
     return HttpClient().post(
       ImApiUrl.addBlack,
-      data: {
-        'ownerUserID': ownerUserID,
-        'blackUserID': blackUserID,
-        'ex': ex ?? '',
-      },
+      data: {'ownerUserID': ownerUserID, 'blackUserID': blackUserID, 'ex': ex ?? ''},
     );
   }
 
@@ -323,9 +295,7 @@ class ImApiService {
   }
 
   /// 设置群信息
-  Future<ApiResponse> setGroupInfoEx({
-    required Map<String, dynamic> req,
-  }) async {
+  Future<ApiResponse> setGroupInfoEx({required Map<String, dynamic> req}) async {
     return HttpClient().post(ImApiUrl.setGroupInfoEx, data: req);
   }
 
@@ -350,22 +320,13 @@ class ImApiService {
   }
 
   /// 退出群组
-  Future<ApiResponse> quitGroup({
-    required String userID,
-    required String groupID,
-  }) async {
-    return HttpClient().post(
-      ImApiUrl.quitGroup,
-      data: {'userID': userID, 'groupID': groupID},
-    );
+  Future<ApiResponse> quitGroup({required String userID, required String groupID}) async {
+    return HttpClient().post(ImApiUrl.quitGroup, data: {'userID': userID, 'groupID': groupID});
   }
 
   /// 获取群信息
   Future<ApiResponse> getGroupsInfo({required List<String> groupIDs}) async {
-    return HttpClient().post(
-      ImApiUrl.getGroupsInfo,
-      data: {'groupIDs': groupIDs},
-    );
+    return HttpClient().post(ImApiUrl.getGroupsInfo, data: {'groupIDs': groupIDs});
   }
 
   /// 获取群成员列表（分页）
@@ -404,11 +365,7 @@ class ImApiService {
   }) async {
     return HttpClient().post(
       ImApiUrl.inviteUserToGroup,
-      data: {
-        'groupID': groupID,
-        'invitedUserIDs': invitedUserIDs,
-        'reason': reason ?? '',
-      },
+      data: {'groupID': groupID, 'invitedUserIDs': invitedUserIDs, 'reason': reason ?? ''},
     );
   }
 
@@ -435,11 +392,7 @@ class ImApiService {
   }) async {
     return HttpClient().post(
       ImApiUrl.kickGroup,
-      data: {
-        'groupID': groupID,
-        'kickedUserIDs': kickedUserIDs,
-        'reason': reason ?? '',
-      },
+      data: {'groupID': groupID, 'kickedUserIDs': kickedUserIDs, 'reason': reason ?? ''},
     );
   }
 
@@ -520,11 +473,7 @@ class ImApiService {
   }) async {
     return HttpClient().post(
       ImApiUrl.muteGroupMember,
-      data: {
-        'groupID': groupID,
-        'userID': userID,
-        'mutedSeconds': mutedSeconds,
-      },
+      data: {'groupID': groupID, 'userID': userID, 'mutedSeconds': mutedSeconds},
     );
   }
 
@@ -546,16 +495,11 @@ class ImApiService {
 
   /// 取消全员禁言
   Future<ApiResponse> cancelMuteGroup({required String groupID}) async {
-    return HttpClient().post(
-      ImApiUrl.cancelMuteGroup,
-      data: {'groupID': groupID},
-    );
+    return HttpClient().post(ImApiUrl.cancelMuteGroup, data: {'groupID': groupID});
   }
 
   /// 设置群成员信息
-  Future<ApiResponse> setGroupMemberInfo({
-    required Map<String, dynamic> req,
-  }) async {
+  Future<ApiResponse> setGroupMemberInfo({required Map<String, dynamic> req}) async {
     return HttpClient().post(ImApiUrl.setGroupMemberInfo, data: req);
   }
 
@@ -600,11 +544,7 @@ class ImApiService {
   }) async {
     return HttpClient().post(
       ImApiUrl.markConversationAsRead,
-      data: {
-        'userID': userID,
-        'conversationID': conversationID,
-        'hasReadSeq': hasReadSeq,
-      },
+      data: {'userID': userID, 'conversationID': conversationID, 'hasReadSeq': hasReadSeq},
     );
   }
 
@@ -684,32 +624,22 @@ class ImApiService {
 
   /// 获取全部会话
   Future<ApiResponse> getAllConversations({required String ownerUserID}) async {
-    return HttpClient().post(
-      ImApiUrl.getAllConversations,
-      data: {'ownerUserID': ownerUserID},
-    );
+    return HttpClient().post(ImApiUrl.getAllConversations, data: {'ownerUserID': ownerUserID});
   }
 
   /// 设置会话属性
-  Future<ApiResponse> setConversations({
-    required Map<String, dynamic> req,
-  }) async {
+  Future<ApiResponse> setConversations({required Map<String, dynamic> req}) async {
     return HttpClient().post(ImApiUrl.setConversations, data: req);
   }
 
   /// 增量同步会话
-  Future<ApiResponse> getIncrementalConversation({
-    required Map<String, dynamic> req,
-  }) async {
+  Future<ApiResponse> getIncrementalConversation({required Map<String, dynamic> req}) async {
     return HttpClient().post(ImApiUrl.getIncrementalConversation, data: req);
   }
 
   /// 获取完整会话 ID 列表
   Future<ApiResponse> getFullConversationIDs({required String userID}) async {
-    return HttpClient().post(
-      ImApiUrl.getFullConversationIDs,
-      data: {'userID': userID},
-    );
+    return HttpClient().post(ImApiUrl.getFullConversationIDs, data: {'userID': userID});
   }
 
   // ---------------------------------------------------------------------------
@@ -735,10 +665,7 @@ class ImApiService {
   }
 
   /// 设置 App 角标
-  Future<ApiResponse> setAppBadge({
-    required String userID,
-    required int appUnreadCount,
-  }) async {
+  Future<ApiResponse> setAppBadge({required String userID, required int appUnreadCount}) async {
     return HttpClient().post(
       ImApiUrl.setAppBadge,
       data: {'userID': userID, 'appUnreadCount': appUnreadCount},

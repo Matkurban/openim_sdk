@@ -1,3 +1,6 @@
+import 'package:meta/meta.dart';
+
+@internal
 class ApiResponse {
   final int errCode;
   final String errMsg;
@@ -21,12 +24,7 @@ class ApiResponse {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'errCode': errCode,
-      'errMsg': errMsg,
-      'errDlt': errDlt,
-      'data': data,
-    };
+    return {'errCode': errCode, 'errMsg': errMsg, 'errDlt': errDlt, 'data': data};
   }
 
   bool get isSuccess => errCode == 0;

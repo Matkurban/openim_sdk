@@ -48,14 +48,8 @@ class IMManager {
   /// 当前登录用户信息
   late UserInfo userInfo;
 
-  /// 是否已登录
-  bool isLogined = false;
-
   /// 当前登录状态
   LoginStatus _loginStatus = LoginStatus.logout;
-
-  /// Token
-  String? token;
 
   IMManager() {
     conversationManager = ConversationManager();
@@ -64,6 +58,8 @@ class IMManager {
     groupManager = GroupManager();
     userManager = UserManager();
   }
+
+  final GetIt _getIt = GetIt.instance;
 
   /// 初始化 SDK
   /// [platformID] 平台ID
@@ -82,6 +78,7 @@ class IMManager {
     required OnConnectListener listener,
     Level logLevel = .ALL,
     String? operationID,
+    List<TableSchema> schemas = const [],
   }) async {
     final InitConfig config = InitConfig(
       platformID: platformID,
@@ -90,6 +87,7 @@ class IMManager {
       wsAddr: wsAddr,
       dbPath: dataDir,
       logLevel: logLevel,
+      schemas: schemas,
     );
     try {
       hierarchicalLoggingEnabled = true;
@@ -101,10 +99,8 @@ class IMManager {
         );
       });
 
-      final GetIt getIt = GetIt.instance;
-
       // 注册配置
-      getIt.registerSingleton<InitConfig>(config, instanceName: InstanceName.initConfig);
+      _getIt.registerSingleton<InitConfig>(config, instanceName: InstanceName.initConfig);
 
       // 初始化 HTTP 层
       HttpClient().init(baseUrl: config.apiAddr);
@@ -115,17 +111,17 @@ class IMManager {
         schemas: config.schemas,
       );
 
-      getIt.registerSingleton(toStore, instanceName: InstanceName.toStore);
+      _getIt.registerSingleton(toStore, instanceName: InstanceName.toStore);
 
       final DatabaseService databaseService = DatabaseService(toStore: toStore);
-      getIt.registerSingleton<DatabaseService>(
+      _getIt.registerSingleton<DatabaseService>(
         databaseService,
         instanceName: InstanceName.databaseService,
       );
 
       // 注册 IM API 服务
       final ImApiService imApiService = ImApiService();
-      getIt.registerSingleton<ImApiService>(imApiService, instanceName: InstanceName.imApiService);
+      _getIt.registerSingleton<ImApiService>(imApiService, instanceName: InstanceName.imApiService);
 
       // 初始化 WebSocket 连接管理器
       final WebSocketService webSocketService = WebSocketService(
@@ -133,7 +129,7 @@ class IMManager {
         platformID: config.platformID ?? PlatformUtils.platformID,
         connectListener: listener,
       );
-      getIt.registerSingleton<WebSocketService>(
+      _getIt.registerSingleton<WebSocketService>(
         webSocketService,
         instanceName: InstanceName.webSocketService,
       );
@@ -160,22 +156,25 @@ class IMManager {
     );
   }
 
+  ToStore getDatabaseInstance() {
+    return _getIt.get<ToStore>(instanceName: InstanceName.toStore);
+  }
+
   ///
   Future<void> unInitSDK() async {
-    final GetIt getIt = GetIt.instance;
-    if (getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
-      await getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
+    if (_getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
+      await _getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
     }
-    if (getIt.isRegistered<DatabaseService>(instanceName: InstanceName.databaseService)) {
-      await getIt.unregister<DatabaseService>(instanceName: InstanceName.databaseService);
-    }
-
-    if (getIt.isRegistered<ImApiService>(instanceName: InstanceName.imApiService)) {
-      await getIt.unregister<ImApiService>(instanceName: InstanceName.imApiService);
+    if (_getIt.isRegistered<DatabaseService>(instanceName: InstanceName.databaseService)) {
+      await _getIt.unregister<DatabaseService>(instanceName: InstanceName.databaseService);
     }
 
-    if (getIt.isRegistered<WebSocketService>(instanceName: InstanceName.webSocketService)) {
-      await getIt.unregister<WebSocketService>(instanceName: InstanceName.webSocketService);
+    if (_getIt.isRegistered<ImApiService>(instanceName: InstanceName.imApiService)) {
+      await _getIt.unregister<ImApiService>(instanceName: InstanceName.imApiService);
+    }
+
+    if (_getIt.isRegistered<WebSocketService>(instanceName: InstanceName.webSocketService)) {
+      await _getIt.unregister<WebSocketService>(instanceName: InstanceName.webSocketService);
     }
   }
 
@@ -187,23 +186,16 @@ class IMManager {
     required String token,
     Future<UserInfo> Function()? defaultValue,
   }) async {
-    this.userID = userID;
-    this.token = token;
     _loginStatus = LoginStatus.logging;
 
     // 设置 HTTP token
     HttpClient().setToken(token);
 
-    final GetIt getIt = GetIt.instance;
-
-    final DatabaseService databaseService = getIt.get<DatabaseService>(
+    final DatabaseService databaseService = _getIt.get<DatabaseService>(
       instanceName: InstanceName.databaseService,
     );
 
-    // 初始化数据库（以用户维度）
-    await databaseService.switchSpace(userID: userID);
-
-    final ImApiService imApiService = getIt.get<ImApiService>(
+    final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
     );
 
@@ -215,7 +207,7 @@ class IMManager {
       final users = dataMap['usersInfo'] as List?;
       if (users != null && users.isNotEmpty) {
         final userData = Map<String, dynamic>.from(users.first as Map);
-        await databaseService.insertOrUpdateUser(userData);
+        await databaseService.upsertUser(userData);
         loginUser = UserInfo.fromJson(userData);
         userInfo = loginUser;
       } else {
@@ -223,19 +215,19 @@ class IMManager {
       }
     }
     if (loginUser == null) {
+      _loginStatus = LoginStatus.logout;
       return Future.error('Login Field');
     }
-
-    isLogined = true;
+    this.userID = userID;
+    conversationManager.setCurrentUserID(userID);
+    groupManager.setCurrentUserID(userID);
+    messageManager.setCurrentUserID(userID);
+    friendshipManager.setCurrentUserID(userID);
+    userManager.setCurrentUserID(userID);
+    // 初始化数据库（以用户维度）
+    await databaseService.switchSpace(userID: userID);
     _loginStatus = LoginStatus.logged;
 
-    // 建立 WebSocket 连接
-    final WebSocketService webSocketService = getIt.get<WebSocketService>(
-      instanceName: InstanceName.webSocketService,
-    );
-    await webSocketService.connect(userID: userID, token: token);
-
-    // 初始化通知分发器（通过 Manager 间接引用 Listener，支持延迟设置）
     final dispatcher = NotificationDispatcher(
       database: databaseService,
       api: imApiService,
@@ -248,7 +240,6 @@ class IMManager {
     dispatcher.setLoginUserID(userID);
     dispatcher.listenerForService = listenerForService;
 
-    // 初始化消息同步器（同样通过 Manager 间接引用 Listener）
     final msgSyncer = MsgSyncer(
       database: databaseService,
       api: imApiService,
@@ -259,10 +250,13 @@ class IMManager {
     msgSyncer.setLoginUserID(userID);
     msgSyncer.listenerForService = listenerForService;
 
-    // WS 推送 → MsgSyncer 处理
+    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    );
+    webSocketService.connect(userID: userID, token: token);
+
     webSocketService.onPushMsg = msgSyncer.handlePushMsg;
 
-    // 启动初始同步
     msgSyncer.doConnectedSync();
 
     _log.info('用户已登录: $userID');
@@ -271,11 +265,8 @@ class IMManager {
 
   /// 登出
   Future<void> logout() async {
-    isLogined = false;
     _loginStatus = LoginStatus.logout;
-    token = null;
-    final GetIt getIt = GetIt.instance;
-    final WebSocketService webSocketService = getIt.get<WebSocketService>(
+    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
       instanceName: InstanceName.webSocketService,
     );
     // 断开 WebSocket
@@ -283,7 +274,7 @@ class IMManager {
 
     // 清除 HTTP token
     HttpClient().setToken(null);
-    final DatabaseService databaseService = getIt.get<DatabaseService>(
+    final DatabaseService databaseService = _getIt.get<DatabaseService>(
       instanceName: InstanceName.databaseService,
     );
     // 关闭数据库
@@ -338,8 +329,7 @@ class IMManager {
     final partNum = (fileSize / partSize).ceil().clamp(1, 10000);
     uploadFileListener?.partSize(id, partSize, partNum);
 
-    final GetIt getIt = GetIt.instance;
-    final ImApiService imApiService = getIt.get<ImApiService>(
+    final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
     );
 

@@ -12,7 +12,11 @@ class SplashPage extends GetView<SplashController> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.chat_bubble_rounded, size: 80, color: Theme.of(context).colorScheme.primary),
+            Icon(
+              Icons.chat_bubble_rounded,
+              size: 80,
+              color: Theme.of(context).colorScheme.primary,
+            ),
             const SizedBox(height: 16),
             Text(
               'OpenIM',
@@ -23,7 +27,12 @@ class SplashPage extends GetView<SplashController> {
             const SizedBox(height: 32),
             const CircularProgressIndicator(),
             const SizedBox(height: 20),
-            Obx(() => Text(controller.statusText.value, style: TextStyle(color: Colors.grey[600]))),
+            Obx(
+              () => Text(
+                controller.statusText.value,
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ),
           ],
         ),
       ),

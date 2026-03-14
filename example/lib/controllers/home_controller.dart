@@ -34,7 +34,9 @@ class HomeController extends GetxController {
     _subs.add(
       svc.conversationChanged.stream.listen((list) {
         for (final c in list) {
-          final idx = conversations.indexWhere((e) => e.conversationID == c.conversationID);
+          final idx = conversations.indexWhere(
+            (e) => e.conversationID == c.conversationID,
+          );
           if (idx >= 0) {
             conversations[idx] = c;
           } else {
@@ -74,15 +76,21 @@ class HomeController extends GetxController {
 
   Future<void> _loadConversations() async {
     try {
-      final list = await OpenIM.iMManager.conversationManager.getAllConversationList();
-      conversations.value = OpenIM.iMManager.conversationManager.simpleSort(list);
-      final count = await OpenIM.iMManager.conversationManager.getTotalUnreadMsgCount();
+      final list = await OpenIM.iMManager.conversationManager
+          .getAllConversationList();
+      conversations.value = OpenIM.iMManager.conversationManager.simpleSort(
+        list,
+      );
+      final count = await OpenIM.iMManager.conversationManager
+          .getTotalUnreadMsgCount();
       totalUnread.value = count;
     } catch (_) {}
   }
 
   void _sortConversations() {
-    conversations.value = OpenIM.iMManager.conversationManager.simpleSort(conversations.toList());
+    conversations.value = OpenIM.iMManager.conversationManager.simpleSort(
+      conversations.toList(),
+    );
   }
 
   Future<void> refreshConversations() async {
@@ -108,9 +116,10 @@ class HomeController extends GetxController {
 
   Future<void> deleteConversation(ConversationInfo conv) async {
     try {
-      await OpenIM.iMManager.conversationManager.deleteConversationAndDeleteAllMsg(
-        conversationID: conv.conversationID,
-      );
+      await OpenIM.iMManager.conversationManager
+          .deleteConversationAndDeleteAllMsg(
+            conversationID: conv.conversationID,
+          );
       conversations.removeWhere((c) => c.conversationID == conv.conversationID);
     } catch (e) {
       Get.snackbar('错误', '$e', snackPosition: SnackPosition.BOTTOM);

@@ -44,7 +44,9 @@ class LoginPage extends GetView<LoginController> {
                           label: const Text('手机号'),
                           selected: controller.loginMode.value == 0,
                           onSelected: (_) {
-                            if (controller.loginMode.value != 0) controller.toggleLoginMode();
+                            if (controller.loginMode.value != 0) {
+                              controller.toggleLoginMode();
+                            }
                           },
                         ),
                       ),
@@ -54,7 +56,9 @@ class LoginPage extends GetView<LoginController> {
                           label: const Text('邮箱'),
                           selected: controller.loginMode.value == 1,
                           onSelected: (_) {
-                            if (controller.loginMode.value != 1) controller.toggleLoginMode();
+                            if (controller.loginMode.value != 1) {
+                              controller.toggleLoginMode();
+                            }
                           },
                         ),
                       ),
@@ -135,7 +139,9 @@ class LoginPage extends GetView<LoginController> {
 
                 // Status
                 Obx(() {
-                  if (controller.statusText.isEmpty) return const SizedBox.shrink();
+                  if (controller.statusText.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
                   return Padding(
                     padding: const EdgeInsets.only(top: 16),
                     child: Text(

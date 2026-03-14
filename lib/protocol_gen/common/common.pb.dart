@@ -65,10 +65,8 @@ class UserFullInfo extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UserFullInfo',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UserFullInfo',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
     ..aOS(2, _omitFieldNames ? '' : 'password')
@@ -81,13 +79,10 @@ class UserFullInfo extends $pb.GeneratedMessage {
     ..aI(9, _omitFieldNames ? '' : 'gender')
     ..aI(10, _omitFieldNames ? '' : 'level')
     ..aInt64(11, _omitFieldNames ? '' : 'birth')
-    ..aI(12, _omitFieldNames ? '' : 'allowAddFriend',
-        protoName: 'allowAddFriend')
+    ..aI(12, _omitFieldNames ? '' : 'allowAddFriend', protoName: 'allowAddFriend')
     ..aI(13, _omitFieldNames ? '' : 'allowBeep', protoName: 'allowBeep')
-    ..aI(14, _omitFieldNames ? '' : 'allowVibration',
-        protoName: 'allowVibration')
-    ..aI(15, _omitFieldNames ? '' : 'globalRecvMsgOpt',
-        protoName: 'globalRecvMsgOpt')
+    ..aI(14, _omitFieldNames ? '' : 'allowVibration', protoName: 'allowVibration')
+    ..aI(15, _omitFieldNames ? '' : 'globalRecvMsgOpt', protoName: 'globalRecvMsgOpt')
     ..aI(16, _omitFieldNames ? '' : 'registerType', protoName: 'registerType')
     ..hasRequiredFields = false;
 
@@ -95,8 +90,7 @@ class UserFullInfo extends $pb.GeneratedMessage {
   UserFullInfo clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UserFullInfo copyWith(void Function(UserFullInfo) updates) =>
-      super.copyWith((message) => updates(message as UserFullInfo))
-          as UserFullInfo;
+      super.copyWith((message) => updates(message as UserFullInfo)) as UserFullInfo;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -106,8 +100,8 @@ class UserFullInfo extends $pb.GeneratedMessage {
   @$core.override
   UserFullInfo createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UserFullInfo getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UserFullInfo>(create);
+  static UserFullInfo getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UserFullInfo>(create);
   static UserFullInfo? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -285,10 +279,8 @@ class UserPublicInfo extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UserPublicInfo',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UserPublicInfo',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
     ..aOS(2, _omitFieldNames ? '' : 'account')
@@ -303,8 +295,7 @@ class UserPublicInfo extends $pb.GeneratedMessage {
   UserPublicInfo clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UserPublicInfo copyWith(void Function(UserPublicInfo) updates) =>
-      super.copyWith((message) => updates(message as UserPublicInfo))
-          as UserPublicInfo;
+      super.copyWith((message) => updates(message as UserPublicInfo)) as UserPublicInfo;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -314,8 +305,8 @@ class UserPublicInfo extends $pb.GeneratedMessage {
   @$core.override
   UserPublicInfo createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UserPublicInfo getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UserPublicInfo>(create);
+  static UserPublicInfo getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UserPublicInfo>(create);
   static UserPublicInfo? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -410,10 +401,8 @@ class UserIdentity extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UserIdentity',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UserIdentity',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'email')
     ..aOS(2, _omitFieldNames ? '' : 'areaCode', protoName: 'areaCode')
@@ -427,8 +416,7 @@ class UserIdentity extends $pb.GeneratedMessage {
   UserIdentity clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UserIdentity copyWith(void Function(UserIdentity) updates) =>
-      super.copyWith((message) => updates(message as UserIdentity))
-          as UserIdentity;
+      super.copyWith((message) => updates(message as UserIdentity)) as UserIdentity;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -438,8 +426,8 @@ class UserIdentity extends $pb.GeneratedMessage {
   @$core.override
   UserIdentity createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UserIdentity getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UserIdentity>(create);
+  static UserIdentity getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UserIdentity>(create);
   static UserIdentity? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -535,10 +523,8 @@ class AppletInfo extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'AppletInfo',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AppletInfo',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'name')
@@ -567,8 +553,8 @@ class AppletInfo extends $pb.GeneratedMessage {
   @$core.override
   AppletInfo createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static AppletInfo getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AppletInfo>(create);
+  static AppletInfo getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AppletInfo>(create);
   static AppletInfo? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -707,10 +693,8 @@ class LogInfo extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'LogInfo',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'LogInfo',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat.common'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
     ..aI(2, _omitFieldNames ? '' : 'platform')
@@ -833,7 +817,5 @@ class LogInfo extends $pb.GeneratedMessage {
   void clearVersion() => $_clearField(10);
 }
 
-const $core.bool _omitFieldNames =
-    $core.bool.fromEnvironment('protobuf.omit_field_names');
-const $core.bool _omitMessageNames =
-    $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

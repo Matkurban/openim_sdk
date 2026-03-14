@@ -52,20 +52,36 @@ class HomePage extends GetView<HomeController> {
             itemBuilder: (_) => const [
               PopupMenuItem(
                 value: 'new_chat',
-                child: ListTile(leading: Icon(Icons.chat), title: Text('发起聊天'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.chat),
+                  title: Text('发起聊天'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'create_group',
-                child: ListTile(leading: Icon(Icons.group_add), title: Text('创建群组'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.group_add),
+                  title: Text('创建群组'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'add_friend',
-                child: ListTile(leading: Icon(Icons.person_add), title: Text('添加好友'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.person_add),
+                  title: Text('添加好友'),
+                  dense: true,
+                ),
               ),
               PopupMenuDivider(),
               PopupMenuItem(
                 value: 'settings',
-                child: ListTile(leading: Icon(Icons.settings), title: Text('设置'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.settings),
+                  title: Text('设置'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'logout',
@@ -85,9 +101,16 @@ class HomePage extends GetView<HomeController> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[300]),
+                Icon(
+                  Icons.chat_bubble_outline,
+                  size: 64,
+                  color: Colors.grey[300],
+                ),
                 const SizedBox(height: 16),
-                Text('暂无会话', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                Text(
+                  '暂无会话',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 16),
+                ),
                 const SizedBox(height: 8),
                 TextButton(
                   onPressed: () => controller.refreshConversations(),
@@ -134,10 +157,8 @@ class HomePage extends GetView<HomeController> {
               if (userID.isEmpty) return;
               Get.back();
               try {
-                final conv = await OpenIM.iMManager.conversationManager.getOneConversation(
-                  sourceID: userID,
-                  sessionType: 1,
-                );
+                final conv = await OpenIM.iMManager.conversationManager
+                    .getOneConversation(sourceID: userID, sessionType: 1);
                 Get.toNamed(AppRoutes.chat, arguments: conv);
               } catch (e) {
                 Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
@@ -157,7 +178,11 @@ class HomePage extends GetView<HomeController> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon((conv.isPinned ?? false) ? Icons.push_pin_outlined : Icons.push_pin),
+              leading: Icon(
+                (conv.isPinned ?? false)
+                    ? Icons.push_pin_outlined
+                    : Icons.push_pin,
+              ),
               title: Text((conv.isPinned ?? false) ? '取消置顶' : '置顶'),
               onTap: () {
                 Get.back();
@@ -182,13 +207,18 @@ class HomePage extends GetView<HomeController> {
                     title: const Text('确认删除'),
                     content: Text('删除与 ${conv.showName ?? "未知"} 的会话？'),
                     actions: [
-                      TextButton(onPressed: () => Get.back(), child: const Text('取消')),
+                      TextButton(
+                        onPressed: () => Get.back(),
+                        child: const Text('取消'),
+                      ),
                       FilledButton(
                         onPressed: () {
                           Get.back();
                           controller.deleteConversation(conv);
                         },
-                        style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
                         child: const Text('删除'),
                       ),
                     ],

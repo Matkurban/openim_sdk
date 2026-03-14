@@ -59,7 +59,9 @@ class ChatController extends GetxController {
 
     _subs.add(
       svc.recvMessageRevoked.stream.listen((info) {
-        final idx = messages.indexWhere((m) => m.clientMsgID == info.clientMsgID);
+        final idx = messages.indexWhere(
+          (m) => m.clientMsgID == info.clientMsgID,
+        );
         if (idx >= 0) {
           messages.removeAt(idx);
         }
@@ -87,7 +89,8 @@ class ChatController extends GetxController {
 
   bool _belongsToThisConversation(Message msg) {
     if (conversation.isSingleChat) {
-      return msg.sendID == conversation.userID || msg.recvID == conversation.userID;
+      return msg.sendID == conversation.userID ||
+          msg.recvID == conversation.userID;
     }
     if (conversation.isGroupChat) {
       return msg.groupID == conversation.groupID;
@@ -100,11 +103,12 @@ class ChatController extends GetxController {
     isLoading.value = true;
 
     try {
-      final list = await OpenIM.iMManager.messageManager.getAdvancedHistoryMessageList(
-        conversationID: conversation.conversationID,
-        count: 40,
-        startMsg: messages.isNotEmpty ? messages.last : null,
-      );
+      final list = await OpenIM.iMManager.messageManager
+          .getAdvancedHistoryMessageList(
+            conversationID: conversation.conversationID,
+            count: 40,
+            startMsg: messages.isNotEmpty ? messages.last : null,
+          );
       final msgList = list.messageList ?? [];
       if (msgList.isEmpty) {
         hasMore.value = false;
@@ -169,7 +173,11 @@ class ChatController extends GetxController {
     }
   }
 
-  Future<void> sendCardMessage(String userID, String nickname, String faceURL) async {
+  Future<void> sendCardMessage(
+    String userID,
+    String nickname,
+    String faceURL,
+  ) async {
     try {
       final msg = OpenIM.iMManager.messageManager.createCardMessage(
         userID: userID,
@@ -244,7 +252,11 @@ class ChatController extends GetxController {
 
   void _scrollToBottom() {
     if (scrollCtrl.hasClients) {
-      scrollCtrl.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      scrollCtrl.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 

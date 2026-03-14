@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -11,20 +12,27 @@ import 'package:openim_sdk/src/utils/platform_utils.dart';
 class UserManager {
   static final Logger _log = Logger('UserManager');
 
+  final GetIt _getIt = GetIt.instance;
+
   ImApiService get _api {
-    return GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+    return _getIt.get<ImApiService>(instanceName: InstanceName.imApiService);
   }
 
   DatabaseService get _database {
-    return GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+    return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
   }
 
-  /// 用户信息变更监听器
   OnUserListener? listener;
 
-  /// 设置用户监听器
+  late String _currentUserID;
+
   void setUserListener(OnUserListener listener) {
     this.listener = listener;
+  }
+
+  @internal
+  void setCurrentUserID(String userID) {
+    _currentUserID = userID;
   }
 
   /// Chat 服务端登录（内部方法）
@@ -66,6 +74,8 @@ class UserManager {
       _log.severe('[_chatLogin] response statusCode=${e.response?.statusCode}');
       _log.severe('[_chatLogin] response data=${e.response?.data}');
       rethrow;
+    } finally {
+      dio.close();
     }
   }
 
@@ -131,7 +141,7 @@ class UserManager {
       final srvUsers = await getUsersInfoFromSrv(userIDList: missingIDs);
       result.addAll(srvUsers);
       // 4. 更新到本地缓存
-      await batchSaveUsersToLocal(srvUsers);
+      await _database.upsertUsers(srvUsers.map((u) => u.toJson()).toList());
     }
 
     return result;
@@ -174,7 +184,7 @@ class UserManager {
     // 获取当前用户信息并合并更新
     final current = await _database.getLoginUser();
     if (current != null) {
-      await _database.insertOrUpdateUser({...current.toJson(), ...updateData});
+      await _database.upsertUser({...current.toJson(), ...updateData});
     }
 
     _log.info('用户信息已更新');
@@ -198,7 +208,7 @@ class UserManager {
   Future<List<UserStatusInfo>> subscribeUsersStatus(List<String> userIDs) async {
     _log.info('订阅用户状态: $userIDs');
     final resp = await _api.subscribeUsersStatus(
-      userID: _database.currentUserID,
+      userID: _currentUserID,
       userIDs: userIDs,
       genre: 1, // 1 for subscribe (assumed based on common logic)
     );
@@ -217,7 +227,7 @@ class UserManager {
   Future<void> unsubscribeUsersStatus(List<String> userIDs) async {
     _log.info('取消订阅用户状态: $userIDs');
     final resp = await _api.subscribeUsersStatus(
-      userID: _database.currentUserID,
+      userID: _currentUserID,
       userIDs: userIDs,
       genre: 2, // 2 for unsubscribe
     );
@@ -228,7 +238,7 @@ class UserManager {
 
   /// 获取已订阅用户的在线状态
   Future<List<UserStatusInfo>> getSubscribeUsersStatus() async {
-    final resp = await _api.getSubscribeUsersStatus(userID: _database.currentUserID);
+    final resp = await _api.getSubscribeUsersStatus(userID: _currentUserID);
     if (resp.errCode != 0) {
       throw Exception('获取已订阅用户状态失败: ${resp.errMsg}');
     }
@@ -242,7 +252,7 @@ class UserManager {
   /// 获取用户在线状态
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> getUserStatus(List<String> userIDs) async {
-    final resp = await _api.getUserStatus(userID: _database.currentUserID, userIDs: userIDs);
+    final resp = await _api.getUserStatus(userID: _currentUserID, userIDs: userIDs);
     if (resp.errCode != 0) {
       throw Exception('获取用户状态失败: ${resp.errMsg}');
     }
@@ -251,23 +261,5 @@ class UserManager {
       return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
     }
     return [];
-  }
-
-  /// 将用户信息保存到本地数据库
-  Future<void> saveUserToLocal(UserInfo userInfo) async {
-    final data = userInfo.toJson()..removeWhere((_, v) => v == null);
-    await _database.insertOrUpdateUser(data);
-  }
-
-  /// 批量将用户信息保存到本地数据库
-  Future<void> batchSaveUsersToLocal(List<UserInfo> users) async {
-    for (final user in users) {
-      await saveUserToLocal(user);
-    }
-  }
-
-  /// 通知用户状态变更（供内部调用）
-  void notifyUserStatusChanged(UserStatusInfo statusInfo) {
-    listener?.userStatusChanged(statusInfo);
   }
 }

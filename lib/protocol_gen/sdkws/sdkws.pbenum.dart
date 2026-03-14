@@ -16,23 +16,19 @@ import 'package:protobuf/protobuf.dart' as $pb;
 
 /// /////////////////////////////////base end/////////////////////////////////////
 class PullOrder extends $pb.ProtobufEnum {
-  static const PullOrder PullOrderAsc =
-      PullOrder._(0, _omitEnumNames ? '' : 'PullOrderAsc');
-  static const PullOrder PullOrderDesc =
-      PullOrder._(1, _omitEnumNames ? '' : 'PullOrderDesc');
+  static const PullOrder PullOrderAsc = PullOrder._(0, _omitEnumNames ? '' : 'PullOrderAsc');
+  static const PullOrder PullOrderDesc = PullOrder._(1, _omitEnumNames ? '' : 'PullOrderDesc');
 
   static const $core.List<PullOrder> values = <PullOrder>[
     PullOrderAsc,
     PullOrderDesc,
   ];
 
-  static final $core.List<PullOrder?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 1);
+  static final $core.List<PullOrder?> _byValue = $pb.ProtobufEnum.$_initByValueList(values, 1);
   static PullOrder? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
   const PullOrder._(super.value, super.name);
 }
 
-const $core.bool _omitEnumNames =
-    $core.bool.fromEnvironment('protobuf.omit_enum_names');
+const $core.bool _omitEnumNames = $core.bool.fromEnvironment('protobuf.omit_enum_names');

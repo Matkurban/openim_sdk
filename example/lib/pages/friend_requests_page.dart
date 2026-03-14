@@ -23,15 +23,19 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
-      _received = await OpenIM.iMManager.friendshipManager.getFriendApplicationListAsRecipient();
-      _sent = await OpenIM.iMManager.friendshipManager.getFriendApplicationListAsApplicant();
+      _received = await OpenIM.iMManager.friendshipManager
+          .getFriendApplicationListAsRecipient();
+      _sent = await OpenIM.iMManager.friendshipManager
+          .getFriendApplicationListAsApplicant();
     } catch (_) {}
     setState(() => _isLoading = false);
   }
 
   Future<void> _accept(FriendApplicationInfo info) async {
     try {
-      await OpenIM.iMManager.friendshipManager.acceptFriendApplication(userID: info.fromUserID!);
+      await OpenIM.iMManager.friendshipManager.acceptFriendApplication(
+        userID: info.fromUserID!,
+      );
       Get.snackbar('成功', '已接受', snackPosition: SnackPosition.BOTTOM);
       _load();
     } catch (e) {
@@ -41,7 +45,9 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
 
   Future<void> _reject(FriendApplicationInfo info) async {
     try {
-      await OpenIM.iMManager.friendshipManager.refuseFriendApplication(userID: info.fromUserID!);
+      await OpenIM.iMManager.friendshipManager.refuseFriendApplication(
+        userID: info.fromUserID!,
+      );
       Get.snackbar('成功', '已拒绝', snackPosition: SnackPosition.BOTTOM);
       _load();
     } catch (e) {
@@ -75,7 +81,10 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
     );
   }
 
-  Widget _buildList(List<FriendApplicationInfo> list, {required bool canAction}) {
+  Widget _buildList(
+    List<FriendApplicationInfo> list, {
+    required bool canAction,
+  }) {
     if (list.isEmpty) {
       return Center(
         child: Column(
@@ -97,7 +106,9 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
           final isPending = r.handleResult == 0;
           return ListTile(
             leading: CircleAvatar(
-              child: Text((r.fromNickname ?? r.fromUserID ?? '?')[0].toUpperCase()),
+              child: Text(
+                (r.fromNickname ?? r.fromUserID ?? '?')[0].toUpperCase(),
+              ),
             ),
             title: Text(r.fromNickname ?? r.fromUserID ?? ''),
             subtitle: Text(r.reqMsg ?? ''),
@@ -105,9 +116,15 @@ class _FriendRequestsPageState extends State<FriendRequestsPage> {
                 ? Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextButton(onPressed: () => _reject(r), child: const Text('拒绝')),
+                      TextButton(
+                        onPressed: () => _reject(r),
+                        child: const Text('拒绝'),
+                      ),
                       const SizedBox(width: 4),
-                      FilledButton(onPressed: () => _accept(r), child: const Text('接受')),
+                      FilledButton(
+                        onPressed: () => _accept(r),
+                        child: const Text('接受'),
+                      ),
                     ],
                   )
                 : Text(

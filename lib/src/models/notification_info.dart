@@ -36,8 +36,7 @@ class OANotification extends Equatable {
     this.ex,
   });
 
-  factory OANotification.fromJson(Map<String, dynamic> json) =>
-      _$OANotificationFromJson(json);
+  factory OANotification.fromJson(Map<String, dynamic> json) => _$OANotificationFromJson(json);
 
   Map<String, dynamic> toJson() => _$OANotificationToJson(this);
 
@@ -108,12 +107,7 @@ class GroupNotification extends BaseGroupNotification {
   final GroupMembersInfo? groupOwnerUser;
   final List<GroupMembersInfo>? memberList;
 
-  const GroupNotification({
-    super.group,
-    super.opUser,
-    this.groupOwnerUser,
-    this.memberList,
-  });
+  const GroupNotification({super.group, super.opUser, this.groupOwnerUser, this.memberList});
 
   factory GroupNotification.fromJson(Map<String, dynamic> json) =>
       _$GroupNotificationFromJson(json);
@@ -181,11 +175,7 @@ class InvitedJoinGroupNotification extends BaseGroupNotification {
 class KickedGroupMemeberNotification extends BaseGroupNotification {
   final List<GroupMembersInfo>? kickedUserList;
 
-  const KickedGroupMemeberNotification({
-    super.group,
-    super.opUser,
-    this.kickedUserList,
-  });
+  const KickedGroupMemeberNotification({super.group, super.opUser, this.kickedUserList});
 
   factory KickedGroupMemeberNotification.fromJson(Map<String, dynamic> json) =>
       _$KickedGroupMemeberNotificationFromJson(json);
@@ -222,14 +212,8 @@ class QuitGroupNotification extends Equatable {
 
   Map<String, dynamic> toJson() => _$QuitGroupNotificationToJson(this);
 
-  QuitGroupNotification copyWith({
-    GroupInfo? group,
-    GroupMembersInfo? quitUser,
-  }) {
-    return QuitGroupNotification(
-      group: group ?? this.group,
-      quitUser: quitUser ?? this.quitUser,
-    );
+  QuitGroupNotification copyWith({GroupInfo? group, GroupMembersInfo? quitUser}) {
+    return QuitGroupNotification(group: group ?? this.group, quitUser: quitUser ?? this.quitUser);
   }
 
   @override
@@ -249,10 +233,7 @@ class EnterGroupNotification extends Equatable {
 
   Map<String, dynamic> toJson() => _$EnterGroupNotificationToJson(this);
 
-  EnterGroupNotification copyWith({
-    GroupInfo? group,
-    GroupMembersInfo? entrantUser,
-  }) {
+  EnterGroupNotification copyWith({GroupInfo? group, GroupMembersInfo? entrantUser}) {
     return EnterGroupNotification(
       group: group ?? this.group,
       entrantUser: entrantUser ?? this.entrantUser,
@@ -268,18 +249,13 @@ class EnterGroupNotification extends Equatable {
 class GroupRightsTransferNoticication extends BaseGroupNotification {
   final GroupMembersInfo? newGroupOwner;
 
-  const GroupRightsTransferNoticication({
-    super.group,
-    super.opUser,
-    this.newGroupOwner,
-  });
+  const GroupRightsTransferNoticication({super.group, super.opUser, this.newGroupOwner});
 
   factory GroupRightsTransferNoticication.fromJson(Map<String, dynamic> json) =>
       _$GroupRightsTransferNoticicationFromJson(json);
 
   @override
-  Map<String, dynamic> toJson() =>
-      _$GroupRightsTransferNoticicationToJson(this);
+  Map<String, dynamic> toJson() => _$GroupRightsTransferNoticicationToJson(this);
 
   GroupRightsTransferNoticication copyWith({
     GroupInfo? group,
@@ -303,12 +279,7 @@ class MuteMemberNotification extends BaseGroupNotification {
   final GroupMembersInfo? mutedUser;
   final int? mutedSeconds;
 
-  const MuteMemberNotification({
-    super.group,
-    super.opUser,
-    this.mutedUser,
-    this.mutedSeconds,
-  });
+  const MuteMemberNotification({super.group, super.opUser, this.mutedUser, this.mutedSeconds});
 
   factory MuteMemberNotification.fromJson(Map<String, dynamic> json) =>
       _$MuteMemberNotificationFromJson(json);
@@ -341,22 +312,14 @@ class BurnAfterReadingNotification extends Equatable {
   final String? sendID;
   final bool? isPrivate;
 
-  const BurnAfterReadingNotification({
-    this.recvID,
-    this.sendID,
-    this.isPrivate,
-  });
+  const BurnAfterReadingNotification({this.recvID, this.sendID, this.isPrivate});
 
   factory BurnAfterReadingNotification.fromJson(Map<String, dynamic> json) =>
       _$BurnAfterReadingNotificationFromJson(json);
 
   Map<String, dynamic> toJson() => _$BurnAfterReadingNotificationToJson(this);
 
-  BurnAfterReadingNotification copyWith({
-    String? recvID,
-    String? sendID,
-    bool? isPrivate,
-  }) {
+  BurnAfterReadingNotification copyWith({String? recvID, String? sendID, bool? isPrivate}) {
     return BurnAfterReadingNotification(
       recvID: recvID ?? this.recvID,
       sendID: sendID ?? this.sendID,
@@ -373,19 +336,13 @@ class BurnAfterReadingNotification extends Equatable {
 class GroupMemberInfoChangedNotification extends BaseGroupNotification {
   final GroupMembersInfo? changedUser;
 
-  const GroupMemberInfoChangedNotification({
-    super.group,
-    super.opUser,
-    this.changedUser,
-  });
+  const GroupMemberInfoChangedNotification({super.group, super.opUser, this.changedUser});
 
-  factory GroupMemberInfoChangedNotification.fromJson(
-    Map<String, dynamic> json,
-  ) => _$GroupMemberInfoChangedNotificationFromJson(json);
+  factory GroupMemberInfoChangedNotification.fromJson(Map<String, dynamic> json) =>
+      _$GroupMemberInfoChangedNotificationFromJson(json);
 
   @override
-  Map<String, dynamic> toJson() =>
-      _$GroupMemberInfoChangedNotificationToJson(this);
+  Map<String, dynamic> toJson() => _$GroupMemberInfoChangedNotificationToJson(this);
 
   GroupMemberInfoChangedNotification copyWith({
     GroupInfo? group,

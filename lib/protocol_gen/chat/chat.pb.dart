@@ -50,8 +50,7 @@ class UserIdentity extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UserIdentity',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UserIdentity',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'email')
@@ -66,8 +65,7 @@ class UserIdentity extends $pb.GeneratedMessage {
   UserIdentity clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UserIdentity copyWith(void Function(UserIdentity) updates) =>
-      super.copyWith((message) => updates(message as UserIdentity))
-          as UserIdentity;
+      super.copyWith((message) => updates(message as UserIdentity)) as UserIdentity;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -77,8 +75,8 @@ class UserIdentity extends $pb.GeneratedMessage {
   @$core.override
   UserIdentity createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UserIdentity getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UserIdentity>(create);
+  static UserIdentity getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UserIdentity>(create);
   static UserIdentity? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -182,29 +180,22 @@ class UpdateUserInfoReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UpdateUserInfoReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UpdateUserInfoReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
-    ..aOM<$0.StringValue>(2, _omitFieldNames ? '' : 'account',
-        subBuilder: $0.StringValue.create)
+    ..aOM<$0.StringValue>(2, _omitFieldNames ? '' : 'account', subBuilder: $0.StringValue.create)
     ..aOM<$0.StringValue>(3, _omitFieldNames ? '' : 'phoneNumber',
         protoName: 'phoneNumber', subBuilder: $0.StringValue.create)
     ..aOM<$0.StringValue>(4, _omitFieldNames ? '' : 'areaCode',
         protoName: 'areaCode', subBuilder: $0.StringValue.create)
-    ..aOM<$0.StringValue>(5, _omitFieldNames ? '' : 'email',
-        subBuilder: $0.StringValue.create)
-    ..aOM<$0.StringValue>(6, _omitFieldNames ? '' : 'nickname',
-        subBuilder: $0.StringValue.create)
+    ..aOM<$0.StringValue>(5, _omitFieldNames ? '' : 'email', subBuilder: $0.StringValue.create)
+    ..aOM<$0.StringValue>(6, _omitFieldNames ? '' : 'nickname', subBuilder: $0.StringValue.create)
     ..aOM<$0.StringValue>(7, _omitFieldNames ? '' : 'faceURL',
         protoName: 'faceURL', subBuilder: $0.StringValue.create)
-    ..aOM<$0.Int32Value>(8, _omitFieldNames ? '' : 'gender',
-        subBuilder: $0.Int32Value.create)
-    ..aOM<$0.Int32Value>(9, _omitFieldNames ? '' : 'level',
-        subBuilder: $0.Int32Value.create)
-    ..aOM<$0.Int64Value>(10, _omitFieldNames ? '' : 'birth',
-        subBuilder: $0.Int64Value.create)
+    ..aOM<$0.Int32Value>(8, _omitFieldNames ? '' : 'gender', subBuilder: $0.Int32Value.create)
+    ..aOM<$0.Int32Value>(9, _omitFieldNames ? '' : 'level', subBuilder: $0.Int32Value.create)
+    ..aOM<$0.Int64Value>(10, _omitFieldNames ? '' : 'birth', subBuilder: $0.Int64Value.create)
     ..aOM<$0.Int32Value>(11, _omitFieldNames ? '' : 'allowAddFriend',
         protoName: 'allowAddFriend', subBuilder: $0.Int32Value.create)
     ..aOM<$0.Int32Value>(12, _omitFieldNames ? '' : 'allowBeep',
@@ -221,8 +212,7 @@ class UpdateUserInfoReq extends $pb.GeneratedMessage {
   UpdateUserInfoReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UpdateUserInfoReq copyWith(void Function(UpdateUserInfoReq) updates) =>
-      super.copyWith((message) => updates(message as UpdateUserInfoReq))
-          as UpdateUserInfoReq;
+      super.copyWith((message) => updates(message as UpdateUserInfoReq)) as UpdateUserInfoReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -232,8 +222,8 @@ class UpdateUserInfoReq extends $pb.GeneratedMessage {
   @$core.override
   UpdateUserInfoReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UpdateUserInfoReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UpdateUserInfoReq>(create);
+  static UpdateUserInfoReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UpdateUserInfoReq>(create);
   static UpdateUserInfoReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -420,8 +410,7 @@ class UpdateUserInfoResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UpdateUserInfoResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UpdateUserInfoResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'faceUrl', protoName: 'faceUrl')
@@ -432,8 +421,7 @@ class UpdateUserInfoResp extends $pb.GeneratedMessage {
   UpdateUserInfoResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UpdateUserInfoResp copyWith(void Function(UpdateUserInfoResp) updates) =>
-      super.copyWith((message) => updates(message as UpdateUserInfoResp))
-          as UpdateUserInfoResp;
+      super.copyWith((message) => updates(message as UpdateUserInfoResp)) as UpdateUserInfoResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -443,8 +431,8 @@ class UpdateUserInfoResp extends $pb.GeneratedMessage {
   @$core.override
   UpdateUserInfoResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UpdateUserInfoResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UpdateUserInfoResp>(create);
+  static UpdateUserInfoResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UpdateUserInfoResp>(create);
   static UpdateUserInfoResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -494,8 +482,7 @@ class FindUserPublicInfoReq extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindUserPublicInfoReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  FindUserPublicInfoReq copyWith(
-          void Function(FindUserPublicInfoReq) updates) =>
+  FindUserPublicInfoReq copyWith(void Function(FindUserPublicInfoReq) updates) =>
       super.copyWith((message) => updates(message as FindUserPublicInfoReq))
           as FindUserPublicInfoReq;
 
@@ -507,8 +494,8 @@ class FindUserPublicInfoReq extends $pb.GeneratedMessage {
   @$core.override
   FindUserPublicInfoReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindUserPublicInfoReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindUserPublicInfoReq>(create);
+  static FindUserPublicInfoReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindUserPublicInfoReq>(create);
   static FindUserPublicInfoReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -544,8 +531,7 @@ class FindUserPublicInfoResp extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindUserPublicInfoResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  FindUserPublicInfoResp copyWith(
-          void Function(FindUserPublicInfoResp) updates) =>
+  FindUserPublicInfoResp copyWith(void Function(FindUserPublicInfoResp) updates) =>
       super.copyWith((message) => updates(message as FindUserPublicInfoResp))
           as FindUserPublicInfoResp;
 
@@ -557,8 +543,8 @@ class FindUserPublicInfoResp extends $pb.GeneratedMessage {
   @$core.override
   FindUserPublicInfoResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindUserPublicInfoResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindUserPublicInfoResp>(create);
+  static FindUserPublicInfoResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindUserPublicInfoResp>(create);
   static FindUserPublicInfoResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -600,8 +586,7 @@ class SearchUserPublicInfoReq extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SearchUserPublicInfoReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  SearchUserPublicInfoReq copyWith(
-          void Function(SearchUserPublicInfoReq) updates) =>
+  SearchUserPublicInfoReq copyWith(void Function(SearchUserPublicInfoReq) updates) =>
       super.copyWith((message) => updates(message as SearchUserPublicInfoReq))
           as SearchUserPublicInfoReq;
 
@@ -613,8 +598,8 @@ class SearchUserPublicInfoReq extends $pb.GeneratedMessage {
   @$core.override
   SearchUserPublicInfoReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SearchUserPublicInfoReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SearchUserPublicInfoReq>(create);
+  static SearchUserPublicInfoReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SearchUserPublicInfoReq>(create);
   static SearchUserPublicInfoReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -679,8 +664,7 @@ class SearchUserPublicInfoResp extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SearchUserPublicInfoResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  SearchUserPublicInfoResp copyWith(
-          void Function(SearchUserPublicInfoResp) updates) =>
+  SearchUserPublicInfoResp copyWith(void Function(SearchUserPublicInfoResp) updates) =>
       super.copyWith((message) => updates(message as SearchUserPublicInfoResp))
           as SearchUserPublicInfoResp;
 
@@ -692,8 +676,8 @@ class SearchUserPublicInfoResp extends $pb.GeneratedMessage {
   @$core.override
   SearchUserPublicInfoResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SearchUserPublicInfoResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SearchUserPublicInfoResp>(create);
+  static SearchUserPublicInfoResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SearchUserPublicInfoResp>(create);
   static SearchUserPublicInfoResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -727,8 +711,7 @@ class FindUserFullInfoReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'FindUserFullInfoReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindUserFullInfoReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..pPS(1, _omitFieldNames ? '' : 'userIDs', protoName: 'userIDs')
@@ -738,8 +721,7 @@ class FindUserFullInfoReq extends $pb.GeneratedMessage {
   FindUserFullInfoReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindUserFullInfoReq copyWith(void Function(FindUserFullInfoReq) updates) =>
-      super.copyWith((message) => updates(message as FindUserFullInfoReq))
-          as FindUserFullInfoReq;
+      super.copyWith((message) => updates(message as FindUserFullInfoReq)) as FindUserFullInfoReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -749,8 +731,8 @@ class FindUserFullInfoReq extends $pb.GeneratedMessage {
   @$core.override
   FindUserFullInfoReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindUserFullInfoReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindUserFullInfoReq>(create);
+  static FindUserFullInfoReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindUserFullInfoReq>(create);
   static FindUserFullInfoReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -775,20 +757,17 @@ class FindUserFullInfoResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'FindUserFullInfoResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindUserFullInfoResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
-    ..pPM<$1.UserFullInfo>(1, _omitFieldNames ? '' : 'users',
-        subBuilder: $1.UserFullInfo.create)
+    ..pPM<$1.UserFullInfo>(1, _omitFieldNames ? '' : 'users', subBuilder: $1.UserFullInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindUserFullInfoResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindUserFullInfoResp copyWith(void Function(FindUserFullInfoResp) updates) =>
-      super.copyWith((message) => updates(message as FindUserFullInfoResp))
-          as FindUserFullInfoResp;
+      super.copyWith((message) => updates(message as FindUserFullInfoResp)) as FindUserFullInfoResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -798,8 +777,8 @@ class FindUserFullInfoResp extends $pb.GeneratedMessage {
   @$core.override
   FindUserFullInfoResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindUserFullInfoResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindUserFullInfoResp>(create);
+  static FindUserFullInfoResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindUserFullInfoResp>(create);
   static FindUserFullInfoResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -838,14 +817,12 @@ class SendVerifyCodeReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SendVerifyCodeReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SendVerifyCodeReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'usedFor', protoName: 'usedFor')
     ..aOS(2, _omitFieldNames ? '' : 'ip')
-    ..aOS(3, _omitFieldNames ? '' : 'invitationCode',
-        protoName: 'invitationCode')
+    ..aOS(3, _omitFieldNames ? '' : 'invitationCode', protoName: 'invitationCode')
     ..aOS(4, _omitFieldNames ? '' : 'deviceID', protoName: 'deviceID')
     ..aI(5, _omitFieldNames ? '' : 'platform')
     ..aOS(6, _omitFieldNames ? '' : 'areaCode', protoName: 'areaCode')
@@ -857,8 +834,7 @@ class SendVerifyCodeReq extends $pb.GeneratedMessage {
   SendVerifyCodeReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SendVerifyCodeReq copyWith(void Function(SendVerifyCodeReq) updates) =>
-      super.copyWith((message) => updates(message as SendVerifyCodeReq))
-          as SendVerifyCodeReq;
+      super.copyWith((message) => updates(message as SendVerifyCodeReq)) as SendVerifyCodeReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -868,8 +844,8 @@ class SendVerifyCodeReq extends $pb.GeneratedMessage {
   @$core.override
   SendVerifyCodeReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SendVerifyCodeReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SendVerifyCodeReq>(create);
+  static SendVerifyCodeReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SendVerifyCodeReq>(create);
   static SendVerifyCodeReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -957,8 +933,7 @@ class SendVerifyCodeResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SendVerifyCodeResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SendVerifyCodeResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -967,8 +942,7 @@ class SendVerifyCodeResp extends $pb.GeneratedMessage {
   SendVerifyCodeResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SendVerifyCodeResp copyWith(void Function(SendVerifyCodeResp) updates) =>
-      super.copyWith((message) => updates(message as SendVerifyCodeResp))
-          as SendVerifyCodeResp;
+      super.copyWith((message) => updates(message as SendVerifyCodeResp)) as SendVerifyCodeResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -978,8 +952,8 @@ class SendVerifyCodeResp extends $pb.GeneratedMessage {
   @$core.override
   SendVerifyCodeResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SendVerifyCodeResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SendVerifyCodeResp>(create);
+  static SendVerifyCodeResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SendVerifyCodeResp>(create);
   static SendVerifyCodeResp? _defaultInstance;
 }
 
@@ -1007,8 +981,7 @@ class VerifyCodeReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'VerifyCodeReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'VerifyCodeReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'areaCode', protoName: 'areaCode')
@@ -1021,8 +994,7 @@ class VerifyCodeReq extends $pb.GeneratedMessage {
   VerifyCodeReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   VerifyCodeReq copyWith(void Function(VerifyCodeReq) updates) =>
-      super.copyWith((message) => updates(message as VerifyCodeReq))
-          as VerifyCodeReq;
+      super.copyWith((message) => updates(message as VerifyCodeReq)) as VerifyCodeReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1032,8 +1004,8 @@ class VerifyCodeReq extends $pb.GeneratedMessage {
   @$core.override
   VerifyCodeReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static VerifyCodeReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<VerifyCodeReq>(create);
+  static VerifyCodeReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<VerifyCodeReq>(create);
   static VerifyCodeReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1085,8 +1057,7 @@ class VerifyCodeResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'VerifyCodeResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'VerifyCodeResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -1095,8 +1066,7 @@ class VerifyCodeResp extends $pb.GeneratedMessage {
   VerifyCodeResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   VerifyCodeResp copyWith(void Function(VerifyCodeResp) updates) =>
-      super.copyWith((message) => updates(message as VerifyCodeResp))
-          as VerifyCodeResp;
+      super.copyWith((message) => updates(message as VerifyCodeResp)) as VerifyCodeResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1106,8 +1076,8 @@ class VerifyCodeResp extends $pb.GeneratedMessage {
   @$core.override
   VerifyCodeResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static VerifyCodeResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<VerifyCodeResp>(create);
+  static VerifyCodeResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<VerifyCodeResp>(create);
   static VerifyCodeResp? _defaultInstance;
 }
 
@@ -1149,8 +1119,7 @@ class RegisterUserInfo extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'RegisterUserInfo',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'RegisterUserInfo',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
@@ -1170,8 +1139,7 @@ class RegisterUserInfo extends $pb.GeneratedMessage {
   RegisterUserInfo clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   RegisterUserInfo copyWith(void Function(RegisterUserInfo) updates) =>
-      super.copyWith((message) => updates(message as RegisterUserInfo))
-          as RegisterUserInfo;
+      super.copyWith((message) => updates(message as RegisterUserInfo)) as RegisterUserInfo;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1181,8 +1149,8 @@ class RegisterUserInfo extends $pb.GeneratedMessage {
   @$core.override
   RegisterUserInfo createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static RegisterUserInfo getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RegisterUserInfo>(create);
+  static RegisterUserInfo getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RegisterUserInfo>(create);
   static RegisterUserInfo? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1315,27 +1283,23 @@ class RegisterUserReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'RegisterUserReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'RegisterUserReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'invitationCode',
-        protoName: 'invitationCode')
+    ..aOS(1, _omitFieldNames ? '' : 'invitationCode', protoName: 'invitationCode')
     ..aOS(2, _omitFieldNames ? '' : 'verifyCode', protoName: 'verifyCode')
     ..aOS(3, _omitFieldNames ? '' : 'ip')
     ..aOS(4, _omitFieldNames ? '' : 'deviceID', protoName: 'deviceID')
     ..aI(5, _omitFieldNames ? '' : 'platform')
     ..aOB(6, _omitFieldNames ? '' : 'autoLogin', protoName: 'autoLogin')
-    ..aOM<RegisterUserInfo>(7, _omitFieldNames ? '' : 'user',
-        subBuilder: RegisterUserInfo.create)
+    ..aOM<RegisterUserInfo>(7, _omitFieldNames ? '' : 'user', subBuilder: RegisterUserInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   RegisterUserReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   RegisterUserReq copyWith(void Function(RegisterUserReq) updates) =>
-      super.copyWith((message) => updates(message as RegisterUserReq))
-          as RegisterUserReq;
+      super.copyWith((message) => updates(message as RegisterUserReq)) as RegisterUserReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1345,8 +1309,8 @@ class RegisterUserReq extends $pb.GeneratedMessage {
   @$core.override
   RegisterUserReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static RegisterUserReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RegisterUserReq>(create);
+  static RegisterUserReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RegisterUserReq>(create);
   static RegisterUserReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1435,8 +1399,7 @@ class RegisterUserResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'RegisterUserResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'RegisterUserResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
@@ -1447,8 +1410,7 @@ class RegisterUserResp extends $pb.GeneratedMessage {
   RegisterUserResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   RegisterUserResp copyWith(void Function(RegisterUserResp) updates) =>
-      super.copyWith((message) => updates(message as RegisterUserResp))
-          as RegisterUserResp;
+      super.copyWith((message) => updates(message as RegisterUserResp)) as RegisterUserResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1458,8 +1420,8 @@ class RegisterUserResp extends $pb.GeneratedMessage {
   @$core.override
   RegisterUserResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static RegisterUserResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<RegisterUserResp>(create);
+  static RegisterUserResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<RegisterUserResp>(create);
   static RegisterUserResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1505,23 +1467,20 @@ class AddUserAccountReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'AddUserAccountReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AddUserAccountReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'ip')
     ..aOS(2, _omitFieldNames ? '' : 'deviceID', protoName: 'deviceID')
     ..aI(3, _omitFieldNames ? '' : 'platform')
-    ..aOM<RegisterUserInfo>(4, _omitFieldNames ? '' : 'user',
-        subBuilder: RegisterUserInfo.create)
+    ..aOM<RegisterUserInfo>(4, _omitFieldNames ? '' : 'user', subBuilder: RegisterUserInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   AddUserAccountReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   AddUserAccountReq copyWith(void Function(AddUserAccountReq) updates) =>
-      super.copyWith((message) => updates(message as AddUserAccountReq))
-          as AddUserAccountReq;
+      super.copyWith((message) => updates(message as AddUserAccountReq)) as AddUserAccountReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1531,8 +1490,8 @@ class AddUserAccountReq extends $pb.GeneratedMessage {
   @$core.override
   AddUserAccountReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static AddUserAccountReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AddUserAccountReq>(create);
+  static AddUserAccountReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AddUserAccountReq>(create);
   static AddUserAccountReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1586,8 +1545,7 @@ class AddUserAccountResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'AddUserAccountResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'AddUserAccountResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -1596,8 +1554,7 @@ class AddUserAccountResp extends $pb.GeneratedMessage {
   AddUserAccountResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   AddUserAccountResp copyWith(void Function(AddUserAccountResp) updates) =>
-      super.copyWith((message) => updates(message as AddUserAccountResp))
-          as AddUserAccountResp;
+      super.copyWith((message) => updates(message as AddUserAccountResp)) as AddUserAccountResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1607,8 +1564,8 @@ class AddUserAccountResp extends $pb.GeneratedMessage {
   @$core.override
   AddUserAccountResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static AddUserAccountResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<AddUserAccountResp>(create);
+  static AddUserAccountResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<AddUserAccountResp>(create);
   static AddUserAccountResp? _defaultInstance;
 }
 
@@ -1646,8 +1603,7 @@ class LoginReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'LoginReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'LoginReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'areaCode', protoName: 'areaCode')
@@ -1787,8 +1743,7 @@ class ResetPasswordReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ResetPasswordReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ResetPasswordReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'areaCode', protoName: 'areaCode')
@@ -1802,8 +1757,7 @@ class ResetPasswordReq extends $pb.GeneratedMessage {
   ResetPasswordReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ResetPasswordReq copyWith(void Function(ResetPasswordReq) updates) =>
-      super.copyWith((message) => updates(message as ResetPasswordReq))
-          as ResetPasswordReq;
+      super.copyWith((message) => updates(message as ResetPasswordReq)) as ResetPasswordReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1813,8 +1767,8 @@ class ResetPasswordReq extends $pb.GeneratedMessage {
   @$core.override
   ResetPasswordReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ResetPasswordReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResetPasswordReq>(create);
+  static ResetPasswordReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResetPasswordReq>(create);
   static ResetPasswordReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1875,8 +1829,7 @@ class ResetPasswordResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ResetPasswordResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ResetPasswordResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -1885,8 +1838,7 @@ class ResetPasswordResp extends $pb.GeneratedMessage {
   ResetPasswordResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ResetPasswordResp copyWith(void Function(ResetPasswordResp) updates) =>
-      super.copyWith((message) => updates(message as ResetPasswordResp))
-          as ResetPasswordResp;
+      super.copyWith((message) => updates(message as ResetPasswordResp)) as ResetPasswordResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1896,8 +1848,8 @@ class ResetPasswordResp extends $pb.GeneratedMessage {
   @$core.override
   ResetPasswordResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ResetPasswordResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ResetPasswordResp>(create);
+  static ResetPasswordResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ResetPasswordResp>(create);
   static ResetPasswordResp? _defaultInstance;
 }
 
@@ -1923,13 +1875,11 @@ class ChangePasswordReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ChangePasswordReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ChangePasswordReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
-    ..aOS(2, _omitFieldNames ? '' : 'currentPassword',
-        protoName: 'currentPassword')
+    ..aOS(2, _omitFieldNames ? '' : 'currentPassword', protoName: 'currentPassword')
     ..aOS(3, _omitFieldNames ? '' : 'newPassword', protoName: 'newPassword')
     ..hasRequiredFields = false;
 
@@ -1937,8 +1887,7 @@ class ChangePasswordReq extends $pb.GeneratedMessage {
   ChangePasswordReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ChangePasswordReq copyWith(void Function(ChangePasswordReq) updates) =>
-      super.copyWith((message) => updates(message as ChangePasswordReq))
-          as ChangePasswordReq;
+      super.copyWith((message) => updates(message as ChangePasswordReq)) as ChangePasswordReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -1948,8 +1897,8 @@ class ChangePasswordReq extends $pb.GeneratedMessage {
   @$core.override
   ChangePasswordReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ChangePasswordReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ChangePasswordReq>(create);
+  static ChangePasswordReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ChangePasswordReq>(create);
   static ChangePasswordReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -1992,8 +1941,7 @@ class ChangePasswordResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ChangePasswordResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ChangePasswordResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -2002,8 +1950,7 @@ class ChangePasswordResp extends $pb.GeneratedMessage {
   ChangePasswordResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   ChangePasswordResp copyWith(void Function(ChangePasswordResp) updates) =>
-      super.copyWith((message) => updates(message as ChangePasswordResp))
-          as ChangePasswordResp;
+      super.copyWith((message) => updates(message as ChangePasswordResp)) as ChangePasswordResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2013,8 +1960,8 @@ class ChangePasswordResp extends $pb.GeneratedMessage {
   @$core.override
   ChangePasswordResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static ChangePasswordResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ChangePasswordResp>(create);
+  static ChangePasswordResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ChangePasswordResp>(create);
   static ChangePasswordResp? _defaultInstance;
 }
 
@@ -2036,8 +1983,7 @@ class FindUserAccountReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'FindUserAccountReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindUserAccountReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..pPS(1, _omitFieldNames ? '' : 'userIDs', protoName: 'userIDs')
@@ -2047,8 +1993,7 @@ class FindUserAccountReq extends $pb.GeneratedMessage {
   FindUserAccountReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindUserAccountReq copyWith(void Function(FindUserAccountReq) updates) =>
-      super.copyWith((message) => updates(message as FindUserAccountReq))
-          as FindUserAccountReq;
+      super.copyWith((message) => updates(message as FindUserAccountReq)) as FindUserAccountReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2058,8 +2003,8 @@ class FindUserAccountReq extends $pb.GeneratedMessage {
   @$core.override
   FindUserAccountReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindUserAccountReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindUserAccountReq>(create);
+  static FindUserAccountReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindUserAccountReq>(create);
   static FindUserAccountReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2071,8 +2016,7 @@ class FindUserAccountResp extends $pb.GeneratedMessage {
     $core.Iterable<$core.MapEntry<$core.String, $core.String>>? userAccountMap,
   }) {
     final result = create();
-    if (userAccountMap != null)
-      result.userAccountMap.addEntries(userAccountMap);
+    if (userAccountMap != null) result.userAccountMap.addEntries(userAccountMap);
     return result;
   }
 
@@ -2085,8 +2029,7 @@ class FindUserAccountResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'FindUserAccountResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindUserAccountResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..m<$core.String, $core.String>(1, _omitFieldNames ? '' : 'userAccountMap',
@@ -2101,8 +2044,7 @@ class FindUserAccountResp extends $pb.GeneratedMessage {
   FindUserAccountResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindUserAccountResp copyWith(void Function(FindUserAccountResp) updates) =>
-      super.copyWith((message) => updates(message as FindUserAccountResp))
-          as FindUserAccountResp;
+      super.copyWith((message) => updates(message as FindUserAccountResp)) as FindUserAccountResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2112,8 +2054,8 @@ class FindUserAccountResp extends $pb.GeneratedMessage {
   @$core.override
   FindUserAccountResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindUserAccountResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindUserAccountResp>(create);
+  static FindUserAccountResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindUserAccountResp>(create);
   static FindUserAccountResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2138,8 +2080,7 @@ class FindAccountUserReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'FindAccountUserReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindAccountUserReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..pPS(1, _omitFieldNames ? '' : 'accounts')
@@ -2149,8 +2090,7 @@ class FindAccountUserReq extends $pb.GeneratedMessage {
   FindAccountUserReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindAccountUserReq copyWith(void Function(FindAccountUserReq) updates) =>
-      super.copyWith((message) => updates(message as FindAccountUserReq))
-          as FindAccountUserReq;
+      super.copyWith((message) => updates(message as FindAccountUserReq)) as FindAccountUserReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2160,8 +2100,8 @@ class FindAccountUserReq extends $pb.GeneratedMessage {
   @$core.override
   FindAccountUserReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindAccountUserReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindAccountUserReq>(create);
+  static FindAccountUserReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindAccountUserReq>(create);
   static FindAccountUserReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2173,8 +2113,7 @@ class FindAccountUserResp extends $pb.GeneratedMessage {
     $core.Iterable<$core.MapEntry<$core.String, $core.String>>? accountUserMap,
   }) {
     final result = create();
-    if (accountUserMap != null)
-      result.accountUserMap.addEntries(accountUserMap);
+    if (accountUserMap != null) result.accountUserMap.addEntries(accountUserMap);
     return result;
   }
 
@@ -2187,8 +2126,7 @@ class FindAccountUserResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'FindAccountUserResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FindAccountUserResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..m<$core.String, $core.String>(1, _omitFieldNames ? '' : 'accountUserMap',
@@ -2203,8 +2141,7 @@ class FindAccountUserResp extends $pb.GeneratedMessage {
   FindAccountUserResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   FindAccountUserResp copyWith(void Function(FindAccountUserResp) updates) =>
-      super.copyWith((message) => updates(message as FindAccountUserResp))
-          as FindAccountUserResp;
+      super.copyWith((message) => updates(message as FindAccountUserResp)) as FindAccountUserResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2214,8 +2151,8 @@ class FindAccountUserResp extends $pb.GeneratedMessage {
   @$core.override
   FindAccountUserResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FindAccountUserResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FindAccountUserResp>(create);
+  static FindAccountUserResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FindAccountUserResp>(create);
   static FindAccountUserResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2266,16 +2203,14 @@ class SignalRecord extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SignalRecord',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SignalRecord',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'fileName', protoName: 'fileName')
     ..aOS(2, _omitFieldNames ? '' : 'mediaType', protoName: 'mediaType')
     ..aOS(3, _omitFieldNames ? '' : 'roomType', protoName: 'roomType')
     ..aOS(4, _omitFieldNames ? '' : 'senderID', protoName: 'senderID')
-    ..aOS(5, _omitFieldNames ? '' : 'senderNickname',
-        protoName: 'senderNickname')
+    ..aOS(5, _omitFieldNames ? '' : 'senderNickname', protoName: 'senderNickname')
     ..aOS(6, _omitFieldNames ? '' : 'recvID', protoName: 'recvID')
     ..aOS(7, _omitFieldNames ? '' : 'recvNickname', protoName: 'recvNickname')
     ..aOS(8, _omitFieldNames ? '' : 'groupID', protoName: 'groupID')
@@ -2292,8 +2227,7 @@ class SignalRecord extends $pb.GeneratedMessage {
   SignalRecord clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SignalRecord copyWith(void Function(SignalRecord) updates) =>
-      super.copyWith((message) => updates(message as SignalRecord))
-          as SignalRecord;
+      super.copyWith((message) => updates(message as SignalRecord)) as SignalRecord;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2303,8 +2237,8 @@ class SignalRecord extends $pb.GeneratedMessage {
   @$core.override
   SignalRecord createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SignalRecord getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SignalRecord>(create);
+  static SignalRecord getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SignalRecord>(create);
   static SignalRecord? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2448,8 +2382,7 @@ class OpenIMCallbackReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'OpenIMCallbackReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'OpenIMCallbackReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'command')
@@ -2460,8 +2393,7 @@ class OpenIMCallbackReq extends $pb.GeneratedMessage {
   OpenIMCallbackReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   OpenIMCallbackReq copyWith(void Function(OpenIMCallbackReq) updates) =>
-      super.copyWith((message) => updates(message as OpenIMCallbackReq))
-          as OpenIMCallbackReq;
+      super.copyWith((message) => updates(message as OpenIMCallbackReq)) as OpenIMCallbackReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2471,8 +2403,8 @@ class OpenIMCallbackReq extends $pb.GeneratedMessage {
   @$core.override
   OpenIMCallbackReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static OpenIMCallbackReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<OpenIMCallbackReq>(create);
+  static OpenIMCallbackReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<OpenIMCallbackReq>(create);
   static OpenIMCallbackReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2506,8 +2438,7 @@ class OpenIMCallbackResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'OpenIMCallbackResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'OpenIMCallbackResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -2516,8 +2447,7 @@ class OpenIMCallbackResp extends $pb.GeneratedMessage {
   OpenIMCallbackResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   OpenIMCallbackResp copyWith(void Function(OpenIMCallbackResp) updates) =>
-      super.copyWith((message) => updates(message as OpenIMCallbackResp))
-          as OpenIMCallbackResp;
+      super.copyWith((message) => updates(message as OpenIMCallbackResp)) as OpenIMCallbackResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2527,8 +2457,8 @@ class OpenIMCallbackResp extends $pb.GeneratedMessage {
   @$core.override
   OpenIMCallbackResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static OpenIMCallbackResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<OpenIMCallbackResp>(create);
+  static OpenIMCallbackResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<OpenIMCallbackResp>(create);
   static OpenIMCallbackResp? _defaultInstance;
 }
 
@@ -2570,8 +2500,7 @@ class SearchUserFullInfoReq extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SearchUserFullInfoReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  SearchUserFullInfoReq copyWith(
-          void Function(SearchUserFullInfoReq) updates) =>
+  SearchUserFullInfoReq copyWith(void Function(SearchUserFullInfoReq) updates) =>
       super.copyWith((message) => updates(message as SearchUserFullInfoReq))
           as SearchUserFullInfoReq;
 
@@ -2583,8 +2512,8 @@ class SearchUserFullInfoReq extends $pb.GeneratedMessage {
   @$core.override
   SearchUserFullInfoReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SearchUserFullInfoReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SearchUserFullInfoReq>(create);
+  static SearchUserFullInfoReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SearchUserFullInfoReq>(create);
   static SearchUserFullInfoReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2651,15 +2580,13 @@ class SearchUserFullInfoResp extends $pb.GeneratedMessage {
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'total', fieldType: $pb.PbFieldType.OU3)
-    ..pPM<$1.UserFullInfo>(2, _omitFieldNames ? '' : 'users',
-        subBuilder: $1.UserFullInfo.create)
+    ..pPM<$1.UserFullInfo>(2, _omitFieldNames ? '' : 'users', subBuilder: $1.UserFullInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SearchUserFullInfoResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  SearchUserFullInfoResp copyWith(
-          void Function(SearchUserFullInfoResp) updates) =>
+  SearchUserFullInfoResp copyWith(void Function(SearchUserFullInfoResp) updates) =>
       super.copyWith((message) => updates(message as SearchUserFullInfoResp))
           as SearchUserFullInfoResp;
 
@@ -2671,8 +2598,8 @@ class SearchUserFullInfoResp extends $pb.GeneratedMessage {
   @$core.override
   SearchUserFullInfoResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SearchUserFullInfoResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SearchUserFullInfoResp>(create);
+  static SearchUserFullInfoResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SearchUserFullInfoResp>(create);
   static SearchUserFullInfoResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2708,8 +2635,7 @@ class UserLoginCountReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UserLoginCountReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UserLoginCountReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aInt64(1, _omitFieldNames ? '' : 'start')
@@ -2720,8 +2646,7 @@ class UserLoginCountReq extends $pb.GeneratedMessage {
   UserLoginCountReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UserLoginCountReq copyWith(void Function(UserLoginCountReq) updates) =>
-      super.copyWith((message) => updates(message as UserLoginCountReq))
-          as UserLoginCountReq;
+      super.copyWith((message) => updates(message as UserLoginCountReq)) as UserLoginCountReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2731,8 +2656,8 @@ class UserLoginCountReq extends $pb.GeneratedMessage {
   @$core.override
   UserLoginCountReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UserLoginCountReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UserLoginCountReq>(create);
+  static UserLoginCountReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UserLoginCountReq>(create);
   static UserLoginCountReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2776,13 +2701,11 @@ class UserLoginCountResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UserLoginCountResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UserLoginCountResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aInt64(1, _omitFieldNames ? '' : 'loginCount', protoName: 'loginCount')
-    ..aInt64(2, _omitFieldNames ? '' : 'unloginCount',
-        protoName: 'unloginCount')
+    ..aInt64(2, _omitFieldNames ? '' : 'unloginCount', protoName: 'unloginCount')
     ..m<$core.String, $fixnum.Int64>(3, _omitFieldNames ? '' : 'count',
         entryClassName: 'UserLoginCountResp.CountEntry',
         keyFieldType: $pb.PbFieldType.OS,
@@ -2794,8 +2717,7 @@ class UserLoginCountResp extends $pb.GeneratedMessage {
   UserLoginCountResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UserLoginCountResp copyWith(void Function(UserLoginCountResp) updates) =>
-      super.copyWith((message) => updates(message as UserLoginCountResp))
-          as UserLoginCountResp;
+      super.copyWith((message) => updates(message as UserLoginCountResp)) as UserLoginCountResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2805,8 +2727,8 @@ class UserLoginCountResp extends $pb.GeneratedMessage {
   @$core.override
   UserLoginCountResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UserLoginCountResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UserLoginCountResp>(create);
+  static UserLoginCountResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UserLoginCountResp>(create);
   static UserLoginCountResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2851,8 +2773,7 @@ class LoginResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'LoginResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'LoginResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(2, _omitFieldNames ? '' : 'chatToken', protoName: 'chatToken')
@@ -2920,8 +2841,7 @@ class SearchUserInfoReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SearchUserInfoReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SearchUserInfoReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'keyword')
@@ -2935,8 +2855,7 @@ class SearchUserInfoReq extends $pb.GeneratedMessage {
   SearchUserInfoReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SearchUserInfoReq copyWith(void Function(SearchUserInfoReq) updates) =>
-      super.copyWith((message) => updates(message as SearchUserInfoReq))
-          as SearchUserInfoReq;
+      super.copyWith((message) => updates(message as SearchUserInfoReq)) as SearchUserInfoReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -2946,8 +2865,8 @@ class SearchUserInfoReq extends $pb.GeneratedMessage {
   @$core.override
   SearchUserInfoReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SearchUserInfoReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SearchUserInfoReq>(create);
+  static SearchUserInfoReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SearchUserInfoReq>(create);
   static SearchUserInfoReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -2997,21 +2916,18 @@ class SearchUserInfoResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SearchUserInfoResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SearchUserInfoResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'total', fieldType: $pb.PbFieldType.OU3)
-    ..pPM<$1.UserFullInfo>(2, _omitFieldNames ? '' : 'users',
-        subBuilder: $1.UserFullInfo.create)
+    ..pPM<$1.UserFullInfo>(2, _omitFieldNames ? '' : 'users', subBuilder: $1.UserFullInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SearchUserInfoResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SearchUserInfoResp copyWith(void Function(SearchUserInfoResp) updates) =>
-      super.copyWith((message) => updates(message as SearchUserInfoResp))
-          as SearchUserInfoResp;
+      super.copyWith((message) => updates(message as SearchUserInfoResp)) as SearchUserInfoResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3021,8 +2937,8 @@ class SearchUserInfoResp extends $pb.GeneratedMessage {
   @$core.override
   SearchUserInfoResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SearchUserInfoResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SearchUserInfoResp>(create);
+  static SearchUserInfoResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SearchUserInfoResp>(create);
   static SearchUserInfoResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3069,10 +2985,8 @@ class GetTokenForVideoMeetingReq extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetTokenForVideoMeetingReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetTokenForVideoMeetingReq copyWith(
-          void Function(GetTokenForVideoMeetingReq) updates) =>
-      super.copyWith(
-              (message) => updates(message as GetTokenForVideoMeetingReq))
+  GetTokenForVideoMeetingReq copyWith(void Function(GetTokenForVideoMeetingReq) updates) =>
+      super.copyWith((message) => updates(message as GetTokenForVideoMeetingReq))
           as GetTokenForVideoMeetingReq;
 
   @$core.override
@@ -3083,8 +2997,8 @@ class GetTokenForVideoMeetingReq extends $pb.GeneratedMessage {
   @$core.override
   GetTokenForVideoMeetingReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetTokenForVideoMeetingReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetTokenForVideoMeetingReq>(create);
+  static GetTokenForVideoMeetingReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetTokenForVideoMeetingReq>(create);
   static GetTokenForVideoMeetingReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3137,23 +3051,20 @@ class GetTokenForVideoMeetingResp extends $pb.GeneratedMessage {
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetTokenForVideoMeetingResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  GetTokenForVideoMeetingResp copyWith(
-          void Function(GetTokenForVideoMeetingResp) updates) =>
-      super.copyWith(
-              (message) => updates(message as GetTokenForVideoMeetingResp))
+  GetTokenForVideoMeetingResp copyWith(void Function(GetTokenForVideoMeetingResp) updates) =>
+      super.copyWith((message) => updates(message as GetTokenForVideoMeetingResp))
           as GetTokenForVideoMeetingResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  static GetTokenForVideoMeetingResp create() =>
-      GetTokenForVideoMeetingResp._();
+  static GetTokenForVideoMeetingResp create() => GetTokenForVideoMeetingResp._();
   @$core.override
   GetTokenForVideoMeetingResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetTokenForVideoMeetingResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetTokenForVideoMeetingResp>(create);
+  static GetTokenForVideoMeetingResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetTokenForVideoMeetingResp>(create);
   static GetTokenForVideoMeetingResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3198,8 +3109,7 @@ class GetRTCTokenReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetRTCTokenReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetRTCTokenReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'roomId', protoName: 'roomId')
@@ -3211,8 +3121,7 @@ class GetRTCTokenReq extends $pb.GeneratedMessage {
   GetRTCTokenReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetRTCTokenReq copyWith(void Function(GetRTCTokenReq) updates) =>
-      super.copyWith((message) => updates(message as GetRTCTokenReq))
-          as GetRTCTokenReq;
+      super.copyWith((message) => updates(message as GetRTCTokenReq)) as GetRTCTokenReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3222,8 +3131,8 @@ class GetRTCTokenReq extends $pb.GeneratedMessage {
   @$core.override
   GetRTCTokenReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetRTCTokenReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetRTCTokenReq>(create);
+  static GetRTCTokenReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetRTCTokenReq>(create);
   static GetRTCTokenReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3280,8 +3189,7 @@ class GetRTCTokenResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetRTCTokenResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetRTCTokenResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'token')
@@ -3295,8 +3203,7 @@ class GetRTCTokenResp extends $pb.GeneratedMessage {
   GetRTCTokenResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetRTCTokenResp copyWith(void Function(GetRTCTokenResp) updates) =>
-      super.copyWith((message) => updates(message as GetRTCTokenResp))
-          as GetRTCTokenResp;
+      super.copyWith((message) => updates(message as GetRTCTokenResp)) as GetRTCTokenResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3306,8 +3213,8 @@ class GetRTCTokenResp extends $pb.GeneratedMessage {
   @$core.override
   GetRTCTokenResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetRTCTokenResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetRTCTokenResp>(create);
+  static GetRTCTokenResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetRTCTokenResp>(create);
   static GetRTCTokenResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3374,20 +3281,17 @@ class CheckUserExistReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CheckUserExistReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CheckUserExistReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
-    ..aOM<RegisterUserInfo>(1, _omitFieldNames ? '' : 'user',
-        subBuilder: RegisterUserInfo.create)
+    ..aOM<RegisterUserInfo>(1, _omitFieldNames ? '' : 'user', subBuilder: RegisterUserInfo.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CheckUserExistReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CheckUserExistReq copyWith(void Function(CheckUserExistReq) updates) =>
-      super.copyWith((message) => updates(message as CheckUserExistReq))
-          as CheckUserExistReq;
+      super.copyWith((message) => updates(message as CheckUserExistReq)) as CheckUserExistReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3397,8 +3301,8 @@ class CheckUserExistReq extends $pb.GeneratedMessage {
   @$core.override
   CheckUserExistReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CheckUserExistReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CheckUserExistReq>(create);
+  static CheckUserExistReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CheckUserExistReq>(create);
   static CheckUserExistReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3433,8 +3337,7 @@ class CheckUserExistResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CheckUserExistResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CheckUserExistResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userid')
@@ -3445,8 +3348,7 @@ class CheckUserExistResp extends $pb.GeneratedMessage {
   CheckUserExistResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CheckUserExistResp copyWith(void Function(CheckUserExistResp) updates) =>
-      super.copyWith((message) => updates(message as CheckUserExistResp))
-          as CheckUserExistResp;
+      super.copyWith((message) => updates(message as CheckUserExistResp)) as CheckUserExistResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3456,8 +3358,8 @@ class CheckUserExistResp extends $pb.GeneratedMessage {
   @$core.override
   CheckUserExistResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CheckUserExistResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CheckUserExistResp>(create);
+  static CheckUserExistResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CheckUserExistResp>(create);
   static CheckUserExistResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3497,8 +3399,7 @@ class DelUserAccountReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'DelUserAccountReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DelUserAccountReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..pPS(1, _omitFieldNames ? '' : 'userIDs', protoName: 'userIDs')
@@ -3508,8 +3409,7 @@ class DelUserAccountReq extends $pb.GeneratedMessage {
   DelUserAccountReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   DelUserAccountReq copyWith(void Function(DelUserAccountReq) updates) =>
-      super.copyWith((message) => updates(message as DelUserAccountReq))
-          as DelUserAccountReq;
+      super.copyWith((message) => updates(message as DelUserAccountReq)) as DelUserAccountReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3519,8 +3419,8 @@ class DelUserAccountReq extends $pb.GeneratedMessage {
   @$core.override
   DelUserAccountReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static DelUserAccountReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DelUserAccountReq>(create);
+  static DelUserAccountReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DelUserAccountReq>(create);
   static DelUserAccountReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3539,8 +3439,7 @@ class DelUserAccountResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'DelUserAccountResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DelUserAccountResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -3549,8 +3448,7 @@ class DelUserAccountResp extends $pb.GeneratedMessage {
   DelUserAccountResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   DelUserAccountResp copyWith(void Function(DelUserAccountResp) updates) =>
-      super.copyWith((message) => updates(message as DelUserAccountResp))
-          as DelUserAccountResp;
+      super.copyWith((message) => updates(message as DelUserAccountResp)) as DelUserAccountResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3560,8 +3458,8 @@ class DelUserAccountResp extends $pb.GeneratedMessage {
   @$core.override
   DelUserAccountResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static DelUserAccountResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DelUserAccountResp>(create);
+  static DelUserAccountResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DelUserAccountResp>(create);
   static DelUserAccountResp? _defaultInstance;
 }
 
@@ -3583,8 +3481,7 @@ class SetAllowRegisterReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SetAllowRegisterReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetAllowRegisterReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOB(1, _omitFieldNames ? '' : 'allowRegister', protoName: 'allowRegister')
@@ -3594,8 +3491,7 @@ class SetAllowRegisterReq extends $pb.GeneratedMessage {
   SetAllowRegisterReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SetAllowRegisterReq copyWith(void Function(SetAllowRegisterReq) updates) =>
-      super.copyWith((message) => updates(message as SetAllowRegisterReq))
-          as SetAllowRegisterReq;
+      super.copyWith((message) => updates(message as SetAllowRegisterReq)) as SetAllowRegisterReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3605,8 +3501,8 @@ class SetAllowRegisterReq extends $pb.GeneratedMessage {
   @$core.override
   SetAllowRegisterReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SetAllowRegisterReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetAllowRegisterReq>(create);
+  static SetAllowRegisterReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SetAllowRegisterReq>(create);
   static SetAllowRegisterReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3631,8 +3527,7 @@ class SetAllowRegisterResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SetAllowRegisterResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SetAllowRegisterResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -3641,8 +3536,7 @@ class SetAllowRegisterResp extends $pb.GeneratedMessage {
   SetAllowRegisterResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SetAllowRegisterResp copyWith(void Function(SetAllowRegisterResp) updates) =>
-      super.copyWith((message) => updates(message as SetAllowRegisterResp))
-          as SetAllowRegisterResp;
+      super.copyWith((message) => updates(message as SetAllowRegisterResp)) as SetAllowRegisterResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3652,8 +3546,8 @@ class SetAllowRegisterResp extends $pb.GeneratedMessage {
   @$core.override
   SetAllowRegisterResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SetAllowRegisterResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SetAllowRegisterResp>(create);
+  static SetAllowRegisterResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SetAllowRegisterResp>(create);
   static SetAllowRegisterResp? _defaultInstance;
 }
 
@@ -3669,8 +3563,7 @@ class GetAllowRegisterReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetAllowRegisterReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetAllowRegisterReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -3679,8 +3572,7 @@ class GetAllowRegisterReq extends $pb.GeneratedMessage {
   GetAllowRegisterReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetAllowRegisterReq copyWith(void Function(GetAllowRegisterReq) updates) =>
-      super.copyWith((message) => updates(message as GetAllowRegisterReq))
-          as GetAllowRegisterReq;
+      super.copyWith((message) => updates(message as GetAllowRegisterReq)) as GetAllowRegisterReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3690,8 +3582,8 @@ class GetAllowRegisterReq extends $pb.GeneratedMessage {
   @$core.override
   GetAllowRegisterReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetAllowRegisterReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetAllowRegisterReq>(create);
+  static GetAllowRegisterReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetAllowRegisterReq>(create);
   static GetAllowRegisterReq? _defaultInstance;
 }
 
@@ -3713,8 +3605,7 @@ class GetAllowRegisterResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'GetAllowRegisterResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'GetAllowRegisterResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.chat'),
       createEmptyInstance: create)
     ..aOB(1, _omitFieldNames ? '' : 'allowRegister', protoName: 'allowRegister')
@@ -3724,8 +3615,7 @@ class GetAllowRegisterResp extends $pb.GeneratedMessage {
   GetAllowRegisterResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   GetAllowRegisterResp copyWith(void Function(GetAllowRegisterResp) updates) =>
-      super.copyWith((message) => updates(message as GetAllowRegisterResp))
-          as GetAllowRegisterResp;
+      super.copyWith((message) => updates(message as GetAllowRegisterResp)) as GetAllowRegisterResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -3735,8 +3625,8 @@ class GetAllowRegisterResp extends $pb.GeneratedMessage {
   @$core.override
   GetAllowRegisterResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static GetAllowRegisterResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<GetAllowRegisterResp>(create);
+  static GetAllowRegisterResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<GetAllowRegisterResp>(create);
   static GetAllowRegisterResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -3767,8 +3657,8 @@ class chatApi {
   /// Get user's public information - called by strangers
   $async.Future<SearchUserPublicInfoResp> searchUserPublicInfo(
           $pb.ClientContext? ctx, SearchUserPublicInfoReq request) =>
-      _client.invoke<SearchUserPublicInfoResp>(ctx, 'chat',
-          'SearchUserPublicInfo', request, SearchUserPublicInfoResp());
+      _client.invoke<SearchUserPublicInfoResp>(
+          ctx, 'chat', 'SearchUserPublicInfo', request, SearchUserPublicInfoResp());
   $async.Future<FindUserPublicInfoResp> findUserPublicInfo(
           $pb.ClientContext? ctx, FindUserPublicInfoReq request) =>
       _client.invoke<FindUserPublicInfoResp>(
@@ -3787,20 +3677,15 @@ class chatApi {
           $pb.ClientContext? ctx, SendVerifyCodeReq request) =>
       _client.invoke<SendVerifyCodeResp>(
           ctx, 'chat', 'SendVerifyCode', request, SendVerifyCodeResp());
-  $async.Future<VerifyCodeResp> verifyCode(
-          $pb.ClientContext? ctx, VerifyCodeReq request) =>
-      _client.invoke<VerifyCodeResp>(
-          ctx, 'chat', 'VerifyCode', request, VerifyCodeResp());
-  $async.Future<RegisterUserResp> registerUser(
-          $pb.ClientContext? ctx, RegisterUserReq request) =>
-      _client.invoke<RegisterUserResp>(
-          ctx, 'chat', 'RegisterUser', request, RegisterUserResp());
+  $async.Future<VerifyCodeResp> verifyCode($pb.ClientContext? ctx, VerifyCodeReq request) =>
+      _client.invoke<VerifyCodeResp>(ctx, 'chat', 'VerifyCode', request, VerifyCodeResp());
+  $async.Future<RegisterUserResp> registerUser($pb.ClientContext? ctx, RegisterUserReq request) =>
+      _client.invoke<RegisterUserResp>(ctx, 'chat', 'RegisterUser', request, RegisterUserResp());
   $async.Future<LoginResp> login($pb.ClientContext? ctx, LoginReq request) =>
       _client.invoke<LoginResp>(ctx, 'chat', 'Login', request, LoginResp());
   $async.Future<ResetPasswordResp> resetPassword(
           $pb.ClientContext? ctx, ResetPasswordReq request) =>
-      _client.invoke<ResetPasswordResp>(
-          ctx, 'chat', 'ResetPassword', request, ResetPasswordResp());
+      _client.invoke<ResetPasswordResp>(ctx, 'chat', 'ResetPassword', request, ResetPasswordResp());
   $async.Future<ChangePasswordResp> changePassword(
           $pb.ClientContext? ctx, ChangePasswordReq request) =>
       _client.invoke<ChangePasswordResp>(
@@ -3839,14 +3724,12 @@ class chatApi {
   /// Audio/video call and video meeting
   $async.Future<GetTokenForVideoMeetingResp> getTokenForVideoMeeting(
           $pb.ClientContext? ctx, GetTokenForVideoMeetingReq request) =>
-      _client.invoke<GetTokenForVideoMeetingResp>(ctx, 'chat',
-          'GetTokenForVideoMeeting', request, GetTokenForVideoMeetingResp());
+      _client.invoke<GetTokenForVideoMeetingResp>(
+          ctx, 'chat', 'GetTokenForVideoMeeting', request, GetTokenForVideoMeetingResp());
 
   /// Custom RTC token generation
-  $async.Future<GetRTCTokenResp> getRTCToken(
-          $pb.ClientContext? ctx, GetRTCTokenReq request) =>
-      _client.invoke<GetRTCTokenResp>(
-          ctx, 'chat', 'GetRTCToken', request, GetRTCTokenResp());
+  $async.Future<GetRTCTokenResp> getRTCToken($pb.ClientContext? ctx, GetRTCTokenReq request) =>
+      _client.invoke<GetRTCTokenResp>(ctx, 'chat', 'GetRTCToken', request, GetRTCTokenResp());
   $async.Future<SetAllowRegisterResp> setAllowRegister(
           $pb.ClientContext? ctx, SetAllowRegisterReq request) =>
       _client.invoke<SetAllowRegisterResp>(
@@ -3857,7 +3740,5 @@ class chatApi {
           ctx, 'chat', 'GetAllowRegister', request, GetAllowRegisterResp());
 }
 
-const $core.bool _omitFieldNames =
-    $core.bool.fromEnvironment('protobuf.omit_field_names');
-const $core.bool _omitMessageNames =
-    $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

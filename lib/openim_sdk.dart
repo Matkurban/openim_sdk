@@ -22,7 +22,6 @@ export 'src/listener/upload_file_listener.dart';
 export 'src/listener/user_listener.dart';
 
 /// Models
-export 'src/models/api_response.dart';
 export 'src/models/conversation_info.dart';
 export 'src/models/group_info.dart';
 export 'src/models/init_config.dart';

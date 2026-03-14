@@ -19,8 +19,7 @@ class UpdateFriendsReq extends Equatable {
     this.ex,
   });
 
-  factory UpdateFriendsReq.fromJson(Map<String, dynamic> json) =>
-      _$UpdateFriendsReqFromJson(json);
+  factory UpdateFriendsReq.fromJson(Map<String, dynamic> json) => _$UpdateFriendsReqFromJson(json);
 
   Map<String, dynamic> toJson() => _$UpdateFriendsReqToJson(this);
 
@@ -70,8 +69,7 @@ class ConversationReq extends Equatable {
     this.groupAtType,
   });
 
-  factory ConversationReq.fromJson(Map<String, dynamic> json) =>
-      _$ConversationReqFromJson(json);
+  factory ConversationReq.fromJson(Map<String, dynamic> json) => _$ConversationReqFromJson(json);
 
   Map<String, dynamic> toJson() => _$ConversationReqToJson(this);
 

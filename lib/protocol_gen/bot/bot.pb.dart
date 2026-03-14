@@ -54,8 +54,7 @@ class Agent extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Agent',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Agent',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
@@ -187,8 +186,7 @@ class CreateAgentReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateAgentReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAgentReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..aOM<Agent>(1, _omitFieldNames ? '' : 'agent', subBuilder: Agent.create)
@@ -198,8 +196,7 @@ class CreateAgentReq extends $pb.GeneratedMessage {
   CreateAgentReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateAgentReq copyWith(void Function(CreateAgentReq) updates) =>
-      super.copyWith((message) => updates(message as CreateAgentReq))
-          as CreateAgentReq;
+      super.copyWith((message) => updates(message as CreateAgentReq)) as CreateAgentReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -209,8 +206,8 @@ class CreateAgentReq extends $pb.GeneratedMessage {
   @$core.override
   CreateAgentReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateAgentReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateAgentReq>(create);
+  static CreateAgentReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAgentReq>(create);
   static CreateAgentReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -237,8 +234,7 @@ class CreateAgentResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'CreateAgentResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'CreateAgentResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -247,8 +243,7 @@ class CreateAgentResp extends $pb.GeneratedMessage {
   CreateAgentResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   CreateAgentResp copyWith(void Function(CreateAgentResp) updates) =>
-      super.copyWith((message) => updates(message as CreateAgentResp))
-          as CreateAgentResp;
+      super.copyWith((message) => updates(message as CreateAgentResp)) as CreateAgentResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -258,8 +253,8 @@ class CreateAgentResp extends $pb.GeneratedMessage {
   @$core.override
   CreateAgentResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static CreateAgentResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<CreateAgentResp>(create);
+  static CreateAgentResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CreateAgentResp>(create);
   static CreateAgentResp? _defaultInstance;
 }
 
@@ -295,8 +290,7 @@ class UpdateAgentReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UpdateAgentReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UpdateAgentReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'userID', protoName: 'userID')
@@ -313,8 +307,7 @@ class UpdateAgentReq extends $pb.GeneratedMessage {
   UpdateAgentReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UpdateAgentReq copyWith(void Function(UpdateAgentReq) updates) =>
-      super.copyWith((message) => updates(message as UpdateAgentReq))
-          as UpdateAgentReq;
+      super.copyWith((message) => updates(message as UpdateAgentReq)) as UpdateAgentReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -324,8 +317,8 @@ class UpdateAgentReq extends $pb.GeneratedMessage {
   @$core.override
   UpdateAgentReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UpdateAgentReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UpdateAgentReq>(create);
+  static UpdateAgentReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UpdateAgentReq>(create);
   static UpdateAgentReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -413,8 +406,7 @@ class UpdateAgentResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UpdateAgentResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UpdateAgentResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -423,8 +415,7 @@ class UpdateAgentResp extends $pb.GeneratedMessage {
   UpdateAgentResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UpdateAgentResp copyWith(void Function(UpdateAgentResp) updates) =>
-      super.copyWith((message) => updates(message as UpdateAgentResp))
-          as UpdateAgentResp;
+      super.copyWith((message) => updates(message as UpdateAgentResp)) as UpdateAgentResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -434,8 +425,8 @@ class UpdateAgentResp extends $pb.GeneratedMessage {
   @$core.override
   UpdateAgentResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UpdateAgentResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UpdateAgentResp>(create);
+  static UpdateAgentResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UpdateAgentResp>(create);
   static UpdateAgentResp? _defaultInstance;
 }
 
@@ -459,8 +450,7 @@ class PageFindAgentReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'PageFindAgentReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PageFindAgentReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..aOM<$0.RequestPagination>(1, _omitFieldNames ? '' : 'pagination',
@@ -472,8 +462,7 @@ class PageFindAgentReq extends $pb.GeneratedMessage {
   PageFindAgentReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   PageFindAgentReq copyWith(void Function(PageFindAgentReq) updates) =>
-      super.copyWith((message) => updates(message as PageFindAgentReq))
-          as PageFindAgentReq;
+      super.copyWith((message) => updates(message as PageFindAgentReq)) as PageFindAgentReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -483,8 +472,8 @@ class PageFindAgentReq extends $pb.GeneratedMessage {
   @$core.override
   PageFindAgentReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static PageFindAgentReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PageFindAgentReq>(create);
+  static PageFindAgentReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PageFindAgentReq>(create);
   static PageFindAgentReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -522,8 +511,7 @@ class PageFindAgentResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'PageFindAgentResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'PageFindAgentResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..aInt64(1, _omitFieldNames ? '' : 'total')
@@ -534,8 +522,7 @@ class PageFindAgentResp extends $pb.GeneratedMessage {
   PageFindAgentResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   PageFindAgentResp copyWith(void Function(PageFindAgentResp) updates) =>
-      super.copyWith((message) => updates(message as PageFindAgentResp))
-          as PageFindAgentResp;
+      super.copyWith((message) => updates(message as PageFindAgentResp)) as PageFindAgentResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -545,8 +532,8 @@ class PageFindAgentResp extends $pb.GeneratedMessage {
   @$core.override
   PageFindAgentResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static PageFindAgentResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<PageFindAgentResp>(create);
+  static PageFindAgentResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<PageFindAgentResp>(create);
   static PageFindAgentResp? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -580,8 +567,7 @@ class DeleteAgentReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'DeleteAgentReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DeleteAgentReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..pPS(1, _omitFieldNames ? '' : 'userIDs', protoName: 'userIDs')
@@ -591,8 +577,7 @@ class DeleteAgentReq extends $pb.GeneratedMessage {
   DeleteAgentReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   DeleteAgentReq copyWith(void Function(DeleteAgentReq) updates) =>
-      super.copyWith((message) => updates(message as DeleteAgentReq))
-          as DeleteAgentReq;
+      super.copyWith((message) => updates(message as DeleteAgentReq)) as DeleteAgentReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -602,8 +587,8 @@ class DeleteAgentReq extends $pb.GeneratedMessage {
   @$core.override
   DeleteAgentReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static DeleteAgentReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeleteAgentReq>(create);
+  static DeleteAgentReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DeleteAgentReq>(create);
   static DeleteAgentReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -622,8 +607,7 @@ class DeleteAgentResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'DeleteAgentResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DeleteAgentResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -632,8 +616,7 @@ class DeleteAgentResp extends $pb.GeneratedMessage {
   DeleteAgentResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   DeleteAgentResp copyWith(void Function(DeleteAgentResp) updates) =>
-      super.copyWith((message) => updates(message as DeleteAgentResp))
-          as DeleteAgentResp;
+      super.copyWith((message) => updates(message as DeleteAgentResp)) as DeleteAgentResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -643,8 +626,8 @@ class DeleteAgentResp extends $pb.GeneratedMessage {
   @$core.override
   DeleteAgentResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static DeleteAgentResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DeleteAgentResp>(create);
+  static DeleteAgentResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DeleteAgentResp>(create);
   static DeleteAgentResp? _defaultInstance;
 }
 
@@ -676,13 +659,11 @@ class SendBotMessageReq extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SendBotMessageReq',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SendBotMessageReq',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'agentID', protoName: 'agentID')
-    ..aOS(2, _omitFieldNames ? '' : 'conversationID',
-        protoName: 'conversationID')
+    ..aOS(2, _omitFieldNames ? '' : 'conversationID', protoName: 'conversationID')
     ..aI(3, _omitFieldNames ? '' : 'contentType', protoName: 'contentType')
     ..aOS(4, _omitFieldNames ? '' : 'content')
     ..aOS(5, _omitFieldNames ? '' : 'ex')
@@ -693,8 +674,7 @@ class SendBotMessageReq extends $pb.GeneratedMessage {
   SendBotMessageReq clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SendBotMessageReq copyWith(void Function(SendBotMessageReq) updates) =>
-      super.copyWith((message) => updates(message as SendBotMessageReq))
-          as SendBotMessageReq;
+      super.copyWith((message) => updates(message as SendBotMessageReq)) as SendBotMessageReq;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -704,8 +684,8 @@ class SendBotMessageReq extends $pb.GeneratedMessage {
   @$core.override
   SendBotMessageReq createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SendBotMessageReq getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SendBotMessageReq>(create);
+  static SendBotMessageReq getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SendBotMessageReq>(create);
   static SendBotMessageReq? _defaultInstance;
 
   @$pb.TagNumber(1)
@@ -775,8 +755,7 @@ class SendBotMessageResp extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'SendBotMessageResp',
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'SendBotMessageResp',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.bot'),
       createEmptyInstance: create)
     ..hasRequiredFields = false;
@@ -785,8 +764,7 @@ class SendBotMessageResp extends $pb.GeneratedMessage {
   SendBotMessageResp clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   SendBotMessageResp copyWith(void Function(SendBotMessageResp) updates) =>
-      super.copyWith((message) => updates(message as SendBotMessageResp))
-          as SendBotMessageResp;
+      super.copyWith((message) => updates(message as SendBotMessageResp)) as SendBotMessageResp;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -796,8 +774,8 @@ class SendBotMessageResp extends $pb.GeneratedMessage {
   @$core.override
   SendBotMessageResp createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static SendBotMessageResp getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<SendBotMessageResp>(create);
+  static SendBotMessageResp getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SendBotMessageResp>(create);
   static SendBotMessageResp? _defaultInstance;
 }
 
@@ -806,29 +784,20 @@ class botApi {
 
   botApi(this._client);
 
-  $async.Future<CreateAgentResp> createAgent(
-          $pb.ClientContext? ctx, CreateAgentReq request) =>
-      _client.invoke<CreateAgentResp>(
-          ctx, 'bot', 'CreateAgent', request, CreateAgentResp());
-  $async.Future<UpdateAgentResp> updateAgent(
-          $pb.ClientContext? ctx, UpdateAgentReq request) =>
-      _client.invoke<UpdateAgentResp>(
-          ctx, 'bot', 'UpdateAgent', request, UpdateAgentResp());
+  $async.Future<CreateAgentResp> createAgent($pb.ClientContext? ctx, CreateAgentReq request) =>
+      _client.invoke<CreateAgentResp>(ctx, 'bot', 'CreateAgent', request, CreateAgentResp());
+  $async.Future<UpdateAgentResp> updateAgent($pb.ClientContext? ctx, UpdateAgentReq request) =>
+      _client.invoke<UpdateAgentResp>(ctx, 'bot', 'UpdateAgent', request, UpdateAgentResp());
   $async.Future<PageFindAgentResp> pageFindAgent(
           $pb.ClientContext? ctx, PageFindAgentReq request) =>
-      _client.invoke<PageFindAgentResp>(
-          ctx, 'bot', 'PageFindAgent', request, PageFindAgentResp());
-  $async.Future<DeleteAgentResp> deleteAgent(
-          $pb.ClientContext? ctx, DeleteAgentReq request) =>
-      _client.invoke<DeleteAgentResp>(
-          ctx, 'bot', 'DeleteAgent', request, DeleteAgentResp());
+      _client.invoke<PageFindAgentResp>(ctx, 'bot', 'PageFindAgent', request, PageFindAgentResp());
+  $async.Future<DeleteAgentResp> deleteAgent($pb.ClientContext? ctx, DeleteAgentReq request) =>
+      _client.invoke<DeleteAgentResp>(ctx, 'bot', 'DeleteAgent', request, DeleteAgentResp());
   $async.Future<SendBotMessageResp> sendBotMessage(
           $pb.ClientContext? ctx, SendBotMessageReq request) =>
       _client.invoke<SendBotMessageResp>(
           ctx, 'bot', 'SendBotMessage', request, SendBotMessageResp());
 }
 
-const $core.bool _omitFieldNames =
-    $core.bool.fromEnvironment('protobuf.omit_field_names');
-const $core.bool _omitMessageNames =
-    $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

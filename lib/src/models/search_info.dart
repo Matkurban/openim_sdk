@@ -10,14 +10,9 @@ class SearchResult extends Equatable {
   final List<SearchResultItems>? searchResultItems;
   final List<SearchResultItems>? findResultItems;
 
-  const SearchResult({
-    this.totalCount,
-    this.searchResultItems,
-    this.findResultItems,
-  });
+  const SearchResult({this.totalCount, this.searchResultItems, this.findResultItems});
 
-  factory SearchResult.fromJson(Map<String, dynamic> json) =>
-      _$SearchResultFromJson(json);
+  factory SearchResult.fromJson(Map<String, dynamic> json) => _$SearchResultFromJson(json);
 
   Map<String, dynamic> toJson() => _$SearchResultToJson(this);
 
@@ -99,15 +94,11 @@ class SearchParams extends Equatable {
 
   const SearchParams({this.conversationID, this.clientMsgIDList});
 
-  factory SearchParams.fromJson(Map<String, dynamic> json) =>
-      _$SearchParamsFromJson(json);
+  factory SearchParams.fromJson(Map<String, dynamic> json) => _$SearchParamsFromJson(json);
 
   Map<String, dynamic> toJson() => _$SearchParamsToJson(this);
 
-  SearchParams copyWith({
-    String? conversationID,
-    List<String>? clientMsgIDList,
-  }) {
+  SearchParams copyWith({String? conversationID, List<String>? clientMsgIDList}) {
     return SearchParams(
       conversationID: conversationID ?? this.conversationID,
       clientMsgIDList: clientMsgIDList ?? this.clientMsgIDList,

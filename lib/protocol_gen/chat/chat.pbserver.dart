@@ -35,8 +35,7 @@ abstract class chatServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.FindUserFullInfoReq request);
   $async.Future<$3.SendVerifyCodeResp> sendVerifyCode(
       $pb.ServerContext ctx, $3.SendVerifyCodeReq request);
-  $async.Future<$3.VerifyCodeResp> verifyCode(
-      $pb.ServerContext ctx, $3.VerifyCodeReq request);
+  $async.Future<$3.VerifyCodeResp> verifyCode($pb.ServerContext ctx, $3.VerifyCodeReq request);
   $async.Future<$3.RegisterUserResp> registerUser(
       $pb.ServerContext ctx, $3.RegisterUserReq request);
   $async.Future<$3.LoginResp> login($pb.ServerContext ctx, $3.LoginReq request);
@@ -60,8 +59,7 @@ abstract class chatServiceBase extends $pb.GeneratedService {
       $pb.ServerContext ctx, $3.SearchUserInfoReq request);
   $async.Future<$3.GetTokenForVideoMeetingResp> getTokenForVideoMeeting(
       $pb.ServerContext ctx, $3.GetTokenForVideoMeetingReq request);
-  $async.Future<$3.GetRTCTokenResp> getRTCToken(
-      $pb.ServerContext ctx, $3.GetRTCTokenReq request);
+  $async.Future<$3.GetRTCTokenResp> getRTCToken($pb.ServerContext ctx, $3.GetRTCTokenReq request);
   $async.Future<$3.SetAllowRegisterResp> setAllowRegister(
       $pb.ServerContext ctx, $3.SetAllowRegisterReq request);
   $async.Future<$3.GetAllowRegisterResp> getAllowRegister(
@@ -120,8 +118,8 @@ abstract class chatServiceBase extends $pb.GeneratedService {
     }
   }
 
-  $async.Future<$pb.GeneratedMessage> handleCall($pb.ServerContext ctx,
-      $core.String methodName, $pb.GeneratedMessage request) {
+  $async.Future<$pb.GeneratedMessage> handleCall(
+      $pb.ServerContext ctx, $core.String methodName, $pb.GeneratedMessage request) {
     switch (methodName) {
       case 'UpdateUserInfo':
         return updateUserInfo(ctx, request as $3.UpdateUserInfoReq);
@@ -162,8 +160,7 @@ abstract class chatServiceBase extends $pb.GeneratedService {
       case 'SearchUserInfo':
         return searchUserInfo(ctx, request as $3.SearchUserInfoReq);
       case 'GetTokenForVideoMeeting':
-        return getTokenForVideoMeeting(
-            ctx, request as $3.GetTokenForVideoMeetingReq);
+        return getTokenForVideoMeeting(ctx, request as $3.GetTokenForVideoMeetingReq);
       case 'GetRTCToken':
         return getRTCToken(ctx, request as $3.GetRTCTokenReq);
       case 'SetAllowRegister':
@@ -176,6 +173,6 @@ abstract class chatServiceBase extends $pb.GeneratedService {
   }
 
   $core.Map<$core.String, $core.dynamic> get $json => chatServiceBase$json;
-  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
-      get $messageJson => chatServiceBase$messageJson;
+  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> get $messageJson =>
+      chatServiceBase$messageJson;
 }

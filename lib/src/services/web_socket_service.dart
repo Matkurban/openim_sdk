@@ -29,7 +29,7 @@ class WebSocketService {
   late bool _compression;
 
   // ---- 编解码 ----
-  late WebSocketCodec _codec;
+  late WebSocketCodecs _codec;
 
   // ---- 连接 ----
   WebSocketChannel? _channel;
@@ -60,10 +60,10 @@ class WebSocketService {
   static const _requestTimeout = Duration(seconds: 10);
 
   /// 收到推送消息（原始 JSON data）
-  void Function(WebSocketResponse resp)? onPushMsg;
+  void Function(WebSocketResponse response)? onPushMsg;
 
   /// 用户在线状态变更
-  void Function(WebSocketResponse resp)? onUserOnlineStatusChanged;
+  void Function(WebSocketResponse response)? onUserOnlineStatusChanged;
 
   /// 当前连接状态
   WebSocketStatus get connStatus => _connStatus;
@@ -90,7 +90,7 @@ class WebSocketService {
     _userID = userID;
     _token = token;
     _compression = compression;
-    _codec = WebSocketCodec(enableCompression: compression);
+    _codec = WebSocketCodecs(enableCompression: compression);
     _userDisconnected = false;
     _reconnectAttempts = 0;
     _reconnectIndex = -1;

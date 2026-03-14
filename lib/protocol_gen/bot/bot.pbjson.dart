@@ -34,32 +34,25 @@ const Agent$json = {
 };
 
 /// Descriptor for `Agent`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List agentDescriptor = $convert.base64Decode(
-    'CgVBZ2VudBIWCgZ1c2VySUQYASABKAlSBnVzZXJJRBIaCghuaWNrbmFtZRgCIAEoCVIIbmlja2'
-    '5hbWUSGAoHZmFjZVVSTBgDIAEoCVIHZmFjZVVSTBIQCgN1cmwYBCABKAlSA3VybBIQCgNrZXkY'
-    'BSABKAlSA2tleRIaCghpZGVudGl0eRgGIAEoCVIIaWRlbnRpdHkSFAoFbW9kZWwYByABKAlSBW'
-    '1vZGVsEhgKB3Byb21wdHMYCCABKAlSB3Byb21wdHMSHgoKY3JlYXRlVGltZRgJIAEoA1IKY3Jl'
-    'YXRlVGltZQ==');
+final $typed_data.Uint8List agentDescriptor = $convert
+    .base64Decode('CgVBZ2VudBIWCgZ1c2VySUQYASABKAlSBnVzZXJJRBIaCghuaWNrbmFtZRgCIAEoCVIIbmlja2'
+        '5hbWUSGAoHZmFjZVVSTBgDIAEoCVIHZmFjZVVSTBIQCgN1cmwYBCABKAlSA3VybBIQCgNrZXkY'
+        'BSABKAlSA2tleRIaCghpZGVudGl0eRgGIAEoCVIIaWRlbnRpdHkSFAoFbW9kZWwYByABKAlSBW'
+        '1vZGVsEhgKB3Byb21wdHMYCCABKAlSB3Byb21wdHMSHgoKY3JlYXRlVGltZRgJIAEoA1IKY3Jl'
+        'YXRlVGltZQ==');
 
 @$core.Deprecated('Use createAgentReqDescriptor instead')
 const CreateAgentReq$json = {
   '1': 'CreateAgentReq',
   '2': [
-    {
-      '1': 'agent',
-      '3': 1,
-      '4': 1,
-      '5': 11,
-      '6': '.openim.bot.Agent',
-      '10': 'agent'
-    },
+    {'1': 'agent', '3': 1, '4': 1, '5': 11, '6': '.openim.bot.Agent', '10': 'agent'},
   ],
 };
 
 /// Descriptor for `CreateAgentReq`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List createAgentReqDescriptor = $convert.base64Decode(
-    'Cg5DcmVhdGVBZ2VudFJlcRInCgVhZ2VudBgBIAEoCzIRLm9wZW5pbS5ib3QuQWdlbnRSBWFnZW'
-    '50');
+final $typed_data.Uint8List createAgentReqDescriptor = $convert
+    .base64Decode('Cg5DcmVhdGVBZ2VudFJlcRInCgVhZ2VudBgBIAEoCzIRLm9wZW5pbS5ib3QuQWdlbnRSBWFnZW'
+        '50');
 
 @$core.Deprecated('Use createAgentRespDescriptor instead')
 const CreateAgentResp$json = {
@@ -75,45 +68,13 @@ const UpdateAgentReq$json = {
   '1': 'UpdateAgentReq',
   '2': [
     {'1': 'userID', '3': 1, '4': 1, '5': 9, '10': 'userID'},
-    {
-      '1': 'nickname',
-      '3': 2,
-      '4': 1,
-      '5': 9,
-      '9': 0,
-      '10': 'nickname',
-      '17': true
-    },
-    {
-      '1': 'faceURL',
-      '3': 3,
-      '4': 1,
-      '5': 9,
-      '9': 1,
-      '10': 'faceURL',
-      '17': true
-    },
+    {'1': 'nickname', '3': 2, '4': 1, '5': 9, '9': 0, '10': 'nickname', '17': true},
+    {'1': 'faceURL', '3': 3, '4': 1, '5': 9, '9': 1, '10': 'faceURL', '17': true},
     {'1': 'url', '3': 4, '4': 1, '5': 9, '9': 2, '10': 'url', '17': true},
     {'1': 'key', '3': 5, '4': 1, '5': 9, '9': 3, '10': 'key', '17': true},
-    {
-      '1': 'identity',
-      '3': 6,
-      '4': 1,
-      '5': 9,
-      '9': 4,
-      '10': 'identity',
-      '17': true
-    },
+    {'1': 'identity', '3': 6, '4': 1, '5': 9, '9': 4, '10': 'identity', '17': true},
     {'1': 'model', '3': 7, '4': 1, '5': 9, '9': 5, '10': 'model', '17': true},
-    {
-      '1': 'prompts',
-      '3': 8,
-      '4': 1,
-      '5': 9,
-      '9': 6,
-      '10': 'prompts',
-      '17': true
-    },
+    {'1': 'prompts', '3': 8, '4': 1, '5': 9, '9': 6, '10': 'prompts', '17': true},
   ],
   '8': [
     {'1': '_nickname'},
@@ -127,13 +88,13 @@ const UpdateAgentReq$json = {
 };
 
 /// Descriptor for `UpdateAgentReq`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List updateAgentReqDescriptor = $convert.base64Decode(
-    'Cg5VcGRhdGVBZ2VudFJlcRIWCgZ1c2VySUQYASABKAlSBnVzZXJJRBIfCghuaWNrbmFtZRgCIA'
-    'EoCUgAUghuaWNrbmFtZYgBARIdCgdmYWNlVVJMGAMgASgJSAFSB2ZhY2VVUkyIAQESFQoDdXJs'
-    'GAQgASgJSAJSA3VybIgBARIVCgNrZXkYBSABKAlIA1IDa2V5iAEBEh8KCGlkZW50aXR5GAYgAS'
-    'gJSARSCGlkZW50aXR5iAEBEhkKBW1vZGVsGAcgASgJSAVSBW1vZGVsiAEBEh0KB3Byb21wdHMY'
-    'CCABKAlIBlIHcHJvbXB0c4gBAUILCglfbmlja25hbWVCCgoIX2ZhY2VVUkxCBgoEX3VybEIGCg'
-    'Rfa2V5QgsKCV9pZGVudGl0eUIICgZfbW9kZWxCCgoIX3Byb21wdHM=');
+final $typed_data.Uint8List updateAgentReqDescriptor = $convert
+    .base64Decode('Cg5VcGRhdGVBZ2VudFJlcRIWCgZ1c2VySUQYASABKAlSBnVzZXJJRBIfCghuaWNrbmFtZRgCIA'
+        'EoCUgAUghuaWNrbmFtZYgBARIdCgdmYWNlVVJMGAMgASgJSAFSB2ZhY2VVUkyIAQESFQoDdXJs'
+        'GAQgASgJSAJSA3VybIgBARIVCgNrZXkYBSABKAlIA1IDa2V5iAEBEh8KCGlkZW50aXR5GAYgAS'
+        'gJSARSCGlkZW50aXR5iAEBEhkKBW1vZGVsGAcgASgJSAVSBW1vZGVsiAEBEh0KB3Byb21wdHMY'
+        'CCABKAlIBlIHcHJvbXB0c4gBAUILCglfbmlja25hbWVCCgoIX2ZhY2VVUkxCBgoEX3VybEIGCg'
+        'Rfa2V5QgsKCV9pZGVudGl0eUIICgZfbW9kZWxCCgoIX3Byb21wdHM=');
 
 @$core.Deprecated('Use updateAgentRespDescriptor instead')
 const UpdateAgentResp$json = {
@@ -161,30 +122,23 @@ const PageFindAgentReq$json = {
 };
 
 /// Descriptor for `PageFindAgentReq`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List pageFindAgentReqDescriptor = $convert.base64Decode(
-    'ChBQYWdlRmluZEFnZW50UmVxEj8KCnBhZ2luYXRpb24YASABKAsyHy5vcGVuaW0uc2Rrd3MuUm'
-    'VxdWVzdFBhZ2luYXRpb25SCnBhZ2luYXRpb24SGAoHdXNlcklEcxgCIAMoCVIHdXNlcklEcw==');
+final $typed_data.Uint8List pageFindAgentReqDescriptor = $convert
+    .base64Decode('ChBQYWdlRmluZEFnZW50UmVxEj8KCnBhZ2luYXRpb24YASABKAsyHy5vcGVuaW0uc2Rrd3MuUm'
+        'VxdWVzdFBhZ2luYXRpb25SCnBhZ2luYXRpb24SGAoHdXNlcklEcxgCIAMoCVIHdXNlcklEcw==');
 
 @$core.Deprecated('Use pageFindAgentRespDescriptor instead')
 const PageFindAgentResp$json = {
   '1': 'PageFindAgentResp',
   '2': [
     {'1': 'total', '3': 1, '4': 1, '5': 3, '10': 'total'},
-    {
-      '1': 'agents',
-      '3': 2,
-      '4': 3,
-      '5': 11,
-      '6': '.openim.bot.Agent',
-      '10': 'agents'
-    },
+    {'1': 'agents', '3': 2, '4': 3, '5': 11, '6': '.openim.bot.Agent', '10': 'agents'},
   ],
 };
 
 /// Descriptor for `PageFindAgentResp`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List pageFindAgentRespDescriptor = $convert.base64Decode(
-    'ChFQYWdlRmluZEFnZW50UmVzcBIUCgV0b3RhbBgBIAEoA1IFdG90YWwSKQoGYWdlbnRzGAIgAy'
-    'gLMhEub3BlbmltLmJvdC5BZ2VudFIGYWdlbnRz');
+final $typed_data.Uint8List pageFindAgentRespDescriptor = $convert
+    .base64Decode('ChFQYWdlRmluZEFnZW50UmVzcBIUCgV0b3RhbBgBIAEoA1IFdG90YWwSKQoGYWdlbnRzGAIgAy'
+        'gLMhEub3BlbmltLmJvdC5BZ2VudFIGYWdlbnRz');
 
 @$core.Deprecated('Use deleteAgentReqDescriptor instead')
 const DeleteAgentReq$json = {
@@ -195,8 +149,8 @@ const DeleteAgentReq$json = {
 };
 
 /// Descriptor for `DeleteAgentReq`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List deleteAgentReqDescriptor = $convert
-    .base64Decode('Cg5EZWxldGVBZ2VudFJlcRIYCgd1c2VySURzGAEgAygJUgd1c2VySURz');
+final $typed_data.Uint8List deleteAgentReqDescriptor =
+    $convert.base64Decode('Cg5EZWxldGVBZ2VudFJlcRIYCgd1c2VySURzGAEgAygJUgd1c2VySURz');
 
 @$core.Deprecated('Use deleteAgentRespDescriptor instead')
 const DeleteAgentResp$json = {
@@ -221,11 +175,11 @@ const SendBotMessageReq$json = {
 };
 
 /// Descriptor for `SendBotMessageReq`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List sendBotMessageReqDescriptor = $convert.base64Decode(
-    'ChFTZW5kQm90TWVzc2FnZVJlcRIYCgdhZ2VudElEGAEgASgJUgdhZ2VudElEEiYKDmNvbnZlcn'
-    'NhdGlvbklEGAIgASgJUg5jb252ZXJzYXRpb25JRBIgCgtjb250ZW50VHlwZRgDIAEoBVILY29u'
-    'dGVudFR5cGUSGAoHY29udGVudBgEIAEoCVIHY29udGVudBIOCgJleBgFIAEoCVICZXgSEAoDa2'
-    'V5GAYgASgJUgNrZXk=');
+final $typed_data.Uint8List sendBotMessageReqDescriptor = $convert
+    .base64Decode('ChFTZW5kQm90TWVzc2FnZVJlcRIYCgdhZ2VudElEGAEgASgJUgdhZ2VudElEEiYKDmNvbnZlcn'
+        'NhdGlvbklEGAIgASgJUg5jb252ZXJzYXRpb25JRBIgCgtjb250ZW50VHlwZRgDIAEoBVILY29u'
+        'dGVudFR5cGUSGAoHY29udGVudBgEIAEoCVIHY29udGVudBIOCgJleBgFIAEoCVICZXgSEAoDa2'
+        'V5GAYgASgJUgNrZXk=');
 
 @$core.Deprecated('Use sendBotMessageRespDescriptor instead')
 const SendBotMessageResp$json = {
@@ -239,26 +193,14 @@ final $typed_data.Uint8List sendBotMessageRespDescriptor =
 const $core.Map<$core.String, $core.dynamic> botServiceBase$json = {
   '1': 'bot',
   '2': [
-    {
-      '1': 'CreateAgent',
-      '2': '.openim.bot.CreateAgentReq',
-      '3': '.openim.bot.CreateAgentResp'
-    },
-    {
-      '1': 'UpdateAgent',
-      '2': '.openim.bot.UpdateAgentReq',
-      '3': '.openim.bot.UpdateAgentResp'
-    },
+    {'1': 'CreateAgent', '2': '.openim.bot.CreateAgentReq', '3': '.openim.bot.CreateAgentResp'},
+    {'1': 'UpdateAgent', '2': '.openim.bot.UpdateAgentReq', '3': '.openim.bot.UpdateAgentResp'},
     {
       '1': 'PageFindAgent',
       '2': '.openim.bot.PageFindAgentReq',
       '3': '.openim.bot.PageFindAgentResp'
     },
-    {
-      '1': 'DeleteAgent',
-      '2': '.openim.bot.DeleteAgentReq',
-      '3': '.openim.bot.DeleteAgentResp'
-    },
+    {'1': 'DeleteAgent', '2': '.openim.bot.DeleteAgentReq', '3': '.openim.bot.DeleteAgentResp'},
     {
       '1': 'SendBotMessage',
       '2': '.openim.bot.SendBotMessageReq',
@@ -268,8 +210,7 @@ const $core.Map<$core.String, $core.dynamic> botServiceBase$json = {
 };
 
 @$core.Deprecated('Use botServiceDescriptor instead')
-const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
-    botServiceBase$messageJson = {
+const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> botServiceBase$messageJson = {
   '.openim.bot.CreateAgentReq': CreateAgentReq$json,
   '.openim.bot.Agent': Agent$json,
   '.openim.bot.CreateAgentResp': CreateAgentResp$json,
@@ -285,11 +226,11 @@ const $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
 };
 
 /// Descriptor for `bot`. Decode as a `google.protobuf.ServiceDescriptorProto`.
-final $typed_data.Uint8List botServiceDescriptor = $convert.base64Decode(
-    'CgNib3QSRgoLQ3JlYXRlQWdlbnQSGi5vcGVuaW0uYm90LkNyZWF0ZUFnZW50UmVxGhsub3Blbm'
-    'ltLmJvdC5DcmVhdGVBZ2VudFJlc3ASRgoLVXBkYXRlQWdlbnQSGi5vcGVuaW0uYm90LlVwZGF0'
-    'ZUFnZW50UmVxGhsub3BlbmltLmJvdC5VcGRhdGVBZ2VudFJlc3ASTAoNUGFnZUZpbmRBZ2VudB'
-    'IcLm9wZW5pbS5ib3QuUGFnZUZpbmRBZ2VudFJlcRodLm9wZW5pbS5ib3QuUGFnZUZpbmRBZ2Vu'
-    'dFJlc3ASRgoLRGVsZXRlQWdlbnQSGi5vcGVuaW0uYm90LkRlbGV0ZUFnZW50UmVxGhsub3Blbm'
-    'ltLmJvdC5EZWxldGVBZ2VudFJlc3ASTwoOU2VuZEJvdE1lc3NhZ2USHS5vcGVuaW0uYm90LlNl'
-    'bmRCb3RNZXNzYWdlUmVxGh4ub3BlbmltLmJvdC5TZW5kQm90TWVzc2FnZVJlc3A=');
+final $typed_data.Uint8List botServiceDescriptor = $convert
+    .base64Decode('CgNib3QSRgoLQ3JlYXRlQWdlbnQSGi5vcGVuaW0uYm90LkNyZWF0ZUFnZW50UmVxGhsub3Blbm'
+        'ltLmJvdC5DcmVhdGVBZ2VudFJlc3ASRgoLVXBkYXRlQWdlbnQSGi5vcGVuaW0uYm90LlVwZGF0'
+        'ZUFnZW50UmVxGhsub3BlbmltLmJvdC5VcGRhdGVBZ2VudFJlc3ASTAoNUGFnZUZpbmRBZ2VudB'
+        'IcLm9wZW5pbS5ib3QuUGFnZUZpbmRBZ2VudFJlcRodLm9wZW5pbS5ib3QuUGFnZUZpbmRBZ2Vu'
+        'dFJlc3ASRgoLRGVsZXRlQWdlbnQSGi5vcGVuaW0uYm90LkRlbGV0ZUFnZW50UmVxGhsub3Blbm'
+        'ltLmJvdC5EZWxldGVBZ2VudFJlc3ASTwoOU2VuZEJvdE1lc3NhZ2USHS5vcGVuaW0uYm90LlNl'
+        'bmRCb3RNZXNzYWdlUmVxGh4ub3BlbmltLmJvdC5TZW5kQm90TWVzc2FnZVJlc3A=');

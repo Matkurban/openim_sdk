@@ -30,7 +30,9 @@ class ContactsPage extends GetView<ContactsController> {
               Obx(() => Tab(text: '好友 (${controller.friends.length})')),
               Obx(() => Tab(text: '群组 (${controller.groups.length})')),
               Obx(() {
-                final pending = controller.friendRequests.where((r) => r.handleResult == 0).length;
+                final pending = controller.friendRequests
+                    .where((r) => r.handleResult == 0)
+                    .length;
                 return Tab(text: pending > 0 ? '申请 ($pending)' : '申请');
               }),
               Obx(() => Tab(text: '黑名单 (${controller.blacklist.length})')),
@@ -69,7 +71,9 @@ class ContactsPage extends GetView<ContactsController> {
             final f = controller.friends[index];
             return ListTile(
               leading: CircleAvatar(
-                child: Text((f.remark ?? f.friendUserID ?? '?')[0].toUpperCase()),
+                child: Text(
+                  (f.remark ?? f.friendUserID ?? '?')[0].toUpperCase(),
+                ),
               ),
               title: Text(f.remark ?? f.friendUserID ?? ''),
               subtitle: f.remark != null ? Text('ID: ${f.friendUserID}') : null,
@@ -256,7 +260,10 @@ class ContactsPage extends GetView<ContactsController> {
             ),
             ListTile(
               leading: const Icon(Icons.block, color: Colors.orange),
-              title: const Text('加入黑名单', style: TextStyle(color: Colors.orange)),
+              title: const Text(
+                '加入黑名单',
+                style: TextStyle(color: Colors.orange),
+              ),
               onTap: () {
                 Get.back();
                 controller.addToBlacklist(f.friendUserID!);

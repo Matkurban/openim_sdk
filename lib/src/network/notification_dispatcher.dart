@@ -18,23 +18,33 @@ class NotificationDispatcher {
   final Logger _log = Logger('NotificationDispatcher');
 
   final DatabaseService database;
+
   final ImApiService api;
+
   late String _userID;
 
-  // -- 通过 Manager 间接访问 Listener（延迟求值，避免快照失效） --
   final FriendshipManager friendshipManager;
+
   final GroupManager groupManager;
+
   final UserManager userManager;
+
   final ConversationManager conversationManager;
+
   final MessageManager messageManager;
+
   OnListenerForService? listenerForService;
 
-  // 便捷访问器
   OnFriendshipListener? get friendshipListener => friendshipManager.listener;
+
   OnGroupListener? get groupListener => groupManager.listener;
+
   OnUserListener? get userListener => userManager.listener;
+
   OnConversationListener? get conversationListener => conversationManager.listener;
+
   OnAdvancedMsgListener? get msgListener => messageManager.msgListener;
+
   OnCustomBusinessListener? get customBusinessListener => messageManager.customBusinessListener;
 
   NotificationDispatcher({
@@ -120,6 +130,7 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onFriendNotification(int ct, Map<String, dynamic> detail) {
+    _log.info('FriendNotification: contentType=$ct, detail=$detail');
     switch (ct) {
       case 1201: // friendApplicationApproved
         _syncFriends();
@@ -520,7 +531,7 @@ class NotificationDispatcher {
       if (resp.errCode != 0) return;
       final users = resp.data?['usersInfo'] as List? ?? [];
       if (users.isNotEmpty && users.first is Map<String, dynamic>) {
-        await database.insertOrUpdateUser(users.first as Map<String, dynamic>);
+        await database.upsertUser(users.first as Map<String, dynamic>);
         final updated = await database.getLoginUser();
         if (updated != null) {
           userListener?.selfInfoUpdated(updated);

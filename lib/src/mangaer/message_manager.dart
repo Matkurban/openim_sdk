@@ -1,10 +1,8 @@
 import 'dart:convert';
-import 'dart:math';
-
-import 'package:crypto/crypto.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/models/web_socket_identifier.dart';
@@ -18,45 +16,44 @@ import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 class MessageManager {
   static final Logger _log = Logger('MessageManager');
 
+  final GetIt _getIt = GetIt.instance;
+
   DatabaseService get _database {
-    return GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
+    return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
   }
 
   ImApiService get _api {
-    return GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
+    return _getIt.get<ImApiService>(instanceName: InstanceName.imApiService);
   }
 
-  WebSocketService get _ws {
-    return GetIt.instance.get<WebSocketService>(instanceName: InstanceName.webSocketService);
+  WebSocketService get _webSocketService {
+    return _getIt.get<WebSocketService>(instanceName: InstanceName.webSocketService);
   }
 
-  /// 消息监听器
-  OnAdvancedMsgListener? msgListener;
-
-  /// 消息发送进度监听器
   OnMsgSendProgressListener? msgSendProgressListener;
 
-  /// 自定义业务消息监听器
+  OnAdvancedMsgListener? msgListener;
+
   OnCustomBusinessListener? customBusinessListener;
 
-  /// 设置消息监听器
-  void setAdvancedMsgListener(OnAdvancedMsgListener listener) {
-    msgListener = listener;
-  }
+  late String _currentUserID;
 
-  /// 设置消息发送进度监听器
   void setMsgSendProgressListener(OnMsgSendProgressListener listener) {
     msgSendProgressListener = listener;
   }
 
-  /// 设置自定义业务消息监听器
+  void setAdvancedMsgListener(OnAdvancedMsgListener listener) {
+    msgListener = listener;
+  }
+
   void setCustomBusinessListener(OnCustomBusinessListener listener) {
     customBusinessListener = listener;
   }
 
-  // ---------------------------------------------------------------------------
-  // 消息创建方法族
-  // ---------------------------------------------------------------------------
+  @internal
+  void setCurrentUserID(String userID) {
+    _currentUserID = userID;
+  }
 
   /// 创建文本消息
   /// [text] 文本内容
@@ -159,11 +156,11 @@ class MessageManager {
   /// [message] 被转发的消息
   Message createForwardMessage({required Message message}) {
     return message.copyWith(
-      clientMsgID: _generateClientMsgID(),
+      clientMsgID: ImUtils.generateClientMsgID(_currentUserID),
       createTime: _nowMillis(),
       sendTime: 0,
       status: MessageStatus.sending,
-      sendID: _database.currentUserID,
+      sendID: _currentUserID,
     );
   }
 
@@ -350,7 +347,7 @@ class MessageManager {
     final sessionType = isGroupMsg ? ConversationType.superGroup : ConversationType.single;
 
     final sendMsg = message.copyWith(
-      sendID: _database.currentUserID,
+      sendID: _currentUserID,
       recvID: userID,
       groupID: groupID,
       sessionType: sessionType,
@@ -360,7 +357,7 @@ class MessageManager {
 
     final conversationID = isGroupMsg
         ? ImUtils.genGroupConversationID(groupID)
-        : ImUtils.genSingleConversationID(_database.currentUserID, userID!);
+        : ImUtils.genSingleConversationID(_currentUserID, userID!);
 
     // 仅在线消息不存储到本地
     if (!isOnlineOnly) {
@@ -478,7 +475,7 @@ class MessageManager {
         if (endSeq >= beginSeq) {
           try {
             final resp = await _api.pullMsgBySeqs(
-              userID: _database.currentUserID,
+              userID: _currentUserID,
               seqRanges: [
                 {
                   'conversationID': conversationID,
@@ -646,17 +643,13 @@ class MessageManager {
     _log.info('消息已撤回: $clientMsgID');
 
     msgListener?.newRecvMessageRevoked(
-      RevokedInfo(
-        clientMsgID: clientMsgID,
-        revokerID: _database.currentUserID,
-        revokeTime: _nowMillis(),
-      ),
+      RevokedInfo(clientMsgID: clientMsgID, revokerID: _currentUserID, revokeTime: _nowMillis()),
     );
 
     // 同步到服务器
     if (seq > 0) {
       final resp = await _api.revokeMsg(
-        userID: _database.currentUserID,
+        userID: _currentUserID,
         conversationID: conversationID,
         seq: seq,
       );
@@ -694,7 +687,7 @@ class MessageManager {
     // 同步到服务器
     if (seq > 0) {
       final resp = await _api.deleteMsgs(
-        userID: _database.currentUserID,
+        userID: _currentUserID,
         conversationID: conversationID,
         seqs: [seq],
       );
@@ -716,7 +709,7 @@ class MessageManager {
     _log.info('所有消息已从本地和服务器删除');
 
     // 同步到服务器
-    final resp = await _api.clearAllMsg(userID: _database.currentUserID);
+    final resp = await _api.clearAllMsg(userID: _currentUserID);
     if (resp.errCode != 0) {
       _log.warning('清空所有消息同步服务器失败: ${resp.errMsg}');
     }
@@ -855,14 +848,6 @@ class MessageManager {
     return '';
   }
 
-  /// 生成唯一消息 ID
-  String _generateClientMsgID() {
-    final timestamp = DateTime.now().microsecondsSinceEpoch;
-    final random = Random.secure().nextInt(999999999);
-    final raw = '$timestamp-$random-${_database.currentUserID}';
-    return md5.convert(utf8.encode(raw)).toString();
-  }
-
   /// 获取当前时间戳（毫秒）
   int _nowMillis() => DateTime.now().millisecondsSinceEpoch;
 
@@ -884,10 +869,10 @@ class MessageManager {
     AdvancedTextElem? advancedTextElem,
   }) {
     return Message(
-      clientMsgID: _generateClientMsgID(),
+      clientMsgID: ImUtils.generateClientMsgID(_currentUserID),
       createTime: _nowMillis(),
       sendTime: 0,
-      sendID: _database.currentUserID,
+      sendID: _currentUserID,
       contentType: contentType,
       senderPlatformID: PlatformUtils.currentPlatform,
       status: MessageStatus.sending,
@@ -946,12 +931,12 @@ class MessageManager {
     final msgDataBytes = msgData.writeToBuffer();
 
     // 3. 通过 WebSocket 发送
-    if (!_ws.isConnected) {
+    if (!_webSocketService.isConnected) {
       throw StateError('WebSocket 未连接');
     }
 
     try {
-      final resp = await _ws.sendRequestWaitResponse(
+      final resp = await _webSocketService.sendRequestWaitResponse(
         reqIdentifier: WebSocketIdentifier.sendMsg,
         data: msgDataBytes,
       );

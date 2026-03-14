@@ -64,7 +64,9 @@ class SettingsController extends GetxController {
 
   Future<void> subscribeUserStatus(String userID) async {
     try {
-      final statuses = await OpenIM.iMManager.userManager.subscribeUsersStatus([userID]);
+      final statuses = await OpenIM.iMManager.userManager.subscribeUsersStatus([
+        userID,
+      ]);
       if (statuses.isNotEmpty) {
         final s = statuses.first;
         Get.snackbar(

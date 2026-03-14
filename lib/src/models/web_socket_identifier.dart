@@ -1,4 +1,7 @@
+import 'package:meta/meta.dart';
+
 /// WebSocket 请求/响应标识符，对应 Go SDK 的 constant.go
+@internal
 sealed class WebSocketIdentifier {
   // ---- Client → Server ----
   /// 获取最新 seq

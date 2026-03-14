@@ -38,10 +38,8 @@ class DoubleValue extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'DoubleValue',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'DoubleValue',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..aD(1, _omitFieldNames ? '' : 'value')
     ..hasRequiredFields = false;
@@ -50,8 +48,7 @@ class DoubleValue extends $pb.GeneratedMessage {
   DoubleValue clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   DoubleValue copyWith(void Function(DoubleValue) updates) =>
-      super.copyWith((message) => updates(message as DoubleValue))
-          as DoubleValue;
+      super.copyWith((message) => updates(message as DoubleValue)) as DoubleValue;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -61,8 +58,8 @@ class DoubleValue extends $pb.GeneratedMessage {
   @$core.override
   DoubleValue createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static DoubleValue getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<DoubleValue>(create);
+  static DoubleValue getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DoubleValue>(create);
   static DoubleValue? _defaultInstance;
 
   /// The double value.
@@ -97,10 +94,8 @@ class FloatValue extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'FloatValue',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'FloatValue',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..aD(1, _omitFieldNames ? '' : 'value', fieldType: $pb.PbFieldType.OF)
     ..hasRequiredFields = false;
@@ -119,8 +114,8 @@ class FloatValue extends $pb.GeneratedMessage {
   @$core.override
   FloatValue createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static FloatValue getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<FloatValue>(create);
+  static FloatValue getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<FloatValue>(create);
   static FloatValue? _defaultInstance;
 
   /// The float value.
@@ -155,10 +150,8 @@ class Int64Value extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Int64Value',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Int64Value',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..aInt64(1, _omitFieldNames ? '' : 'value')
     ..hasRequiredFields = false;
@@ -177,8 +170,8 @@ class Int64Value extends $pb.GeneratedMessage {
   @$core.override
   Int64Value createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static Int64Value getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<Int64Value>(create);
+  static Int64Value getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Int64Value>(create);
   static Int64Value? _defaultInstance;
 
   /// The int64 value.
@@ -213,10 +206,8 @@ class UInt64Value extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UInt64Value',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UInt64Value',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
@@ -226,8 +217,7 @@ class UInt64Value extends $pb.GeneratedMessage {
   UInt64Value clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UInt64Value copyWith(void Function(UInt64Value) updates) =>
-      super.copyWith((message) => updates(message as UInt64Value))
-          as UInt64Value;
+      super.copyWith((message) => updates(message as UInt64Value)) as UInt64Value;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -237,8 +227,8 @@ class UInt64Value extends $pb.GeneratedMessage {
   @$core.override
   UInt64Value createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UInt64Value getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UInt64Value>(create);
+  static UInt64Value getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UInt64Value>(create);
   static UInt64Value? _defaultInstance;
 
   /// The uint64 value.
@@ -273,10 +263,8 @@ class Int32Value extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Int32Value',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'Int32Value',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'value')
     ..hasRequiredFields = false;
@@ -295,8 +283,8 @@ class Int32Value extends $pb.GeneratedMessage {
   @$core.override
   Int32Value createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static Int32Value getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<Int32Value>(create);
+  static Int32Value getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Int32Value>(create);
   static Int32Value? _defaultInstance;
 
   /// The int32 value.
@@ -331,10 +319,8 @@ class UInt32Value extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'UInt32Value',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'UInt32Value',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..aI(1, _omitFieldNames ? '' : 'value', fieldType: $pb.PbFieldType.OU3)
     ..hasRequiredFields = false;
@@ -343,8 +329,7 @@ class UInt32Value extends $pb.GeneratedMessage {
   UInt32Value clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   UInt32Value copyWith(void Function(UInt32Value) updates) =>
-      super.copyWith((message) => updates(message as UInt32Value))
-          as UInt32Value;
+      super.copyWith((message) => updates(message as UInt32Value)) as UInt32Value;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -354,8 +339,8 @@ class UInt32Value extends $pb.GeneratedMessage {
   @$core.override
   UInt32Value createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static UInt32Value getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<UInt32Value>(create);
+  static UInt32Value getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<UInt32Value>(create);
   static UInt32Value? _defaultInstance;
 
   /// The uint32 value.
@@ -390,10 +375,8 @@ class BoolValue extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BoolValue',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BoolValue',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..aOB(1, _omitFieldNames ? '' : 'value')
     ..hasRequiredFields = false;
@@ -448,10 +431,8 @@ class StringValue extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'StringValue',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'StringValue',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'value')
     ..hasRequiredFields = false;
@@ -460,8 +441,7 @@ class StringValue extends $pb.GeneratedMessage {
   StringValue clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
   StringValue copyWith(void Function(StringValue) updates) =>
-      super.copyWith((message) => updates(message as StringValue))
-          as StringValue;
+      super.copyWith((message) => updates(message as StringValue)) as StringValue;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
@@ -471,8 +451,8 @@ class StringValue extends $pb.GeneratedMessage {
   @$core.override
   StringValue createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static StringValue getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<StringValue>(create);
+  static StringValue getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StringValue>(create);
   static StringValue? _defaultInstance;
 
   /// The string value.
@@ -507,13 +487,10 @@ class BytesValue extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       create()..mergeFromJson(json, registry);
 
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'BytesValue',
-      package:
-          const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'BytesValue',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'openim.protobuf'),
       createEmptyInstance: create)
-    ..a<$core.List<$core.int>>(
-        1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.OY)
+    ..a<$core.List<$core.int>>(1, _omitFieldNames ? '' : 'value', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -530,8 +507,8 @@ class BytesValue extends $pb.GeneratedMessage {
   @$core.override
   BytesValue createEmptyInstance() => create();
   @$core.pragma('dart2js:noInline')
-  static BytesValue getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<BytesValue>(create);
+  static BytesValue getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<BytesValue>(create);
   static BytesValue? _defaultInstance;
 
   /// The bytes value.
@@ -545,7 +522,5 @@ class BytesValue extends $pb.GeneratedMessage {
   void clearValue() => $_clearField(1);
 }
 
-const $core.bool _omitFieldNames =
-    $core.bool.fromEnvironment('protobuf.omit_field_names');
-const $core.bool _omitMessageNames =
-    $core.bool.fromEnvironment('protobuf.omit_message_names');
+const $core.bool _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
+const $core.bool _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

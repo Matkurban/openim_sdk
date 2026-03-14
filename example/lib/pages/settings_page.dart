@@ -30,12 +30,14 @@ class SettingsPage extends GetView<SettingsController> {
                     children: [
                       CircleAvatar(
                         radius: 40,
-                        backgroundImage: user.faceURL != null && user.faceURL!.isNotEmpty
+                        backgroundImage:
+                            user.faceURL != null && user.faceURL!.isNotEmpty
                             ? NetworkImage(user.faceURL!)
                             : null,
                         child: user.faceURL == null || user.faceURL!.isEmpty
                             ? Text(
-                                (user.nickname ?? user.userID ?? '?')[0].toUpperCase(),
+                                (user.nickname ?? user.userID ?? '?')[0]
+                                    .toUpperCase(),
                                 style: const TextStyle(fontSize: 32),
                               )
                             : null,
@@ -47,19 +49,24 @@ class SettingsPage extends GetView<SettingsController> {
                                 children: [
                                   TextField(
                                     controller: controller.nicknameCtrl,
-                                    decoration: const InputDecoration(labelText: '昵称'),
+                                    decoration: const InputDecoration(
+                                      labelText: '昵称',
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   TextField(
                                     controller: controller.faceURLCtrl,
-                                    decoration: const InputDecoration(labelText: '头像URL'),
+                                    decoration: const InputDecoration(
+                                      labelText: '头像URL',
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       TextButton(
-                                        onPressed: () => controller.isEditing.value = false,
+                                        onPressed: () =>
+                                            controller.isEditing.value = false,
                                         child: const Text('取消'),
                                       ),
                                       const SizedBox(width: 12),
@@ -75,7 +82,9 @@ class SettingsPage extends GetView<SettingsController> {
                                 children: [
                                   Text(
                                     user.nickname ?? '未设置昵称',
-                                    style: Theme.of(context).textTheme.titleLarge,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
                                   ),
                                   Text(
                                     'ID: ${user.userID}',
@@ -84,8 +93,10 @@ class SettingsPage extends GetView<SettingsController> {
                                   const SizedBox(height: 8),
                                   OutlinedButton.icon(
                                     onPressed: () {
-                                      controller.nicknameCtrl.text = user.nickname ?? '';
-                                      controller.faceURLCtrl.text = user.faceURL ?? '';
+                                      controller.nicknameCtrl.text =
+                                          user.nickname ?? '';
+                                      controller.faceURLCtrl.text =
+                                          user.faceURL ?? '';
                                       controller.isEditing.value = true;
                                     },
                                     icon: const Icon(Icons.edit, size: 16),
@@ -105,7 +116,10 @@ class SettingsPage extends GetView<SettingsController> {
             // Quick actions
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text('快捷操作', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text(
+                '快捷操作',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.person_search),
@@ -139,7 +153,9 @@ class SettingsPage extends GetView<SettingsController> {
                 },
                 icon: const Icon(Icons.logout, color: Colors.red),
                 label: const Text('退出登录', style: TextStyle(color: Colors.red)),
-                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                ),
               ),
             ),
             const SizedBox(height: 32),

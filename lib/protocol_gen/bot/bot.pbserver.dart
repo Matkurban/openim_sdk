@@ -21,14 +21,11 @@ import 'bot.pbjson.dart';
 export 'bot.pb.dart';
 
 abstract class botServiceBase extends $pb.GeneratedService {
-  $async.Future<$1.CreateAgentResp> createAgent(
-      $pb.ServerContext ctx, $1.CreateAgentReq request);
-  $async.Future<$1.UpdateAgentResp> updateAgent(
-      $pb.ServerContext ctx, $1.UpdateAgentReq request);
+  $async.Future<$1.CreateAgentResp> createAgent($pb.ServerContext ctx, $1.CreateAgentReq request);
+  $async.Future<$1.UpdateAgentResp> updateAgent($pb.ServerContext ctx, $1.UpdateAgentReq request);
   $async.Future<$1.PageFindAgentResp> pageFindAgent(
       $pb.ServerContext ctx, $1.PageFindAgentReq request);
-  $async.Future<$1.DeleteAgentResp> deleteAgent(
-      $pb.ServerContext ctx, $1.DeleteAgentReq request);
+  $async.Future<$1.DeleteAgentResp> deleteAgent($pb.ServerContext ctx, $1.DeleteAgentReq request);
   $async.Future<$1.SendBotMessageResp> sendBotMessage(
       $pb.ServerContext ctx, $1.SendBotMessageReq request);
 
@@ -49,8 +46,8 @@ abstract class botServiceBase extends $pb.GeneratedService {
     }
   }
 
-  $async.Future<$pb.GeneratedMessage> handleCall($pb.ServerContext ctx,
-      $core.String methodName, $pb.GeneratedMessage request) {
+  $async.Future<$pb.GeneratedMessage> handleCall(
+      $pb.ServerContext ctx, $core.String methodName, $pb.GeneratedMessage request) {
     switch (methodName) {
       case 'CreateAgent':
         return createAgent(ctx, request as $1.CreateAgentReq);
@@ -68,6 +65,6 @@ abstract class botServiceBase extends $pb.GeneratedService {
   }
 
   $core.Map<$core.String, $core.dynamic> get $json => botServiceBase$json;
-  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>>
-      get $messageJson => botServiceBase$messageJson;
+  $core.Map<$core.String, $core.Map<$core.String, $core.dynamic>> get $messageJson =>
+      botServiceBase$messageJson;
 }

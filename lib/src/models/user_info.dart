@@ -30,8 +30,7 @@ class UserInfo extends Equatable {
     this.appMangerLevel,
   });
 
-  factory UserInfo.fromJson(Map<String, dynamic> json) =>
-      _$UserInfoFromJson(json);
+  factory UserInfo.fromJson(Map<String, dynamic> json) => _$UserInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$UserInfoToJson(this);
 
@@ -85,16 +84,9 @@ class PublicUserInfo extends Equatable {
   final int? appManagerLevel;
   final String? ex;
 
-  const PublicUserInfo({
-    this.userID,
-    this.nickname,
-    this.faceURL,
-    this.appManagerLevel,
-    this.ex,
-  });
+  const PublicUserInfo({this.userID, this.nickname, this.faceURL, this.appManagerLevel, this.ex});
 
-  factory PublicUserInfo.fromJson(Map<String, dynamic> json) =>
-      _$PublicUserInfoFromJson(json);
+  factory PublicUserInfo.fromJson(Map<String, dynamic> json) => _$PublicUserInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$PublicUserInfoToJson(this);
 
@@ -144,8 +136,7 @@ class FriendInfo extends Equatable {
     this.operatorUserID,
   });
 
-  factory FriendInfo.fromJson(Map<String, dynamic> json) =>
-      _$FriendInfoFromJson(json);
+  factory FriendInfo.fromJson(Map<String, dynamic> json) => _$FriendInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$FriendInfoToJson(this);
 
@@ -223,8 +214,7 @@ class BlacklistInfo extends Equatable {
     this.ex,
   });
 
-  factory BlacklistInfo.fromJson(Map<String, dynamic> json) =>
-      _$BlacklistInfoFromJson(json);
+  factory BlacklistInfo.fromJson(Map<String, dynamic> json) => _$BlacklistInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$BlacklistInfoToJson(this);
 
@@ -276,16 +266,12 @@ class FriendshipInfo extends Equatable {
 
   const FriendshipInfo({this.userID, this.result});
 
-  factory FriendshipInfo.fromJson(Map<String, dynamic> json) =>
-      _$FriendshipInfoFromJson(json);
+  factory FriendshipInfo.fromJson(Map<String, dynamic> json) => _$FriendshipInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$FriendshipInfoToJson(this);
 
   FriendshipInfo copyWith({String? userID, int? result}) {
-    return FriendshipInfo(
-      userID: userID ?? this.userID,
-      result: result ?? this.result,
-    );
+    return FriendshipInfo(userID: userID ?? this.userID, result: result ?? this.result);
   }
 
   @override
@@ -396,16 +382,11 @@ class UserStatusInfo extends Equatable {
 
   const UserStatusInfo({this.userID, this.status, this.platformIDs});
 
-  factory UserStatusInfo.fromJson(Map<String, dynamic> json) =>
-      _$UserStatusInfoFromJson(json);
+  factory UserStatusInfo.fromJson(Map<String, dynamic> json) => _$UserStatusInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$UserStatusInfoToJson(this);
 
-  UserStatusInfo copyWith({
-    String? userID,
-    int? status,
-    List<int>? platformIDs,
-  }) {
+  UserStatusInfo copyWith({String? userID, int? status, List<int>? platformIDs}) {
     return UserStatusInfo(
       userID: userID ?? this.userID,
       status: status ?? this.status,
@@ -429,12 +410,10 @@ class GetFriendApplicationListAsRecipientReq extends Equatable {
     required this.count,
   });
 
-  factory GetFriendApplicationListAsRecipientReq.fromJson(
-    Map<String, dynamic> json,
-  ) => _$GetFriendApplicationListAsRecipientReqFromJson(json);
+  factory GetFriendApplicationListAsRecipientReq.fromJson(Map<String, dynamic> json) =>
+      _$GetFriendApplicationListAsRecipientReqFromJson(json);
 
-  Map<String, dynamic> toJson() =>
-      _$GetFriendApplicationListAsRecipientReqToJson(this);
+  Map<String, dynamic> toJson() => _$GetFriendApplicationListAsRecipientReqToJson(this);
 
   GetFriendApplicationListAsRecipientReq copyWith({
     List<int>? handleResults,
@@ -457,17 +436,12 @@ class GetFriendApplicationListAsApplicantReq extends Equatable {
   final int offset;
   final int count;
 
-  const GetFriendApplicationListAsApplicantReq({
-    required this.offset,
-    required this.count,
-  });
+  const GetFriendApplicationListAsApplicantReq({required this.offset, required this.count});
 
-  factory GetFriendApplicationListAsApplicantReq.fromJson(
-    Map<String, dynamic> json,
-  ) => _$GetFriendApplicationListAsApplicantReqFromJson(json);
+  factory GetFriendApplicationListAsApplicantReq.fromJson(Map<String, dynamic> json) =>
+      _$GetFriendApplicationListAsApplicantReqFromJson(json);
 
-  Map<String, dynamic> toJson() =>
-      _$GetFriendApplicationListAsApplicantReqToJson(this);
+  Map<String, dynamic> toJson() => _$GetFriendApplicationListAsApplicantReqToJson(this);
 
   GetFriendApplicationListAsApplicantReq copyWith({int? offset, int? count}) {
     return GetFriendApplicationListAsApplicantReq(
@@ -486,12 +460,10 @@ class GetFriendApplicationUnhandledCountReq extends Equatable {
 
   const GetFriendApplicationUnhandledCountReq({this.time = 0});
 
-  factory GetFriendApplicationUnhandledCountReq.fromJson(
-    Map<String, dynamic> json,
-  ) => _$GetFriendApplicationUnhandledCountReqFromJson(json);
+  factory GetFriendApplicationUnhandledCountReq.fromJson(Map<String, dynamic> json) =>
+      _$GetFriendApplicationUnhandledCountReqFromJson(json);
 
-  Map<String, dynamic> toJson() =>
-      _$GetFriendApplicationUnhandledCountReqToJson(this);
+  Map<String, dynamic> toJson() => _$GetFriendApplicationUnhandledCountReqToJson(this);
 
   GetFriendApplicationUnhandledCountReq copyWith({int? time}) {
     return GetFriendApplicationUnhandledCountReq(time: time ?? this.time);

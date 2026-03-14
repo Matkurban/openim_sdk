@@ -11,39 +11,48 @@ import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/utils/im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
+import 'package:meta/meta.dart';
 
 class ConversationManager {
   static final Logger _log = Logger('ConversationManager');
 
-  ImApiService get _api =>
-      GetIt.instance.get<ImApiService>(instanceName: InstanceName.imApiService);
-  DatabaseService get _database =>
-      GetIt.instance.get<DatabaseService>(instanceName: InstanceName.databaseService);
-  WebSocketService get _ws =>
-      GetIt.instance.get<WebSocketService>(instanceName: InstanceName.webSocketService);
+  final GetIt _getIt = GetIt.instance;
 
-  /// 会话变更监听器
+  ImApiService get _api {
+    return _getIt.get<ImApiService>(instanceName: InstanceName.imApiService);
+  }
+
+  DatabaseService get _database {
+    return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  }
+
+  WebSocketService get _webSocketService {
+    return _getIt.get<WebSocketService>(instanceName: InstanceName.webSocketService);
+  }
+
   OnConversationListener? listener;
 
-  /// 设置会话监听器
+  late String _currentUserID;
+
   void setConversationListener(OnConversationListener listener) {
     this.listener = listener;
   }
 
-  // ---------------------------------------------------------------------------
-  // 会话 ID 生成规则
-  // ---------------------------------------------------------------------------
+  @internal
+  void setCurrentUserID(String userID) {
+    _currentUserID = userID;
+  }
 
   /// 根据会话类型生成会话ID
   /// [sourceID] 单聊为用户ID，群聊为群组ID
   /// [sessionType] 会话类型
   String getConversationIDBySessionType({required String sourceID, required int sessionType}) {
     if (sessionType == ConversationType.single.value) {
-      return ImUtils.genSingleConversationID(_database.currentUserID, sourceID);
+      return ImUtils.genSingleConversationID(_currentUserID, sourceID);
     } else if (sessionType == ConversationType.superGroup.value) {
       return ImUtils.genGroupConversationID(sourceID);
     } else {
-      return ImUtils.genNotificationConversationID(_database.currentUserID, sourceID);
+      return ImUtils.genNotificationConversationID(_currentUserID, sourceID);
     }
   }
 
@@ -52,10 +61,6 @@ class ConversationManager {
 
   /// @所有人 标识
   String get atAllTag => 'AtAllTag';
-
-  // ---------------------------------------------------------------------------
-  // 会话查询操作
-  // ---------------------------------------------------------------------------
 
   /// 获取所有会话列表
   Future<List<ConversationInfo>> getAllConversationList() async {
@@ -113,8 +118,8 @@ class ConversationManager {
 
   /// 自定义会话列表排序
   /// 置顶会话优先，然后按最新消息时间或草稿时间排序
-  List<ConversationInfo> simpleSort(List<ConversationInfo> list) => list
-    ..sort((a, b) {
+  List<ConversationInfo> simpleSort(List<ConversationInfo> list) {
+    return list..sort((a, b) {
       if ((a.isPinned == true && b.isPinned == true) ||
           (a.isPinned != true && b.isPinned != true)) {
         final aCompare = (a.draftTextTime ?? 0) > (a.latestMsgSendTime ?? 0)
@@ -136,10 +141,7 @@ class ConversationManager {
         return 1;
       }
     });
-
-  // ---------------------------------------------------------------------------
-  // 会话修改操作
-  // ---------------------------------------------------------------------------
+  }
 
   /// 设置会话属性（免打扰、置顶等）
   /// [conversationID] 会话ID
@@ -157,7 +159,7 @@ class ConversationManager {
 
     // 同步到服务器
     final resp = await _api.setConversations(
-      req: {'userID': _database.currentUserID, 'conversationID': conversationID, ...updateData},
+      req: {'userID': _currentUserID, 'conversationID': conversationID, ...updateData},
     );
     if (resp.errCode != 0) {
       _log.warning('同步会话属性到服务器失败: ${resp.errMsg}');
@@ -197,10 +199,6 @@ class ConversationManager {
     await _notifyConversationChanged([conversationID]);
   }
 
-  // ---------------------------------------------------------------------------
-  // 未读消息计数
-  // ---------------------------------------------------------------------------
-
   /// 获取未读消息总数
   Future<int> getTotalUnreadMsgCount() async {
     return _database.getTotalUnreadCount();
@@ -222,7 +220,7 @@ class ConversationManager {
     // 同步到服务器
     if (hasReadSeq > 0) {
       final resp = await _api.markConversationAsRead(
-        userID: _database.currentUserID,
+        userID: _currentUserID,
         conversationID: conversationID,
         hasReadSeq: hasReadSeq,
       );
@@ -239,10 +237,6 @@ class ConversationManager {
     listener?.totalUnreadMessageCountChanged(0);
   }
 
-  // ---------------------------------------------------------------------------
-  // 会话删除操作
-  // ---------------------------------------------------------------------------
-
   /// 删除会话及其所有消息（本地和服务器）
   /// [conversationID] 会话ID
   Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
@@ -251,7 +245,7 @@ class ConversationManager {
     _log.info('会话及消息已删除: $conversationID');
 
     final resp = await _api.clearConversationMsg(
-      userID: _database.currentUserID,
+      userID: _currentUserID,
       conversationIDs: [conversationID],
     );
     if (resp.errCode != 0) {
@@ -267,17 +261,13 @@ class ConversationManager {
     _log.info('会话及消息已清空: $conversationID');
 
     final resp = await _api.clearConversationMsg(
-      userID: _database.currentUserID,
+      userID: _currentUserID,
       conversationIDs: [conversationID],
     );
     if (resp.errCode != 0) {
       _log.warning('清空会话消息失败: ${resp.errMsg}');
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 输入状态
-  // ---------------------------------------------------------------------------
 
   /// 更新输入状态
   /// [conversationID] 会话ID
@@ -305,7 +295,7 @@ class ConversationManager {
       'offlinePush': false,
     };
     final msgData = {
-      'sendID': _database.currentUserID,
+      'sendID': _currentUserID,
       'recvID': recvID,
       'groupID': groupID,
       'clientMsgID': '${DateTime.now().microsecondsSinceEpoch}',
@@ -321,7 +311,10 @@ class ConversationManager {
 
     try {
       final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
-      await _ws.sendRequestWaitResponse(reqIdentifier: WebSocketIdentifier.sendMsg, data: wsData);
+      await _webSocketService.sendRequestWaitResponse(
+        reqIdentifier: WebSocketIdentifier.sendMsg,
+        data: wsData,
+      );
     } catch (e) {
       _log.warning('发送输入状态失败: $e');
     }
@@ -334,49 +327,6 @@ class ConversationManager {
     // 监听端提供平台列表，通常为实时响应
     return [];
   }
-
-  /// 获取会话消息接收选项
-  /// [conversationIDList] 会话ID列表
-  Future<List<dynamic>> getConversationRecvMessageOpt({
-    required List<String> conversationIDList,
-    String? operationID,
-  }) async {
-    final convs = await getMultipleConversation(conversationIDList: conversationIDList);
-    return convs
-        .map((c) => {'conversationID': c.conversationID, 'result': c.recvMsgOpt?.value ?? 0})
-        .toList();
-  }
-
-  /// 删除所有本地会话
-  @Deprecated('Use hideAllConversations instead')
-  Future<dynamic> deleteAllConversationFromLocal({String? operationID}) {
-    return hideAllConversations();
-  }
-
-  // ---------------------------------------------------------------------------
-  // 本地数据操作（供内部模块调用）——续
-  // ---------------------------------------------------------------------------
-
-  /// 保存或更新会话到本地
-  Future<void> saveConversationToLocal(ConversationInfo conversation) async {
-    await _database.saveConversation(conversation);
-  }
-
-  /// 批量保存或更新会话到本地
-  Future<void> batchSaveConversationsToLocal(List<ConversationInfo> conversations) async {
-    await _database.batchSaveConversations(conversations);
-  }
-
-  /// 通知新会话创建
-  void notifyNewConversation(List<ConversationInfo> conversations) {
-    if (conversations.isNotEmpty) {
-      listener?.newConversation(conversations);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 私有辅助方法
-  // ---------------------------------------------------------------------------
 
   /// 清空指定会话的所有消息
   Future<void> _clearConversationMessages(String conversationID) async {
