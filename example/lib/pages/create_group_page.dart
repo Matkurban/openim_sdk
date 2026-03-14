@@ -37,11 +37,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
           .toList();
 
       final group = await OpenIM.iMManager.groupManager.createGroup(
-        groupInfo: GroupInfo(
-          groupID: '',
-          groupName: name,
-          groupType: GroupType.work,
-        ),
+        groupInfo: GroupInfo(groupID: '', groupName: name, groupType: GroupType.work),
         memberUserIDs: memberIDs,
       );
 
@@ -69,10 +65,7 @@ class _CreateGroupPageState extends State<CreateGroupPage> {
           children: [
             TextField(
               controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: '群名称',
-                prefixIcon: Icon(Icons.group),
-              ),
+              decoration: const InputDecoration(labelText: '群名称', prefixIcon: Icon(Icons.group)),
             ),
             const SizedBox(height: 16),
             TextField(

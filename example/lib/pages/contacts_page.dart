@@ -37,9 +37,7 @@ class ContactsPage extends GetView<ContactsController> {
               Obx(() => Tab(text: '好友 (${controller.friends.length})')),
               Obx(() => Tab(text: '群组 (${controller.groups.length})')),
               Obx(() {
-                final pending = controller.friendRequests
-                    .where((r) => r.handleResult == 0)
-                    .length;
+                final pending = controller.friendRequests.where((r) => r.handleResult == 0).length;
                 return Tab(text: pending > 0 ? '申请 ($pending)' : '申请');
               }),
               Obx(() => Tab(text: '黑名单 (${controller.blacklist.length})')),
@@ -139,19 +137,14 @@ class ContactsPage extends GetView<ContactsController> {
                     if (friendResults.isNotEmpty) ...[
                       Text(
                         '好友 (${friendResults.length})',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       ...friendResults
                           .take(5)
                           .map(
                             (f) => ListTile(
                               dense: true,
-                              title: Text(
-                                f.remark ?? f.nickname ?? f.friendUserID ?? '',
-                              ),
+                              title: Text(f.remark ?? f.nickname ?? f.friendUserID ?? ''),
                               subtitle: Text('ID: ${f.friendUserID}'),
                               onTap: () {
                                 Get.back();
@@ -163,10 +156,7 @@ class ContactsPage extends GetView<ContactsController> {
                     if (groupResults.isNotEmpty) ...[
                       Text(
                         '群组 (${groupResults.length})',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                       ),
                       ...groupResults
                           .take(5)
@@ -182,15 +172,10 @@ class ContactsPage extends GetView<ContactsController> {
                             ),
                           ),
                     ],
-                    if (friendResults.isEmpty &&
-                        groupResults.isEmpty &&
-                        searchCtrl.text.isNotEmpty)
+                    if (friendResults.isEmpty && groupResults.isEmpty && searchCtrl.text.isNotEmpty)
                       const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Text(
-                          '无匹配结果',
-                          style: TextStyle(color: Colors.grey),
-                        ),
+                        child: Text('无匹配结果', style: TextStyle(color: Colors.grey)),
                       ),
                   ],
                 ),
@@ -198,9 +183,7 @@ class ContactsPage extends GetView<ContactsController> {
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('关闭')),
-        ],
+        actions: [TextButton(onPressed: () => Get.back(), child: const Text('关闭'))],
       ),
     );
   }
@@ -222,10 +205,7 @@ class ContactsPage extends GetView<ContactsController> {
                     ? NetworkImage(f.faceURL!)
                     : null,
                 child: f.faceURL == null || f.faceURL!.isEmpty
-                    ? Text(
-                        (f.remark ?? f.nickname ?? f.friendUserID ?? '?')[0]
-                            .toUpperCase(),
-                      )
+                    ? Text((f.remark ?? f.nickname ?? f.friendUserID ?? '?')[0].toUpperCase())
                     : null,
               ),
               title: Text(f.remark ?? f.nickname ?? f.friendUserID ?? ''),
@@ -426,10 +406,7 @@ class ContactsPage extends GetView<ContactsController> {
             ),
             ListTile(
               leading: const Icon(Icons.block, color: Colors.orange),
-              title: const Text(
-                '加入黑名单',
-                style: TextStyle(color: Colors.orange),
-              ),
+              title: const Text('加入黑名单', style: TextStyle(color: Colors.orange)),
               onTap: () {
                 Get.back();
                 controller.addToBlacklist(f.friendUserID!);

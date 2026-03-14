@@ -44,9 +44,7 @@ class HomeController extends GetxController {
     _subs.add(
       svc.conversationChanged.stream.listen((list) {
         for (final c in list) {
-          final idx = conversations.indexWhere(
-            (e) => e.conversationID == c.conversationID,
-          );
+          final idx = conversations.indexWhere((e) => e.conversationID == c.conversationID);
           if (idx >= 0) {
             conversations[idx] = c;
           } else {
@@ -86,21 +84,15 @@ class HomeController extends GetxController {
 
   Future<void> _loadConversations() async {
     try {
-      final list = await OpenIM.iMManager.conversationManager
-          .getAllConversationList();
-      conversations.value = OpenIM.iMManager.conversationManager.simpleSort(
-        list,
-      );
-      final count = await OpenIM.iMManager.conversationManager
-          .getTotalUnreadMsgCount();
+      final list = await OpenIM.iMManager.conversationManager.getAllConversationList();
+      conversations.value = OpenIM.iMManager.conversationManager.simpleSort(list);
+      final count = await OpenIM.iMManager.conversationManager.getTotalUnreadMsgCount();
       totalUnread.value = count;
     } catch (_) {}
   }
 
   void _sortConversations() {
-    conversations.value = OpenIM.iMManager.conversationManager.simpleSort(
-      conversations.toList(),
-    );
+    conversations.value = OpenIM.iMManager.conversationManager.simpleSort(conversations.toList());
   }
 
   Future<void> refreshConversations() async {
@@ -128,10 +120,9 @@ class HomeController extends GetxController {
 
   Future<void> deleteConversation(ConversationInfo conv) async {
     try {
-      await OpenIM.iMManager.conversationManager
-          .deleteConversationAndDeleteAllMsg(
-            conversationID: conv.conversationID,
-          );
+      await OpenIM.iMManager.conversationManager.deleteConversationAndDeleteAllMsg(
+        conversationID: conv.conversationID,
+      );
       conversations.removeWhere((c) => c.conversationID == conv.conversationID);
     } catch (e) {
       Get.snackbar('错误', '$e', snackPosition: SnackPosition.BOTTOM);
@@ -152,8 +143,7 @@ class HomeController extends GetxController {
   /// 全部标记已读
   Future<void> markAllAsRead() async {
     try {
-      await OpenIM.iMManager.conversationManager
-          .markAllConversationMessageAsRead();
+      await OpenIM.iMManager.conversationManager.markAllConversationMessageAsRead();
       await _loadConversations();
       Get.snackbar('成功', '已全部标记已读', snackPosition: SnackPosition.BOTTOM);
     } catch (e) {
@@ -193,9 +183,7 @@ class HomeController extends GetxController {
         req: ConversationReq(recvMsgOpt: recvMsgOpt),
       );
       await _loadConversations();
-      final label = recvMsgOpt == 0
-          ? '取消免打扰'
-          : (recvMsgOpt == 2 ? '已设为免打扰' : '已屏蔽消息');
+      final label = recvMsgOpt == 0 ? '取消免打扰' : (recvMsgOpt == 2 ? '已设为免打扰' : '已屏蔽消息');
       Get.snackbar('成功', label, snackPosition: SnackPosition.BOTTOM);
     } catch (e) {
       Get.snackbar('错误', '$e', snackPosition: SnackPosition.BOTTOM);
@@ -211,17 +199,10 @@ class HomeController extends GetxController {
     try {
       await OpenIM.iMManager.conversationManager.setConversation(
         conversationID: conv.conversationID,
-        req: ConversationReq(
-          isMsgDestruct: enable,
-          msgDestructTime: burnDuration,
-        ),
+        req: ConversationReq(isMsgDestruct: enable, msgDestructTime: burnDuration),
       );
       await _loadConversations();
-      Get.snackbar(
-        '成功',
-        enable ? '已开启阅后即焚' : '已关闭阅后即焚',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      Get.snackbar('成功', enable ? '已开启阅后即焚' : '已关闭阅后即焚', snackPosition: SnackPosition.BOTTOM);
     } catch (e) {
       Get.snackbar('错误', '$e', snackPosition: SnackPosition.BOTTOM);
     }
@@ -246,8 +227,7 @@ class HomeController extends GetxController {
     }
     isSearching.value = true;
     try {
-      searchResults.value = await OpenIM.iMManager.conversationManager
-          .searchConversations(keyword);
+      searchResults.value = await OpenIM.iMManager.conversationManager.searchConversations(keyword);
     } catch (_) {
       searchResults.clear();
     }
@@ -259,22 +239,19 @@ class HomeController extends GetxController {
   }
 
   /// 分页加载会话
-  Future<List<ConversationInfo>> getConversationListSplit({
-    int offset = 0,
-    int count = 20,
-  }) async {
+  Future<List<ConversationInfo>> getConversationListSplit({int offset = 0, int count = 20}) async {
     try {
-      return await OpenIM.iMManager.conversationManager
-          .getConversationListSplit(offset: offset, count: count);
+      return await OpenIM.iMManager.conversationManager.getConversationListSplit(
+        offset: offset,
+        count: count,
+      );
     } catch (_) {
       return [];
     }
   }
 
   /// 获取多个指定会话
-  Future<List<ConversationInfo>> getMultipleConversation(
-    List<String> ids,
-  ) async {
+  Future<List<ConversationInfo>> getMultipleConversation(List<String> ids) async {
     try {
       return await OpenIM.iMManager.conversationManager.getMultipleConversation(
         conversationIDList: ids,

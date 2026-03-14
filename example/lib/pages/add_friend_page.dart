@@ -29,9 +29,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
 
     setState(() => _isSearching = true);
     try {
-      final users = await OpenIM.iMManager.userManager.getUsersInfo(
-        userIDList: [userID],
-      );
+      final users = await OpenIM.iMManager.userManager.getUsersInfo(userIDList: [userID]);
       setState(() => _searchResults = users);
       if (users.isEmpty) {
         Get.snackbar('提示', '未找到该用户', snackPosition: SnackPosition.BOTTOM);
@@ -105,10 +103,7 @@ class _AddFriendPageState extends State<AddFriendPage> {
             Expanded(
               child: _searchResults.isEmpty
                   ? Center(
-                      child: Text(
-                        '输入用户ID搜索',
-                        style: TextStyle(color: Colors.grey[500]),
-                      ),
+                      child: Text('输入用户ID搜索', style: TextStyle(color: Colors.grey[500])),
                     )
                   : ListView.builder(
                       itemCount: _searchResults.length,
@@ -117,32 +112,22 @@ class _AddFriendPageState extends State<AddFriendPage> {
                         return Card(
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundImage:
-                                  user.faceURL != null &&
-                                      user.faceURL!.isNotEmpty
+                              backgroundImage: user.faceURL != null && user.faceURL!.isNotEmpty
                                   ? NetworkImage(user.faceURL!)
                                   : null,
-                              child:
-                                  user.faceURL == null || user.faceURL!.isEmpty
-                                  ? Text(
-                                      (user.nickname ?? user.userID ?? '?')[0]
-                                          .toUpperCase(),
-                                    )
+                              child: user.faceURL == null || user.faceURL!.isEmpty
+                                  ? Text((user.nickname ?? user.userID ?? '?')[0].toUpperCase())
                                   : null,
                             ),
                             title: Text(user.nickname ?? user.userID ?? ''),
                             subtitle: Text('ID: ${user.userID}'),
                             trailing: FilledButton(
-                              onPressed: _isSending
-                                  ? null
-                                  : () => _addFriend(user.userID!),
+                              onPressed: _isSending ? null : () => _addFriend(user.userID!),
                               child: _isSending
                                   ? const SizedBox(
                                       width: 16,
                                       height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
+                                      child: CircularProgressIndicator(strokeWidth: 2),
                                     )
                                   : const Text('添加'),
                             ),

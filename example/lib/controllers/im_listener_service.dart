@@ -9,22 +9,19 @@ import 'package:openim_sdk/openim_sdk.dart';
 /// 避免多个 Controller 覆盖同一个 listener 导致回调丢失。
 class IMListenerService extends GetxService {
   // ---- Conversation ----
-  final conversationChanged =
-      StreamController<List<ConversationInfo>>.broadcast();
+  final conversationChanged = StreamController<List<ConversationInfo>>.broadcast();
   final newConversation = StreamController<List<ConversationInfo>>.broadcast();
   final totalUnreadCount = StreamController<int>.broadcast();
   final syncStarted = StreamController<bool?>.broadcast();
   final syncFinished = StreamController<bool?>.broadcast();
   final syncFailed = StreamController<bool?>.broadcast();
-  final inputStatusChanged =
-      StreamController<InputStatusChangedData>.broadcast();
+  final inputStatusChanged = StreamController<InputStatusChangedData>.broadcast();
 
   // ---- Message ----
   final recvNewMessage = StreamController<Message>.broadcast();
   final recvMessageRevoked = StreamController<RevokedInfo>.broadcast();
   final msgDeleted = StreamController<Message>.broadcast();
-  final recvC2CReadReceipt =
-      StreamController<List<ReadReceiptInfo>>.broadcast();
+  final recvC2CReadReceipt = StreamController<List<ReadReceiptInfo>>.broadcast();
 
   // ---- Friend ----
   final friendAdded = StreamController<FriendInfo>.broadcast();
@@ -32,23 +29,17 @@ class IMListenerService extends GetxService {
   final friendInfoChanged = StreamController<FriendInfo>.broadcast();
   final blackAdded = StreamController<BlacklistInfo>.broadcast();
   final blackDeleted = StreamController<BlacklistInfo>.broadcast();
-  final friendApplicationAdded =
-      StreamController<FriendApplicationInfo>.broadcast();
-  final friendApplicationAccepted =
-      StreamController<FriendApplicationInfo>.broadcast();
-  final friendApplicationRejected =
-      StreamController<FriendApplicationInfo>.broadcast();
+  final friendApplicationAdded = StreamController<FriendApplicationInfo>.broadcast();
+  final friendApplicationAccepted = StreamController<FriendApplicationInfo>.broadcast();
+  final friendApplicationRejected = StreamController<FriendApplicationInfo>.broadcast();
 
   // ---- Group ----
   final joinedGroupAdded = StreamController<GroupInfo>.broadcast();
   final joinedGroupDeleted = StreamController<GroupInfo>.broadcast();
   final groupInfoChanged = StreamController<GroupInfo>.broadcast();
-  final groupApplicationAdded =
-      StreamController<GroupApplicationInfo>.broadcast();
-  final groupApplicationAccepted =
-      StreamController<GroupApplicationInfo>.broadcast();
-  final groupApplicationRejected =
-      StreamController<GroupApplicationInfo>.broadcast();
+  final groupApplicationAdded = StreamController<GroupApplicationInfo>.broadcast();
+  final groupApplicationAccepted = StreamController<GroupApplicationInfo>.broadcast();
+  final groupApplicationRejected = StreamController<GroupApplicationInfo>.broadcast();
   final groupMemberAdded = StreamController<GroupMembersInfo>.broadcast();
   final groupMemberDeleted = StreamController<GroupMembersInfo>.broadcast();
   final groupMemberInfoChanged = StreamController<GroupMembersInfo>.broadcast();
@@ -64,8 +55,7 @@ class IMListenerService extends GetxService {
       OnConversationListener(
         onConversationChanged: (list) => conversationChanged.add(list),
         onNewConversation: (list) => newConversation.add(list),
-        onTotalUnreadMessageCountChanged: (count) =>
-            totalUnreadCount.add(count),
+        onTotalUnreadMessageCountChanged: (count) => totalUnreadCount.add(count),
         onSyncServerStart: (reinstalled) => syncStarted.add(reinstalled),
         onSyncServerFinish: (reinstalled) => syncFinished.add(reinstalled),
         onSyncServerFailed: (reinstalled) => syncFailed.add(reinstalled),
@@ -91,10 +81,8 @@ class IMListenerService extends GetxService {
         onBlackAdded: (info) => blackAdded.add(info),
         onBlackDeleted: (info) => blackDeleted.add(info),
         onFriendApplicationAdded: (info) => friendApplicationAdded.add(info),
-        onFriendApplicationAccepted: (info) =>
-            friendApplicationAccepted.add(info),
-        onFriendApplicationRejected: (info) =>
-            friendApplicationRejected.add(info),
+        onFriendApplicationAccepted: (info) => friendApplicationAccepted.add(info),
+        onFriendApplicationRejected: (info) => friendApplicationRejected.add(info),
       ),
     );
 
@@ -104,10 +92,8 @@ class IMListenerService extends GetxService {
         onJoinedGroupDeleted: (info) => joinedGroupDeleted.add(info),
         onGroupInfoChanged: (info) => groupInfoChanged.add(info),
         onGroupApplicationAdded: (info) => groupApplicationAdded.add(info),
-        onGroupApplicationAccepted: (info) =>
-            groupApplicationAccepted.add(info),
-        onGroupApplicationRejected: (info) =>
-            groupApplicationRejected.add(info),
+        onGroupApplicationAccepted: (info) => groupApplicationAccepted.add(info),
+        onGroupApplicationRejected: (info) => groupApplicationRejected.add(info),
         onGroupMemberAdded: (info) => groupMemberAdded.add(info),
         onGroupMemberDeleted: (info) => groupMemberDeleted.add(info),
         onGroupMemberInfoChanged: (info) => groupMemberInfoChanged.add(info),

@@ -26,9 +26,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   Future<void> _load() async {
     setState(() => _isLoading = true);
     try {
-      final groups = await OpenIM.iMManager.groupManager.getGroupsInfo(
-        groupIDList: [groupID],
-      );
+      final groups = await OpenIM.iMManager.groupManager.getGroupsInfo(groupIDList: [groupID]);
       if (groups.isNotEmpty) _group = groups.first;
 
       _members = await OpenIM.iMManager.groupManager.getGroupMemberList(
@@ -36,9 +34,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
         count: 100,
       );
 
-      _admins = await OpenIM.iMManager.groupManager.getGroupOwnerAndAdmin(
-        groupID: groupID,
-      );
+      _admins = await OpenIM.iMManager.groupManager.getGroupOwnerAndAdmin(groupID: groupID);
     } catch (_) {}
     setState(() => _isLoading = false);
   }
@@ -55,25 +51,14 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
               itemBuilder: (_) => [
                 const PopupMenuItem(value: 'invite', child: Text('邀请成员')),
                 const PopupMenuItem(value: 'edit', child: Text('编辑群信息')),
-                const PopupMenuItem(
-                  value: 'search_member',
-                  child: Text('搜索成员'),
-                ),
+                const PopupMenuItem(value: 'search_member', child: Text('搜索成员')),
                 const PopupMenuDivider(),
                 PopupMenuItem(
                   value: 'mute_group',
-                  child: Text(
-                    (_group!.status == GroupStatus.muted) ? '取消全员禁言' : '全员禁言',
-                  ),
+                  child: Text((_group!.status == GroupStatus.muted) ? '取消全员禁言' : '全员禁言'),
                 ),
-                const PopupMenuItem(
-                  value: 'check_users',
-                  child: Text('检查用户是否在群'),
-                ),
-                const PopupMenuItem(
-                  value: 'members_by_time',
-                  child: Text('按入群时间查看'),
-                ),
+                const PopupMenuItem(value: 'check_users', child: Text('检查用户是否在群')),
+                const PopupMenuItem(value: 'members_by_time', child: Text('按入群时间查看')),
                 const PopupMenuDivider(),
                 const PopupMenuItem(value: 'transfer', child: Text('转让群主')),
                 const PopupMenuItem(
@@ -100,19 +85,11 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                         CircleAvatar(
                           radius: 40,
                           backgroundColor: Colors.blue[100],
-                          backgroundImage:
-                              _group!.faceURL != null &&
-                                  _group!.faceURL!.isNotEmpty
+                          backgroundImage: _group!.faceURL != null && _group!.faceURL!.isNotEmpty
                               ? NetworkImage(_group!.faceURL!)
                               : null,
-                          child:
-                              _group!.faceURL == null ||
-                                  _group!.faceURL!.isEmpty
-                              ? const Icon(
-                                  Icons.group,
-                                  size: 40,
-                                  color: Colors.blue,
-                                )
+                          child: _group!.faceURL == null || _group!.faceURL!.isEmpty
+                              ? const Icon(Icons.group, size: 40, color: Colors.blue)
                               : null,
                         ),
                         const SizedBox(height: 12),
@@ -122,10 +99,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                         ),
                         Text(
                           '${_group!.memberCount ?? 0} 人  |  群ID: $groupID',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                            fontSize: 13,
-                          ),
+                          style: TextStyle(color: Colors.grey[600], fontSize: 13),
                         ),
                         if (_group!.status == GroupStatus.muted)
                           Padding(
@@ -133,18 +107,13 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                             child: Chip(
                               label: const Text(
                                 '全员禁言中',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                ),
+                                style: TextStyle(color: Colors.white, fontSize: 12),
                               ),
                               backgroundColor: Colors.red,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
-                        if (_group!.notification != null &&
-                            _group!.notification!.isNotEmpty)
+                        if (_group!.notification != null && _group!.notification!.isNotEmpty)
                           Container(
                             margin: const EdgeInsets.only(top: 12),
                             padding: const EdgeInsets.all(12),
@@ -158,16 +127,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                               children: [
                                 const Text(
                                   '群公告',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                                 ),
                                 const SizedBox(height: 4),
-                                Text(
-                                  _group!.notification!,
-                                  style: const TextStyle(fontSize: 13),
-                                ),
+                                Text(_group!.notification!, style: const TextStyle(fontSize: 13)),
                               ],
                             ),
                           ),
@@ -179,27 +142,19 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   if (_admins.isNotEmpty) ...[
                     const Divider(),
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: Text(
                         '群主/管理员 (${_admins.length})',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ),
-                    ..._admins.map(
-                      (m) => _buildMemberTile(m, showAdmin: false),
-                    ),
+                    ..._admins.map((m) => _buildMemberTile(m, showAdmin: false)),
                   ],
 
                   // 全部成员
                   const Divider(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Text(
                       '全部成员 (${_members.length})',
                       style: Theme.of(context).textTheme.titleMedium,
@@ -242,11 +197,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   ),
                 if (m.roleLevel != GroupRoleLevel.owner)
                   IconButton(
-                    icon: const Icon(
-                      Icons.remove_circle_outline,
-                      color: Colors.red,
-                      size: 20,
-                    ),
+                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red, size: 20),
                     tooltip: '踢出',
                     onPressed: () => _kickMember(m),
                   ),
@@ -272,8 +223,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
     return _members.any(
       (m) =>
           m.userID == myID &&
-          (m.roleLevel == GroupRoleLevel.owner ||
-              m.roleLevel == GroupRoleLevel.admin),
+          (m.roleLevel == GroupRoleLevel.owner || m.roleLevel == GroupRoleLevel.admin),
     );
   }
 
@@ -285,10 +235,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
         title: const Text('移除成员'),
         content: Text('确定移除 ${m.nickname ?? m.userID} 吗？'),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('取消')),
           FilledButton(
             onPressed: () => Get.back(result: true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),
@@ -337,16 +284,9 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
   Future<void> _toggleGroupMute() async {
     final isMuted = _group!.status == GroupStatus.muted;
     try {
-      await OpenIM.iMManager.groupManager.changeGroupMute(
-        groupID: groupID,
-        mute: !isMuted,
-      );
+      await OpenIM.iMManager.groupManager.changeGroupMute(groupID: groupID, mute: !isMuted);
       await _load();
-      Get.snackbar(
-        '成功',
-        isMuted ? '已取消全员禁言' : '已开启全员禁言',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+      Get.snackbar('成功', isMuted ? '已取消全员禁言' : '已开启全员禁言', snackPosition: SnackPosition.BOTTOM);
     } catch (e) {
       Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
     }
@@ -382,11 +322,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   userID: m.userID!,
                   seconds: int.tryParse(ctrl.text) ?? 0,
                 );
-                Get.snackbar(
-                  '成功',
-                  '已设置禁言',
-                  snackPosition: SnackPosition.BOTTOM,
-                );
+                Get.snackbar('成功', '已设置禁言', snackPosition: SnackPosition.BOTTOM);
               } catch (e) {
                 Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
               }
@@ -470,13 +406,12 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                     return;
                   }
                   try {
-                    results.value = await OpenIM.iMManager.groupManager
-                        .searchGroupMembers(
-                          groupID: groupID,
-                          keywordList: [v],
-                          isSearchUserID: true,
-                          isSearchMemberNickname: true,
-                        );
+                    results.value = await OpenIM.iMManager.groupManager.searchGroupMembers(
+                      groupID: groupID,
+                      keywordList: [v],
+                      isSearchUserID: true,
+                      isSearchMemberNickname: true,
+                    );
                   } catch (_) {
                     results.clear();
                   }
@@ -491,10 +426,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                           if (ctrl.text.isNotEmpty)
                             const Padding(
                               padding: EdgeInsets.all(12),
-                              child: Text(
-                                '无匹配成员',
-                                style: TextStyle(color: Colors.grey),
-                              ),
+                              child: Text('无匹配成员', style: TextStyle(color: Colors.grey)),
                             ),
                         ]
                       : results
@@ -514,9 +446,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('关闭')),
-        ],
+        actions: [TextButton(onPressed: () => Get.back(), child: const Text('关闭'))],
       ),
     );
   }
@@ -543,8 +473,10 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                   .where((s) => s.isNotEmpty)
                   .toList();
               try {
-                final inGroup = await OpenIM.iMManager.groupManager
-                    .getUsersInGroup(groupID: groupID, userIDList: ids);
+                final inGroup = await OpenIM.iMManager.groupManager.getUsersInGroup(
+                  groupID: groupID,
+                  userIDList: ids,
+                );
                 final notIn = ids.where((id) => !inGroup.contains(id)).toList();
                 Get.snackbar(
                   '结果',
@@ -567,14 +499,13 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
 
   void _showMembersByTimeDialog() async {
     try {
-      final members = await OpenIM.iMManager.groupManager
-          .getGroupMemberListByJoinTime(
-            groupID: groupID,
-            offset: 0,
-            count: 50,
-            joinTimeBegin: 0,
-            joinTimeEnd: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-          );
+      final members = await OpenIM.iMManager.groupManager.getGroupMemberListByJoinTime(
+        groupID: groupID,
+        offset: 0,
+        count: 50,
+        joinTimeBegin: 0,
+        joinTimeEnd: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      );
       Get.dialog(
         AlertDialog(
           title: Text('按入群时间 (${members.length} 人)'),
@@ -598,9 +529,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
               },
             ),
           ),
-          actions: [
-            TextButton(onPressed: () => Get.back(), child: const Text('关闭')),
-          ],
+          actions: [TextButton(onPressed: () => Get.back(), child: const Text('关闭'))],
         ),
       );
     } catch (e) {
@@ -735,10 +664,7 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
         title: const Text('解散群组'),
         content: const Text('确定要解散群组吗？此操作不可撤销。'),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(result: false),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Get.back(result: false), child: const Text('取消')),
           FilledButton(
             onPressed: () => Get.back(result: true),
             style: FilledButton.styleFrom(backgroundColor: Colors.red),

@@ -24,16 +24,14 @@ class LoginPage extends GetView<LoginController> {
                 const SizedBox(height: 12),
                 Text(
                   'OpenIM',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'SDK Demo',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                 ),
                 const SizedBox(height: 32),
 
@@ -116,10 +114,7 @@ class LoginPage extends GetView<LoginController> {
                 // Password
                 TextField(
                   controller: controller.passwordCtrl,
-                  decoration: const InputDecoration(
-                    labelText: '密码',
-                    prefixIcon: Icon(Icons.lock),
-                  ),
+                  decoration: const InputDecoration(labelText: '密码', prefixIcon: Icon(Icons.lock)),
                   obscureText: true,
                 ),
                 const SizedBox(height: 32),
@@ -130,17 +125,12 @@ class LoginPage extends GetView<LoginController> {
                     width: double.infinity,
                     height: 48,
                     child: FilledButton(
-                      onPressed: controller.isLoading.value
-                          ? null
-                          : controller.login,
+                      onPressed: controller.isLoading.value ? null : controller.login,
                       child: controller.isLoading.value
                           ? const SizedBox(
                               width: 24,
                               height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
                           : const Text('登录', style: TextStyle(fontSize: 16)),
                     ),

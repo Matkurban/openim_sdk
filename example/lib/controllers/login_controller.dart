@@ -55,9 +55,7 @@ class LoginController extends GetxController {
       Get.put(IMListenerService(), permanent: true).initialize();
 
       if (loginMode.value == 0) {
-        dev.log(
-          '[Login] calling loginByPhone(areaCode=$areaCode, phone=$account)',
-        );
+        dev.log('[Login] calling loginByPhone(areaCode=$areaCode, phone=$account)');
         await OpenIM.iMManager.userManager.loginByPhone(
           areaCode: areaCode,
           phoneNumber: account,
@@ -65,10 +63,7 @@ class LoginController extends GetxController {
         );
       } else {
         dev.log('[Login] calling loginByEmail(email=$account)');
-        await OpenIM.iMManager.userManager.loginByEmail(
-          email: account,
-          password: password,
-        );
+        await OpenIM.iMManager.userManager.loginByEmail(email: account, password: password);
       }
 
       statusText.value = '';
