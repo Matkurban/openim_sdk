@@ -2,15 +2,16 @@ import 'dart:developer' as dev;
 
 import 'package:get/get.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk_example/config/host.dart';
 import '../routes/app_routes.dart';
 
 class SplashController extends GetxController {
   final statusText = '正在初始化...'.obs;
 
   // 默认服务器地址（与登录页一致）
-  static const defaultApiAddr = 'http://115.190.173.31:10002';
-  static const defaultWsAddr = 'ws://115.190.173.31:10001';
-  static const defaultChatAddr = 'http://115.190.173.31:10008';
+  static const defaultApiAddr = 'http://$host:10002';
+  static const defaultWsAddr = 'ws://$host:10001';
+  static const defaultChatAddr = 'http://$host:10008';
 
   @override
   void onInit() {
