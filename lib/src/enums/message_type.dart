@@ -108,7 +108,7 @@ enum MessageType {
   @JsonValue(1510)
   memberEnterNotification(1510),
   @JsonValue(1511)
-  groupDismissedNotification(1511),
+  dismissGroupNotification(1511),
   @JsonValue(1512)
   groupMemberMutedNotification(1512),
   @JsonValue(1513)
@@ -138,7 +138,7 @@ enum MessageType {
   @JsonValue(2001)
   businessNotification(2001),
   @JsonValue(2101)
-  revokeNotification(2101),
+  revokeMessageNotification(2101),
   @JsonValue(2102)
   deleteMsgsNotification(2102),
   @JsonValue(2200)

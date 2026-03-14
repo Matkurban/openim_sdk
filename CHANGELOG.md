@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- 纠正 MessageType 中 跟原 sdk 命名不一致的变量
+
+
 ## 1.0.0
 
 纯 Dart 实现的 OpenIM SDK 首个正式版，对齐 Go SDK (openim-sdk-core v3.8.0) 核心功能。

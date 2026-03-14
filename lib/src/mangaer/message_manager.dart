@@ -673,7 +673,7 @@ class MessageManager {
     final seq = msg?.seq ?? 0;
 
     await _database.updateMessage(clientMsgID, {
-      'contentType': MessageType.revokeNotification.value,
+      'contentType': MessageType.revokeMessageNotification.value,
     });
     _log.info('消息已撤回: $clientMsgID');
 
