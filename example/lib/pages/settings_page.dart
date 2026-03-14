@@ -30,12 +30,14 @@ class SettingsPage extends GetView<SettingsController> {
                     children: [
                       CircleAvatar(
                         radius: 40,
-                        backgroundImage: user.faceURL != null && user.faceURL!.isNotEmpty
+                        backgroundImage:
+                            user.faceURL != null && user.faceURL!.isNotEmpty
                             ? NetworkImage(user.faceURL!)
                             : null,
                         child: user.faceURL == null || user.faceURL!.isEmpty
                             ? Text(
-                                (user.nickname ?? user.userID ?? '?')[0].toUpperCase(),
+                                (user.nickname ?? user.userID ?? '?')[0]
+                                    .toUpperCase(),
                                 style: const TextStyle(fontSize: 32),
                               )
                             : null,
@@ -47,19 +49,24 @@ class SettingsPage extends GetView<SettingsController> {
                                 children: [
                                   TextField(
                                     controller: controller.nicknameCtrl,
-                                    decoration: const InputDecoration(labelText: '昵称'),
+                                    decoration: const InputDecoration(
+                                      labelText: '昵称',
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                   TextField(
                                     controller: controller.faceURLCtrl,
-                                    decoration: const InputDecoration(labelText: '头像URL'),
+                                    decoration: const InputDecoration(
+                                      labelText: '头像URL',
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       TextButton(
-                                        onPressed: () => controller.isEditing.value = false,
+                                        onPressed: () =>
+                                            controller.isEditing.value = false,
                                         child: const Text('取消'),
                                       ),
                                       const SizedBox(width: 12),
@@ -75,7 +82,9 @@ class SettingsPage extends GetView<SettingsController> {
                                 children: [
                                   Text(
                                     user.nickname ?? '未设置昵称',
-                                    style: Theme.of(context).textTheme.titleLarge,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleLarge,
                                   ),
                                   Text(
                                     'ID: ${user.userID}',
@@ -87,8 +96,10 @@ class SettingsPage extends GetView<SettingsController> {
                                     children: [
                                       OutlinedButton.icon(
                                         onPressed: () {
-                                          controller.nicknameCtrl.text = user.nickname ?? '';
-                                          controller.faceURLCtrl.text = user.faceURL ?? '';
+                                          controller.nicknameCtrl.text =
+                                              user.nickname ?? '';
+                                          controller.faceURLCtrl.text =
+                                              user.faceURL ?? '';
                                           controller.isEditing.value = true;
                                         },
                                         icon: const Icon(Icons.edit, size: 16),
@@ -97,7 +108,10 @@ class SettingsPage extends GetView<SettingsController> {
                                       const SizedBox(width: 8),
                                       OutlinedButton.icon(
                                         onPressed: controller.getSelfUserInfo,
-                                        icon: const Icon(Icons.refresh, size: 16),
+                                        icon: const Icon(
+                                          Icons.refresh,
+                                          size: 16,
+                                        ),
                                         label: const Text('同步服务器'),
                                       ),
                                     ],
@@ -119,7 +133,10 @@ class SettingsPage extends GetView<SettingsController> {
               leading: const Icon(Icons.info_outline),
               title: const Text('SDK 版本'),
               trailing: Obx(
-                () => Text(controller.sdkVersion.value, style: TextStyle(color: Colors.grey[600])),
+                () => Text(
+                  controller.sdkVersion.value,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
               ),
             ),
             ListTile(
@@ -130,7 +147,8 @@ class SettingsPage extends GetView<SettingsController> {
             ),
             Obx(() {
               final config = controller.clientConfig.value;
-              if (config == null || config.isEmpty) return const SizedBox.shrink();
+              if (config == null || config.isEmpty)
+                return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Card(
@@ -141,8 +159,10 @@ class SettingsPage extends GetView<SettingsController> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: config.entries
                           .map(
-                            (e) =>
-                                Text('${e.key}: ${e.value}', style: const TextStyle(fontSize: 12)),
+                            (e) => Text(
+                              '${e.key}: ${e.value}',
+                              style: const TextStyle(fontSize: 12),
+                            ),
                           )
                           .toList(),
                     ),
@@ -189,12 +209,20 @@ class SettingsPage extends GetView<SettingsController> {
             ListTile(
               leading: const Icon(Icons.person_search),
               title: const Text('订阅用户状态'),
-              onTap: () => _showUserIDDialog(context, '订阅用户状态', controller.subscribeUserStatus),
+              onTap: () => _showUserIDDialog(
+                context,
+                '订阅用户状态',
+                controller.subscribeUserStatus,
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.person_off),
               title: const Text('取消订阅'),
-              onTap: () => _showUserIDDialog(context, '取消订阅', controller.unsubscribeUserStatus),
+              onTap: () => _showUserIDDialog(
+                context,
+                '取消订阅',
+                controller.unsubscribeUserStatus,
+              ),
             ),
             ListTile(
               leading: const Icon(Icons.list),
@@ -204,7 +232,8 @@ class SettingsPage extends GetView<SettingsController> {
             ListTile(
               leading: const Icon(Icons.online_prediction),
               title: const Text('查询用户在线状态'),
-              onTap: () => _showUserIDDialog(context, '查询状态', controller.getUserStatus),
+              onTap: () =>
+                  _showUserIDDialog(context, '查询状态', controller.getUserStatus),
             ),
 
             const Divider(height: 32),
@@ -238,7 +267,9 @@ class SettingsPage extends GetView<SettingsController> {
                 },
                 icon: const Icon(Icons.logout, color: Colors.red),
                 label: const Text('退出登录', style: TextStyle(color: Colors.red)),
-                style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                ),
               ),
             ),
             const SizedBox(height: 32),
@@ -251,11 +282,18 @@ class SettingsPage extends GetView<SettingsController> {
   Widget _sectionTitle(String text) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+      child: Text(
+        text,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      ),
     );
   }
 
-  void _showUserIDDialog(BuildContext context, String title, Future<void> Function(String) action) {
+  void _showUserIDDialog(
+    BuildContext context,
+    String title,
+    Future<void> Function(String) action,
+  ) {
     final ctrl = TextEditingController();
     Get.dialog(
       AlertDialog(

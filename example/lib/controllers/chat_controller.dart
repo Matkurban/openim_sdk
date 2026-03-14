@@ -67,7 +67,9 @@ class ChatController extends GetxController {
 
     _subs.add(
       svc.recvMessageRevoked.stream.listen((info) {
-        final idx = messages.indexWhere((m) => m.clientMsgID == info.clientMsgID);
+        final idx = messages.indexWhere(
+          (m) => m.clientMsgID == info.clientMsgID,
+        );
         if (idx >= 0) {
           messages.removeAt(idx);
         }
@@ -109,7 +111,8 @@ class ChatController extends GetxController {
 
   bool _belongsToThisConversation(Message msg) {
     if (conversation.isSingleChat) {
-      return msg.sendID == conversation.userID || msg.recvID == conversation.userID;
+      return msg.sendID == conversation.userID ||
+          msg.recvID == conversation.userID;
     }
     if (conversation.isGroupChat) {
       return msg.groupID == conversation.groupID;
@@ -124,11 +127,12 @@ class ChatController extends GetxController {
     isLoading.value = true;
 
     try {
-      final list = await OpenIM.iMManager.messageManager.getAdvancedHistoryMessageList(
-        conversationID: conversation.conversationID,
-        count: 40,
-        startMsg: messages.isNotEmpty ? messages.last : null,
-      );
+      final list = await OpenIM.iMManager.messageManager
+          .getAdvancedHistoryMessageList(
+            conversationID: conversation.conversationID,
+            count: 40,
+            startMsg: messages.isNotEmpty ? messages.last : null,
+          );
       final msgList = list.messageList ?? [];
       if (msgList.isEmpty || list.isEnd == true) {
         hasMore.value = false;
@@ -144,13 +148,17 @@ class ChatController extends GetxController {
   Future<void> loadMore() => _loadHistory();
 
   /// 反向加载（从旧到新）
-  Future<List<Message>> loadHistoryReverse({Message? startMsg, int count = 20}) async {
+  Future<List<Message>> loadHistoryReverse({
+    Message? startMsg,
+    int count = 20,
+  }) async {
     try {
-      final list = await OpenIM.iMManager.messageManager.getAdvancedHistoryMessageListReverse(
-        conversationID: conversation.conversationID,
-        count: count,
-        startMsg: startMsg,
-      );
+      final list = await OpenIM.iMManager.messageManager
+          .getAdvancedHistoryMessageListReverse(
+            conversationID: conversation.conversationID,
+            count: count,
+            startMsg: startMsg,
+          );
       return list.messageList ?? [];
     } catch (_) {
       return [];
@@ -161,7 +169,10 @@ class ChatController extends GetxController {
   Future<SearchResult> findMessages(List<String> clientMsgIDs) async {
     return OpenIM.iMManager.messageManager.findMessageList(
       searchParams: [
-        SearchParams(conversationID: conversation.conversationID, clientMsgIDList: clientMsgIDs),
+        SearchParams(
+          conversationID: conversation.conversationID,
+          clientMsgIDList: clientMsgIDs,
+        ),
       ],
     );
   }
@@ -169,9 +180,14 @@ class ChatController extends GetxController {
   // --------------- 发送消息 ---------------
 
   String? get _userID => conversation.isSingleChat ? conversation.userID : null;
-  String? get _groupID => conversation.isGroupChat ? conversation.groupID : null;
+  String? get _groupID =>
+      conversation.isGroupChat ? conversation.groupID : null;
 
-  Future<void> _sendMsg(Message msg, {String pushTitle = '', String pushDesc = ''}) async {
+  Future<void> _sendMsg(
+    Message msg, {
+    String pushTitle = '',
+    String pushDesc = '',
+  }) async {
     isSending.value = true;
     try {
       final sent = await OpenIM.iMManager.messageManager.sendMessage(
@@ -179,7 +195,9 @@ class ChatController extends GetxController {
         userID: _userID,
         groupID: _groupID,
         offlinePushInfo: OfflinePushInfo(
-          title: pushTitle.isNotEmpty ? pushTitle : (OpenIM.iMManager.userInfo.nickname ?? ''),
+          title: pushTitle.isNotEmpty
+              ? pushTitle
+              : (OpenIM.iMManager.userInfo.nickname ?? ''),
           desc: pushDesc,
         ),
       );
@@ -228,7 +246,11 @@ class ChatController extends GetxController {
   }
 
   /// 图片消息（URL 方式）
-  Future<void> sendImageMessageByURL({required String url, int width = 0, int height = 0}) async {
+  Future<void> sendImageMessageByURL({
+    required String url,
+    int width = 0,
+    int height = 0,
+  }) async {
     final pic = PictureInfo(url: url, width: width, height: height);
     final msg = OpenIM.iMManager.messageManager.createImageMessageByURL(
       sourcePath: '',
@@ -240,7 +262,10 @@ class ChatController extends GetxController {
   }
 
   /// 语音消息（URL 方式）
-  Future<void> sendSoundMessageByURL({required String url, required int duration}) async {
+  Future<void> sendSoundMessageByURL({
+    required String url,
+    required int duration,
+  }) async {
     final msg = OpenIM.iMManager.messageManager.createSoundMessageByURL(
       soundElem: SoundElem(sourceUrl: url, dataSize: 0, duration: duration),
     );
@@ -271,7 +296,11 @@ class ChatController extends GetxController {
     int fileSize = 0,
   }) async {
     final msg = OpenIM.iMManager.messageManager.createFileMessageByURL(
-      fileElem: FileElem(sourceUrl: fileUrl, fileName: fileName, fileSize: fileSize),
+      fileElem: FileElem(
+        sourceUrl: fileUrl,
+        fileName: fileName,
+        fileSize: fileSize,
+      ),
     );
     await _sendMsg(msg, pushDesc: '[文件] $fileName');
   }
@@ -287,7 +316,11 @@ class ChatController extends GetxController {
   }
 
   /// 名片消息
-  Future<void> sendCardMessage(String userID, String nickname, String faceURL) async {
+  Future<void> sendCardMessage(
+    String userID,
+    String nickname,
+    String faceURL,
+  ) async {
     final msg = OpenIM.iMManager.messageManager.createCardMessage(
       userID: userID,
       nickname: nickname,
@@ -297,8 +330,14 @@ class ChatController extends GetxController {
   }
 
   /// 表情消息
-  Future<void> sendFaceMessage({required int index, required String data}) async {
-    final msg = OpenIM.iMManager.messageManager.createFaceMessage(index: index, data: data);
+  Future<void> sendFaceMessage({
+    required int index,
+    required String data,
+  }) async {
+    final msg = OpenIM.iMManager.messageManager.createFaceMessage(
+      index: index,
+      data: data,
+    );
     await _sendMsg(msg, pushDesc: '[表情]');
   }
 
@@ -318,7 +357,9 @@ class ChatController extends GetxController {
 
   /// 转发消息
   Future<void> forwardMessage(Message originalMsg) async {
-    final msg = OpenIM.iMManager.messageManager.createForwardMessage(message: originalMsg);
+    final msg = OpenIM.iMManager.messageManager.createForwardMessage(
+      message: originalMsg,
+    );
     await _sendMsg(msg, pushDesc: getMessageContent(originalMsg));
   }
 
@@ -408,9 +449,10 @@ class ChatController extends GetxController {
   /// 清空会话所有消息
   Future<void> clearAllMessages() async {
     try {
-      await OpenIM.iMManager.conversationManager.clearConversationAndDeleteAllMsg(
-        conversationID: conversation.conversationID,
-      );
+      await OpenIM.iMManager.conversationManager
+          .clearConversationAndDeleteAllMsg(
+            conversationID: conversation.conversationID,
+          );
       messages.clear();
     } catch (e) {
       Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
@@ -496,7 +538,11 @@ class ChatController extends GetxController {
 
   void _scrollToBottom() {
     if (scrollCtrl.hasClients) {
-      scrollCtrl.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+      scrollCtrl.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
     }
   }
 

@@ -89,7 +89,9 @@ class SettingsController extends GetxController {
   /// 订阅用户在线状态
   Future<void> subscribeUserStatus(String userID) async {
     try {
-      final statuses = await OpenIM.iMManager.userManager.subscribeUsersStatus([userID]);
+      final statuses = await OpenIM.iMManager.userManager.subscribeUsersStatus([
+        userID,
+      ]);
       if (statuses.isNotEmpty) {
         final s = statuses.first;
         Get.snackbar(
@@ -121,7 +123,9 @@ class SettingsController extends GetxController {
         Get.snackbar('结果', '暂无订阅的用户', snackPosition: SnackPosition.BOTTOM);
         return;
       }
-      final text = list.map((s) => '${s.userID}: ${s.status == 1 ? "在线" : "离线"}').join('\n');
+      final text = list
+          .map((s) => '${s.userID}: ${s.status == 1 ? "在线" : "离线"}')
+          .join('\n');
       Get.snackbar(
         '已订阅用户状态',
         text,
@@ -153,7 +157,8 @@ class SettingsController extends GetxController {
   /// 获取用户客户端配置
   Future<void> loadClientConfig() async {
     try {
-      clientConfig.value = await OpenIM.iMManager.userManager.getUserClientConfig();
+      clientConfig.value = await OpenIM.iMManager.userManager
+          .getUserClientConfig();
       Get.snackbar(
         '配置已加载',
         '共 ${clientConfig.value?.length ?? 0} 项',
@@ -167,7 +172,9 @@ class SettingsController extends GetxController {
   /// 获取用户信息（带缓存）
   Future<List<UserInfo>> getUsersInfoWithCache(List<String> userIDs) async {
     try {
-      return await OpenIM.iMManager.userManager.getUsersInfoWithCache(userIDList: userIDs);
+      return await OpenIM.iMManager.userManager.getUsersInfoWithCache(
+        userIDList: userIDs,
+      );
     } catch (_) {
       return [];
     }
@@ -176,7 +183,9 @@ class SettingsController extends GetxController {
   /// 从服务器获取用户信息
   Future<List<UserInfo>> getUsersInfoFromSrv(List<String> userIDs) async {
     try {
-      return await OpenIM.iMManager.userManager.getUsersInfoFromSrv(userIDList: userIDs);
+      return await OpenIM.iMManager.userManager.getUsersInfoFromSrv(
+        userIDList: userIDs,
+      );
     } catch (_) {
       return [];
     }
@@ -189,7 +198,11 @@ class SettingsController extends GetxController {
     try {
       await OpenIM.iMManager.setAppBackgroundStatus(isBackground: bg);
       isBackground.value = bg;
-      Get.snackbar('成功', bg ? '已进入后台模式' : '已恢复前台模式', snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar(
+        '成功',
+        bg ? '已进入后台模式' : '已恢复前台模式',
+        snackPosition: SnackPosition.BOTTOM,
+      );
     } catch (e) {
       Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
     }

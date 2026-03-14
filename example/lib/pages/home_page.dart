@@ -95,20 +95,36 @@ class _ConversationTab extends StatelessWidget {
             itemBuilder: (_) => const [
               PopupMenuItem(
                 value: 'new_chat',
-                child: ListTile(leading: Icon(Icons.chat), title: Text('发起聊天'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.chat),
+                  title: Text('发起聊天'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'create_group',
-                child: ListTile(leading: Icon(Icons.group_add), title: Text('创建群组'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.group_add),
+                  title: Text('创建群组'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'add_friend',
-                child: ListTile(leading: Icon(Icons.person_add), title: Text('添加好友'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.person_add),
+                  title: Text('添加好友'),
+                  dense: true,
+                ),
               ),
               PopupMenuDivider(),
               PopupMenuItem(
                 value: 'mark_all_read',
-                child: ListTile(leading: Icon(Icons.done_all), title: Text('全部已读'), dense: true),
+                child: ListTile(
+                  leading: Icon(Icons.done_all),
+                  title: Text('全部已读'),
+                  dense: true,
+                ),
               ),
               PopupMenuItem(
                 value: 'hide_all',
@@ -133,7 +149,9 @@ class _ConversationTab extends StatelessWidget {
                 prefixIcon: const Icon(Icons.search, size: 20),
                 isDense: true,
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
               ),
               onChanged: controller.searchConversations,
             ),
@@ -149,9 +167,16 @@ class _ConversationTab extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey[300]),
+                      Icon(
+                        Icons.chat_bubble_outline,
+                        size: 64,
+                        color: Colors.grey[300],
+                      ),
                       const SizedBox(height: 16),
-                      Text('暂无会话', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                      Text(
+                        '暂无会话',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 16),
+                      ),
                       const SizedBox(height: 8),
                       TextButton(
                         onPressed: () => controller.refreshConversations(),
@@ -170,7 +195,8 @@ class _ConversationTab extends StatelessWidget {
                     return ConversationTile(
                       conversation: conv,
                       onTap: () => controller.openChat(conv),
-                      onLongPress: () => _showConversationActions(context, conv),
+                      onLongPress: () =>
+                          _showConversationActions(context, conv),
                     );
                   },
                 ),
@@ -258,10 +284,8 @@ class _ConversationTab extends StatelessWidget {
               if (userID.isEmpty) return;
               Get.back();
               try {
-                final conv = await OpenIM.iMManager.conversationManager.getOneConversation(
-                  sourceID: userID,
-                  sessionType: 1,
-                );
+                final conv = await OpenIM.iMManager.conversationManager
+                    .getOneConversation(sourceID: userID, sessionType: 1);
                 Get.toNamed(AppRoutes.chat, arguments: conv);
               } catch (e) {
                 Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
@@ -282,7 +306,11 @@ class _ConversationTab extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Icon((conv.isPinned ?? false) ? Icons.push_pin_outlined : Icons.push_pin),
+              leading: Icon(
+                (conv.isPinned ?? false)
+                    ? Icons.push_pin_outlined
+                    : Icons.push_pin,
+              ),
               title: Text((conv.isPinned ?? false) ? '取消置顶' : '置顶'),
               onTap: () {
                 Get.back();
@@ -298,7 +326,9 @@ class _ConversationTab extends StatelessWidget {
               },
             ),
             ListTile(
-              leading: Icon(isDND ? Icons.notifications : Icons.notifications_off),
+              leading: Icon(
+                isDND ? Icons.notifications : Icons.notifications_off,
+              ),
               title: Text(isDND ? '取消免打扰' : '设为免打扰'),
               onTap: () {
                 Get.back();
@@ -331,13 +361,18 @@ class _ConversationTab extends StatelessWidget {
                     title: const Text('确认删除'),
                     content: Text('删除与 ${conv.showName ?? "未知"} 的会话？'),
                     actions: [
-                      TextButton(onPressed: () => Get.back(), child: const Text('取消')),
+                      TextButton(
+                        onPressed: () => Get.back(),
+                        child: const Text('取消'),
+                      ),
                       FilledButton(
                         onPressed: () {
                           Get.back();
                           controller.deleteConversation(conv);
                         },
-                        style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
                         child: const Text('删除'),
                       ),
                     ],

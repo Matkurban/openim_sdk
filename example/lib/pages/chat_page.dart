@@ -14,10 +14,16 @@ class ChatPage extends GetView<ChatController> {
       appBar: AppBar(
         title: Column(
           children: [
-            Text(controller.conversation.showName ?? '聊天', overflow: TextOverflow.ellipsis),
+            Text(
+              controller.conversation.showName ?? '聊天',
+              overflow: TextOverflow.ellipsis,
+            ),
             Obx(
               () => controller.isTyping.value
-                  ? Text('对方正在输入...', style: TextStyle(fontSize: 12, color: Colors.grey[600]))
+                  ? Text(
+                      '对方正在输入...',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    )
                   : const SizedBox.shrink(),
             ),
           ],
@@ -27,8 +33,10 @@ class ChatPage extends GetView<ChatController> {
             IconButton(
               icon: const Icon(Icons.group),
               tooltip: '群信息',
-              onPressed: () =>
-                  Get.toNamed('/group-info', arguments: controller.conversation.groupID),
+              onPressed: () => Get.toNamed(
+                '/group-info',
+                arguments: controller.conversation.groupID,
+              ),
             ),
           PopupMenuButton<String>(
             onSelected: (v) => _handleMenuAction(context, v),
@@ -39,7 +47,10 @@ class ChatPage extends GetView<ChatController> {
               const PopupMenuItem(value: 'clear', child: Text('清空聊天记录')),
               const PopupMenuItem(
                 value: 'delete_all_svr',
-                child: Text('删除所有消息(含服务端)', style: TextStyle(color: Colors.red)),
+                child: Text(
+                  '删除所有消息(含服务端)',
+                  style: TextStyle(color: Colors.red),
+                ),
               ),
             ],
           ),
@@ -53,7 +64,8 @@ class ChatPage extends GetView<ChatController> {
               return NotificationListener<ScrollNotification>(
                 onNotification: (notification) {
                   if (notification is ScrollEndNotification &&
-                      notification.metrics.pixels >= notification.metrics.maxScrollExtent - 100) {
+                      notification.metrics.pixels >=
+                          notification.metrics.maxScrollExtent - 100) {
                     controller.loadMore();
                   }
                   return false;
@@ -61,7 +73,10 @@ class ChatPage extends GetView<ChatController> {
                 child: ListView.builder(
                   controller: controller.scrollCtrl,
                   reverse: true,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   itemCount: controller.messages.length,
                   itemBuilder: (context, index) {
                     final msg = controller.messages[index];
@@ -85,7 +100,8 @@ class ChatPage extends GetView<ChatController> {
                           message: msg,
                           isMe: isMe,
                           content: controller.getMessageContent(msg),
-                          onLongPress: () => _showMessageActions(context, msg, isMe),
+                          onLongPress: () =>
+                              _showMessageActions(context, msg, isMe),
                         ),
                       ],
                     );
@@ -116,7 +132,11 @@ class ChatPage extends GetView<ChatController> {
                   ),
                   GestureDetector(
                     onTap: controller.clearQuoteMessage,
-                    child: const Icon(Icons.close, size: 16, color: Colors.grey),
+                    child: const Icon(
+                      Icons.close,
+                      size: 16,
+                      color: Colors.grey,
+                    ),
                   ),
                 ],
               ),
@@ -136,14 +156,18 @@ class ChatPage extends GetView<ChatController> {
     final now = DateTime.now();
     String text;
     if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
-      text = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      text =
+          '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     } else {
       text =
           '${dt.month}/${dt.day} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+      child: Text(
+        text,
+        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+      ),
     );
   }
 
@@ -176,8 +200,13 @@ class ChatPage extends GetView<ChatController> {
               controller: controller.inputCtrl,
               decoration: InputDecoration(
                 hintText: '输入消息...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 isDense: true,
               ),
               textInputAction: TextInputAction.send,
@@ -194,10 +223,15 @@ class ChatPage extends GetView<ChatController> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.send),
-              onPressed: controller.isSending.value ? null : controller.sendTextMessage,
+              onPressed: controller.isSending.value
+                  ? null
+                  : controller.sendTextMessage,
             ),
           ),
         ],
@@ -484,7 +518,10 @@ class ChatPage extends GetView<ChatController> {
         ),
       ],
       () {
-        controller.sendFaceMessage(index: int.tryParse(indexCtrl.text) ?? 0, data: dataCtrl.text);
+        controller.sendFaceMessage(
+          index: int.tryParse(indexCtrl.text) ?? 0,
+          data: dataCtrl.text,
+        );
       },
     );
   }
@@ -539,7 +576,11 @@ class ChatPage extends GetView<ChatController> {
     );
   }
 
-  void _showInputDialog(String title, List<Widget> fields, VoidCallback onSend) {
+  void _showInputDialog(
+    String title,
+    List<Widget> fields,
+    VoidCallback onSend,
+  ) {
     Get.dialog(
       AlertDialog(
         title: Text(title),
@@ -613,7 +654,10 @@ class ChatPage extends GetView<ChatController> {
             ),
             ListTile(
               leading: const Icon(Icons.delete_forever, color: Colors.red),
-              title: const Text('删除(本地+服务端)', style: TextStyle(color: Colors.red)),
+              title: const Text(
+                '删除(本地+服务端)',
+                style: TextStyle(color: Colors.red),
+              ),
               onTap: () {
                 Get.back();
                 controller.deleteMessageFromServer(msg);
@@ -690,7 +734,9 @@ class ChatPage extends GetView<ChatController> {
             onPressed: () async {
               Get.back();
               try {
-                final result = await controller.searchMessages(keyword: searchCtrl.text);
+                final result = await controller.searchMessages(
+                  keyword: searchCtrl.text,
+                );
                 Get.snackbar(
                   '搜索结果',
                   '找到 ${result.totalCount} 条消息',
