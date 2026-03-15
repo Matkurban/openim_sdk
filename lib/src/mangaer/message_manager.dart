@@ -412,6 +412,9 @@ class MessageManager {
         isOnlineOnly,
       );
       return sentMsg;
+    } on OpenIMException {
+      // 服务端返回错误（如不是好友等），DB 已在 _sendMsgViaWebSocket 中更新为失败状态
+      rethrow;
     } catch (e) {
       _log.warning('消息发送异常: $e');
       final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
@@ -423,7 +426,7 @@ class MessageManager {
         // 更新会话最新消息为失败状态
         await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
       }
-      return failedMsg;
+      rethrow;
     }
   }
 
@@ -1154,7 +1157,7 @@ class MessageManager {
         }
         return sentMsg;
       } else {
-        _log.warning('消息发送失败: ${resp.errMsg}');
+        _log.warning('消息发送失败: errCode=${resp.errCode}, errMsg=${resp.errMsg}');
         final failedMsg = message.copyWith(status: MessageStatus.failed);
         if (!isOnlineOnly) {
           await _database.updateMessage(failedMsg.clientMsgID!, {
@@ -1163,7 +1166,7 @@ class MessageManager {
           await _database.deleteSendingMessage(failedMsg.clientMsgID!);
           await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
         }
-        return failedMsg;
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
     } catch (e) {
       _log.warning('WebSocket 发送失败: $e');

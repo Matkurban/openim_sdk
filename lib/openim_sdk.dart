@@ -34,6 +34,7 @@ export 'src/models/init_config.dart';
 export 'src/models/input_status_changed_data.dart';
 export 'src/models/message.dart';
 export 'src/models/notification_info.dart';
+export 'src/models/openim_exception.dart';
 export 'src/models/search_info.dart';
 export 'src/models/set_group_member_info.dart';
 export 'src/models/update_req.dart';

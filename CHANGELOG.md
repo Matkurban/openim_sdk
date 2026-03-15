@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.8
+
+### 新增
+
+- **新增 `OpenIMException` 异常类**
+  - 消息发送失败（如 errCode=1303 不是好友）时，`sendMessage` 现在抛出 `OpenIMException` 而非静默返回失败消息，前端可通过 `try-catch` 捕获并处理
+  - `OpenIMException` 携带服务端返回的 `code` 和 `message`，提供 `sdkErrorCode` getter 可直接匹配 `SDKErrorCode` 枚举
+
 ## 1.0.7
 
 ### Bug 修复
