@@ -58,10 +58,14 @@ class IMManager {
   NotificationDispatcher? _notificationDispatcher;
 
   /// 当前登录用户 ID
-  late String userID;
+  String? _userID;
+
+  String get userID => _userID!;
 
   /// 当前登录用户信息
-  late UserInfo userInfo;
+  UserInfo? _userInfo;
+
+  UserInfo get userInfo => _userInfo!;
 
   /// 当前登录状态
   LoginStatus _loginStatus = LoginStatus.logout;
@@ -250,7 +254,7 @@ class IMManager {
         final userData = Map<String, dynamic>.from(users.first as Map);
         await databaseService.upsertUser(userData);
         loginUser = UserInfo.fromJson(userData);
-        userInfo = loginUser;
+        _userInfo = loginUser;
       } else {
         loginUser = await defaultValue?.call();
       }
@@ -259,7 +263,7 @@ class IMManager {
       _loginStatus = LoginStatus.logout;
       return Future.error('Login Field');
     }
-    this.userID = userID;
+    _userID = userID;
     conversationManager.setCurrentUserID(userID);
     groupManager.setCurrentUserID(userID);
     messageManager.setCurrentUserID(userID);
@@ -331,8 +335,8 @@ class IMManager {
     final DatabaseService databaseService = _getIt.get<DatabaseService>(
       instanceName: InstanceName.databaseService,
     );
-    // 关闭数据库
-    await databaseService.close();
+    // 清除登录缓存，但不关闭数据库（避免 Web 上重新登录时操作已关闭的 IndexedDB 挂起）
+    await databaseService.toStore.setValue(CacheKey.loginUserData, null, isGlobal: true);
 
     _log.info('用户已登出');
   }
@@ -402,7 +406,7 @@ class IMManager {
       partSize: partSize,
       maxParts: partNum.clamp(1, 20),
       cause: cause ?? '',
-      name: '$userID/$fileName',
+      name: '$_userID/$fileName',
       contentType: contentType ?? 'application/octet-stream',
     );
     if (initResp.errCode != 0) {
@@ -467,7 +471,7 @@ class IMManager {
     final completeResp = await imApiService.completeMultipartUpload(
       uploadID: uploadID,
       parts: partMd5s,
-      name: '$userID/$fileName',
+      name: '$_userID/$fileName',
       contentType: contentType ?? 'application/octet-stream',
       cause: cause ?? '',
     );
@@ -482,12 +486,12 @@ class IMManager {
 
   /// 获取当前登录用户ID
   String getLoginUserID() {
-    return userID;
+    return _userID!;
   }
 
   /// 获取当前登录用户信息
   UserInfo getLoginUserInfo() {
-    return userInfo;
+    return _userInfo!;
   }
 
   /// 获取 SDK 版本号
@@ -517,7 +521,7 @@ class IMManager {
 
   Uint8List _encodeBackgroundStatusReq(bool isBackground) {
     final req = sdkws.SetAppBackgroundStatusReq()
-      ..userID = userID
+      ..userID = _userID!
       ..isBackground = isBackground;
     return req.writeToBuffer();
   }
@@ -544,7 +548,7 @@ class IMManager {
     final resp = await imApiService.fcmUpdateToken(
       platformID: PlatformUtils.platformID.toString(),
       fcmToken: fcmToken,
-      account: userID,
+      account: _userID!,
       expireTime: expireTime,
     );
     if (resp.errCode != 0) {
@@ -560,7 +564,7 @@ class IMManager {
     final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
     );
-    final resp = await imApiService.setAppBadge(userID: userID, appUnreadCount: appUnreadCount);
+    final resp = await imApiService.setAppBadge(userID: _userID!, appUnreadCount: appUnreadCount);
     if (resp.errCode != 0) {
       _log.warning('设置 App 角标失败: ${resp.errMsg}');
     }

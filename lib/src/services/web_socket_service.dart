@@ -91,6 +91,7 @@ class WebSocketService {
     _compression = compression;
     _codec = WebSocketCodecs(enableCompression: compression);
     _userDisconnected = false;
+    _isReconnecting = false;
     _reconnectAttempts = 0;
     _reconnectIndex = -1;
     await _doConnect();
@@ -240,6 +241,7 @@ class WebSocketService {
   }
 
   void _onMessage(dynamic message) {
+    _log.info(message);
     if (message is List<int>) {
       _handleBinaryMessage(Uint8List.fromList(message));
     } else if (message is String) {
