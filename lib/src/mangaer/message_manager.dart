@@ -9,7 +9,6 @@ import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 
@@ -17,6 +16,9 @@ class MessageManager {
   static final Logger _log = Logger('MessageManager');
 
   final GetIt _getIt = GetIt.instance;
+
+  /// 会话管理器引用，用于发送消息后触发会话变更回调
+  ConversationManager? _conversationManager;
 
   DatabaseService get _database {
     return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
@@ -48,6 +50,11 @@ class MessageManager {
 
   void setCustomBusinessListener(OnCustomBusinessListener listener) {
     customBusinessListener = listener;
+  }
+
+  @internal
+  void setConversationManager(ConversationManager manager) {
+    _conversationManager = manager;
   }
 
   @internal
@@ -389,6 +396,9 @@ class MessageManager {
     if (!isOnlineOnly) {
       await _database.insertMessage(DatabaseService.messageToDbMap(sendMsg));
       await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
+      // 立即更新会话（对应 Go SDK 发送前的 AddConOrUpLatMsg）
+      // 让 UI 立即看到"发送中"的最新消息
+      await _updateConversationLatestMsg(conversationID, sendMsg, sessionType);
     }
 
     _log.info('消息已发送${isOnlineOnly ? "(仅在线)" : "到本地"}: ${sendMsg.clientMsgID}');
@@ -410,6 +420,8 @@ class MessageManager {
           'status': MessageStatus.failed.value,
         });
         await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+        // 更新会话最新消息为失败状态
+        await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
       }
       return failedMsg;
     }
@@ -681,6 +693,9 @@ class MessageManager {
       RevokedInfo(clientMsgID: clientMsgID, revokerID: _currentUserID, revokeTime: _nowMillis()),
     );
 
+    // 如果撤回的消息是会话的最新消息，更新会话 latestMsg（对应 Go SDK revoke.go）
+    await _updateConversationIfLatestMsg(conversationID, clientMsgID);
+
     // 同步到服务器
     if (seq > 0) {
       final resp = await _api.revokeMsg(
@@ -707,6 +722,16 @@ class MessageManager {
     final deletedMsg = await _database.getMessage(clientMsgID);
     await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地删除: $clientMsgID');
+
+    // 如果删除的是未读消息（非自己发送），减少未读数（对应 Go SDK delete.go）
+    if (deletedMsg != null && !(deletedMsg.isRead ?? true) && deletedMsg.sendID != _currentUserID) {
+      await _database.decrConversationUnreadCount(conversationID, 1);
+      _notifyConversationAndUnread(conversationID);
+    }
+
+    // 如果删除的是会话最新消息，更新 latestMsg
+    await _updateConversationIfLatestMsg(conversationID, clientMsgID);
+
     if (deletedMsg != null) {
       msgListener?.msgDeleted(deletedMsg);
     }
@@ -728,6 +753,16 @@ class MessageManager {
 
     await _database.deleteMessage(clientMsgID);
     _log.info('消息已从本地和服务器删除: $clientMsgID');
+
+    // 如果删除的是未读消息（非自己发送），减少未读数
+    if (msg != null && !(msg.isRead ?? true) && msg.sendID != _currentUserID) {
+      await _database.decrConversationUnreadCount(conversationID, 1);
+      _notifyConversationAndUnread(conversationID);
+    }
+
+    // 如果删除的是会话最新消息，更新 latestMsg
+    await _updateConversationIfLatestMsg(conversationID, clientMsgID);
+
     if (msg != null) {
       msgListener?.msgDeleted(msg);
     }
@@ -748,8 +783,23 @@ class MessageManager {
   /// 删除所有本地消息
   Future<void> deleteAllMsgFromLocal() async {
     _log.info('deleteAllMsgFromLocal');
+    // 先获取所有会话用于回调
+    final allConvs = await _database.getAllConversations();
+    final affectedIDs = allConvs.map((c) => c.conversationID).toList();
+
     await _database.deleteAllMessages();
     _log.info('所有本地消息已删除');
+
+    // 清理会话并触发回调（对应 Go SDK deleteAllMsgFromLocal）
+    if (affectedIDs.isNotEmpty) {
+      final listener = _conversationManager?.listener;
+      final convList = await _database.getMultipleConversations(affectedIDs);
+      if (convList.isNotEmpty) {
+        listener?.conversationChanged(convList);
+      }
+      final total = await _database.getTotalUnreadCount();
+      listener?.totalUnreadMessageCountChanged(total);
+    }
   }
 
   /// 删除所有消息（本地和服务器）
@@ -757,6 +807,10 @@ class MessageManager {
     _log.info('deleteAllMsgFromLocalAndSvr');
     await _database.deleteAllMessages();
     _log.info('所有消息已从本地和服务器删除');
+
+    // 触发 totalUnreadChanged（对应 Go SDK deleteAllMsgFromLocalAndServer）
+    final total = await _database.getTotalUnreadCount();
+    _conversationManager?.listener?.totalUnreadMessageCountChanged(total);
 
     // 同步到服务器
     final resp = await _api.clearAllMsg(userID: _currentUserID);
@@ -776,6 +830,19 @@ class MessageManager {
   }) async {
     _log.info('setMessageLocalEx: conversationID=$conversationID, clientMsgID=$clientMsgID');
     await _database.updateMessage(clientMsgID, {'localEx': localEx});
+
+    // 如果修改的是会话的最新消息，更新会话 latestMsg（对应 Go SDK SetMessageLocalEx）
+    final conv = await _database.getConversation(conversationID);
+    if (conv?.latestMsg != null && conv!.latestMsg!.clientMsgID == clientMsgID) {
+      final updatedMsg = conv.latestMsg!.copyWith(localEx: localEx);
+      await _database.updateConversation(conversationID, {
+        'latestMsg': jsonEncode(updatedMsg.toJson()),
+      });
+      final updated = await _database.getConversation(conversationID);
+      if (updated != null) {
+        _conversationManager?.listener?.conversationChanged([updated]);
+      }
+    }
   }
 
   /// 插入单聊消息到本地存储
@@ -792,8 +859,16 @@ class MessageManager {
       sendID: senderID,
       recvID: receiverID,
       sessionType: ConversationType.single,
+      status: MessageStatus.succeeded,
+      sendTime: _nowMillis(),
+    );
+    final conversationID = OpenImUtils.genSingleConversationID(
+      senderID == _currentUserID ? _currentUserID : (senderID ?? ''),
+      senderID == _currentUserID ? (receiverID ?? '') : (senderID ?? ''),
     );
     await _database.insertMessage(DatabaseService.messageToDbMap(msg));
+    // 触发会话更新（对应 Go SDK InsertSingleMessageToLocalStorage 的 AddConOrUpLatMsg）
+    await _updateConversationLatestMsg(conversationID, msg, ConversationType.single);
     return msg;
   }
 
@@ -811,8 +886,13 @@ class MessageManager {
       sendID: senderID,
       groupID: groupID,
       sessionType: ConversationType.superGroup,
+      status: MessageStatus.succeeded,
+      sendTime: _nowMillis(),
     );
+    final conversationID = OpenImUtils.genGroupConversationID(groupID ?? '');
     await _database.insertMessage(DatabaseService.messageToDbMap(msg));
+    // 触发会话更新（对应 Go SDK InsertGroupMessageToLocalStorage 的 AddConOrUpLatMsg）
+    await _updateConversationLatestMsg(conversationID, msg, ConversationType.superGroup);
     return msg;
   }
 
@@ -951,19 +1031,34 @@ class MessageManager {
     );
   }
 
-  /// 更新会话的最新消息
+  /// 更新会话的最新消息并触发会话变更回调
+  ///
+  /// 对应 Go SDK 的 doUpdateConversation(AddConOrUpLatMsg):
+  /// - 会话已存在 → 更新 latestMsg → 触发 OnConversationChanged
+  /// - 会话不存在 → 创建新会话 → 触发 OnNewConversation
   Future<void> _updateConversationLatestMsg(
     String conversationID,
     Message message,
     ConversationType sessionType,
   ) async {
     final conv = await _database.getConversation(conversationID);
+    final listener = _conversationManager?.listener;
     if (conv != null) {
-      await _database.updateConversation(conversationID, {
-        'latestMsg': jsonEncode(message.toJson()),
-        'latestMsgSendTime': message.sendTime,
-      });
+      // 仅当新消息时间 >= 现有最新消息时间时才更新（对应 Go SDK 判断）
+      final existingTime = conv.latestMsgSendTime ?? 0;
+      if ((message.sendTime ?? 0) >= existingTime) {
+        await _database.updateConversation(conversationID, {
+          'latestMsg': jsonEncode(message.toJson()),
+          'latestMsgSendTime': message.sendTime,
+        });
+        // 触发 OnConversationChanged
+        final updated = await _database.getConversation(conversationID);
+        if (updated != null) {
+          listener?.conversationChanged([updated]);
+        }
+      }
     } else {
+      // 新会话
       await _database.upsertConversation({
         'conversationID': conversationID,
         'conversationType': sessionType.value,
@@ -973,7 +1068,51 @@ class MessageManager {
         'latestMsgSendTime': message.sendTime,
         'unreadCount': 0,
       });
+      // 触发 OnNewConversation
+      final newConv = await _database.getConversation(conversationID);
+      if (newConv != null) {
+        listener?.newConversation([newConv]);
+      }
     }
+  }
+
+  /// 如果被删除/撤回的消息是会话的 latestMsg，则更新 latestMsg 为次新消息
+  /// 对应 Go SDK delete.go / revoke.go 中的 latestMsg 判断更新逻辑
+  Future<void> _updateConversationIfLatestMsg(String conversationID, String clientMsgID) async {
+    final conv = await _database.getConversation(conversationID);
+    if (conv?.latestMsg == null) return;
+    if (conv!.latestMsg!.clientMsgID != clientMsgID) return;
+
+    // latestMsg 被删除/撤回，查找次新消息
+    try {
+      final msgs = await _database.getHistoryMessages(conversationID: conversationID, count: 1);
+      if (msgs.isNotEmpty) {
+        await _database.updateConversation(conversationID, {
+          'latestMsg': jsonEncode(msgs.first.toJson()),
+          'latestMsgSendTime': msgs.first.sendTime,
+        });
+      } else {
+        await _database.updateConversation(conversationID, {
+          'latestMsg': '',
+          'latestMsgSendTime': 0,
+        });
+      }
+      final updated = await _database.getConversation(conversationID);
+      if (updated != null) {
+        _conversationManager?.listener?.conversationChanged([updated]);
+      }
+    } catch (_) {}
+  }
+
+  /// 触发 conversationChanged + totalUnreadChanged（删除未读消息后使用）
+  Future<void> _notifyConversationAndUnread(String conversationID) async {
+    final listener = _conversationManager?.listener;
+    final conv = await _database.getConversation(conversationID);
+    if (conv != null) {
+      listener?.conversationChanged([conv]);
+    }
+    final total = await _database.getTotalUnreadCount();
+    listener?.totalUnreadMessageCountChanged(total);
   }
 
   /// 通过 WebSocket 发送消息（使用 protobuf）
@@ -1022,6 +1161,7 @@ class MessageManager {
             'status': MessageStatus.failed.value,
           });
           await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+          await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
         }
         return failedMsg;
       }

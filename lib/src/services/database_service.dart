@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:tostore/tostore.dart';
 
 import '../db/db_schema.dart';

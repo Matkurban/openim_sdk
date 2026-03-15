@@ -6,7 +6,6 @@ import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 class UserManager {

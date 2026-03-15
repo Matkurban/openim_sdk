@@ -190,13 +190,20 @@ class ConversationManager {
     _log.info('hideConversation: conversationID=$conversationID');
     await _database.deleteConversation(conversationID);
     _log.info('会话已隐藏: $conversationID');
+    await _notifyConversationChanged([conversationID]);
   }
 
   /// 隐藏所有会话
   Future<void> hideAllConversations() async {
     _log.info('hideAllConversations');
+    final allConvs = await _database.getAllConversations();
     await _database.deleteAllConversations();
     _log.info('所有会话已隐藏');
+    if (allConvs.isNotEmpty) {
+      listener?.conversationChanged(allConvs);
+    }
+    final total = await getTotalUnreadMsgCount();
+    listener?.totalUnreadMessageCountChanged(total);
   }
 
   /// 设置会话草稿
@@ -350,6 +357,9 @@ class ConversationManager {
     await _clearConversationMessages(conversationID);
     await _database.deleteConversation(conversationID);
     _log.info('会话及消息已删除: $conversationID');
+    await _notifyConversationChanged([conversationID]);
+    final total = await getTotalUnreadMsgCount();
+    listener?.totalUnreadMessageCountChanged(total);
 
     final resp = await _api.clearConversationMsg(
       userID: _currentUserID,
@@ -367,6 +377,9 @@ class ConversationManager {
     await _clearConversationMessages(conversationID);
     await _database.deleteConversation(conversationID);
     _log.info('会话及消息已清空: $conversationID');
+    await _notifyConversationChanged([conversationID]);
+    final total = await getTotalUnreadMsgCount();
+    listener?.totalUnreadMessageCountChanged(total);
 
     final resp = await _api.clearConversationMsg(
       userID: _currentUserID,

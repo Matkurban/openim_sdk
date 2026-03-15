@@ -476,6 +476,7 @@ class NotificationDispatcher {
 
   void _onRevokeMsg(Map<String, dynamic> detail) {
     final clientMsgID = detail['clientMsgID'] as String?;
+    final conversationID = detail['conversationID'] as String?;
     final info = RevokedInfo(
       revokerID: detail['revokerUserID'] as String?,
       clientMsgID: clientMsgID,
@@ -489,23 +490,98 @@ class NotificationDispatcher {
     }
 
     msgListener?.newRecvMessageRevoked(info);
+
+    // 如果被撤回的消息是会话的 latestMsg，更新会话（对应 Go SDK revoke.go）
+    if (conversationID != null && clientMsgID != null) {
+      _updateConversationIfLatestMsgRevoked(conversationID, clientMsgID);
+    }
+  }
+
+  /// 撤回通知后检查并更新 latestMsg
+  Future<void> _updateConversationIfLatestMsgRevoked(
+    String conversationID,
+    String clientMsgID,
+  ) async {
+    try {
+      final conv = await database.getConversation(conversationID);
+      if (conv?.latestMsg == null) return;
+      if (conv!.latestMsg!.clientMsgID != clientMsgID) return;
+
+      final msgs = await database.getHistoryMessages(conversationID: conversationID, count: 1);
+      if (msgs.isNotEmpty) {
+        await database.updateConversation(conversationID, {
+          'latestMsg': jsonEncode(msgs.first.toJson()),
+          'latestMsgSendTime': msgs.first.sendTime,
+        });
+      } else {
+        await database.updateConversation(conversationID, {
+          'latestMsg': '',
+          'latestMsgSendTime': 0,
+        });
+      }
+      final updated = await database.getConversation(conversationID);
+      if (updated != null) {
+        conversationListener?.conversationChanged([updated]);
+      }
+    } catch (_) {}
   }
 
   void _onReadReceipt(Map<String, dynamic> detail) {
     final conversationID = detail['conversationID'] as String?;
     final hasReadSeq = detail['hasReadSeq'] as int?;
+    final markAsReadUserID = detail['markAsReadUserID'] as String?;
+    final seqs = (detail['seqs'] as List?)?.map((e) => e as int).toList() ?? [];
+
     if (conversationID != null && hasReadSeq != null) {
       database.updateConversation(conversationID, {'hasReadSeq': hasReadSeq});
     }
 
-    final receipts = <ReadReceiptInfo>[
-      ReadReceiptInfo(
-        userID: detail['markAsReadUserID'] as String?,
-        msgIDList: ((detail['seqs'] as List?) ?? []).map((e) => e.toString()).toList(),
-        readTime: detail['readTime'] as int?,
-      ),
-    ];
-    msgListener?.recvC2CReadReceipt(receipts);
+    if (markAsReadUserID != _userID) {
+      // 对方已读：触发 OnRecvC2CReadReceipt + 更新 latestMsg 已读状态
+      final receipts = <ReadReceiptInfo>[
+        ReadReceiptInfo(
+          userID: markAsReadUserID,
+          msgIDList: seqs.map((e) => e.toString()).toList(),
+          readTime: detail['readTime'] as int?,
+        ),
+      ];
+      msgListener?.recvC2CReadReceipt(receipts);
+      // 更新会话（对应 Go SDK doReadDrawing 的 latestMsg IsRead 更新）
+      if (conversationID != null) {
+        _updateConversationAfterReadReceipt(conversationID);
+      }
+    } else {
+      // 自己在其他设备已读：减少未读数（对应 Go SDK doUnreadCount）
+      if (conversationID != null) {
+        _handleSelfReadReceipt(conversationID, hasReadSeq ?? 0, seqs);
+      }
+    }
+  }
+
+  /// 对方已读后更新会话（latestMsg 的 isRead 状态）
+  Future<void> _updateConversationAfterReadReceipt(String conversationID) async {
+    try {
+      final conv = await database.getConversation(conversationID);
+      if (conv == null) return;
+      // 触发 conversationChanged 让 UI 更新已读状态
+      conversationListener?.conversationChanged([conv]);
+    } catch (_) {}
+  }
+
+  /// 自己在其他设备标记已读的处理（对应 Go SDK doUnreadCount）
+  Future<void> _handleSelfReadReceipt(String conversationID, int hasReadSeq, List<int> seqs) async {
+    try {
+      final conv = await database.getConversation(conversationID);
+      if (conv == null) return;
+      if (conv.unreadCount > 0) {
+        await database.clearConversationUnreadCount(conversationID);
+      }
+      conversationListener?.conversationChanged([
+        await database.getConversation(conversationID) ?? conv,
+      ]);
+      final total = await database.getTotalUnreadCount();
+      conversationListener?.totalUnreadMessageCountChanged(total);
+    } catch (_) {}
   }
 
   // ---------------------------------------------------------------------------

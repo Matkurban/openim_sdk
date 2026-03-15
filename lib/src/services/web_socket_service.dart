@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/enums/web_socket_status.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/web_socket_codec.dart';
