@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+### 新增
+
+- **新增 `isInitialized` 属性**：用于判断 SDK 是否已完成初始化（`initSDK` 是否已成功调用）
+
 ## 1.0.9
 
 ### Bug 修复

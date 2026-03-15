@@ -347,6 +347,11 @@ class IMManager {
     _uploadFileListener = listener;
   }
 
+  /// 是否已初始化
+  bool get isInitialized {
+    return _getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig);
+  }
+
   /// 获取登录状态
   /// 1: logout  2: logging  3: logged
   int get getLoginStatus {
