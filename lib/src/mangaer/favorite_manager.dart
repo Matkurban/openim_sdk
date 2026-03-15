@@ -257,7 +257,6 @@ class FavoriteManager {
     return addFavorite(type: FavoriteType.link, targetID: link.url, data: data);
   }
 
-
   /// 移除收藏项
   Future<bool> removeFavoriteItem(FavoriteItem item) {
     return removeFavorite(type: item.favoriteType, targetID: item.targetID);
