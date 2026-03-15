@@ -536,7 +536,7 @@ class DatabaseService {
     final result = await toStore.query(DbTableName.localConversation).where('unreadCount', '>', 0);
     int total = 0;
     for (final row in result.data) {
-      total += (row['unreadCount'] as int?) ?? 0;
+      total += (row['unreadCount'] as num?)?.toInt() ?? 0;
     }
     return total;
   }
@@ -574,7 +574,7 @@ class DatabaseService {
         .whereEqual('conversationID', conversationID)
         .first();
     if (data == null) return;
-    final current = (data['unreadCount'] as int?) ?? 0;
+    final current = (data['unreadCount'] as num?)?.toInt() ?? 0;
     final newCount = (current - decrCount).clamp(0, current);
     await toStore
         .update(DbTableName.localConversation, {'unreadCount': newCount})
@@ -599,7 +599,7 @@ class DatabaseService {
 
   /// 清空所有会话未读数
   Future<void> clearAllUnreadCounts() async {
-    await toStore.update(DbTableName.localConversation, {'unreadCount': 0});
+    await toStore.update(DbTableName.localConversation, {'unreadCount': 0}).allowUpdateAll();
   }
 
   /// 搜索会话（利用 Tostore LIKE 查询）
@@ -856,7 +856,7 @@ class DatabaseService {
         .query(DbTableName.localConversation)
         .whereEqual('conversationID', conversationID)
         .first();
-    return (data?['maxSeq'] as int?) ?? 0;
+    return (data?['maxSeq'] as num?)?.toInt() ?? 0;
   }
 
   /// 批量获取所有会话的 maxSeq（单次查询）
@@ -866,7 +866,7 @@ class DatabaseService {
     for (final row in result.data) {
       final convID = row['conversationID'] as String?;
       if (convID != null) {
-        seqs[convID] = (row['maxSeq'] as int?) ?? 0;
+        seqs[convID] = (row['maxSeq'] as num?)?.toInt() ?? 0;
       }
     }
     return seqs;
@@ -1016,7 +1016,7 @@ class DatabaseService {
       showName: data['showName'] as String?,
       faceURL: data['faceURL'] as String?,
       recvMsgOpt: _intToReceiveMessageOpt(data['recvMsgOpt'] as int?),
-      unreadCount: (data['unreadCount'] as int?) ?? 0,
+      unreadCount: (data['unreadCount'] as num?)?.toInt() ?? 0,
       latestMsg: latestMsg,
       latestMsgSendTime: data['latestMsgSendTime'] as int?,
       draftText: data['draftText'] as String?,

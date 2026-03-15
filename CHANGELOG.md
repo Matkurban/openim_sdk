@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.5
+
+### Bug 修复
+
+- **修复单个会话未读数始终为 0 的问题**
+  - `_syncConversationsAndSeqs` 中 `maxSeq`/`hasReadSeq` 使用 `as int?` 强制转型，若服务端返回 `num`（如 `double`）会导致整个同步方法异常退出，未读数永远无法写入本地数据库；改用 `(as num?)?.toInt()` 安全转换
+  - 初始同步完成后缺少 `conversationChanged` 与 `totalUnreadMessageCountChanged` 回调，导致 UI 无法获取到已计算的未读数；现已在写入数据库后触发对应回调（对齐 Go SDK `doUpdateConversation` 行为）
+  - `clearAllUnreadCounts()` 缺少 `.allowUpdateAll()`，ToStore 的 `updateInternal` 在无 where 条件时会静默拒绝执行，导致「标记全部已读」实际无效
+- **全局类型安全加固**：`_convertConversation`、`getTotalUnreadCount`、`decrConversationUnreadCount`、`getConversationMaxSeq`、`getAllConversationMaxSeqs` 中所有 `as int?` 统一改为 `(as num?)?.toInt()`，避免数据库/JSON 返回 `double` 时崩溃
+
 ## 1.0.4
 
 - 修复已知问题

@@ -205,19 +205,21 @@ class MsgSyncer {
       await _batchAddFaceURLAndName(convMaps);
 
       // 4. 计算未读数并更新 seq 跟踪
+      final changedConvIDs = <String>[];
       for (final conv in convMaps) {
         final convID = conv['conversationID'] as String?;
         if (convID == null) continue;
 
-        final seqInfo = seqs[convID] as Map<String, dynamic>?;
-        if (seqInfo != null) {
-          final maxSeq = seqInfo['maxSeq'] as int? ?? 0;
-          final hasReadSeq = seqInfo['hasReadSeq'] as int? ?? 0;
+        final rawSeqInfo = seqs[convID];
+        if (rawSeqInfo is Map<String, dynamic>) {
+          final maxSeq = (rawSeqInfo['maxSeq'] as num?)?.toInt() ?? 0;
+          final hasReadSeq = (rawSeqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
           final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
           conv['unreadCount'] = unread;
           conv['maxSeq'] = maxSeq;
           conv['hasReadSeq'] = hasReadSeq;
           _syncedMaxSeqs[convID] = maxSeq;
+          if (unread > 0) changedConvIDs.add(convID);
         }
       }
 
@@ -225,7 +227,13 @@ class MsgSyncer {
       if (convMaps.isNotEmpty) {
         await database.batchUpsertConversations(convMaps);
       }
-      _log.info('已同步 ${convMaps.length} 个会话');
+      _log.info('已同步 ${convMaps.length} 个会话, ${changedConvIDs.length} 个有未读');
+
+      // 6. 通知 UI 未读数变更（对应 Go SDK doUpdateConversation）
+      if (changedConvIDs.isNotEmpty) {
+        _fireConversationChanged(changedConvIDs.toSet());
+        _fireTotalUnreadCountChanged();
+      }
     } catch (e) {
       _log.warning('同步会话异常: $e');
     }
