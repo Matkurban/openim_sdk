@@ -9,7 +9,6 @@ import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:meta/meta.dart';
 
@@ -17,6 +16,9 @@ class ConversationManager {
   static final Logger _log = Logger('ConversationManager');
 
   final GetIt _getIt = GetIt.instance;
+
+  /// 防止 markConversationMessageAsRead 重入的守卫集合
+  final Set<String> _markingAsRead = {};
 
   ImApiService get _api {
     return _getIt.get<ImApiService>(instanceName: InstanceName.imApiService);
@@ -219,27 +221,45 @@ class ConversationManager {
   /// 标记会话消息已读
   /// [conversationID] 会话ID
   Future<void> markConversationMessageAsRead({required String conversationID}) async {
-    _log.info('markConversationMessageAsRead: conversationID=$conversationID');
-    // 获取当前会话的 maxSeq 用于服务端标记已读
-    final hasReadSeq = await _database.getConversationMaxSeq(conversationID);
+    // 防止重入：同一会话正在标记已读时跳过
+    if (_markingAsRead.contains(conversationID)) {
+      _log.info('markConversationMessageAsRead: 跳过重入调用 conversationID=$conversationID');
+      return;
+    }
 
-    await _database.clearConversationUnreadCount(conversationID);
-    _log.info('会话已标记已读: $conversationID');
+    // 检查未读数是否已经为 0（对应 Go SDK 的 UnreadCount==0 守卫）
+    final conv = await _database.getConversation(conversationID);
+    if (conv == null || conv.unreadCount == 0) {
+      _log.info('markConversationMessageAsRead: 未读数已为0，跳过 conversationID=$conversationID');
+      return;
+    }
 
-    final total = await getTotalUnreadMsgCount();
-    listener?.totalUnreadMessageCountChanged(total);
-    await _notifyConversationChanged([conversationID]);
+    _markingAsRead.add(conversationID);
+    try {
+      _log.info('markConversationMessageAsRead: conversationID=$conversationID');
+      // 获取当前会话的 maxSeq 用于服务端标记已读
+      final hasReadSeq = await _database.getConversationMaxSeq(conversationID);
 
-    // 同步到服务器
-    if (hasReadSeq > 0) {
-      final resp = await _api.markConversationAsRead(
-        userID: _currentUserID,
-        conversationID: conversationID,
-        hasReadSeq: hasReadSeq,
-      );
-      if (resp.errCode != 0) {
-        _log.warning('标记会话已读同步服务器失败: ${resp.errMsg}');
+      await _database.clearConversationUnreadCount(conversationID);
+      _log.info('会话已标记已读: $conversationID');
+
+      final total = await getTotalUnreadMsgCount();
+      listener?.totalUnreadMessageCountChanged(total);
+      await _notifyConversationChanged([conversationID]);
+
+      // 同步到服务器
+      if (hasReadSeq > 0) {
+        final resp = await _api.markConversationAsRead(
+          userID: _currentUserID,
+          conversationID: conversationID,
+          hasReadSeq: hasReadSeq,
+        );
+        if (resp.errCode != 0) {
+          _log.warning('标记会话已读同步服务器失败: ${resp.errMsg}');
+        }
       }
+    } finally {
+      _markingAsRead.remove(conversationID);
     }
   }
 

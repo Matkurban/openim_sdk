@@ -655,6 +655,20 @@ class NotificationDispatcher {
         }
       }
       if (convMaps.isNotEmpty) {
+        // 对已存在的会话，保留本地 unreadCount，防止服务端过时数据覆盖
+        // 导致 markAsRead → syncConversations → unread>0 → markAsRead 死循环
+        final existingIds = <String>{};
+        for (final map in convMaps) {
+          final id = map['conversationID'] as String?;
+          if (id != null) {
+            final local = await database.getConversation(id);
+            if (local != null) {
+              existingIds.add(id);
+              map.remove('unreadCount');
+            }
+          }
+        }
+
         await database.batchUpsertConversations(convMaps);
         // 通知 UI 刷新（批量读取代替逐个查询）
         final ids = convMaps

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.3
+
+- 修复已知问题
+
 ## 1.0.2
 
 - 导出 `OpenImUtils` 类
