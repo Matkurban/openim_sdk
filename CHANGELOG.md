@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.7
+
+### 修复
+
+- **修复朋友圈 API 使用错误的 Token**：`MomentsManager` 的 `_post` 方法从 `HttpClient().token`（imToken）改为 `HttpClient().chatToken`（chatToken），修正请求 chat 服务端时携带错误 token 导致 API 调用失败的问题
+
+## 1.1.6
+
+### 修复
+
+- **修复朋友圈首次加载为空**：`getMomentList()` 本地无数据时现在直接走网络请求返回，而非返回空列表后后台静默缓存
+
 ## 1.1.5
 
 ### 新增

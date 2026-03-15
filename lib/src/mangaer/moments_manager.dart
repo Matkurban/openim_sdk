@@ -65,7 +65,7 @@ class MomentsManager {
         contentType: Headers.jsonContentType,
         responseType: ResponseType.json,
         headers: {
-          if (HttpClient().token != null) 'token': HttpClient().token,
+          if (HttpClient().chatToken != null) 'token': HttpClient().chatToken,
           'operationID': OpenImUtils.generateOperationID(operationName: 'moments'),
         },
       ),
@@ -139,10 +139,22 @@ class MomentsManager {
         ? await _database.getMomentsByUserID(ownerUserID, offset: offset, count: showNumber)
         : await _database.getMoments(offset: offset, count: showNumber);
 
-    // 异步拉取网络最新并更新本地
-    _fetchAndCacheMoments(ownerUserID: ownerUserID, pageNumber: pageNumber, showNumber: showNumber);
+    // 本地有数据时直接返回，后台异步刷新
+    if (localMoments.isNotEmpty) {
+      _fetchAndCacheMoments(
+        ownerUserID: ownerUserID,
+        pageNumber: pageNumber,
+        showNumber: showNumber,
+      );
+      return MomentListResponse(total: localMoments.length, moments: localMoments);
+    }
 
-    return MomentListResponse(total: localMoments.length, moments: localMoments);
+    // 本地无数据时直接走网络
+    return fetchMomentListFromServer(
+      ownerUserID: ownerUserID,
+      pageNumber: pageNumber,
+      showNumber: showNumber,
+    );
   }
 
   /// 仅从网络获取（强制刷新）
