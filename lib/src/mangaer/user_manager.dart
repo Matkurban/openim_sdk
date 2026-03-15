@@ -6,7 +6,7 @@ import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 class UserManager {
@@ -85,7 +85,7 @@ class UserManager {
     _log.info('loginByEmail: email=$email');
     final loginData = await _chatLogin({
       'email': email,
-      'password': ImUtils.generateMD5(password),
+      'password': OpenImUtils.generateMD5(password),
       'platform': PlatformUtils.platformID,
     });
     final userID = loginData['userID'] as String;
@@ -105,7 +105,7 @@ class UserManager {
     final loginData = await _chatLogin({
       'areaCode': areaCode,
       'phoneNumber': phoneNumber,
-      'password': ImUtils.generateMD5(password),
+      'password': OpenImUtils.generateMD5(password),
       'platform': PlatformUtils.platformID,
     });
     final userID = loginData['userID'] as String;

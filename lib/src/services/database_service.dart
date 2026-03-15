@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:tostore/tostore.dart';
 
 import '../db/db_schema.dart';
@@ -17,7 +17,7 @@ class DatabaseService {
   Future<bool> switchSpace({required String userID}) async {
     _currentUserID = userID;
     SpaceInfo spaceInfo = await toStore.getSpaceInfo();
-    String generateSpaceName = ImUtils.generateSpaceName(userID);
+    String generateSpaceName = OpenImUtils.generateSpaceName(userID);
     if (spaceInfo.spaceName == generateSpaceName) {
       return true;
     }

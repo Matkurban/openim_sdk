@@ -6,7 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:universal_platform/universal_platform.dart';
 
-sealed class ImUtils {
+sealed class OpenImUtils {
   ///生成唯一的操作ID
   static String generateOperationID({String operationName = 'openim_sdk'}) {
     return '${operationName}_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';

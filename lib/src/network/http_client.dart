@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:talker_dio_logger/talker_dio_logger_interceptor.dart';
 
 import '../models/api_response.dart';
@@ -51,7 +51,7 @@ class HttpClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
-          options.headers['operationID'] = ImUtils.generateOperationID(
+          options.headers['operationID'] = OpenImUtils.generateOperationID(
             operationName: 'openim_sdk_network_request',
           );
           handler.next(options);

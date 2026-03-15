@@ -20,7 +20,7 @@ import 'package:openim_sdk/src/db/db_schema.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:tostore/tostore.dart';
@@ -131,7 +131,7 @@ class IMManager {
       HttpClient().onApiError = _createApiErrorHandler(listener);
 
       ToStore toStore = await _initDatabase(
-        dbPath: config.dbPath ?? await ImUtils.defaultDbPath(),
+        dbPath: config.dbPath ?? await OpenImUtils.defaultDbPath(),
         dbName: config.dbName,
         schemas: config.schemas,
       );

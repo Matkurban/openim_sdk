@@ -11,7 +11,7 @@ import 'package:openim_sdk/src/models/favorite_list_response.dart';
 import 'package:openim_sdk/src/models/init_config.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 
 /// 收藏类型常量
 sealed class FavoriteType {
@@ -78,7 +78,7 @@ class FavoriteManager {
         responseType: ResponseType.json,
         headers: {
           if (HttpClient().token != null) 'token': HttpClient().token,
-          'operationID': ImUtils.generateOperationID(operationName: 'favorite'),
+          'operationID': OpenImUtils.generateOperationID(operationName: 'favorite'),
         },
       ),
     );

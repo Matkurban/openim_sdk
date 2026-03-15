@@ -66,3 +66,6 @@ export 'src/enums/receive_message_opt.dart';
 export 'src/enums/relationship.dart';
 export 'src/enums/sdk_error_code.dart';
 export 'src/enums/visible_type.dart';
+
+///utils
+export 'src/utils/open_im_utils.dart';

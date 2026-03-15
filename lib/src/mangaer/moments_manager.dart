@@ -12,7 +12,7 @@ import 'package:openim_sdk/src/models/moment_like.dart';
 import 'package:openim_sdk/src/models/moment_list_response.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 
 /// 朋友圈管理器
 ///
@@ -63,7 +63,7 @@ class MomentsManager {
         responseType: ResponseType.json,
         headers: {
           if (HttpClient().token != null) 'token': HttpClient().token,
-          'operationID': ImUtils.generateOperationID(operationName: 'moments'),
+          'operationID': OpenImUtils.generateOperationID(operationName: 'moments'),
         },
       ),
     );

@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/enums/web_socket_status.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/web_socket_codec.dart';
@@ -151,7 +151,7 @@ class WebSocketService {
     if (!isConnected) {
       throw StateError('WebSocket 未连接');
     }
-    final opID = operationID ?? ImUtils.generateOperationID();
+    final opID = operationID ?? OpenImUtils.generateOperationID();
     final msgIncr = _generateMsgIncr();
     final req = WebSocketRequest(
       reqIdentifier: reqIdentifier,
@@ -225,7 +225,7 @@ class WebSocketService {
     sb.write('?sendID=$_userID');
     sb.write('&token=$_token');
     sb.write('&platformID=$platformID');
-    sb.write('&operationID=${ImUtils.generateOperationID()}');
+    sb.write('&operationID=${OpenImUtils.generateOperationID()}');
     sb.write('&isBackground=false');
     sb.write('&sdkType=js');
     sb.write('&isMsgResp=true');
@@ -309,7 +309,7 @@ class WebSocketService {
       _handleDisconnect();
       return;
     }
-    final opID = ImUtils.generateOperationID();
+    final opID = OpenImUtils.generateOperationID();
     final ping = jsonEncode({'type': 'ping', 'body': opID});
     _channel!.sink.add(ping);
     _log.info('发送 ping: $opID');

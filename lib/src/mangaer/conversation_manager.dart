@@ -9,7 +9,7 @@ import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:meta/meta.dart';
 
@@ -49,11 +49,11 @@ class ConversationManager {
   String getConversationIDBySessionType({required String sourceID, required int sessionType}) {
     _log.info('getConversationIDBySessionType: sourceID=$sourceID, sessionType=$sessionType');
     if (sessionType == ConversationType.single.value) {
-      return ImUtils.genSingleConversationID(_currentUserID, sourceID);
+      return OpenImUtils.genSingleConversationID(_currentUserID, sourceID);
     } else if (sessionType == ConversationType.superGroup.value) {
-      return ImUtils.genGroupConversationID(sourceID);
+      return OpenImUtils.genGroupConversationID(sourceID);
     } else {
-      return ImUtils.genNotificationConversationID(_currentUserID, sourceID);
+      return OpenImUtils.genNotificationConversationID(_currentUserID, sourceID);
     }
   }
 

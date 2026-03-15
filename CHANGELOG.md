@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2
+
+- 导出 `OpenImUtils` 类
+
 ## 1.0.1
 
 - 纠正 MessageType 中 跟原 sdk 命名不一致的变量

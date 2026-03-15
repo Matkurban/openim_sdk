@@ -1,7 +1,7 @@
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
-import 'package:openim_sdk/src/utils/im_utils.dart';
+import 'package:openim_sdk/src/utils/open_im_utils.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 /// OpenIM 核心服务端 API（对应 openim-server 的 REST 接口）
@@ -78,7 +78,7 @@ class ImApiService {
           "areaCode": areaCode,
           "phoneNumber": phoneNumber,
           "account": account,
-          "password": ImUtils.generateMD5(password),
+          "password": OpenImUtils.generateMD5(password),
         },
       },
     );
