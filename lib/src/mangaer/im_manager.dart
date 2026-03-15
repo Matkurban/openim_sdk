@@ -11,7 +11,6 @@ import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
-import 'package:openim_sdk/src/models/auth_cache_data.dart';
 import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
@@ -25,7 +24,7 @@ import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:tostore/tostore.dart';
 
 class IMManager {
-  static final Logger _log = Logger('openim_sdk');
+  static final Logger _log = Logger('IMManager');
 
   /// 会话管理
   late ConversationManager conversationManager;
@@ -67,6 +66,10 @@ class IMManager {
 
   UserInfo get userInfo => _userInfo!;
 
+  AuthCacheData? _authData;
+
+  AuthCacheData get authData => _authData!;
+
   /// 当前登录状态
   LoginStatus _loginStatus = LoginStatus.logout;
 
@@ -89,7 +92,7 @@ class IMManager {
   /// [dataDir] SDK 数据库存储目录
   /// [listener] 连接状态监听
   /// [logLevel] 日志级别
-  /// [operationID] 操作ID
+  /// 此方法适用于在 app 启动时调用一次，完成 SDK 的整体初始化配置。
   Future<bool> initSDK({
     int? platformID,
     required String apiAddr,
@@ -98,7 +101,6 @@ class IMManager {
     String? dataDir,
     required OnConnectListener listener,
     Level logLevel = .ALL,
-    String? operationID,
     List<TableSchema> schemas = const [],
   }) async {
     _log.info(
@@ -128,6 +130,11 @@ class IMManager {
 
       // 初始化 HTTP 层
       HttpClient().init(baseUrl: config.apiAddr);
+
+      // 初始化 Chat 服务端 HTTP 客户端
+      if (config.chatAddr != null && config.chatAddr!.isNotEmpty) {
+        HttpClient().initChat(baseUrl: config.chatAddr!);
+      }
 
       // 设置 API 错误回调（对应 Go SDK 的 apiErrCallback）
       // 拦截 token 过期/无效等全局错误，触发 OnConnectListener 回调
@@ -162,8 +169,6 @@ class IMManager {
         instanceName: InstanceName.webSocketService,
       );
 
-      await checkLoginStatus(toStore);
-
       _log.info('OpenIM SDK initialized successfully');
       return true;
     } catch (e, s) {
@@ -186,26 +191,54 @@ class IMManager {
     );
   }
 
-  @internal
-  Future<void> checkLoginStatus(ToStore toStore) async {
-    String? value = await toStore.getValue(CacheKey.loginUserData, isGlobal: true);
+  ///加载登录配置（自动登录）
+  ///从本地缓存读取登录用户数据，验证 token 是否有效，若有效则自动登录
+  ///适用于 App 启动时自动登录场景
+  ///调用完此方法后可以使用[getLoginStatus] 判断是否自动登录成功
+  ///此方法建议在启动页（splash）页中调用，因为涉及网络请求，可能会有一定延迟
+  Future<LoginStatus> loadLoginConfig() async {
+    String? value = await getDatabaseInstance().getValue(CacheKey.loginUserData, isGlobal: true);
     if (value != null) {
       try {
         AuthCacheData authCacheData = AuthCacheData.fromJson(jsonDecode(value));
-        await login(userID: authCacheData.userID, token: authCacheData.imToken);
+        bool result = await checkToken(token: authCacheData.imToken);
+        if (result) {
+          _authData = authCacheData;
+          HttpClient().setChatToken(authCacheData.chatToken);
+          await login(userID: authCacheData.userID, token: authCacheData.imToken);
+        }
       } catch (e, s) {
         _log.severe(e.toString(), e, s);
       }
     }
+    return _loginStatus;
   }
 
+  ///检验登录的 token 是否有效
+  Future<bool> checkToken({required String token}) async {
+    final ImApiService imApiService = _getIt.get<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    );
+    try {
+      ApiResponse result = await imApiService.parseToken(token: token);
+      return result.isSuccess;
+    } catch (e) {
+      _log.warning('检查 Token 失败: $e');
+      return false;
+    }
+  }
+
+  /// 获取数据库实例
   ToStore getDatabaseInstance() {
     return _getIt.get<ToStore>(instanceName: InstanceName.toStore);
   }
 
-  ///
+  /// 反初始化 SDK
   Future<void> unInitSDK() async {
     _log.info('unInitSDK');
+    _userID = null;
+    _userInfo = null;
+    _loginStatus = .logout;
     if (_getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
       await _getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
     }
@@ -222,14 +255,69 @@ class IMManager {
     }
   }
 
+  /// Chat 服务端登录（内部方法）
+  /// 向 chatAddr + /account/login 发起请求，返回 {userID, imToken, chatToken}
+  Future<AuthCacheData> _chatLogin(Map<String, dynamic> body) async {
+    final InitConfig config = _getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
+    final String? chatAddr = config.chatAddr;
+    if (chatAddr == null || chatAddr.isEmpty) {
+      throw Exception('chatAddr 未配置，请在 InitConfig 中设置 chatAddr');
+    }
+
+    final Dio dio = Dio(
+      BaseOptions(
+        baseUrl: chatAddr,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        contentType: Headers.jsonContentType,
+        responseType: ResponseType.json,
+        headers: {'operationID': OpenImUtils.generateOperationID(operationName: 'chatLogin')},
+      ),
+    );
+
+    try {
+      final Response response = await dio.post('/account/login', data: body);
+      final Map<String, dynamic> data = response.data as Map<String, dynamic>;
+      _log.info('Chat 登录响应: $data');
+      ApiResponse apiResponse = ApiResponse.fromJson(data);
+      if (apiResponse.isSuccess) {
+        return AuthCacheData.fromJson(apiResponse.data);
+      } else {
+        if (apiResponse.errCode == SDKErrorCode.accountNotRegistered.code) {
+          throw OpenIMException(
+            code: SDKErrorCode.accountNotRegistered.code,
+            message: SDKErrorCode.accountNotRegistered.message,
+          );
+        } else if (apiResponse.errCode == SDKErrorCode.passwordError.code) {
+          throw OpenIMException(
+            code: SDKErrorCode.passwordError.code,
+            message: SDKErrorCode.passwordError.message,
+          );
+        } else if (apiResponse.errCode == SDKErrorCode.ipBanned.code) {
+          throw OpenIMException(
+            code: SDKErrorCode.ipBanned.code,
+            message: SDKErrorCode.ipBanned.message,
+          );
+        } else {
+          throw Exception('Chat 登录失败: ${apiResponse.errMsg}');
+        }
+      }
+    } catch (e, s) {
+      _log.severe(e.toString(), e, s);
+      throw OpenIMException(
+        code: SDKErrorCode.networkRequestError.code,
+        message: SDKErrorCode.networkRequestError.message,
+      );
+    } finally {
+      dio.close();
+    }
+  }
+
   /// 登录
   /// [userID] 用户ID
   /// [token] 用户 token
-  Future<UserInfo> login({
-    required String userID,
-    required String token,
-    Future<UserInfo> Function()? defaultValue,
-  }) async {
+  @internal
+  Future<UserInfo> login({required String userID, required String token}) async {
     _log.info('login: userID=$userID');
     _loginStatus = LoginStatus.logging;
 
@@ -246,22 +334,21 @@ class IMManager {
 
     // 从服务端获取当前用户信息并存入本地
     final ApiResponse response = await imApiService.getUsersInfo(userIDs: [userID]);
-    UserInfo? loginUser;
     if (response.isSuccess) {
       final dataMap = response.data as Map<String, dynamic>;
       final users = dataMap['usersInfo'] as List?;
       if (users != null && users.isNotEmpty) {
         final userData = Map<String, dynamic>.from(users.first as Map);
         await databaseService.upsertUser(userData);
-        loginUser = UserInfo.fromJson(userData);
-        _userInfo = loginUser;
-      } else {
-        loginUser = await defaultValue?.call();
+        _userInfo = UserInfo.fromJson(userData);
       }
     }
-    if (loginUser == null) {
+    if (_userInfo == null) {
       _loginStatus = LoginStatus.logout;
-      return Future.error('Login Field');
+      throw OpenIMException(
+        code: response.errCode,
+        message: '${response.errMsg} : ${response.errDlt}',
+      );
     }
     _userID = userID;
     conversationManager.setCurrentUserID(userID);
@@ -313,7 +400,100 @@ class IMManager {
     msgSyncer.doConnectedSync();
 
     _log.info('用户已登录: $userID');
-    return loginUser;
+    return _userInfo!;
+  }
+
+  /// 使用邮箱登录（包含 SDK login）
+  /// 调用 chat 服务端登录后，自动使用返回的 userID 和 imToken 完成 SDK 登录。
+  /// [password] 和 [verificationCode] 二选一，必须提供其中一个。
+  Future<UserInfo> loginByEmail({
+    required String email,
+    String? password,
+    String? verificationCode,
+  }) async {
+    assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
+    _log.info('loginByEmail: email=$email');
+    final body = <String, dynamic>{'email': email, 'platform': PlatformUtils.platformID};
+    if (verificationCode != null) {
+      body['verifyCode'] = verificationCode;
+    } else {
+      body['password'] = OpenImUtils.generateMD5(password!);
+    }
+    AuthCacheData loginData = await _chatLogin(body);
+    _authData = loginData;
+    HttpClient().setChatToken(loginData.chatToken);
+    _log.info('邮箱 Chat 登录成功: $email, userID=${loginData.userID}');
+    final userInfo = await OpenIM.iMManager.login(
+      userID: loginData.userID,
+      token: loginData.imToken,
+    );
+    // 保存登录数据到缓存（用于自动登录）
+    final DatabaseService db = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+    await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+    return userInfo;
+  }
+
+  /// 使用手机号登录（包含 SDK login）
+  /// 调用 chat 服务端登录后，自动使用返回的 userID 和 imToken 完成 SDK 登录。
+  /// [password] 和 [verificationCode] 二选一，必须提供其中一个。
+  Future<UserInfo> loginByPhone({
+    required String areaCode,
+    required String phoneNumber,
+    String? password,
+    String? verificationCode,
+  }) async {
+    assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
+    _log.info('loginByPhone: areaCode=$areaCode, phoneNumber=$phoneNumber');
+    final body = <String, dynamic>{
+      'areaCode': areaCode,
+      'phoneNumber': phoneNumber,
+      'platform': PlatformUtils.platformID,
+    };
+    if (verificationCode != null) {
+      body['verifyCode'] = verificationCode;
+    } else {
+      body['password'] = OpenImUtils.generateMD5(password!);
+    }
+    AuthCacheData loginData = await _chatLogin(body);
+    _authData = loginData;
+    HttpClient().setChatToken(loginData.chatToken);
+    _log.info('手机号 Chat 登录成功: $areaCode$phoneNumber, userID=${loginData.userID}');
+    final userInfo = await OpenIM.iMManager.login(
+      userID: loginData.userID,
+      token: loginData.imToken,
+    );
+    // 保存登录数据到缓存（用于自动登录）
+    final DatabaseService db = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+    await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+    return userInfo;
+  }
+
+  /// 使用账号登录（包含 SDK login）
+  /// 账号登录仅支持密码方式，不支持验证码。
+  Future<UserInfo> loginByAccount({required String account, required String password}) async {
+    _log.info('loginByAccount: account=$account');
+    AuthCacheData loginData = await _chatLogin({
+      'account': account,
+      'password': OpenImUtils.generateMD5(password),
+      'platform': PlatformUtils.platformID,
+    });
+    _authData = loginData;
+    HttpClient().setChatToken(loginData.chatToken);
+    _log.info('账号 Chat 登录成功: $account, userID=${loginData.userID}');
+    final userInfo = await OpenIM.iMManager.login(
+      userID: loginData.userID,
+      token: loginData.imToken,
+    );
+    // 保存登录数据到缓存（用于自动登录）
+    final DatabaseService db = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+    await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+    return userInfo;
   }
 
   /// 登出
@@ -332,6 +512,8 @@ class IMManager {
 
     // 清除 HTTP token
     HttpClient().setToken(null);
+    HttpClient().setChatToken(null);
+    _authData = null;
     final DatabaseService databaseService = _getIt.get<DatabaseService>(
       instanceName: InstanceName.databaseService,
     );
@@ -358,8 +540,8 @@ class IMManager {
 
   /// 获取登录状态
   /// 1: logout  2: logging  3: logged
-  int get getLoginStatus {
-    return _loginStatus.value;
+  LoginStatus get getLoginStatus {
+    return _loginStatus;
   }
 
   /// 上传文件

@@ -56,14 +56,14 @@ class LoginController extends GetxController {
 
       if (loginMode.value == 0) {
         dev.log('[Login] calling loginByPhone(areaCode=$areaCode, phone=$account)');
-        await OpenIM.iMManager.userManager.loginByPhone(
+        await OpenIM.iMManager.loginByPhone(
           areaCode: areaCode,
           phoneNumber: account,
           password: password,
         );
       } else {
         dev.log('[Login] calling loginByEmail(email=$account)');
-        await OpenIM.iMManager.userManager.loginByEmail(email: account, password: password);
+        await OpenIM.iMManager.loginByEmail(email: account, password: password);
       }
 
       statusText.value = '';

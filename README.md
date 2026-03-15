@@ -44,13 +44,59 @@ await OpenIM.iMManager.initSDK(
     onUserTokenExpired: () => print('Token 过期'),
   ),
 );
-
-// 2. 登录
-final userInfo = await OpenIM.iMManager.login(
-  userID: 'user_001',
-  token: 'your_im_token',
-);
 ```
+
+### 注册与登录
+
+SDK 提供三种登录方式（邮箱 / 手机号 / 账号）和完整的注册流程。
+
+```dart
+// ── 发送验证码 ──
+await OpenIM.iMManager.userManager.sendVerificationCode(
+  email: 'user@example.com',   // 或 phoneNumber + areaCode
+  usedFor: 1,                   // 1-注册  2-重置密码  3-登录
+);
+
+// ── 注册 ──
+final authData = await OpenIM.iMManager.userManager.register(
+  nickname: '张三',
+  password: 'your_password',
+  email: 'user@example.com',    // 邮箱注册
+  // phoneNumber: '13800138000', areaCode: '+86',  // 或手机号注册
+  // account: 'zhangsan',       // 或账号注册
+  verificationCode: '123456',
+  deviceID: 'your_device_id',
+);
+
+// ── 邮箱登录（密码或验证码二选一）──
+final userInfo = await OpenIM.iMManager.loginByEmail(
+  email: 'user@example.com',
+  password: 'your_password',         // 密码登录
+  // verificationCode: '123456',     // 或验证码登录
+);
+
+// ── 手机号登录（密码或验证码二选一）──
+final userInfo = await OpenIM.iMManager.loginByPhone(
+  areaCode: '+86',
+  phoneNumber: '13800138000',
+  password: 'your_password',         // 密码登录
+  // verificationCode: '123456',     // 或验证码登录
+);
+
+// ── 账号登录（仅密码）──
+final userInfo = await OpenIM.iMManager.loginByAccount(
+  account: 'zhangsan',
+  password: 'your_password',
+);
+
+// ── 自动登录（使用缓存的 token）──
+final userInfo = await OpenIM.iMManager.loadLoginConfig();
+
+// ── 登出 ──
+await OpenIM.iMManager.logout();
+```
+
+> **说明**：`loginByEmail` / `loginByPhone` / `loginByAccount` 会自动完成 Chat 服务端认证 → 获取 imToken → SDK 内部 login → WebSocket 连接，返回 `UserInfo` 即表示登录成功。
 
 ### 设置监听器
 
@@ -196,7 +242,9 @@ final results = await OpenIM.iMManager.friendshipManager.searchFriends(
 | `MessageManager` | `OpenIM.iMManager.messageManager` | 消息创建、发送、查询 |
 | `GroupManager` | `OpenIM.iMManager.groupManager` | 群组与群成员管理 |
 | `FriendshipManager` | `OpenIM.iMManager.friendshipManager` | 好友与黑名单管理 |
-| `UserManager` | `OpenIM.iMManager.userManager` | 用户信息与在线状态 |
+| `UserManager` | `OpenIM.iMManager.userManager` | 用户信息、在线状态、注册、验证码、Chat 用户管理 |
+| `MomentsManager` | `OpenIM.iMManager.momentsManager` | 朋友圈动态、点赞、评论 |
+| `FavoriteManager` | `OpenIM.iMManager.favoriteManager` | 收藏夹管理 |
 
 ### 监听器
 

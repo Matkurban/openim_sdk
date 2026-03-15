@@ -1,8 +1,17 @@
-/// Chat 业务服务端 API 路由（注册/登录/验证码等）
+/// Chat 业务服务端 API 路由（注册/登录/验证码/用户搜索等）
 sealed class ChatApiUrl {
   static const String login = '/account/login';
   static const String register = '/account/register';
   static const String captcha = '/account/code/send';
+
+  // ---- User ----
+  static const String searchUserFull = '/user/search/full';
+  static const String getUserFull = '/user/find/full';
+  static const String updateUser = '/user/update';
+  static const String getRtcToken = '/user/rtc/get_rtc_token';
+
+  // ---- Friend ----
+  static const String searchFriend = '/friend/search';
 }
 
 /// OpenIM 核心服务端 API 路由（对应 openim-server）

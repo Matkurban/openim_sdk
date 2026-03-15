@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
@@ -6,7 +5,6 @@ import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
-import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 class UserManager {
   static final Logger _log = Logger('UserManager');
@@ -32,85 +30,6 @@ class UserManager {
   @internal
   void setCurrentUserID(String userID) {
     _currentUserID = userID;
-  }
-
-  /// Chat 服务端登录（内部方法）
-  /// 向 chatAddr + /account/login 发起请求，返回 {userID, imToken, chatToken}
-  Future<Map<String, dynamic>> _chatLogin(Map<String, dynamic> body) async {
-    final GetIt getIt = GetIt.instance;
-    final InitConfig config = getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
-    final String? chatAddr = config.chatAddr;
-    if (chatAddr == null || chatAddr.isEmpty) {
-      throw Exception('chatAddr 未配置，请在 InitConfig 中设置 chatAddr');
-    }
-
-    final Dio dio = Dio(
-      BaseOptions(
-        baseUrl: chatAddr,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        contentType: Headers.jsonContentType,
-        responseType: ResponseType.json,
-        headers: {'operationID': 'op_${DateTime.now().millisecondsSinceEpoch}'},
-      ),
-    );
-
-    try {
-      final Response response = await dio.post('/account/login', data: body);
-      final Map<String, dynamic> data = response.data as Map<String, dynamic>;
-      final int errCode = (data['errCode'] as int?) ?? -1;
-      if (errCode != 0) {
-        final String errMsg = data['errMsg'] ?? '未知错误';
-        final String errDlt = data['errDlt'] ?? '';
-        _log.severe('[_chatLogin] 登录失败: errCode=$errCode, errMsg=$errMsg, errDlt=$errDlt');
-        throw Exception('登录失败($errCode): $errMsg $errDlt');
-      }
-      final loginData = Map<String, dynamic>.from(data['data'] as Map);
-      _log.info('[_chatLogin] loginData keys=${loginData.keys.toList()}');
-      return loginData;
-    } on DioException catch (e) {
-      _log.severe('[_chatLogin] DioException: type=${e.type}, message=${e.message}');
-      _log.severe('[_chatLogin] response statusCode=${e.response?.statusCode}');
-      _log.severe('[_chatLogin] response data=${e.response?.data}');
-      rethrow;
-    } finally {
-      dio.close();
-    }
-  }
-
-  /// 使用邮箱登录（包含 SDK login）
-  /// 调用 chat 服务端登录后，自动使用返回的 userID 和 imToken 完成 SDK 登录。
-  Future<UserInfo> loginByEmail({required String email, required String password}) async {
-    _log.info('loginByEmail: email=$email');
-    final loginData = await _chatLogin({
-      'email': email,
-      'password': OpenImUtils.generateMD5(password),
-      'platform': PlatformUtils.platformID,
-    });
-    final userID = loginData['userID'] as String;
-    final imToken = loginData['imToken'] as String;
-    _log.info('邮箱 Chat 登录成功: $email, userID=$userID');
-    return OpenIM.iMManager.login(userID: userID, token: imToken);
-  }
-
-  /// 使用手机号登录（包含 SDK login）
-  /// 调用 chat 服务端登录后，自动使用返回的 userID 和 imToken 完成 SDK 登录。
-  Future<UserInfo> loginByPhone({
-    required String areaCode,
-    required String phoneNumber,
-    required String password,
-  }) async {
-    _log.info('loginByPhone: areaCode=$areaCode, phoneNumber=$phoneNumber');
-    final loginData = await _chatLogin({
-      'areaCode': areaCode,
-      'phoneNumber': phoneNumber,
-      'password': OpenImUtils.generateMD5(password),
-      'platform': PlatformUtils.platformID,
-    });
-    final userID = loginData['userID'] as String;
-    final imToken = loginData['imToken'] as String;
-    _log.info('手机号 Chat 登录成功: $areaCode$phoneNumber, userID=$userID');
-    return OpenIM.iMManager.login(userID: userID, token: imToken);
   }
 
   /// 获取用户信息（走缓存机制）
@@ -281,5 +200,182 @@ class UserManager {
       return (data['configs'] as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
     }
     return {};
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chat Server API（使用 chatToken 访问 chatAddr）
+  // ---------------------------------------------------------------------------
+
+  /// 搜索好友（chat 服务端）
+  /// [keyword] 搜索关键字
+  /// [pageNumber] 页码，从 1 开始
+  /// [showNumber] 每页条数
+  Future<List<FriendInfo>> searchFriendInfo(
+    String keyword, {
+    int pageNumber = 1,
+    int showNumber = 10,
+  }) async {
+    _log.info('searchFriendInfo: keyword=$keyword');
+    final resp = await _api.searchFriend(
+      keyword: keyword,
+      pageNumber: pageNumber,
+      showNumber: showNumber,
+    );
+    if (resp.isSuccess && resp.data is Map) {
+      final users = (resp.data as Map)['users'];
+      if (users is List) {
+        return users.map((e) => FriendInfo.fromJson(e as Map<String, dynamic>)).toList();
+      }
+    }
+    return [];
+  }
+
+  /// 搜索用户完整信息（chat 服务端）
+  /// [keyword] 搜索关键字
+  /// [pageNumber] 页码，从 1 开始
+  /// [showNumber] 每页条数
+  Future<List<FullUserInfo>> searchUserFullInfo(
+    String keyword, {
+    int pageNumber = 1,
+    int showNumber = 10,
+  }) async {
+    _log.info('searchUserFullInfo: keyword=$keyword');
+    final resp = await _api.searchUserFullInfo(
+      keyword: keyword,
+      pageNumber: pageNumber,
+      showNumber: showNumber,
+    );
+    if (resp.isSuccess && resp.data is Map) {
+      final users = (resp.data as Map)['users'];
+      if (users is List) {
+        return users.map((e) => FullUserInfo.fromJson(e as Map<String, dynamic>)).toList();
+      }
+    }
+    return [];
+  }
+
+  /// 获取用户完整信息（chat 服务端）
+  /// [userID] 用户ID
+  Future<FullUserInfo?> getUserFullInfo({required String userID}) async {
+    _log.info('getUserFullInfo: userID=$userID');
+    final resp = await _api.getUserFullInfo(userIDs: [userID]);
+    if (resp.isSuccess && resp.data is Map) {
+      final dataMap = resp.data as Map;
+      final users = dataMap['users'];
+      if (users is List && users.isNotEmpty) {
+        final first = users.first;
+        if (first is Map<String, dynamic>) {
+          return FullUserInfo.fromJson(first);
+        }
+      }
+    }
+    return null;
+  }
+
+  /// 更新用户信息（chat 服务端）
+  /// 注意：此方法更新的是 chat 服务端的用户扩展信息（手机号、邮箱等），
+  /// 与 [setSelfInfo] 更新的 IM 核心用户信息不同。
+  Future<void> updateChatUserInfo({
+    String? account,
+    String? phoneNumber,
+    String? areaCode,
+    String? email,
+    String? nickname,
+    String? faceURL,
+    int? gender,
+    int? birth,
+  }) async {
+    _log.info('updateChatUserInfo: nickname=$nickname, faceURL=$faceURL');
+    final resp = await _api.updateChatUserInfo(
+      userID: _currentUserID,
+      account: account,
+      phoneNumber: phoneNumber,
+      areaCode: areaCode,
+      email: email,
+      nickname: nickname,
+      faceURL: faceURL,
+      gender: gender,
+      birth: birth,
+    );
+    if (!resp.isSuccess) {
+      throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+    }
+  }
+
+  /// 获取 RTC Token（chat 服务端）
+  /// [roomId] 房间ID
+  /// [userId] 用户ID
+  Future<String?> getRtcToken({required String roomId, required String userId}) async {
+    _log.info('getRtcToken: roomId=$roomId, userId=$userId');
+    final resp = await _api.getRtcToken(roomId: roomId, userId: userId);
+    if (resp.isSuccess && resp.data is Map) {
+      return (resp.data as Map)['token'] as String?;
+    }
+    return null;
+  }
+
+  /// 注册账号（chat 服务端）
+  /// 注册成功后如果 autoLogin 为 true，服务端会返回 chatToken 和 imToken，
+  /// 但此方法不会自动执行 SDK login，调用方需要后续调用 loginByEmail / loginByPhone。
+  Future<AuthCacheData?> register({
+    required String nickname,
+    required String password,
+    String? faceURL,
+    String? areaCode,
+    String? phoneNumber,
+    String? email,
+    String? account,
+    int birth = 0,
+    int gender = 1,
+    required String verificationCode,
+    String? invitationCode,
+    bool autoLogin = true,
+    required String deviceID,
+  }) async {
+    _log.info('register: nickname=$nickname, email=$email, phone=$phoneNumber');
+    final resp = await _api.register(
+      nickname: nickname,
+      password: password,
+      faceURL: faceURL,
+      areaCode: areaCode,
+      phoneNumber: phoneNumber,
+      email: email,
+      account: account,
+      birth: birth,
+      gender: gender,
+      verificationCode: verificationCode,
+      invitationCode: invitationCode,
+      autoLogin: autoLogin,
+      deviceID: deviceID,
+    );
+    if (!resp.isSuccess) {
+      throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+    }
+    if (resp.data is Map<String, dynamic>) {
+      return AuthCacheData.fromJson(resp.data);
+    }
+    return null;
+  }
+
+  /// 发送验证码（chat 服务端）
+  /// [usedFor] 用途：1-注册 2-重置密码 3-登录
+  Future<void> sendVerificationCode({
+    String? areaCode,
+    String? phoneNumber,
+    String? email,
+    required int usedFor,
+    String? invitationCode,
+  }) async {
+    _log.info('sendVerificationCode: email=$email, phone=$phoneNumber, usedFor=$usedFor');
+    final resp = await _api.sendVerificationCode(
+      areaCode: areaCode,
+      phoneNumber: phoneNumber,
+      email: email,
+      usedFor: usedFor,
+      invitationCode: invitationCode,
+    );
+    if (!resp.isSuccess) {
+      throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+    }
   }
 }

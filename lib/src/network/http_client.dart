@@ -13,9 +13,13 @@ class HttpClient {
 
   late final Dio _dio;
 
+  /// Chat 服务端 Dio 实例（独立于 IM API 的 Dio）
+  Dio? _chatDio;
+
   final Logger _log = Logger('HttpClient');
 
   String? _token;
+  String? _chatToken;
 
   /// API 错误回调（用于拦截 token 过期等全局错误）
   /// 对应 Go SDK 的 apiErrCallback.OnError
@@ -60,7 +64,7 @@ class HttpClient {
     );
   }
 
-  /// 设置 Token
+  /// 设置 IM Token
   void setToken(String? token) {
     _token = token;
     if (token != null) {
@@ -70,8 +74,48 @@ class HttpClient {
     }
   }
 
-  /// 获取当前 Token
+  /// 获取当前 IM Token
   String? get token => _token;
+
+  /// 初始化 Chat 服务端客户端
+  void initChat({required String baseUrl}) {
+    _chatDio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
+        contentType: Headers.jsonContentType,
+        responseType: ResponseType.json,
+      ),
+    );
+    _chatDio!.interceptors.add(TalkerDioLogger());
+    _chatDio!.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          options.headers['operationID'] = OpenImUtils.generateOperationID(
+            operationName: 'openim_sdk_chat_request',
+          );
+          handler.next(options);
+        },
+      ),
+    );
+  }
+
+  /// 设置 Chat Token
+  void setChatToken(String? token) {
+    _chatToken = token;
+    if (_chatDio != null) {
+      if (token != null) {
+        _chatDio!.options.headers['token'] = token;
+      } else {
+        _chatDio!.options.headers.remove('token');
+      }
+    }
+  }
+
+  /// 获取当前 Chat Token
+  String? get chatToken => _chatToken;
 
   /// 获取底层 Dio 实例（用于高级自定义场景）
   Dio get dio => _dio;
@@ -194,6 +238,28 @@ class HttpClient {
       queryParameters: queryParameters,
       cancelToken: cancelToken,
       onReceiveProgress: onReceiveProgress,
+    );
+  }
+
+  /// Chat 服务端 POST 请求
+  Future<ApiResponse> chatPost(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+  }) async {
+    if (_chatDio == null) {
+      throw StateError('Chat client not initialized. Call initChat() first.');
+    }
+    return _request(
+      () => _chatDio!.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      ),
     );
   }
 

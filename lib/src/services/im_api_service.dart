@@ -14,8 +14,8 @@ class ImApiService {
   // ---------------------------------------------------------------------------
 
   /// 解析 Token 有效性
-  Future<ApiResponse> parseToken() async {
-    return HttpClient().post(ImApiUrl.parseToken, data: {});
+  Future<ApiResponse> parseToken({required String token}) async {
+    return HttpClient().post(ImApiUrl.parseToken, data: {'token': token});
   }
 
   /// 获取用户 Token（管理端使用）
@@ -23,25 +23,6 @@ class ImApiService {
     return HttpClient().post(
       ImApiUrl.getUserToken,
       data: {'userID': userID, 'platformID': platformID ?? PlatformUtils.platformID},
-    );
-  }
-
-  /// 登录接口，支持邮箱或手机号登录
-  Future<ApiResponse> login({
-    String? email,
-    String? phoneNumber,
-    String? password,
-    String? areaCode,
-  }) async {
-    return await HttpClient().post(
-      ChatApiUrl.login,
-      data: {
-        'email': email,
-        'phoneNumber': phoneNumber,
-        'password': password,
-        'areaCode': areaCode,
-        'platform': PlatformUtils.platformID,
-      },
     );
   }
 
@@ -61,7 +42,7 @@ class ImApiService {
     bool autoLogin = true,
     required String deviceID,
   }) async {
-    return await HttpClient().post(
+    return await HttpClient().chatPost(
       ChatApiUrl.register,
       data: {
         "deviceID": deviceID,
@@ -80,6 +61,26 @@ class ImApiService {
           "account": account,
           "password": OpenImUtils.generateMD5(password),
         },
+      },
+    );
+  }
+
+  /// 发送验证码
+  Future<ApiResponse> sendVerificationCode({
+    String? areaCode,
+    String? phoneNumber,
+    String? email,
+    required int usedFor,
+    String? invitationCode,
+  }) async {
+    return await HttpClient().chatPost(
+      ChatApiUrl.captcha,
+      data: {
+        "areaCode": ?areaCode,
+        "phoneNumber": ?phoneNumber,
+        "email": ?email,
+        "usedFor": usedFor,
+        "invitationCode": ?invitationCode,
       },
     );
   }
@@ -128,6 +129,89 @@ class ImApiService {
   /// 获取用户客户端配置
   Future<ApiResponse> getUserClientConfig({required String userID}) async {
     return HttpClient().post(ImApiUrl.getUserClientConfig, data: {'userID': userID});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chat Server API（使用 chatToken 访问 chatAddr）
+  // ---------------------------------------------------------------------------
+
+  /// 搜索好友（chat 服务端）
+  Future<ApiResponse> searchFriend({
+    required String keyword,
+    int pageNumber = 1,
+    int showNumber = 10,
+  }) async {
+    return HttpClient().chatPost(
+      ChatApiUrl.searchFriend,
+      data: {
+        'keyword': keyword,
+        'pagination': {'pageNumber': pageNumber, 'showNumber': showNumber},
+      },
+    );
+  }
+
+  /// 搜索用户完整信息（chat 服务端）
+  Future<ApiResponse> searchUserFullInfo({
+    required String keyword,
+    int pageNumber = 1,
+    int showNumber = 10,
+  }) async {
+    return HttpClient().chatPost(
+      ChatApiUrl.searchUserFull,
+      data: {
+        'keyword': keyword,
+        'pagination': {'pageNumber': pageNumber, 'showNumber': showNumber},
+      },
+    );
+  }
+
+  /// 获取用户完整信息（chat 服务端）
+  Future<ApiResponse> getUserFullInfo({required List<String> userIDs}) async {
+    return HttpClient().chatPost(
+      ChatApiUrl.getUserFull,
+      data: {
+        'pagination': {'pageNumber': 1, 'showNumber': userIDs.length},
+        'userIDs': userIDs,
+        'platform': PlatformUtils.platformID,
+      },
+    );
+  }
+
+  /// 更新用户信息（chat 服务端）
+  Future<ApiResponse> updateChatUserInfo({
+    required String userID,
+    String? account,
+    String? phoneNumber,
+    String? areaCode,
+    String? email,
+    String? nickname,
+    String? faceURL,
+    int? gender,
+    int? birth,
+  }) async {
+    return HttpClient().chatPost(
+      ChatApiUrl.updateUser,
+      data: {
+        'userID': userID,
+        'platform': PlatformUtils.platformID,
+        'account': ?account,
+        'phoneNumber': ?phoneNumber,
+        'areaCode': ?areaCode,
+        'email': ?email,
+        'nickname': ?nickname,
+        'faceURL': ?faceURL,
+        'gender': ?gender,
+        'birth': ?birth,
+      },
+    );
+  }
+
+  /// 获取 RTC Token（chat 服务端）
+  Future<ApiResponse> getRtcToken({required String roomId, required String userId}) async {
+    return HttpClient().chatPost(
+      ChatApiUrl.getRtcToken,
+      data: {'roomId': roomId, 'userId': userId},
+    );
   }
 
   // ---------------------------------------------------------------------------

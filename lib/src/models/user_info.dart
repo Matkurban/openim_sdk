@@ -453,22 +453,3 @@ class GetFriendApplicationListAsApplicantReq extends Equatable {
   @override
   List<Object?> get props => [offset, count];
 }
-
-@JsonSerializable()
-class GetFriendApplicationUnhandledCountReq extends Equatable {
-  final int time;
-
-  const GetFriendApplicationUnhandledCountReq({this.time = 0});
-
-  factory GetFriendApplicationUnhandledCountReq.fromJson(Map<String, dynamic> json) =>
-      _$GetFriendApplicationUnhandledCountReqFromJson(json);
-
-  Map<String, dynamic> toJson() => _$GetFriendApplicationUnhandledCountReqToJson(this);
-
-  GetFriendApplicationUnhandledCountReq copyWith({int? time}) {
-    return GetFriendApplicationUnhandledCountReq(time: time ?? this.time);
-  }
-
-  @override
-  List<Object?> get props => [time];
-}

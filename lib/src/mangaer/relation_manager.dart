@@ -179,14 +179,12 @@ class FriendshipManager {
     if (userIDList.isEmpty) return [];
     final friends = await _database.getFriendsByUserIDs(userIDList);
     final friendSet = {for (final f in friends) f.friendUserID};
-    return userIDList
-        .map(
-          (uid) => FriendshipInfo(
-            userID: uid,
-            result: friendSet.contains(uid) ? Relationship.friend.value : Relationship.black.value,
-          ),
-        )
-        .toList();
+    return userIDList.map((uid) {
+      return FriendshipInfo(
+        userID: uid,
+        result: friendSet.contains(uid) ? Relationship.friend.value : Relationship.black.value,
+      );
+    }).toList();
   }
 
   /// 删除好友
@@ -355,9 +353,9 @@ class FriendshipManager {
       req: {
         'ownerUserID': _currentUserID,
         'friendUserIDs': updateFriendsReq.friendUserIDs,
-        if (updateFriendsReq.remark != null) 'remark': updateFriendsReq.remark,
-        if (updateFriendsReq.isPinned != null) 'isPinned': updateFriendsReq.isPinned,
-        if (updateFriendsReq.ex != null) 'ex': updateFriendsReq.ex,
+        'remark': ?updateFriendsReq.remark,
+        'isPinned': ?updateFriendsReq.isPinned,
+        'ex': ?updateFriendsReq.ex,
       },
     );
     if (resp.errCode != 0) {
@@ -367,7 +365,7 @@ class FriendshipManager {
 
   /// 获取未处理的好友申请数量
   /// [req] 查询参数
-  Future<int> getFriendApplicationUnhandledCount(GetFriendApplicationUnhandledCountReq req) async {
+  Future<int> getFriendApplicationUnhandledCount() async {
     _log.info('getFriendApplicationUnhandledCount');
     return _database.getFriendRequestUnhandledCount();
   }

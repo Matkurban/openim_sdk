@@ -160,7 +160,20 @@ enum SDKErrorCode {
   handshakeParameterError(1602, 'Handshake Parameter Error'),
 
   /// File Upload Expired
-  fileUploadExpired(1701, 'File Upload Expired');
+  fileUploadExpired(1701, 'File Upload Expired'),
+
+  ///
+  /// 服务端相关的错误定义
+  ///
+
+  /// 账号或密码错误
+  passwordError(20001, 'Password error'),
+
+  ///账号未注册
+  accountNotRegistered(20002, 'Account not registered'),
+
+  ///IP 被封禁
+  ipBanned(20003, 'IP banned');
 
   const SDKErrorCode(this.code, this.message);
 

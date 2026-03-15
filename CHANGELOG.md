@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.1.5
+
+### 新增
+
+- **`loginByAccount()`**：新增账号密码登录方式，支持通过 `account` + `password` 登录（后端原生支持 `CredentialAccount` 类型凭据）
+
+## 1.1.4
+
+### 新增
+
+- **`UserManager.register()`**：注册账号（chat 服务端），支持邮箱或手机号注册，返回 `AuthCacheData?`
+- **`UserManager.sendVerificationCode()`**：发送验证码（chat 服务端），支持注册、重置密码、登录三种用途
+
+### 优化
+
+- **`loginByEmail` / `loginByPhone` 支持密码或验证码二选一**：`password` 和 `verificationCode` 均改为可选参数，提供其中一个即可登录
+
+### 修复
+
+- **修复 `register()` API 使用错误的 Dio 实例**：`ImApiService.register()` 从 `HttpClient().post()`（IM API）改为 `HttpClient().chatPost()`（Chat API），修正请求发往错误服务端的问题
+
 ## 1.1.3
 
 ### 修复

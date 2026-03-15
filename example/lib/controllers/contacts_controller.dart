@@ -256,9 +256,7 @@ class ContactsController extends GetxController {
   /// 获取未处理好友申请数量
   Future<int> getFriendUnhandledCount() async {
     try {
-      return await OpenIM.iMManager.friendshipManager.getFriendApplicationUnhandledCount(
-        const GetFriendApplicationUnhandledCountReq(),
-      );
+      return await OpenIM.iMManager.friendshipManager.getFriendApplicationUnhandledCount();
     } catch (_) {
       return 0;
     }

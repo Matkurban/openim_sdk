@@ -188,11 +188,3 @@ GetFriendApplicationListAsApplicantReq _$GetFriendApplicationListAsApplicantReqF
 Map<String, dynamic> _$GetFriendApplicationListAsApplicantReqToJson(
   GetFriendApplicationListAsApplicantReq instance,
 ) => <String, dynamic>{'offset': instance.offset, 'count': instance.count};
-
-GetFriendApplicationUnhandledCountReq _$GetFriendApplicationUnhandledCountReqFromJson(
-  Map<String, dynamic> json,
-) => GetFriendApplicationUnhandledCountReq(time: (json['time'] as num?)?.toInt() ?? 0);
-
-Map<String, dynamic> _$GetFriendApplicationUnhandledCountReqToJson(
-  GetFriendApplicationUnhandledCountReq instance,
-) => <String, dynamic>{'time': instance.time};

@@ -20,7 +20,7 @@ class DatabaseService {
     if (spaceInfo.spaceName == generateSpaceName) {
       return true;
     }
-    return toStore.switchSpace(spaceName: generateSpaceName);
+    return await toStore.switchSpace(spaceName: generateSpaceName);
   }
 
   /// 关闭数据库
