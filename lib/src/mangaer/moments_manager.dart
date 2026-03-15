@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/listener/moments_listener.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
@@ -33,12 +34,14 @@ class MomentsManager {
     this.listener = listener;
   }
 
+  @internal
   void setCurrentUserID(String userID) {
     _currentUserID = userID;
   }
 
-  DatabaseService get _db =>
-      _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  DatabaseService get _database {
+    return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  }
 
   // ---------------------------------------------------------------------------
   // 内部 HTTP
@@ -94,7 +97,7 @@ class MomentsManager {
       final dataMap = resp.data as Map<String, dynamic>;
       if (dataMap['moment'] is Map<String, dynamic>) {
         final moment = MomentInfo.fromJson(dataMap['moment'] as Map<String, dynamic>);
-        await _db.upsertMoment(moment);
+        await _database.upsertMoment(moment);
         listener?.momentPublished(moment);
         return moment;
       }
@@ -107,7 +110,7 @@ class MomentsManager {
     _log.info('deleteMoment: $momentID');
     final resp = await _post('/moment/delete', {'momentID': momentID});
     if (resp.isSuccess) {
-      await _db.deleteMoment(momentID);
+      await _database.deleteMoment(momentID);
       listener?.momentDeleted(momentID);
       return true;
     }
@@ -133,8 +136,8 @@ class MomentsManager {
     // 先查本地
     final offset = (pageNumber - 1) * showNumber;
     final localMoments = ownerUserID != null && ownerUserID.isNotEmpty
-        ? await _db.getMomentsByUserID(ownerUserID, offset: offset, count: showNumber)
-        : await _db.getMoments(offset: offset, count: showNumber);
+        ? await _database.getMomentsByUserID(ownerUserID, offset: offset, count: showNumber)
+        : await _database.getMoments(offset: offset, count: showNumber);
 
     // 异步拉取网络最新并更新本地
     _fetchAndCacheMoments(ownerUserID: ownerUserID, pageNumber: pageNumber, showNumber: showNumber);
@@ -159,7 +162,7 @@ class MomentsManager {
     final response = MomentListResponse.fromJson(resp.data as Map<String, dynamic>);
     // 写入本地
     if (response.moments.isNotEmpty) {
-      await _db.batchUpsertMoments(response.moments);
+      await _database.batchUpsertMoments(response.moments);
     }
     return response;
   }
@@ -179,7 +182,7 @@ class MomentsManager {
       if (!resp.isSuccess || resp.data is! Map<String, dynamic>) return;
       final response = MomentListResponse.fromJson(resp.data as Map<String, dynamic>);
       if (response.moments.isNotEmpty) {
-        await _db.batchUpsertMoments(response.moments);
+        await _database.batchUpsertMoments(response.moments);
       }
     } catch (e) {
       _log.fine('后台同步朋友圈失败: $e');
@@ -231,7 +234,7 @@ class MomentsManager {
     MomentLikeWithUser like, {
     required bool add,
   }) async {
-    final moment = await _db.getMomentByID(momentID);
+    final moment = await _database.getMomentByID(momentID);
     if (moment == null) return;
     final likes = List<MomentLikeWithUser>.from(moment.likes);
     if (add) {
@@ -241,7 +244,7 @@ class MomentsManager {
       likes.removeWhere((l) => l.userID == like.userID);
     }
     final updated = moment.copyWith(likes: likes, likeCount: likes.length);
-    await _db.upsertMoment(updated);
+    await _database.upsertMoment(updated);
   }
 
   // ---------------------------------------------------------------------------
@@ -297,7 +300,7 @@ class MomentsManager {
     required bool add,
     String? removeCommentID,
   }) async {
-    final moment = await _db.getMomentByID(momentID);
+    final moment = await _database.getMomentByID(momentID);
     if (moment == null) return;
     final comments = List<MomentCommentWithUser>.from(moment.comments);
     if (add && comment != null) {
@@ -306,7 +309,7 @@ class MomentsManager {
       comments.removeWhere((c) => c.commentID == removeCommentID);
     }
     final updated = moment.copyWith(comments: comments, commentCount: comments.length);
-    await _db.upsertMoment(updated);
+    await _database.upsertMoment(updated);
   }
 
   // ---------------------------------------------------------------------------
@@ -320,13 +323,13 @@ class MomentsManager {
       case 'moment_created':
         if (data['moment'] is Map<String, dynamic>) {
           final moment = MomentInfo.fromJson(data['moment'] as Map<String, dynamic>);
-          await _db.upsertMoment(moment);
+          await _database.upsertMoment(moment);
           listener?.momentPublished(moment);
         }
       case 'moment_deleted':
         final momentID = data['momentID'] as String? ?? '';
         if (momentID.isNotEmpty) {
-          await _db.deleteMoment(momentID);
+          await _database.deleteMoment(momentID);
           listener?.momentDeleted(momentID);
         }
       case 'moment_liked':

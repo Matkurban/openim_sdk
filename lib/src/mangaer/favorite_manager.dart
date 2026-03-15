@@ -3,28 +3,11 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
+import 'package:meta/meta.dart';
+import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
-import 'package:openim_sdk/src/listener/favorite_listener.dart';
-import 'package:openim_sdk/src/models/api_response.dart';
-import 'package:openim_sdk/src/models/favorite_item.dart';
-import 'package:openim_sdk/src/models/favorite_list_response.dart';
-import 'package:openim_sdk/src/models/init_config.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
-
-/// 收藏类型常量
-sealed class FavoriteType {
-  static const String message = 'message';
-  static const String momentContent = 'moment_content';
-  static const String momentComment = 'moment_comment';
-  static const String image = 'image';
-  static const String video = 'video';
-  static const String audio = 'audio';
-  static const String file = 'file';
-  static const String link = 'link';
-  static const String note = 'note';
-}
 
 /// 收藏夹管理器
 ///
@@ -48,12 +31,14 @@ class FavoriteManager {
     this.listener = listener;
   }
 
+  @internal
   void setCurrentUserID(String userID) {
     _currentUserID = userID;
   }
 
-  DatabaseService get _db =>
-      _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  DatabaseService get _database {
+    return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
+  }
 
   // ---------------------------------------------------------------------------
   // 内部 HTTP
@@ -99,13 +84,13 @@ class FavoriteManager {
 
   /// 添加收藏
   Future<FavoriteItem?> addFavorite({
-    required String targetType,
+    required FavoriteType type,
     required String targetID,
     String? data,
   }) async {
-    _log.info('addFavorite: type=$targetType, id=$targetID');
+    _log.info('addFavorite: type=${type.value}, id=$targetID');
     final resp = await _post('/favorite/add', {
-      'targetType': targetType,
+      'targetType': type.value,
       'targetID': targetID,
       'data': data,
     });
@@ -117,7 +102,7 @@ class FavoriteManager {
       final dataMap = resp.data as Map<String, dynamic>;
       if (dataMap['favorite'] is Map<String, dynamic>) {
         final item = FavoriteItem.fromJson(dataMap['favorite'] as Map<String, dynamic>);
-        await _db.upsertFavorite(item);
+        await _database.upsertFavorite(item);
         listener?.favoriteAdded(item);
         return item;
       }
@@ -126,12 +111,12 @@ class FavoriteManager {
   }
 
   /// 移除收藏
-  Future<bool> removeFavorite({required String targetType, required String targetID}) async {
-    _log.info('removeFavorite: type=$targetType, id=$targetID');
-    final resp = await _post('/favorite/remove', {'targetType': targetType, 'targetID': targetID});
+  Future<bool> removeFavorite({required FavoriteType type, required String targetID}) async {
+    _log.info('removeFavorite: type=${type.value}, id=$targetID');
+    final resp = await _post('/favorite/remove', {'targetType': type.value, 'targetID': targetID});
     if (resp.isSuccess) {
-      await _db.deleteFavoriteByTarget(targetType, targetID);
-      listener?.favoriteRemoved(targetType, targetID);
+      await _database.deleteFavoriteByTarget(type.value, targetID);
+      listener?.favoriteRemoved(type.value, targetID);
       return true;
     }
     _log.warning('removeFavorite failed: ${resp.errMsg}');
@@ -144,7 +129,7 @@ class FavoriteManager {
   Future<FavoriteListResponse> getFavoriteList({int pageNumber = 1, int showNumber = 20}) async {
     _log.info('getFavoriteList: page=$pageNumber, size=$showNumber');
     final offset = (pageNumber - 1) * showNumber;
-    final localItems = await _db.getFavorites(offset: offset, count: showNumber);
+    final localItems = await _database.getFavorites(offset: offset, count: showNumber);
 
     // 后台异步刷新
     _fetchAndCacheFavorites(pageNumber: pageNumber, showNumber: showNumber);
@@ -166,7 +151,7 @@ class FavoriteManager {
     }
     final response = FavoriteListResponse.fromJson(resp.data as Map<String, dynamic>);
     if (response.favorites.isNotEmpty) {
-      await _db.batchUpsertFavorites(response.favorites);
+      await _database.batchUpsertFavorites(response.favorites);
     }
     return response;
   }
@@ -180,7 +165,7 @@ class FavoriteManager {
       if (!resp.isSuccess || resp.data is! Map<String, dynamic>) return;
       final response = FavoriteListResponse.fromJson(resp.data as Map<String, dynamic>);
       if (response.favorites.isNotEmpty) {
-        await _db.batchUpsertFavorites(response.favorites);
+        await _database.batchUpsertFavorites(response.favorites);
       }
     } catch (e) {
       _log.fine('后台同步收藏夹失败: $e');
@@ -188,9 +173,19 @@ class FavoriteManager {
   }
 
   /// 检查是否已收藏
-  Future<bool> isFavorited({required String targetType, required String targetID}) async {
-    final item = await _db.getFavoriteByTarget(targetType, targetID);
+  Future<bool> isFavorited({required FavoriteType type, required String targetID}) async {
+    final item = await _database.getFavoriteByTarget(type.value, targetID);
     return item != null;
+  }
+
+  /// 检查消息是否已收藏
+  Future<bool> isMessageFavorited(String clientMsgID) async {
+    return isFavorited(type: FavoriteType.message, targetID: clientMsgID);
+  }
+
+  /// 检查朋友圈动态是否已收藏
+  Future<bool> isMomentFavorited(String momentID) async {
+    return isFavorited(type: FavoriteType.momentContent, targetID: momentID);
   }
 
   // ---------------------------------------------------------------------------
@@ -198,66 +193,42 @@ class FavoriteManager {
   // ---------------------------------------------------------------------------
 
   /// 收藏一条聊天消息
-  Future<FavoriteItem?> addMessage({
-    required String clientMsgID,
-    required String conversationID,
-    required int contentType,
-    required String summary,
-    required Map<String, dynamic> messageData,
-  }) async {
-    final data = jsonEncode({
-      'clientMsgID': clientMsgID,
-      'conversationID': conversationID,
-      'contentType': contentType,
-      'summary': summary,
-      'messageData': messageData,
-    });
-    return addFavorite(targetType: FavoriteType.message, targetID: clientMsgID, data: data);
+  Future<FavoriteItem?> addMessage({required Message message}) async {
+    final clientMsgID = message.clientMsgID;
+    if (clientMsgID == null || clientMsgID.isEmpty) return null;
+    final data = jsonEncode(message.toJson());
+    return addFavorite(type: FavoriteType.message, targetID: clientMsgID, data: data);
   }
 
   /// 取消收藏消息
   Future<bool> removeMessage({required String clientMsgID}) async {
-    return removeFavorite(targetType: FavoriteType.message, targetID: clientMsgID);
+    return removeFavorite(type: FavoriteType.message, targetID: clientMsgID);
   }
 
   // ---------------------------------------------------------------------------
-  // 便捷方法 —— 收藏朋友圈内容
+  // 便捷方法 —— 收藏朋友圈
   // ---------------------------------------------------------------------------
 
-  /// 收藏朋友圈动态内容
-  Future<FavoriteItem?> addMomentContent({
-    required String momentID,
-    required String content,
-    String? authorName,
-    String? authorID,
-  }) async {
-    final data = jsonEncode({
-      'momentID': momentID,
-      'content': content,
-      'authorName': authorName,
-      'authorID': authorID,
-    });
-    return addFavorite(targetType: FavoriteType.momentContent, targetID: momentID, data: data);
+  /// 收藏朋友圈动态
+  Future<FavoriteItem?> addMoment({required MomentInfo moment}) async {
+    final data = jsonEncode(moment.toJson());
+    return addFavorite(type: FavoriteType.momentContent, targetID: moment.momentID, data: data);
+  }
+
+  /// 取消收藏朋友圈动态
+  Future<bool> removeMoment({required String momentID}) async {
+    return removeFavorite(type: FavoriteType.momentContent, targetID: momentID);
   }
 
   /// 收藏朋友圈评论
-  Future<FavoriteItem?> addMomentComment({
-    required String commentID,
-    required String momentID,
-    required String content,
-    String? authorName,
-    String? authorID,
-    String? createTime,
-  }) async {
-    final data = jsonEncode({
-      'commentID': commentID,
-      'momentID': momentID,
-      'content': content,
-      'authorName': authorName,
-      'authorID': authorID,
-      'createTime': createTime,
-    });
-    return addFavorite(targetType: FavoriteType.momentComment, targetID: commentID, data: data);
+  Future<FavoriteItem?> addMomentComment({required MomentCommentWithUser comment}) async {
+    final data = jsonEncode(comment.toJson());
+    return addFavorite(type: FavoriteType.momentComment, targetID: comment.commentID, data: data);
+  }
+
+  /// 取消收藏朋友圈评论
+  Future<bool> removeMomentComment({required String commentID}) async {
+    return removeFavorite(type: FavoriteType.momentComment, targetID: commentID);
   }
 
   // ---------------------------------------------------------------------------
@@ -273,12 +244,23 @@ class FavoriteManager {
       'content': content,
       'createdAt': DateTime.now().toIso8601String(),
     });
-    return addFavorite(targetType: FavoriteType.note, targetID: noteID, data: data);
+    return addFavorite(type: FavoriteType.note, targetID: noteID, data: data);
   }
+
+  // ---------------------------------------------------------------------------
+  // 便捷方法 —— 收藏链接
+  // ---------------------------------------------------------------------------
+
+  /// 收藏链接
+  Future<FavoriteItem?> addLink({required LinkInfo link}) async {
+    final data = jsonEncode(link.toJson());
+    return addFavorite(type: FavoriteType.link, targetID: link.url, data: data);
+  }
+
 
   /// 移除收藏项
   Future<bool> removeFavoriteItem(FavoriteItem item) {
-    return removeFavorite(targetType: item.targetType, targetID: item.targetID);
+    return removeFavorite(type: item.favoriteType, targetID: item.targetID);
   }
 
   // ---------------------------------------------------------------------------
@@ -292,14 +274,14 @@ class FavoriteManager {
       case 'favorite_added':
         if (data['favorite'] is Map<String, dynamic>) {
           final item = FavoriteItem.fromJson(data['favorite'] as Map<String, dynamic>);
-          await _db.upsertFavorite(item);
+          await _database.upsertFavorite(item);
           listener?.favoriteAdded(item);
         }
       case 'favorite_removed':
         final targetType = data['targetType'] as String? ?? '';
         final targetID = data['targetID'] as String? ?? '';
         if (targetType.isNotEmpty && targetID.isNotEmpty) {
-          await _db.deleteFavoriteByTarget(targetType, targetID);
+          await _database.deleteFavoriteByTarget(targetType, targetID);
           listener?.favoriteRemoved(targetType, targetID);
         }
     }

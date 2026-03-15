@@ -48,6 +48,9 @@ export 'src/models/moment_create_req.dart';
 export 'src/models/moment_list_response.dart';
 export 'src/models/favorite_item.dart';
 export 'src/models/favorite_list_response.dart';
+export 'src/models/favorite_type.dart';
+export 'src/models/link_info.dart';
+export 'src/models/note_info.dart';
 
 /// Enums
 export 'src/enums/allow_type.dart';

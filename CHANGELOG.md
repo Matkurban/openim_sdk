@@ -1,5 +1,43 @@
 # Changelog
 
+## 1.1.2
+
+### 新增
+
+- **新增 `LinkInfo` 模型**：链接数据结构（`url`、`title`、`description`、`imageUrl`）
+- **`FavoriteItem` 新增 `linkInfo` 属性**：当 `favoriteType == .link` 时自动解析
+- **`FavoriteItem.fromLink()` 工厂方法**：快速创建链接收藏
+- **`FavoriteManager.addLink()` / `removeLink()`** 便捷方法
+
+### 优化
+
+- **`NoteInfo` 属性改为非空**：`noteID`、`summary`、`content`、`createdAt` 现为 `String`（非 `String?`）
+- **`FavoriteType` 枚举补充注释**：每个值添加中文说明
+
+## 1.1.1
+
+### 重构
+
+- **`FavoriteType` 改为枚举类型**（破坏性变更）
+  - 从 `sealed class` 字符串常量改为 `enum FavoriteType`，通过 `.value` 获取字符串值
+  - 新增 `FavoriteType.fromValue(String?)` 静态方法
+
+- **`FavoriteItem` 增加类型化内容属性**
+  - `targetType` 字段替换为 `favoriteType`（`FavoriteType` 枚举），保留 `targetType` getter 兼容
+  - 新增可空属性：`message`、`momentInfo`、`momentComment`、`noteInfo`，根据 `favoriteType` 自动从 `data` JSON 解析
+  - 新增快速创建工厂：`FavoriteItem.fromMessage()`、`FavoriteItem.fromMoment()`、`FavoriteItem.fromMomentComment()`、`FavoriteItem.fromNote()`
+
+### 新增
+
+- **新增 `NoteInfo` 模型**：笔记数据结构（`noteID`、`summary`、`content`、`createdAt`）
+- **`FavoriteManager` 新增辅助方法**
+  - `isMessageFavorited(clientMsgID)` — 判断消息是否已收藏
+  - `isMomentFavorited(momentID)` — 判断朝友圈动态是否已收藏
+  - `addMessage(message:)` 简化为直接传入 `Message` 对象
+  - `addMoment(moment:)` 直接传入 `MomentInfo` 对象
+  - `addMomentComment(comment:)` 直接传入 `MomentCommentWithUser` 对象
+  - `removeMoment(momentID:)` / `removeMomentComment(commentID:)` 便捷删除
+
 ## 1.1.0
 
 ### 新增
