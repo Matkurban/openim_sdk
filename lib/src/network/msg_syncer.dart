@@ -433,9 +433,10 @@ class MsgSyncer {
 
   /// 同步消息（拉取缺口）
   ///
-  /// 对应 Go SDK 的 compareSeqsAndBatchSync：
-  /// - connectPullNums = 1：初次连接每个会话只拉最新 1 条（用于 latestMsg）
+  /// 对应 Go SDK 的 compareSeqsAndBatchSync → syncAndTriggerMsgs / syncAndTriggerReinstallMsgs：
+  /// - connectPullNums = 1：每个会话拉最新 1 条（用于 latestMsg）
   /// - SplitPullMsgNum = 100：累计超过 100 条时分批拉取
+  /// - 重装时跳过 n_ 通知会话(Go SDK: 直接记录 seq 不拉取)
   Future<void> _syncMessages() async {
     try {
       if (_syncedMaxSeqs.isEmpty) return;
@@ -449,6 +450,10 @@ class MsgSyncer {
         final serverMaxSeq = entry.value;
         final localMaxSeq = _localMaxSeqsBeforeSync[convID] ?? 0;
         if (serverMaxSeq > localMaxSeq) {
+          // 重装时跳过 n_ 通知会话（对应 Go SDK compareSeqsAndBatchSync）
+          if (_reinstalled && convID.startsWith('n_')) {
+            continue;
+          }
           needSyncSeqs[convID] = [localMaxSeq + 1, serverMaxSeq];
         }
       }
@@ -458,13 +463,14 @@ class MsgSyncer {
         return;
       }
 
-      // 初次连接仅拉取最新 1 条（用于会话列表的 latestMsg 展示）
+      // 对应 Go SDK connectPullNums = 1
       const connectPullNums = 1;
 
       // 分批拉取，每批最多 100 个 SeqRange
       const splitPullMsgNum = 100;
       final seqRanges = <Map<String, dynamic>>[];
       final batchConvIDs = <String>[];
+      final updatedConvIDs = <String>{};
 
       for (final entry in needSyncSeqs.entries) {
         seqRanges.add({
@@ -476,7 +482,7 @@ class MsgSyncer {
         batchConvIDs.add(entry.key);
 
         if (seqRanges.length >= splitPullMsgNum) {
-          await _pullAndStoreMsgs(List.from(seqRanges), List.from(batchConvIDs));
+          await _pullAndStoreMsgs(List.from(seqRanges), List.from(batchConvIDs), updatedConvIDs);
           seqRanges.clear();
           batchConvIDs.clear();
         }
@@ -484,7 +490,12 @@ class MsgSyncer {
 
       // 处理剩余
       if (seqRanges.isNotEmpty) {
-        await _pullAndStoreMsgs(seqRanges, batchConvIDs);
+        await _pullAndStoreMsgs(seqRanges, batchConvIDs, updatedConvIDs);
+      }
+
+      // 同步完成后通知 UI 刷新（latestMsg 已更新）
+      if (updatedConvIDs.isNotEmpty) {
+        _fireConversationChanged(updatedConvIDs);
       }
 
       _log.info('消息同步完成，共处理 ${needSyncSeqs.length} 个会话');
@@ -494,7 +505,11 @@ class MsgSyncer {
   }
 
   /// 通过 HTTP API 拉取消息并存储到本地
-  Future<void> _pullAndStoreMsgs(List<Map<String, dynamic>> seqRanges, List<String> convIDs) async {
+  Future<void> _pullAndStoreMsgs(
+    List<Map<String, dynamic>> seqRanges,
+    List<String> convIDs,
+    Set<String> updatedConvIDs,
+  ) async {
     try {
       final resp = await api.pullMsgBySeqs(
         userID: _userID,
@@ -506,17 +521,24 @@ class MsgSyncer {
         return;
       }
       final data = resp.data as Map<String, dynamic>? ?? {};
-      // 处理普通消息
-      await _processPulledMsgs(data['msgs'] as Map<String, dynamic>? ?? {});
-      // 处理通知消息
-      await _processPulledMsgs(data['notificationMsgs'] as Map<String, dynamic>? ?? {});
+      // 处理普通消息（对应 Go SDK triggerConversation / triggerReinstallConversation）
+      await _processPulledMsgs(data['msgs'] as Map<String, dynamic>? ?? {}, updatedConvIDs);
+      // 处理通知消息（对应 Go SDK triggerNotification）
+      await _processPulledNotifications(data['notificationMsgs'] as Map<String, dynamic>? ?? {});
     } catch (e) {
       _log.warning('拉取消息批次失败: $e');
     }
   }
 
-  /// 处理拉取到的消息：存入 DB 并更新会话 latestMsg
-  Future<void> _processPulledMsgs(Map<String, dynamic> msgsByConv) async {
+  /// 处理拉取到的普通消息：存入 DB 并更新会话 latestMsg
+  ///
+  /// 对应 Go SDK 的 doMsgNew（非重装）和 doMsgSyncByReinstalled（重装）。
+  /// Go SDK 的 doMsgSyncByReinstalled 会将所有消息（含通知）都设为 latestMsg，
+  /// 所以这里也对所有消息统一处理 latestMsg，确保会话列表不为空。
+  Future<void> _processPulledMsgs(
+    Map<String, dynamic> msgsByConv,
+    Set<String> updatedConvIDs,
+  ) async {
     for (final entry in msgsByConv.entries) {
       final convID = entry.key;
       final pullMsgs = entry.value as Map<String, dynamic>? ?? {};
@@ -531,23 +553,33 @@ class MsgSyncer {
 
       for (final msg in msgList) {
         if (msg is Map<String, dynamic>) {
-          // HTTP API 返回的 proto3 JSON 中，bytes 字段为 base64 编码
-          // 将 content 解码为原始 JSON 字符串，保持与 WebSocket 推送一致
           _decodeContentIfBase64(msg);
 
-          final contentType = msg['contentType'] as int? ?? 0;
-          final sessionType = msg['sessionType'] as int? ?? 0;
-          // 通知会话(sessionType=4)的 OA 消息也要存储到 chatLog
-          final isStorable = contentType < 1000 || sessionType == 4;
-          if (isStorable) {
+          final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
+          final sessionType = (msg['sessionType'] as num?)?.toInt() ?? 0;
+          final seq = (msg['seq'] as num?)?.toInt() ?? 0;
+          final sendTime = (msg['sendTime'] as num?)?.toInt() ?? 0;
+
+          if (seq > maxSeq) maxSeq = seq;
+
+          // 通知消息（contentType >= 1000）：路由到通知分发器
+          // 对应 Go SDK doMsgNew 中的 doNotification 分支
+          if (contentType >= 1000) {
+            final content = msg['content'] as String? ?? '';
+            notificationDispatcher.dispatch(contentType, content);
+
+            // OA 通知消息(1400) 或通知会话 → 也要存储到 chatLog
+            if (sessionType == 4 || convID.startsWith('sn_')) {
+              msgMaps.add(msg);
+            }
+          } else {
+            // 普通消息：存储到 chatLog
             msgMaps.add(msg);
           }
-          final seq = msg['seq'] as int? ?? 0;
-          final sendTime = msg['sendTime'] as int? ?? 0;
-          if (seq > maxSeq) {
-            maxSeq = seq;
-          }
-          if (isStorable && sendTime >= latestSendTime) {
+
+          // 任何消息都可以作为 latestMsg（对应 Go SDK doMsgSyncByReinstalled 行为）
+          // Go SDK 在重装时会将所有消息（含通知）都设为 latestMsg
+          if (sendTime >= latestSendTime) {
             latestSendTime = sendTime;
             latestMsg = msg;
           }
@@ -564,7 +596,7 @@ class MsgSyncer {
 
       // 更新会话的 latestMsg、latestMsgSendTime 和 maxSeq
       if (latestMsg != null) {
-        final sendTime = latestMsg['sendTime'] as int? ?? 0;
+        final sendTime = (latestMsg['sendTime'] as num?)?.toInt() ?? 0;
         final updates = <String, dynamic>{
           'latestMsg': jsonEncode(latestMsg),
           'latestMsgSendTime': sendTime,
@@ -573,14 +605,43 @@ class MsgSyncer {
           updates['maxSeq'] = maxSeq;
         }
         await database.updateConversation(convID, updates);
+        updatedConvIDs.add(convID);
       } else if (maxSeq > 0) {
-        // 只有通知消息，仍需更新 maxSeq
+        // 只有被删除的消息，仍需更新 maxSeq
         await database.updateConversation(convID, {'maxSeq': maxSeq});
       }
 
       // 更新本地已同步 seq
       if (maxSeq > (_syncedMaxSeqs[convID] ?? 0)) {
         _syncedMaxSeqs[convID] = maxSeq;
+      }
+    }
+  }
+
+  /// 处理拉取到的通知消息：路由到通知分发器
+  ///
+  /// 对应 Go SDK 的 triggerNotification，将 notificationMsgs 中的
+  /// 通知消息分发给 NotificationDispatcher 进行处理（好友/群组/会话变更等）。
+  Future<void> _processPulledNotifications(Map<String, dynamic> msgsByConv) async {
+    for (final entry in msgsByConv.entries) {
+      final convID = entry.key;
+      final pullMsgs = entry.value as Map<String, dynamic>? ?? {};
+      final msgList = (pullMsgs['Msgs'] ?? pullMsgs['msgs']) as List? ?? [];
+
+      for (final msg in msgList) {
+        if (msg is Map<String, dynamic>) {
+          _decodeContentIfBase64(msg);
+          final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
+          final content = msg['content'] as String? ?? '';
+          final seq = (msg['seq'] as num?)?.toInt() ?? 0;
+          if (contentType >= 1000) {
+            notificationDispatcher.dispatch(contentType, content);
+          }
+          if (seq > 0 && seq > (_syncedMaxSeqs[convID] ?? 0)) {
+            _syncedMaxSeqs[convID] = seq;
+            database.updateConversation(convID, {'maxSeq': seq});
+          }
+        }
       }
     }
   }
@@ -960,16 +1021,15 @@ class MsgSyncer {
         final localMax = _syncedMaxSeqs[convID] ?? 0;
         // 向服务端请求该会话的 maxSeq → 拉取缺失区间
         // 简化实现：拉取 localMax+1 到 localMax+200 的消息
-        seqRanges.add({
-          'conversationID': convID,
-          'begin': localMax + 1,
-          'end': localMax + 200,
-          'num': 0, // 0 表示不限制条数
-        });
+        seqRanges.add({'conversationID': convID, 'begin': localMax + 1, 'end': localMax + 200});
       }
 
       if (seqRanges.isNotEmpty) {
-        await _pullAndStoreMsgs(seqRanges, convIDs.toList());
+        final updatedConvIDs = <String>{};
+        await _pullAndStoreMsgs(seqRanges, convIDs.toList(), updatedConvIDs);
+        if (updatedConvIDs.isNotEmpty) {
+          _fireConversationChanged(updatedConvIDs);
+        }
         _log.info('缺口同步完成: ${convIDs.length} 个会话');
       }
     } catch (e) {

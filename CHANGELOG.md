@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.6
+
+### Bug 修复
+
+- **修复初始同步后会话 `latestMsg` 始终为 null 的问题**
+  - 对齐 Go SDK `doMsgSyncByReinstalled` 行为：拉取到的消息无论是普通消息还是通知消息，都会参与 `latestMsg` 计算。之前仅普通消息（contentType < 1000）可作为 `latestMsg`，导致会话列表最新消息为空
+  - `_processPulledMsgs` 中的通知消息（contentType >= 1000）现已正确路由到 `NotificationDispatcher`，与推送路径保持一致（对齐 Go SDK `triggerNotification`）
+  - 新增 `_processPulledNotifications` 方法单独处理 `notificationMsgs` 响应字段（对齐 Go SDK `triggerNotification` 对 `resp.NotificationMsgs` 的处理）
+  - 消息同步完成后触发 `conversationChanged` 回调，确保 UI 能获取到最新的 `latestMsg`
+- **重装同步优化**：首次安装时跳过 `n_` 通知会话的消息拉取（对齐 Go SDK `compareSeqsAndBatchSync` 中重装分支的行为）
+- **缺口同步修复**：`_syncMissingMessages` 不再传递 `num: 0`，改为不限制拉取条数；同步完成后触发会话变更回调
+- **类型安全**：`_processPulledMsgs` 中所有 `as int?` 改为 `(as num?)?.toInt()`
+
 ## 1.0.5
 
 ### Bug 修复
