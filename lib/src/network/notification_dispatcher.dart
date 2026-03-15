@@ -771,6 +771,11 @@ class NotificationDispatcher {
       final convMaps = <Map<String, dynamic>>[];
       for (final conv in conversations) {
         if (conv is Map<String, dynamic>) {
+          // 跳过自己和自己的单聊会话
+          final convType = conv['conversationType'] as int?;
+          final uid = conv['userID'] as String?;
+          if (convType == 1 && uid == _userID) continue;
+
           final map = Map<String, dynamic>.from(conv);
           if (map['latestMsg'] is Map) {
             map['latestMsg'] = jsonEncode(map['latestMsg']);

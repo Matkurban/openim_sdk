@@ -177,13 +177,16 @@ class MsgSyncer {
       final conversationIDs = <String>[];
       for (final conv in conversations) {
         if (conv is Map<String, dynamic>) {
-          convMaps.add(Map<String, dynamic>.from(conv));
-          if (convMaps.last['latestMsg'] is Map) {
-            convMaps.last['latestMsg'] = jsonEncode(convMaps.last['latestMsg']);
+          // 跳过自己和自己的单聊会话
+          final convType = conv['conversationType'] as int?;
+          final uid = conv['userID'] as String?;
+          if (convType == 1 && uid == _userID) continue;
+
+          final map = Map<String, dynamic>.from(conv);
+          if (map['latestMsg'] is Map) {
+            map['latestMsg'] = jsonEncode(map['latestMsg']);
           }
-          if (convMaps.last["latestMsg"] is Map) {
-            convMaps.last["latestMsg"] = jsonEncode(convMaps.last["latestMsg"]);
-          }
+          convMaps.add(map);
           final cid = conv['conversationID'] as String?;
           if (cid != null) conversationIDs.add(cid);
         }
