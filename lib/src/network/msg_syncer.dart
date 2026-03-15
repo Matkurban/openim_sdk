@@ -403,7 +403,7 @@ class MsgSyncer {
     }
   }
 
-  /// 同步已加入的群组
+  /// 同步已加入的群组及其成员
   Future<void> _syncJoinedGroups() async {
     try {
       int pageNumber = 1;
@@ -425,9 +425,46 @@ class MsgSyncer {
         pageNumber++;
       }
       if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
-      _log.info('群组同步完成');
+      _log.info('群组同步完成，共 ${allGroups.length} 个群');
+
+      // 同步每个群的成员列表
+      for (final group in allGroups) {
+        final groupID = group['groupID'] as String?;
+        if (groupID == null || groupID.isEmpty) continue;
+        await _syncGroupMembersForGroup(groupID);
+      }
+      _log.info('群成员同步完成');
     } catch (e) {
       _log.warning('同步群组异常: $e');
+    }
+  }
+
+  /// 从服务器同步指定群组的所有成员到本地数据库
+  Future<void> _syncGroupMembersForGroup(String groupID) async {
+    try {
+      int offset = 0;
+      const pageSize = 100;
+      final allMembers = <Map<String, dynamic>>[];
+      while (true) {
+        final resp = await api.getGroupMemberList(
+          groupID: groupID,
+          offset: offset,
+          count: pageSize,
+        );
+        if (resp.errCode != 0) break;
+        final members = resp.data?['members'] as List? ?? [];
+        if (members.isEmpty) break;
+        for (final m in members) {
+          if (m is Map<String, dynamic>) allMembers.add(m);
+        }
+        if (members.length < pageSize) break;
+        offset += pageSize;
+      }
+      if (allMembers.isNotEmpty) {
+        await database.batchUpsertGroupMembers(allMembers);
+      }
+    } catch (e) {
+      _log.warning('同步群[$groupID]成员异常: $e');
     }
   }
 

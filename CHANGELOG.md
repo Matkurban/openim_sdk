@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.7
+
+### Bug 修复
+
+- **修复 `getGroupMemberList` 返回空列表的问题**
+  - 根本原因：登录同步仅同步群组信息，从未同步群成员数据。`getGroupMemberList` 读取本地数据库，但成员只在本地 `createGroup` / `inviteUserToGroup` 时写入，对于已存在的群或其他途径加入的群，本地数据库中没有成员记录
+  - 修复：`_syncJoinedGroups`（登录同步 + 通知触发）现在会为每个已加入群组分页拉取全部成员并写入本地数据库（对齐 Go SDK `SyncAllJoinedGroupsAndMembersWithLock` → `IncrSyncJoinGroupMember` 行为）
+- **群成员实时通知现在同步写入本地数据库**
+  - `memberQuit` (1504) / `memberKicked` (1508)：从本地数据库删除对应成员
+  - `memberInvited` (1509) / `memberEnter` (1510)：将新成员写入本地数据库
+  - `groupMemberInfoSet` (1516) / `groupMemberMuted` (1512) / `groupMemberSetToAdmin` (1517) 等：更新本地成员信息
+  - `groupDismissed` (1511)：清除该群所有本地成员记录
+
 ## 1.0.6
 
 ### Bug 修复

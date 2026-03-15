@@ -311,14 +311,19 @@ class NotificationDispatcher {
         listenerForService?.groupApplicationAdded(info);
 
       case 1504: // memberQuit
-        final quitUserID = (detail['quitUser'] as Map<String, dynamic>?)?['userID'] as String?;
+        final quitUser = detail['quitUser'] as Map<String, dynamic>?;
+        final quitUserID = quitUser?['userID'] as String?;
         if (quitUserID == _userID) {
           _syncJoinedGroupsAndNotifyDeleted(detail);
         }
-        if (detail['quitUser'] != null) {
-          groupListener?.groupMemberDeleted(
-            GroupMembersInfo.fromJson(detail['quitUser'] as Map<String, dynamic>),
-          );
+        if (quitUser != null) {
+          final gid = detail['group'] is Map
+              ? (detail['group'] as Map)['groupID'] as String?
+              : null;
+          if (gid != null && quitUserID != null) {
+            database.deleteGroupMember(gid, quitUserID);
+          }
+          groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(quitUser));
         }
 
       case 1505: // groupApplicationAccepted
@@ -347,8 +352,14 @@ class NotificationDispatcher {
           _syncJoinedGroupsAndNotifyDeleted(detail);
         }
         if (kickedList != null) {
+          final gid = detail['group'] is Map
+              ? (detail['group'] as Map)['groupID'] as String?
+              : null;
           for (final u in kickedList) {
             if (u is Map<String, dynamic>) {
+              if (gid != null && u['userID'] != null) {
+                database.deleteGroupMember(gid, u['userID'] as String);
+              }
               groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(u));
             }
           }
@@ -364,29 +375,30 @@ class NotificationDispatcher {
         if (invitedList != null) {
           for (final u in invitedList) {
             if (u is Map<String, dynamic>) {
+              database.upsertGroupMember(u);
               groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(u));
             }
           }
         }
 
       case 1510: // memberEnter
-        final entrantUserID =
-            (detail['entrantUser'] as Map<String, dynamic>?)?['userID'] as String?;
+        final entrantUser = detail['entrantUser'] as Map<String, dynamic>?;
+        final entrantUserID = entrantUser?['userID'] as String?;
         if (entrantUserID == _userID) {
           _syncJoinedGroupsAndNotifyAdded();
         }
-        if (detail['entrantUser'] != null) {
-          groupListener?.groupMemberAdded(
-            GroupMembersInfo.fromJson(detail['entrantUser'] as Map<String, dynamic>),
-          );
+        if (entrantUser != null) {
+          database.upsertGroupMember(entrantUser);
+          groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(entrantUser));
         }
 
       case 1511: // groupDismissed
         _debounceSyncJoinedGroups();
         if (detail['group'] != null) {
-          groupListener?.groupDismissed(
-            GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
-          );
+          final groupMap = detail['group'] as Map<String, dynamic>;
+          final gid = groupMap['groupID'] as String?;
+          if (gid != null) database.deleteGroupAllMembers(gid);
+          groupListener?.groupDismissed(GroupInfo.fromJson(groupMap));
         }
 
       case 1512: // groupMemberMuted
@@ -403,14 +415,14 @@ class NotificationDispatcher {
           );
         }
         if (detail['changedUser'] != null) {
-          groupListener?.groupMemberInfoChanged(
-            GroupMembersInfo.fromJson(detail['changedUser'] as Map<String, dynamic>),
-          );
+          final changedUser = detail['changedUser'] as Map<String, dynamic>;
+          database.upsertGroupMember(changedUser);
+          groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(changedUser));
         }
         if (detail['mutedUser'] != null) {
-          groupListener?.groupMemberInfoChanged(
-            GroupMembersInfo.fromJson(detail['mutedUser'] as Map<String, dynamic>),
-          );
+          final mutedUser = detail['mutedUser'] as Map<String, dynamic>;
+          database.upsertGroupMember(mutedUser);
+          groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(mutedUser));
         }
 
       case 1519: // groupInfoSetAnnouncement
@@ -693,8 +705,44 @@ class NotificationDispatcher {
         pageNumber++;
       }
       if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
+
+      // 同步每个群的成员列表
+      for (final group in allGroups) {
+        final groupID = group['groupID'] as String?;
+        if (groupID == null || groupID.isEmpty) continue;
+        await _syncGroupMembersForGroup(groupID);
+      }
     } catch (e) {
       _log.warning('同步群组异常: $e');
+    }
+  }
+
+  /// 从服务器同步指定群组的所有成员到本地数据库
+  Future<void> _syncGroupMembersForGroup(String groupID) async {
+    try {
+      int offset = 0;
+      const pageSize = 100;
+      final allMembers = <Map<String, dynamic>>[];
+      while (true) {
+        final resp = await api.getGroupMemberList(
+          groupID: groupID,
+          offset: offset,
+          count: pageSize,
+        );
+        if (resp.errCode != 0) break;
+        final members = resp.data?['members'] as List? ?? [];
+        if (members.isEmpty) break;
+        for (final m in members) {
+          if (m is Map<String, dynamic>) allMembers.add(m);
+        }
+        if (members.length < pageSize) break;
+        offset += pageSize;
+      }
+      if (allMembers.isNotEmpty) {
+        await database.batchUpsertGroupMembers(allMembers);
+      }
+    } catch (e) {
+      _log.warning('同步群[$groupID]成员异常: $e');
     }
   }
 
