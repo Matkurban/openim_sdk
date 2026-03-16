@@ -74,7 +74,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'isPinned', type: DataType.boolean, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['ownerUserID','nickname']),
+      const IndexSchema(fields: ['ownerUserID', 'nickname']),
     ],
   );
 
@@ -146,7 +146,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'notificationUserID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['groupName','ownerUserID']),
+      const IndexSchema(fields: ['groupName', 'ownerUserID']),
     ],
   );
 
@@ -169,7 +169,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'inviterUserID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['groupID', 'userID','roleLevel'],),
+      const IndexSchema(fields: ['groupID', 'userID', 'roleLevel']),
     ],
   );
 
@@ -267,7 +267,7 @@ sealed class DbSchema {
       ),
     ],
     indexes: [
-      const IndexSchema(fields: ['conversationType','latestMsgSendTime','isPinned']),
+      const IndexSchema(fields: ['conversationType', 'latestMsgSendTime', 'isPinned']),
     ],
   );
 
@@ -372,7 +372,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'createTime', type: DataType.integer, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['userID', 'createTime','targetType', 'targetID']),
+      const IndexSchema(fields: ['userID', 'createTime', 'targetType', 'targetID']),
     ],
   );
 
