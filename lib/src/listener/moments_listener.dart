@@ -22,6 +22,9 @@ class OnMomentsListener {
   /// 评论被删除
   void Function(String commentID)? onMomentCommentDeleted;
 
+  /// 后台刷新完成，返回最新的动态列表
+  void Function(List<MomentInfo> moments)? onMomentListUpdated;
+
   OnMomentsListener({
     this.onMomentPublished,
     this.onMomentDeleted,
@@ -29,6 +32,7 @@ class OnMomentsListener {
     this.onMomentUnliked,
     this.onMomentCommented,
     this.onMomentCommentDeleted,
+    this.onMomentListUpdated,
   });
 
   void momentPublished(MomentInfo moment) {
@@ -53,5 +57,9 @@ class OnMomentsListener {
 
   void momentCommentDeleted(String commentID) {
     onMomentCommentDeleted?.call(commentID);
+  }
+
+  void momentListUpdated(List<MomentInfo> moments) {
+    onMomentListUpdated?.call(moments);
   }
 }

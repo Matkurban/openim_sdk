@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
 import 'package:openim_sdk/src/utils/open_im_utils.dart';
-import 'package:talker_dio_logger/talker_dio_logger_interceptor.dart';
 
 import '../models/api_response.dart';
 

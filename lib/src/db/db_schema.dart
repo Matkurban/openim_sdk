@@ -352,8 +352,8 @@ sealed class DbSchema {
       const FieldSchema(name: 'likeCount', type: DataType.integer, nullable: true),
       const FieldSchema(name: 'commentCount', type: DataType.integer, nullable: true),
       const FieldSchema(name: 'extra', type: DataType.text, nullable: true),
-      const FieldSchema(name: 'likes', type: DataType.text, nullable: true),
-      const FieldSchema(name: 'comments', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'likes', type: DataType.array, nullable: true),
+      const FieldSchema(name: 'comments', type: DataType.array, nullable: true),
     ],
     indexes: [
       const IndexSchema(fields: ['userID', 'createTime']),
