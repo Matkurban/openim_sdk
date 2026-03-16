@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.9
+
+### 修复
+
+- **修复 Web 平台 WebSocket 消息解码失败**：`dart:io` 的 `gzip` 在 Web 平台不可用（`_newZLibInflateFilter`），现在自动检测 Web 平台并禁用 gzip 压缩，同时不向服务端发送 `compression=gzip` 参数
+
+## 1.1.8
+
+### 修复
+
+- **修复聊天消息无法加载**：移除对 `contentType >= 1000` 消息的错误过滤。Go SDK 在 conversation 层（`n_` 前缀）分流通知/普通会话，而非按 contentType 过滤，`pull_msg_by_seq` 的 `msgs` 字段只包含普通会话消息，应全部存入 chatLog。修复了三处：`_processPulledMsgs`（同步）、`_collectMessageUpdate`（推送）、`getAdvancedHistoryMessageList`（历史拉取）
+
 ## 1.1.7
 
 ### 修复

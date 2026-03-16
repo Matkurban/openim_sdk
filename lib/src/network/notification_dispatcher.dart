@@ -393,11 +393,15 @@ class NotificationDispatcher {
         }
 
       case 1511: // groupDismissed
-        _debounceSyncJoinedGroups();
         if (detail['group'] != null) {
           final groupMap = detail['group'] as Map<String, dynamic>;
           final gid = groupMap['groupID'] as String?;
-          if (gid != null) database.deleteGroupAllMembers(gid);
+          if (gid != null) {
+            database.deleteGroupAllMembers(gid);
+            database.deleteGroup(gid);
+            final convID = OpenImUtils.genGroupConversationID(gid);
+            database.updateConversation(convID, {'isNotInGroup': true});
+          }
           groupListener?.groupDismissed(GroupInfo.fromJson(groupMap));
         }
 
@@ -867,18 +871,30 @@ class NotificationDispatcher {
     }
   }
 
-  /// 同步已加入群组并通知删除群（自己退出/被踢出群）
+  /// 处理自己退出/被踢出群的本地数据清理与通知
   ///
-  /// 对应 Go SDK 的 IncrSyncJoinGroup → syncer.Delete → OnJoinedGroupDeleted
+  /// 直接从 detail 中提取 groupID，做针对性的本地删除，
+  /// 避免全量同步所有群组和成员导致的大量 unique constraint 警告。
   Future<void> _syncJoinedGroupsAndNotifyDeleted(Map<String, dynamic> detail) async {
-    final oldGroups = await database.getJoinedGroupList();
-    final oldGroupMap = {for (final g in oldGroups) g.groupID: g};
-    await _syncJoinedGroups();
-    final newGroupIDs = (await database.getJoinedGroupList()).map((g) => g.groupID).toSet();
-    for (final entry in oldGroupMap.entries) {
-      if (!newGroupIDs.contains(entry.key)) {
-        groupListener?.joinedGroupDeleted(entry.value);
-      }
+    final groupMap = detail['group'] as Map<String, dynamic>?;
+    final groupID = groupMap?['groupID'] as String?;
+    if (groupID == null || groupID.isEmpty) return;
+
+    // 获取群信息用于回调通知
+    final groupInfo = await database.getGroupByID(groupID);
+
+    // 本地删除群成员、群组
+    await database.deleteGroupAllMembers(groupID);
+    await database.deleteGroup(groupID);
+
+    // 更新会话的 isNotInGroup 字段并通知 UI
+    final convID = OpenImUtils.genGroupConversationID(groupID);
+    await database.updateConversation(convID, {'isNotInGroup': true});
+    final conv = await database.getConversation(convID);
+    if (conv != null) {
+      conversationListener?.conversationChanged([conv]);
     }
+
+    groupListener?.joinedGroupDeleted(groupInfo ?? GroupInfo(groupID: groupID));
   }
 }

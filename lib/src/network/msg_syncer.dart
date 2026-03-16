@@ -596,7 +596,6 @@ class MsgSyncer {
           _decodeContentIfBase64(msg);
 
           final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
-          final sessionType = (msg['sessionType'] as num?)?.toInt() ?? 0;
           final seq = (msg['seq'] as num?)?.toInt() ?? 0;
           final sendTime = (msg['sendTime'] as num?)?.toInt() ?? 0;
 
@@ -607,15 +606,12 @@ class MsgSyncer {
           if (contentType >= 1000) {
             final content = msg['content'] as String? ?? '';
             notificationDispatcher.dispatch(contentType, content);
-
-            // OA 通知消息(1400) 或通知会话 → 也要存储到 chatLog
-            if (sessionType == 4 || convID.startsWith('sn_')) {
-              msgMaps.add(msg);
-            }
-          } else {
-            // 普通消息：存储到 chatLog
-            msgMaps.add(msg);
           }
+
+          // Go SDK 在 triggerConversation 中存储所有消息（含通知），
+          // 通知/普通分流在 conversation 层（n_ 前缀）而非 contentType 层。
+          // data['msgs'] 只包含普通会话消息，所以全部存入 chatLog。
+          msgMaps.add(msg);
 
           // 任何消息都可以作为 latestMsg（对应 Go SDK doMsgSyncByReinstalled 行为）
           // Go SDK 在重装时会将所有消息（含通知）都设为 latestMsg
@@ -858,26 +854,16 @@ class MsgSyncer {
       return;
     }
 
-    // 通知消息（contentType >= 1000）路由到 NotificationDispatcher
-    // 但通知会话（sn_ 前缀 / sessionType=4）的 OA 消息需要同时存储到 chatLog 用于展示
+    // 通知消息（contentType >= 1000）：路由到 NotificationDispatcher
+    // Go SDK 在 triggerConversation 中存储所有消息（含通知），
+    // 通知/普通分流在 conversation 层（n_ 前缀）而非 contentType 层。
+    // pushMessages.msgs 只包含普通会话消息，所以全部存入 chatLog。
     if (contentType >= 1000) {
-      if (seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
-        _syncedMaxSeqs[conversationID] = seq;
-        database.updateConversation(conversationID, {'maxSeq': seq});
-      }
       final content = msg['content'] as String? ?? '';
       notificationDispatcher.dispatch(contentType, content);
-
-      // OA 通知消息(1400) 或通知会话消息 → 存储并触发回调
-      final sessionType = msg['sessionType'] as int? ?? 0;
-      if (sessionType == 4 || conversationID.startsWith('sn_')) {
-        database.insertMessage({...msg, 'conversationID': conversationID});
-        _fireNewMessage(msg);
-      }
-      return;
     }
 
-    // 存储普通消息到 chatLog（注入 conversationID）
+    // 存储消息到 chatLog（注入 conversationID）
     database.insertMessage({...msg, 'conversationID': conversationID});
 
     // 更新 seq 追踪

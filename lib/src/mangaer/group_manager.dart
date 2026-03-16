@@ -406,8 +406,13 @@ class GroupManager {
   Future<void> quitGroup({required String groupID}) async {
     _log.info('quitGroup: groupID=$groupID');
     final quitGroupInfo = await _database.getGroupByID(groupID);
-    await _database.deleteGroupMember(groupID, _currentUserID);
+    await _database.deleteGroupAllMembers(groupID);
     await _database.deleteGroup(groupID);
+
+    // 立即更新会话的 isNotInGroup 标志，使 UI 即时响应
+    final convID = OpenImUtils.genGroupConversationID(groupID);
+    await _database.updateConversation(convID, {'isNotInGroup': true});
+
     _log.info('已退出群: $groupID');
     listener?.joinedGroupDeleted(quitGroupInfo ?? GroupInfo(groupID: groupID));
 
@@ -421,9 +426,13 @@ class GroupManager {
   /// [groupID] 群组ID
   Future<void> dismissGroup({required String groupID}) async {
     _log.info('dismissGroup: groupID=$groupID');
+    await _database.deleteGroupAllMembers(groupID);
     await _database.deleteGroup(groupID);
-    _log.info('群组已解散: $groupID');
 
+    final convID = OpenImUtils.genGroupConversationID(groupID);
+    await _database.updateConversation(convID, {'isNotInGroup': true});
+
+    _log.info('群组已解散: $groupID');
     listener?.groupDismissed(GroupInfo(groupID: groupID));
 
     final resp = await _api.dismissGroup(groupID: groupID);

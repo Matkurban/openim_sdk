@@ -67,7 +67,10 @@ class ConversationInfo extends Equatable {
   bool get isGroupChat =>
       conversationType == ConversationType.group || conversationType == ConversationType.superGroup;
 
-  bool get isValid => isSingleChat || (isGroupChat && isNotInGroup != true);
+  /// 当前用户是否在该群中（仅群聊有意义）
+  bool get isInGroup => isNotInGroup != true;
+
+  bool get isValid => isSingleChat || (isGroupChat && isInGroup);
 
   ConversationInfo copyWith({
     String? conversationID,

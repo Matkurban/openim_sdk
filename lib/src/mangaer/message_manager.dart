@@ -542,12 +542,10 @@ class MessageManager {
                   if (netMsg is Map) {
                     final m = Map<String, dynamic>.from(netMsg);
                     m['conversationID'] = conversationID;
-                    final contentType = m['contentType'] as int? ?? 0;
-                    final sessionType = m['sessionType'] as int? ?? 0;
-                    // 普通消息 + 通知会话(sessionType=4)的 OA 消息 都要存储
-                    if (contentType < 1000 || sessionType == 4) {
-                      batchInsert.add(m);
-                    }
+                    // Go SDK 存储所有消息（含通知），通知/普通分流在 conversation 层
+                    // （n_ 前缀）而非 contentType 层，pull_msg_by_seq 的 msgs 字段
+                    // 只返回普通会话消息，所以全部存入 chatLog。
+                    batchInsert.add(m);
                   }
                 }
                 if (batchInsert.isNotEmpty) {
