@@ -260,6 +260,9 @@ class WebSocketService {
         case 'pong':
           _lastPong = DateTime.now();
           _log.fine('收到 pong');
+        case '':
+          // 服务端连接成功响应 {errCode, errMsg, errDlt}，无 type 字段
+          break;
         default:
           _log.warning('未知文本消息类型: $type');
       }

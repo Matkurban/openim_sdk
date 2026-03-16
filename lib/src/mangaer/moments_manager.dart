@@ -206,9 +206,12 @@ class MomentsManager {
   // ---------------------------------------------------------------------------
 
   /// 点赞动态
-  Future<bool> likeMoment({required String momentID}) async {
+  Future<bool> likeMoment({required String momentID, String? ownerUserID}) async {
     _log.info('likeMoment: $momentID');
-    final resp = await _post('/moment/like', {'momentID': momentID});
+    final resp = await _post('/moment/like', {
+      'momentID': momentID,
+      if (ownerUserID != null) 'ownerUserID': ownerUserID,
+    });
     if (resp.isSuccess) {
       final like = MomentLikeWithUser(
         momentID: momentID,
@@ -225,9 +228,12 @@ class MomentsManager {
   }
 
   /// 取消点赞
-  Future<bool> unlikeMoment({required String momentID}) async {
+  Future<bool> unlikeMoment({required String momentID, String? ownerUserID}) async {
     _log.info('unlikeMoment: $momentID');
-    final resp = await _post('/moment/unlike', {'momentID': momentID});
+    final resp = await _post('/moment/unlike', {
+      'momentID': momentID,
+      if (ownerUserID != null) 'ownerUserID': ownerUserID,
+    });
     if (resp.isSuccess) {
       await _updateLocalMomentLike(
         momentID,
@@ -268,12 +274,14 @@ class MomentsManager {
     required String momentID,
     required String content,
     String? replyToUserID,
+    String? ownerUserID,
   }) async {
     _log.info('commentMoment: momentID=$momentID, content=$content');
     final resp = await _post('/moment/comment', {
       'momentID': momentID,
       'content': content,
       if (replyToUserID != null && replyToUserID.isNotEmpty) 'replyToUserID': replyToUserID,
+      if (ownerUserID != null) 'ownerUserID': ownerUserID,
     });
     if (!resp.isSuccess) {
       _log.warning('commentMoment failed: ${resp.errMsg}');
@@ -335,6 +343,8 @@ class MomentsManager {
       case 'moment_created':
         if (data['moment'] is Map<String, dynamic>) {
           final moment = MomentInfo.fromJson(data['moment'] as Map<String, dynamic>);
+          // Skip if this is our own moment (already handled in createMoment())
+          if (moment.userID == _currentUserID) break;
           await _database.upsertMoment(moment);
           listener?.momentPublished(moment);
         }

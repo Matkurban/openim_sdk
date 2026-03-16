@@ -199,7 +199,7 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onFriendNotification(int ct, Map<String, dynamic> detail) {
-    _log.info('FriendNotification: contentType=$ct, detail=$detail');
+    _log.fine('FriendNotification: contentType=$ct, detail=$detail');
     switch (ct) {
       case 1201: // friendApplicationApproved
         _debounceSyncFriends();

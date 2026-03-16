@@ -35,7 +35,7 @@ class HttpClient {
         responseType: ResponseType.json,
       ),
     );
-    _dio.interceptors.add(TalkerDioLogger());
+    // _dio.interceptors.add(TalkerDioLogger());
   }
 
   /// 初始化，设置 baseUrl 及可选参数
@@ -89,7 +89,7 @@ class HttpClient {
         responseType: ResponseType.json,
       ),
     );
-    _chatDio!.interceptors.add(TalkerDioLogger());
+    // _chatDio!.interceptors.add(TalkerDioLogger());
     _chatDio!.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {

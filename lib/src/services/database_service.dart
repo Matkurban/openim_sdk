@@ -1318,13 +1318,13 @@ class DatabaseService {
 
   /// 插入或更新单条动态
   Future<void> upsertMoment(MomentInfo moment) async {
-    await toStore.upsert(DbTableName.localMoment, _momentToRow(moment));
+    await toStore.upsert(DbTableName.localMoment, moment.toJson());
   }
 
   /// 批量插入或更新动态
   Future<void> batchUpsertMoments(List<MomentInfo> moments) async {
     if (moments.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localMoment, moments.map(_momentToRow).toList());
+    await toStore.batchUpsert(DbTableName.localMoment, moments.map((m) => m.toJson()).toList());
   }
 
   /// 分页获取动态列表（按 createTime 降序）
@@ -1334,7 +1334,7 @@ class DatabaseService {
         .orderByDesc('createTime')
         .limit(count)
         .offset(offset);
-    return result.data.map(_rowToMoment).toList();
+    return result.data.map((r) => MomentInfo.fromJson(r)).toList();
   }
 
   /// 获取某用户的动态列表
@@ -1349,7 +1349,7 @@ class DatabaseService {
         .orderByDesc('createTime')
         .limit(count)
         .offset(offset);
-    return result.data.map(_rowToMoment).toList();
+    return result.data.map((r) => MomentInfo.fromJson(r)).toList();
   }
 
   /// 根据 momentID 获取单条动态
@@ -1358,7 +1358,7 @@ class DatabaseService {
         .query(DbTableName.localMoment)
         .whereEqual('momentID', momentID)
         .first();
-    return row != null ? _rowToMoment(row) : null;
+    return row != null ? MomentInfo.fromJson(row) : null;
   }
 
   /// 删除本地动态
@@ -1369,46 +1369,6 @@ class DatabaseService {
   /// 清空所有本地动态
   Future<void> clearAllMoments() async {
     await toStore.delete(DbTableName.localMoment);
-  }
-
-  // -- Moment row ↔ model 转换 --
-
-  static Map<String, dynamic> _momentToRow(MomentInfo m) {
-    return {
-      'momentID': m.momentID,
-      'userID': m.userID,
-      'content': m.content,
-      'media': jsonEncode(m.media.map((e) => e.toJson()).toList()),
-      'visibleType': m.visibleType.value,
-      'visibleGroupIDs': jsonEncode(m.visibleGroupIDs),
-      'status': m.status,
-      'createTime': m.createTime,
-      'updateTime': m.updateTime,
-      'likeCount': m.likeCount,
-      'commentCount': m.commentCount,
-      'extra': m.extra,
-      'likes': jsonEncode(m.likes.map((e) => e.toJson()).toList()),
-      'comments': jsonEncode(m.comments.map((e) => e.toJson()).toList()),
-    };
-  }
-
-  static MomentInfo _rowToMoment(Map<String, dynamic> row) {
-    return MomentInfo.fromJson({
-      ...row,
-      'media': _decodeJsonField(row['media']),
-      'visibleGroupIDs': _decodeJsonField(row['visibleGroupIDs']),
-      'likes': _decodeJsonField(row['likes']),
-      'comments': _decodeJsonField(row['comments']),
-    });
-  }
-
-  static dynamic _decodeJsonField(dynamic v) {
-    if (v is String && v.isNotEmpty) {
-      try {
-        return jsonDecode(v);
-      } catch (_) {}
-    }
-    return v ?? [];
   }
 
   // ---------------------------------------------------------------------------

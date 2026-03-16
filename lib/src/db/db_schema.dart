@@ -74,8 +74,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'isPinned', type: DataType.boolean, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['ownerUserID']),
-      const IndexSchema(fields: ['nickname']),
+      const IndexSchema(fields: ['ownerUserID','nickname']),
     ],
   );
 
@@ -99,8 +98,6 @@ sealed class DbSchema {
       const FieldSchema(name: 'ex', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['fromUserID']),
-      const IndexSchema(fields: ['toUserID']),
       const IndexSchema(fields: ['fromUserID', 'toUserID'], unique: true),
     ],
   );
@@ -149,8 +146,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'notificationUserID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['groupName']),
-      const IndexSchema(fields: ['ownerUserID']),
+      const IndexSchema(fields: ['groupName','ownerUserID']),
     ],
   );
 
@@ -173,10 +169,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'inviterUserID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['groupID']),
-      const IndexSchema(fields: ['userID']),
-      const IndexSchema(fields: ['groupID', 'userID'], unique: true),
-      const IndexSchema(fields: ['roleLevel']),
+      const IndexSchema(fields: ['groupID', 'userID','roleLevel'],),
     ],
   );
 
@@ -211,9 +204,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'inviterUserID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['groupID']),
-      const IndexSchema(fields: ['userID']),
-      const IndexSchema(fields: ['groupID', 'userID'], unique: true),
+      const IndexSchema(fields: ['groupID', 'userID']),
     ],
   );
 
@@ -276,9 +267,7 @@ sealed class DbSchema {
       ),
     ],
     indexes: [
-      const IndexSchema(fields: ['conversationType']),
-      const IndexSchema(fields: ['latestMsgSendTime']),
-      const IndexSchema(fields: ['isPinned']),
+      const IndexSchema(fields: ['conversationType','latestMsgSendTime','isPinned']),
     ],
   );
 
@@ -327,8 +316,6 @@ sealed class DbSchema {
       const FieldSchema(name: 'conversationID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      // 使用复合（联合）索引，将经常同时查询的字段放在同一个数组中
-      // 这样既能提升查询速度，又能避免 Tostore 在多单列索引下的浮点数冲突 bug
       const IndexSchema(fields: ['conversationID', 'sendTime', 'seq', 'contentType']),
     ],
   );
@@ -385,8 +372,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'createTime', type: DataType.integer, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['userID', 'createTime']),
-      const IndexSchema(fields: ['targetType', 'targetID']),
+      const IndexSchema(fields: ['userID', 'createTime','targetType', 'targetID']),
     ],
   );
 
