@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+### 新增
+
+- **朋友圈后台刷新通知 `onMomentListUpdated`**：`OnMomentsListener` 新增 `onMomentListUpdated` 回调，`getMomentList()` 采用 local-first 策略先返回本地缓存，后台拉取网络最新数据写入数据库后，通过该回调通知 UI 刷新列表，解决本地缓存中评论/点赞详情为空的问题
+
 ## 1.1.9
 
 ### 修复
