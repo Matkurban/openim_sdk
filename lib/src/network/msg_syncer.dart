@@ -772,6 +772,12 @@ class MsgSyncer {
         if (msgMaps.isNotEmpty) {
           for (final m in msgMaps) {
             m['conversationID'] = convID;
+            // 云端拉取的消息默认为已成功发送状态
+            // （protobuf status 默认为 0，MessageStatus.fromValue(0) 会 fallback 为 failed）
+            final rawStatus = m['status'];
+            if (rawStatus == null || rawStatus == 0) {
+              m['status'] = MessageStatus.succeeded.value;
+            }
           }
           await database.batchInsertMessages(msgMaps);
         }
@@ -1035,8 +1041,14 @@ class MsgSyncer {
         notificationDispatcher.dispatch(contentType, content);
       }
 
-      // 存储消息到 chatLog（注入 conversationID）
-      database.insertMessage({...msg, 'conversationID': conversationID});
+      // 存储消息到 chatLog（注入 conversationID 和默认 status）
+      // protobuf status 默认为 0，需设为 succeeded
+      final msgToInsert = {...msg, 'conversationID': conversationID};
+      final rawStatus = msgToInsert['status'];
+      if (rawStatus == null || rawStatus == 0) {
+        msgToInsert['status'] = MessageStatus.succeeded.value;
+      }
+      database.insertMessage(msgToInsert);
 
       // 更新 seq 追踪
       final isNewSeq = seq > (_syncedMaxSeqs[conversationID] ?? 0);

@@ -76,3 +76,5 @@ export 'src/enums/visible_type.dart';
 ///utils
 export 'src/utils/open_im_utils.dart';
 export 'src/logger/im_log_level.dart';
+
+export 'package:tostore/tostore.dart';

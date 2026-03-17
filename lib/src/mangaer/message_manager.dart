@@ -83,7 +83,6 @@ class MessageManager {
 
       for (final msg in allSendingMessages) {
         final clientMsgID = msg['clientMsgID'] as String?;
-        final conversationID = msg['conversationID'] as String?;
         if (clientMsgID == null) continue;
 
         final message = await _database.getMessage(clientMsgID);
@@ -109,45 +108,23 @@ class MessageManager {
           continue;
         }
 
-        // 如果状态仍然是 sending，标记为失败（与 Go SDK 一致）
-        // 这意味着 App 重启前消息正在发送但未完成，现在标记为失败
+        // 如果状态仍然是 sending，我们尝试恢复发送（例如继续上传图片）
         if (status == MessageStatus.sending.value) {
-          final failedMsg = message.copyWith(status: MessageStatus.failed);
-
-          // 更新消息状态为失败
-          await _database.updateMessage(clientMsgID, {'status': MessageStatus.failed.value});
-          await _database.deleteSendingMessage(clientMsgID);
-          _log.info('Marked message as failed: $clientMsgID', methodName: 'recoverSendingMessages');
-
-          // 与 Go SDK 一致：更新会话的 latestMsg 状态
-          // Go SDK 参考：handlerSendingMsg 中对 latestMsg 的处理
-          if (conversationID != null) {
-            try {
-              final conv = await _database.getConversation(conversationID);
-              if (conv != null && conv.latestMsg != null) {
-                if (conv.latestMsg!.clientMsgID == clientMsgID) {
-                  // latestMsg 就是这条消息，更新其状态
-                  await _database.updateConversation(conversationID, {
-                    'latestMsg': jsonEncode(failedMsg.toJson()),
-                  });
-                  _log.info(
-                    'Updated conversation latestMsg status to failed: $conversationID',
-                    methodName: 'recoverSendingMessages',
-                  );
-                }
-              }
-            } catch (e, s) {
-              _log.warning(
-                'Failed to update conversation latestMsg: $e',
-                error: e,
-                stackTrace: s,
-                methodName: 'recoverSendingMessages',
-              );
-            }
-          }
-
-          // 通知 UI 消息状态变更
-          msgListener?.messageStatusChanged(failedMsg);
+          _log.info('Resuming sending message: $clientMsgID', methodName: 'recoverSendingMessages');
+          
+          // 在后台重新触发发送流程
+          sendMessage(
+            message: message,
+            offlinePushInfo: message.offlinePush ?? OfflinePushInfo(),
+            userID: message.recvID,
+            groupID: message.groupID,
+          ).catchError((e) {
+            _log.warning(
+              'Recovered message send failed: $clientMsgID, error: $e',
+              methodName: 'recoverSendingMessages',
+            );
+            return message; 
+          });
         }
       }
 
@@ -571,11 +548,16 @@ class MessageManager {
   Future<Message> _handleMediaUploadIfNeeded(Message msg) async {
     final clientMsgID = msg.clientMsgID ?? '';
 
+    int lastProgress = -1;
+
     // 辅助方法：调用消息发送进度回调
     void reportProgress(int sent, int total) {
       if (total > 0) {
         final progress = ((sent / total) * 100).round();
-        msgSendProgressListener?.progress(clientMsgID, progress);
+        if (progress != lastProgress) {
+          lastProgress = progress;
+          msgSendProgressListener?.progress(clientMsgID, progress);
+        }
       }
     }
 
@@ -727,231 +709,6 @@ class MessageManager {
     return msg;
   }
 
-  /// 检查消息是否需要上传媒体文件
-  bool _needsMediaUpload(Message msg) {
-    if (msg.contentType == MessageType.picture && msg.pictureElem != null) {
-      final elem = msg.pictureElem!;
-      return elem.sourcePath != null &&
-          elem.sourcePath!.isNotEmpty &&
-          (elem.sourcePicture?.url == null || elem.sourcePicture!.url!.isEmpty);
-    } else if (msg.contentType == MessageType.voice && msg.soundElem != null) {
-      final elem = msg.soundElem!;
-      return elem.soundPath != null &&
-          elem.soundPath!.isNotEmpty &&
-          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty);
-    } else if (msg.contentType == MessageType.video && msg.videoElem != null) {
-      final elem = msg.videoElem!;
-      return (elem.videoPath != null &&
-              elem.videoPath!.isNotEmpty &&
-              (elem.videoUrl == null || elem.videoUrl!.isEmpty)) ||
-          (elem.snapshotPath != null &&
-              elem.snapshotPath!.isNotEmpty &&
-              (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty));
-    } else if (msg.contentType == MessageType.file && msg.fileElem != null) {
-      final elem = msg.fileElem!;
-      return elem.filePath != null &&
-          elem.filePath!.isNotEmpty &&
-          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty);
-    }
-    return false;
-  }
-
-  /// 在后台处理媒体文件上传，不阻塞主流程
-  Future<void> _handleMediaUploadInBackground(
-    Message sendMsg,
-    String conversationID,
-    ConversationType sessionType,
-    bool isOnlineOnly,
-  ) async {
-    try {
-      // 辅助方法：调用消息发送进度回调
-      void reportProgress(int sent, int total) {
-        if (total > 0) {
-          final progress = ((sent / total) * 100).round();
-          msgSendProgressListener?.progress(sendMsg.clientMsgID ?? '', progress);
-        }
-      }
-
-      // 构建带进度回调的 uploadFile 参数
-      Message updatedMsg = sendMsg;
-
-      // 处理图片
-      if (sendMsg.contentType == MessageType.picture && sendMsg.pictureElem != null) {
-        final elem = sendMsg.pictureElem!;
-        if (elem.sourcePath != null && elem.sourcePath!.isNotEmpty) {
-          final file = File(elem.sourcePath!);
-          if (file.existsSync()) {
-            final fileSize = file.lengthSync();
-            final ext = elem.sourcePath!.split('.').last.toLowerCase();
-            final uploadName = 'picture_${sendMsg.clientMsgID}.$ext';
-            final contentType = elem.sourcePicture?.type ?? 'image/$ext';
-
-            final url = await OpenIM.iMManager.uploadFile(
-              id: sendMsg.clientMsgID!,
-              filePath: elem.sourcePath!,
-              fileName: uploadName,
-              contentType: contentType,
-              cause: 'msg-picture',
-              onProgress: reportProgress,
-            );
-
-            final sourcePic = (elem.sourcePicture ?? const PictureInfo()).copyWith(
-              url: url,
-              size: fileSize,
-            );
-            final snapshotPic = PictureInfo(width: 640, height: 640, url: url);
-
-            updatedMsg = updatedMsg.copyWith(
-              pictureElem: elem.copyWith(
-                sourcePicture: sourcePic,
-                bigPicture: sourcePic,
-                snapshotPicture: snapshotPic,
-              ),
-            );
-          }
-        }
-      }
-      // 处理语音
-      else if (sendMsg.contentType == MessageType.voice && sendMsg.soundElem != null) {
-        final elem = sendMsg.soundElem!;
-        if (elem.soundPath != null && elem.soundPath!.isNotEmpty) {
-          final file = File(elem.soundPath!);
-          if (file.existsSync()) {
-            final fileSize = file.lengthSync();
-            final ext = elem.soundPath!.split('.').last.toLowerCase();
-            final uploadName = 'voice_${sendMsg.clientMsgID}.$ext';
-
-            final url = await OpenIM.iMManager.uploadFile(
-              id: sendMsg.clientMsgID!,
-              filePath: elem.soundPath!,
-              fileName: uploadName,
-              contentType: 'audio/$ext',
-              cause: 'msg-voice',
-              onProgress: reportProgress,
-            );
-
-            updatedMsg = updatedMsg.copyWith(
-              soundElem: elem.copyWith(sourceUrl: url, dataSize: fileSize),
-            );
-          }
-        }
-      }
-      // 处理视频
-      else if (sendMsg.contentType == MessageType.video && sendMsg.videoElem != null) {
-        final elem = sendMsg.videoElem!;
-        var newElem = elem;
-
-        // 上传视频文件
-        if (elem.videoPath != null &&
-            elem.videoPath!.isNotEmpty &&
-            (elem.videoUrl == null || elem.videoUrl!.isEmpty)) {
-          final file = File(elem.videoPath!);
-          if (file.existsSync()) {
-            final fileSize = file.lengthSync();
-            final ext = elem.videoPath!.split('.').last.toLowerCase();
-            final uploadName = 'video_${sendMsg.clientMsgID}.$ext';
-            final contentType = _getMimeType(
-              elem.videoPath!,
-              fallback: elem.videoType ?? 'video/mp4',
-            );
-
-            final url = await OpenIM.iMManager.uploadFile(
-              id: sendMsg.clientMsgID!,
-              filePath: elem.videoPath!,
-              fileName: uploadName,
-              contentType: contentType,
-              cause: 'msg-video',
-              onProgress: reportProgress,
-            );
-            newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
-          }
-        }
-
-        // 上传视频缩略图
-        if (elem.snapshotPath != null &&
-            elem.snapshotPath!.isNotEmpty &&
-            (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty)) {
-          final file = File(elem.snapshotPath!);
-          if (file.existsSync()) {
-            final fileSize = file.lengthSync();
-            final ext = elem.snapshotPath!.split('.').last.toLowerCase();
-            final uploadName = 'videoSnapshot_${sendMsg.clientMsgID}.$ext';
-
-            final url = await OpenIM.iMManager.uploadFile(
-              id: '${sendMsg.clientMsgID}_snapshot',
-              filePath: elem.snapshotPath!,
-              fileName: uploadName,
-              contentType: 'image/$ext',
-              cause: 'msg-video-snapshot',
-              onProgress: reportProgress,
-            );
-            newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
-          }
-        }
-        updatedMsg = updatedMsg.copyWith(videoElem: newElem);
-      }
-      // 处理文件
-      else if (sendMsg.contentType == MessageType.file && sendMsg.fileElem != null) {
-        final elem = sendMsg.fileElem!;
-        if (elem.filePath != null &&
-            elem.filePath!.isNotEmpty &&
-            (elem.sourceUrl == null || elem.sourceUrl!.isEmpty)) {
-          final file = File(elem.filePath!);
-          if (file.existsSync()) {
-            final fileSize = file.lengthSync();
-            final baseName = elem.fileName ?? elem.filePath!.split(Platform.pathSeparator).last;
-            final uploadName = 'file_${sendMsg.clientMsgID}/$baseName';
-            final contentType = _getMimeType(elem.filePath!);
-
-            final url = await OpenIM.iMManager.uploadFile(
-              id: sendMsg.clientMsgID!,
-              filePath: elem.filePath!,
-              fileName: uploadName,
-              contentType: contentType,
-              cause: 'msg-file',
-              onProgress: reportProgress,
-            );
-            updatedMsg = updatedMsg.copyWith(
-              fileElem: elem.copyWith(sourceUrl: url, fileSize: fileSize, fileName: baseName),
-            );
-          }
-        }
-      }
-
-      // 上传完成后，更新数据库中的消息
-      if (!isOnlineOnly) {
-        await _database.updateMessage(
-          sendMsg.clientMsgID!,
-          DatabaseService.messageToDbMap(updatedMsg),
-        );
-        // 更新会话最新消息
-        await _updateConversationLatestMsg(conversationID, updatedMsg, sessionType);
-      }
-
-      // 通过 WebSocket 发送消息（使用 protobuf 编码，与 Go SDK 保持一致）
-      final sentMsg = await _sendMsgViaWebSocket(
-        updatedMsg,
-        conversationID,
-        sessionType,
-        isOnlineOnly,
-      );
-      _log.info('媒体文件消息发送成功: ${sentMsg.clientMsgID}');
-    } catch (e) {
-      _log.warning('媒体文件上传或消息发送失败: $e');
-      final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
-      if (!isOnlineOnly) {
-        await _database.updateMessage(sendMsg.clientMsgID!, {'status': MessageStatus.failed.value});
-        await _database.deleteSendingMessage(sendMsg.clientMsgID!);
-        // 更新会话最新消息为失败状态
-        await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
-      }
-      // 通知 UI 消息状态变更（发送失败）
-      msgListener?.messageStatusChanged(failedMsg);
-      // 通知 UI 进度监听器发送失败
-      msgSendProgressListener?.fail(sendMsg.clientMsgID ?? '', e.toString());
-    }
-  }
-
   /// 发送消息
   /// [message] 消息内容
   /// [offlinePushInfo] 离线消息显示内容
@@ -984,42 +741,47 @@ class MessageManager {
         ? OpenImUtils.genGroupConversationID(groupID)
         : OpenImUtils.genSingleConversationID(_currentUserID, userID!);
 
-    // 检查是否需要上传媒体文件
-    final bool needsMediaUpload = _needsMediaUpload(sendMsg);
-
     // 仅在线消息不存储到本地
     if (!isOnlineOnly) {
-      // 对于媒体文件消息，先存储到 DB（状态为 sending），让 UI 立即显示
-      // 上传完成后再更新消息内容（URL 等）
-      if (needsMediaUpload) {
-        await _database.insertMessage(DatabaseService.messageToDbMap(sendMsg));
+      // 检查DB中是否已有该消息（支持重发场景）
+      final oldMsg = await _database.getMessage(sendMsg.clientMsgID!);
+      if (oldMsg == null) {
+        final dbMap = DatabaseService.messageToDbMap(sendMsg);
+        dbMap['conversationID'] = conversationID;
+        await _database.insertMessage(dbMap);
         await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
-        // 立即更新会话，让 UI 立即看到"发送中"的最新消息
-        await _updateConversationLatestMsg(conversationID, sendMsg, sessionType);
+      } else {
+        if (oldMsg.status?.value != MessageStatus.failed.value &&
+            oldMsg.status?.value != MessageStatus.sending.value) {
+          throw OpenIMException(code: 1, message: 'Message is repeated');
+        }
+        await _database.updateMessage(sendMsg.clientMsgID!, {
+          'status': MessageStatus.sending.value,
+          'conversationID': conversationID,
+        });
+        await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
+      }
+      // 立即更新会话，让 UI 立即看到"发送中"的最新消息
+      await _updateConversationLatestMsg(conversationID, sendMsg, sessionType);
+    }
+
+    try {
+      // 处理媒体文件上传并返回更新后的消息
+      final finalMsg = await _handleMediaUploadIfNeeded(sendMsg);
+
+      if (!isOnlineOnly && !identical(finalMsg, sendMsg)) {
+        // 仅在媒体上传后消息有变化时才更新本地DB（文本消息无需此步骤）
+        final finalDbMap = DatabaseService.messageToDbMap(finalMsg);
+        finalDbMap['conversationID'] = conversationID;
+        await _database.updateMessage(
+          finalMsg.clientMsgID!,
+          finalDbMap,
+        );
       }
 
-      // 启动媒体上传（在后台进行，不阻塞消息存储）
-      _handleMediaUploadInBackground(sendMsg, conversationID, sessionType, isOnlineOnly);
-      // 返回发送中的消息（不等待上传完成）
-      return sendMsg;
-    }
+      _log.info('消息准备发送${isOnlineOnly ? "(仅在线)" : "到本地"}: ${finalMsg.clientMsgID}');
 
-    // Handle media uploading before inserting to DB or sending via WS
-    final finalMsg = await _handleMediaUploadIfNeeded(sendMsg);
-
-    // 仅在线消息不存储到本地
-    if (!isOnlineOnly) {
-      await _database.insertMessage(DatabaseService.messageToDbMap(finalMsg));
-      await _database.insertSendingMessage(finalMsg.clientMsgID!, conversationID);
-      // 立即更新会话（对应 Go SDK 发送前的 AddConOrUpLatMsg）
-      // 让 UI 立即看到"发送中"的最新消息
-      await _updateConversationLatestMsg(conversationID, finalMsg, sessionType);
-    }
-
-    _log.info('消息已发送${isOnlineOnly ? "(仅在线)" : "到本地"}: ${finalMsg.clientMsgID}');
-
-    // 通过 WebSocket 发送消息（使用 protobuf 编码，与 Go SDK 保持一致）
-    try {
+      // 通过 WebSocket 发送消息（使用 protobuf 编码，与 Go SDK 保持一致）
       final sentMsg = await _sendMsgViaWebSocket(
         finalMsg,
         conversationID,
@@ -1032,19 +794,27 @@ class MessageManager {
       rethrow;
     } catch (e) {
       _log.warning('消息发送异常: $e');
-      final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
       if (!isOnlineOnly) {
+        // 安全检查：如果消息已经在DB中标记为成功，则不要覆盖为失败
+        final currentMsg = await _database.getMessage(sendMsg.clientMsgID!);
+        if (currentMsg != null && currentMsg.status == MessageStatus.succeeded) {
+          _log.info('消息已发送成功（DB状态=succeeded），忽略后续异常');
+          return currentMsg;
+        }
+        final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
         await _database.updateMessage(failedMsg.clientMsgID!, {
           'status': MessageStatus.failed.value,
         });
         await _database.deleteSendingMessage(failedMsg.clientMsgID!);
         // 更新会话最新消息为失败状态
-        await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
+        try {
+          await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
+        } catch (_) {}
+        // 通知 UI 消息状态变更（发送失败）
+        msgListener?.messageStatusChanged(failedMsg);
+        // 通知 UI 进度监听器发送失败
+        msgSendProgressListener?.fail(failedMsg.clientMsgID!, e.toString());
       }
-      // 通知 UI 消息状态变更（发送失败）
-      msgListener?.messageStatusChanged(failedMsg);
-      // 通知 UI 进度监听器发送失败
-      msgSendProgressListener?.fail(failedMsg.clientMsgID!, e.toString());
       rethrow;
     }
   }
@@ -1173,9 +943,12 @@ class MessageManager {
                     if (netMsg is Map) {
                       final m = Map<String, dynamic>.from(netMsg);
                       m['conversationID'] = conversationID;
-                      // Go SDK 存储所有消息（含通知），通知/普通分流在 conversation 层
-                      // （n_ 前缀）而非 contentType 层，pull_msg_by_seq 的 msgs 字段
-                      // 只返回普通会话消息，所以全部存入 chatLog。
+                      // 云端拉取的消息默认为已成功发送状态
+                      // protobuf int 默认值是 0（不是 null），需要显式处理
+                      final rawStatus = m['status'];
+                      if (rawStatus == null || rawStatus == 0) {
+                        m['status'] = MessageStatus.succeeded.value;
+                      }
                       batchInsert.add(m);
                     }
                   }
@@ -1583,7 +1356,9 @@ class MessageManager {
         senderID == _currentUserID ? _currentUserID : (senderID ?? ''),
         senderID == _currentUserID ? (receiverID ?? '') : (senderID ?? ''),
       );
-      await _database.insertMessage(DatabaseService.messageToDbMap(msg));
+      final dbMap = DatabaseService.messageToDbMap(msg);
+      dbMap['conversationID'] = conversationID;
+      await _database.insertMessage(dbMap);
       // 触发会话更新（对应 Go SDK InsertSingleMessageToLocalStorage 的 AddConOrUpLatMsg）
       await _updateConversationLatestMsg(conversationID, msg, ConversationType.single);
       return msg;
@@ -1620,7 +1395,9 @@ class MessageManager {
         sendTime: _nowMillis(),
       );
       final conversationID = OpenImUtils.genGroupConversationID(groupID ?? '');
-      await _database.insertMessage(DatabaseService.messageToDbMap(msg));
+      final dbMap = DatabaseService.messageToDbMap(msg);
+      dbMap['conversationID'] = conversationID;
+      await _database.insertMessage(dbMap);
       // 触发会话更新（对应 Go SDK InsertGroupMessageToLocalStorage 的 AddConOrUpLatMsg）
       await _updateConversationLatestMsg(conversationID, msg, ConversationType.superGroup);
       return msg;
@@ -2067,7 +1844,12 @@ class MessageManager {
               'sendTime': sentMsg.sendTime,
             });
             await _database.deleteSendingMessage(sentMsg.clientMsgID!);
-            await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+            // 会话更新失败不应影响消息发送成功的状态
+            try {
+              await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+            } catch (e) {
+              _log.warning('消息已发送成功，但更新会话最新消息失败: $e');
+            }
           }
           return sentMsg;
         } else {
