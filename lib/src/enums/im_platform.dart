@@ -34,4 +34,8 @@ enum IMPlatform {
   const IMPlatform(this.value);
 
   final int value;
+
+  factory IMPlatform.fromValue(int value) {
+    return values.firstWhere((item) => item.value == value, orElse: () => web);
+  }
 }

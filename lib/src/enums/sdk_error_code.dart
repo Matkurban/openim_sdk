@@ -1,5 +1,17 @@
 /// SDK Error Codes
 enum SDKErrorCode {
+  ///初始化数据库失败
+  initializedDatabaseError(1, '初始化数据库失败，请根据报错日志解决。'),
+
+  ///初始化失败
+  initializedError(2, '初始化失败，请根据报错日志解决。'),
+
+  ///配置错误
+  configError(3, '配置错误，请根据报错日志解决。'),
+
+  ///登录失败
+  loginError(4, '登录失败，请根据报错日志解决。'),
+
   /// Network Request Error
   networkRequestError(10000, 'Network Request Error'),
 

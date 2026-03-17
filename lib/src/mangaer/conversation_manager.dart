@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:get_it/get_it.dart';
-import 'package:logging/logging.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
@@ -37,6 +37,7 @@ class ConversationManager {
   late String _currentUserID;
 
   void setConversationListener(OnConversationListener listener) {
+    _log.info('设置会话监听器', methodName: 'setConversationListener');
     this.listener = listener;
   }
 
@@ -49,7 +50,10 @@ class ConversationManager {
   /// [sourceID] 单聊为用户ID，群聊为群组ID
   /// [sessionType] 会话类型
   String getConversationIDBySessionType({required String sourceID, required int sessionType}) {
-    _log.info('getConversationIDBySessionType: sourceID=$sourceID, sessionType=$sessionType');
+    _log.info(
+      'sourceID=$sourceID, sessionType=$sessionType',
+      methodName: 'getConversationIDBySessionType',
+    );
     if (sessionType == ConversationType.single.value) {
       return OpenImUtils.genSingleConversationID(_currentUserID, sourceID);
     } else if (sessionType == ConversationType.superGroup.value) {
@@ -67,8 +71,18 @@ class ConversationManager {
 
   /// 获取所有会话列表
   Future<List<ConversationInfo>> getAllConversationList() async {
-    _log.info('getAllConversationList');
-    return _database.getAllConversations();
+    _log.info('', methodName: 'getAllConversationList');
+    try {
+      return _database.getAllConversations();
+    } catch (e, s) {
+      _log.error(
+        '获取所有会话方法发生了异常，返回了空列表。',
+        methodName: 'getAllConversationList',
+        error: e,
+        stackTrace: s,
+      );
+      return [];
+    }
   }
 
   /// 分页获取会话列表
@@ -395,7 +409,7 @@ class ConversationManager {
   /// [focus] 是否正在输入
   Future<void> changeInputStates({required String conversationID, required bool focus}) async {
     _log.info('changeInputStates: conversationID=$conversationID, focus=$focus');
-    _log.fine('输入状态变更: $conversationID, focus=$focus');
+    _log.info('输入状态变更: $conversationID, focus=$focus');
 
     // 获取会话信息以确定接收方
     final conv = await _database.getConversation(conversationID);

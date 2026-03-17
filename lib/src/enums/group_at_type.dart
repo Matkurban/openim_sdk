@@ -25,4 +25,8 @@ enum GroupAtType {
   const GroupAtType(this.value);
 
   final int value;
+
+  factory GroupAtType.fromValue(int value) {
+    return values.firstWhere((item) => item.value == value, orElse: () => atNormal);
+  }
 }

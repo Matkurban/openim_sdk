@@ -149,4 +149,8 @@ enum MessageType {
   const MessageType(this.value);
 
   final int value;
+
+  factory MessageType.fromValue(int value) {
+    return values.firstWhere((item) => item.value == value, orElse: () => text);
+  }
 }

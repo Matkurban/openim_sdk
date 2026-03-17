@@ -1,16 +1,16 @@
 import 'dart:convert';
-import 'dart:developer';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
-import 'package:logging/logging.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/logger/im_log_config.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
@@ -97,34 +97,27 @@ class IMManager {
     int? platformID,
     required String apiAddr,
     required String wsAddr,
-    required String chatAddr,
+    required String authAddr,
     String? dataDir,
     required OnConnectListener listener,
-    Level logLevel = .ALL,
+    ImLogLevel logLevel = ImLogLevel.all,
     List<TableSchema> schemas = const [],
   }) async {
-    _log.info(
-      'initSDK: platformID=$platformID, apiAddr=$apiAddr, wsAddr=$wsAddr, chatAddr=$chatAddr, dataDir=$dataDir, logLevel=$logLevel',
-    );
     final InitConfig config = InitConfig(
       platformID: platformID,
       apiAddr: apiAddr,
-      chatAddr: chatAddr,
+      authAddr: authAddr,
       wsAddr: wsAddr,
       dbPath: dataDir,
-      logLevel: logLevel,
       schemas: schemas,
     );
     try {
-      hierarchicalLoggingEnabled = true;
-      Logger.root.level = config.logLevel;
-      Logger.root.onRecord.listen((record) {
-        log(
-          '[${record.level.name}] ${record.time}: ${record.loggerName}: ${record.message}',
-          stackTrace: record.stackTrace,
-        );
-      });
-
+      ImLogConfig logConfig = ImLogConfig();
+      logConfig.setLevel(logLevel);
+      _log.info(
+        'platformID=$platformID, apiAddr=$apiAddr, wsAddr=$wsAddr, chatAddr=$authAddr, dataDir=$dataDir, logLevel=$logLevel',
+        methodName: 'initSDK',
+      );
       // 注册配置
       _getIt.registerSingleton<InitConfig>(config, instanceName: InstanceName.initConfig);
 
@@ -132,8 +125,8 @@ class IMManager {
       HttpClient().init(baseUrl: config.apiAddr);
 
       // 初始化 Chat 服务端 HTTP 客户端
-      if (config.chatAddr != null && config.chatAddr!.isNotEmpty) {
-        HttpClient().initChat(baseUrl: config.chatAddr!);
+      if (config.authAddr != null && config.authAddr!.isNotEmpty) {
+        HttpClient().initChat(baseUrl: config.authAddr!);
       }
 
       // 设置 API 错误回调（对应 Go SDK 的 apiErrCallback）
@@ -169,10 +162,10 @@ class IMManager {
         instanceName: InstanceName.webSocketService,
       );
 
-      _log.info('OpenIM SDK initialized successfully');
+      _log.info('OpenIM SDK initialized successfully', methodName: 'initSDK');
       return true;
     } catch (e, s) {
-      _log.severe(e.toString(), e, s);
+      _log.error('初始化失败：${e.toString()}', methodName: 'initSDK', error: e, stackTrace: s);
       return false;
     }
   }
@@ -184,11 +177,19 @@ class IMManager {
     String? dbName,
     List<TableSchema> schemas = const [],
   }) async {
-    return await ToStore.open(
-      dbPath: dbPath,
-      dbName: dbName ?? 'kurban_openim_sdk',
-      schemas: [...DbSchema.allSchemas, ...schemas],
-    );
+    try {
+      return await ToStore.open(
+        dbPath: dbPath,
+        dbName: dbName ?? 'kurban_openim_sdk',
+        schemas: [...DbSchema.allSchemas, ...schemas],
+      );
+    } catch (e, s) {
+      _log.error('初始化数据库失败：${e.toString()}', error: e, stackTrace: s);
+      throw OpenIMException(
+        code: SDKErrorCode.initializedDatabaseError.code,
+        message: SDKErrorCode.initializedDatabaseError.message,
+      );
+    }
   }
 
   ///加载登录配置（自动登录）
@@ -197,30 +198,42 @@ class IMManager {
   ///调用完此方法后可以使用[getLoginStatus] 判断是否自动登录成功
   ///此方法建议在启动页（splash）页中调用，因为涉及网络请求，可能会有一定延迟
   Future<LoginStatus> loadLoginConfig() async {
-    String? value = await getDatabaseInstance().getValue(CacheKey.loginUserData, isGlobal: true);
-    if (value != null) {
-      try {
-        AuthCacheData authCacheData = AuthCacheData.fromJson(jsonDecode(value));
-        bool result = await checkToken(token: authCacheData.imToken);
-        if (result) {
-          _authData = authCacheData;
-          HttpClient().setChatToken(authCacheData.chatToken);
-          await login(userID: authCacheData.userID, token: authCacheData.imToken);
+    try {
+      String? value = await getDatabaseInstance().getValue(CacheKey.loginUserData, isGlobal: true);
+      if (value != null) {
+        try {
+          AuthCacheData authCacheData = AuthCacheData.fromJson(jsonDecode(value));
+          bool result = await checkToken(token: authCacheData.imToken);
+          if (result) {
+            _authData = authCacheData;
+            HttpClient().setChatToken(authCacheData.chatToken);
+            await login(userID: authCacheData.userID, token: authCacheData.imToken);
+          } else {
+            _loginStatus = LoginStatus.logout;
+          }
+        } catch (e, s) {
+          _log.error(e.toString(), methodName: 'loadLoginConfig', error: e, stackTrace: s);
         }
-      } catch (e, s) {
-        _log.severe(e.toString(), e, s);
       }
+      return _loginStatus;
+    } catch (e, s) {
+      _log.error(e.toString(), methodName: 'loadLoginConfig', error: e, stackTrace: s);
+      throw OpenIMException(
+        code: SDKErrorCode.initializedError.code,
+        message: SDKErrorCode.initializedError.message,
+      );
     }
-    return _loginStatus;
   }
 
   ///检验登录的 token 是否有效
   Future<bool> checkToken({required String token}) async {
+    _log.info('检查 Token', methodName: 'checkToken');
     final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
     );
     try {
       ApiResponse result = await imApiService.parseToken(token: token);
+      _log.info('检查 Token 结果：${result.toJson()}', methodName: 'checkToken');
       return result.isSuccess;
     } catch (e) {
       _log.warning('检查 Token 失败: $e');
@@ -229,7 +242,15 @@ class IMManager {
   }
 
   /// 获取数据库实例
+  /// 为了保证项目中只有一个实例提供的便捷方法，初始化之后可用
   ToStore getDatabaseInstance() {
+    _log.info('获取数据库实例', methodName: 'getDatabaseInstance');
+    if (!_getIt.isRegistered<ToStore>(instanceName: InstanceName.toStore)) {
+      throw OpenIMException(
+        code: SDKErrorCode.initializedDatabaseError.code,
+        message: SDKErrorCode.initializedDatabaseError.message,
+      );
+    }
     return _getIt.get<ToStore>(instanceName: InstanceName.toStore);
   }
 
@@ -259,14 +280,17 @@ class IMManager {
   /// 向 chatAddr + /account/login 发起请求，返回 {userID, imToken, chatToken}
   Future<AuthCacheData> _chatLogin(Map<String, dynamic> body) async {
     final InitConfig config = _getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
-    final String? chatAddr = config.chatAddr;
-    if (chatAddr == null || chatAddr.isEmpty) {
-      throw Exception('chatAddr 未配置，请在 InitConfig 中设置 chatAddr');
+    final String? authAddr = config.authAddr;
+    if (authAddr == null || authAddr.isEmpty) {
+      throw OpenIMException(
+        code: SDKErrorCode.configError.code,
+        message: 'authAddr 未配置，请在 initSDK 方法中中设置 authAddr',
+      );
     }
 
     final Dio dio = Dio(
       BaseOptions(
-        baseUrl: chatAddr,
+        baseUrl: authAddr,
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
         contentType: Headers.jsonContentType,
@@ -278,7 +302,7 @@ class IMManager {
     try {
       final Response response = await dio.post('/account/login', data: body);
       final Map<String, dynamic> data = response.data as Map<String, dynamic>;
-      _log.info('Chat 登录响应: $data');
+      _log.info('登录接口响应: $data');
       ApiResponse apiResponse = ApiResponse.fromJson(data);
       if (apiResponse.isSuccess) {
         return AuthCacheData.fromJson(apiResponse.data);
@@ -299,11 +323,14 @@ class IMManager {
             message: SDKErrorCode.ipBanned.message,
           );
         } else {
-          throw Exception('Chat 登录失败: ${apiResponse.errMsg}');
+          throw OpenIMException(
+            code: SDKErrorCode.loginError.code,
+            message: '获取登录Token失败: ${data.toString()}',
+          );
         }
       }
     } catch (e, s) {
-      _log.severe(e.toString(), e, s);
+      _log.error(e.toString(), error: e, stackTrace: s);
       throw OpenIMException(
         code: SDKErrorCode.networkRequestError.code,
         message: SDKErrorCode.networkRequestError.message,
@@ -318,92 +345,97 @@ class IMManager {
   /// [token] 用户 token
   @internal
   Future<UserInfo> login({required String userID, required String token}) async {
-    _log.info('login: userID=$userID');
-    _loginStatus = LoginStatus.logging;
+    _log.info('userID=$userID ,token=$token', methodName: 'login');
+    try {
+      _loginStatus = LoginStatus.logging;
 
-    // 设置 HTTP token
-    HttpClient().setToken(token);
+      // 设置 HTTP token
+      HttpClient().setToken(token);
 
-    final DatabaseService databaseService = _getIt.get<DatabaseService>(
-      instanceName: InstanceName.databaseService,
-    );
-
-    final ImApiService imApiService = _getIt.get<ImApiService>(
-      instanceName: InstanceName.imApiService,
-    );
-
-    // 从服务端获取当前用户信息并存入本地
-    final ApiResponse response = await imApiService.getUsersInfo(userIDs: [userID]);
-    if (response.isSuccess) {
-      final dataMap = response.data as Map<String, dynamic>;
-      final users = dataMap['usersInfo'] as List?;
-      if (users != null && users.isNotEmpty) {
-        final userData = Map<String, dynamic>.from(users.first as Map);
-        await databaseService.upsertUser(userData);
-        _userInfo = UserInfo.fromJson(userData);
-      }
-    }
-    if (_userInfo == null) {
-      _loginStatus = LoginStatus.logout;
-      throw OpenIMException(
-        code: response.errCode,
-        message: '${response.errMsg} : ${response.errDlt}',
+      final DatabaseService databaseService = _getIt.get<DatabaseService>(
+        instanceName: InstanceName.databaseService,
       );
+
+      final ImApiService imApiService = _getIt.get<ImApiService>(
+        instanceName: InstanceName.imApiService,
+      );
+
+      // 从服务端获取当前用户信息并存入本地
+      final ApiResponse response = await imApiService.getUsersInfo(userIDs: [userID]);
+      if (response.isSuccess) {
+        final dataMap = response.data as Map<String, dynamic>;
+        final users = dataMap['usersInfo'] as List?;
+        if (users != null && users.isNotEmpty) {
+          final userData = Map<String, dynamic>.from(users.first as Map);
+          await databaseService.upsertUser(userData);
+          _userInfo = UserInfo.fromJson(userData);
+        }
+      }
+      if (_userInfo == null) {
+        _loginStatus = LoginStatus.logout;
+        throw OpenIMException(
+          code: response.errCode,
+          message: '${response.errMsg} : ${response.errDlt}',
+        );
+      }
+      _userID = userID;
+      conversationManager.setCurrentUserID(userID);
+      groupManager.setCurrentUserID(userID);
+      messageManager.setCurrentUserID(userID);
+      messageManager.setConversationManager(conversationManager);
+      friendshipManager.setCurrentUserID(userID);
+      userManager.setCurrentUserID(userID);
+      momentsManager.setCurrentUserID(userID);
+      favoriteManager.setCurrentUserID(userID);
+      // 初始化数据库（以用户维度）
+      await databaseService.switchSpace(userID: userID);
+      _loginStatus = LoginStatus.logged;
+
+      final dispatcher = NotificationDispatcher(
+        database: databaseService,
+        api: imApiService,
+        friendshipManager: friendshipManager,
+        groupManager: groupManager,
+        userManager: userManager,
+        conversationManager: conversationManager,
+        messageManager: messageManager,
+        momentsManager: momentsManager,
+        favoriteManager: favoriteManager,
+      );
+      dispatcher.setLoginUserID(userID);
+      dispatcher.listenerForService = _listenerForService;
+      _notificationDispatcher = dispatcher;
+
+      final msgSyncer = MsgSyncer(
+        database: databaseService,
+        api: imApiService,
+        notificationDispatcher: dispatcher,
+        messageManager: messageManager,
+        conversationManager: conversationManager,
+        momentsManager: momentsManager,
+        favoriteManager: favoriteManager,
+      );
+      msgSyncer.setLoginUserID(userID);
+      msgSyncer.listenerForService = _listenerForService;
+
+      final WebSocketService webSocketService = _getIt.get<WebSocketService>(
+        instanceName: InstanceName.webSocketService,
+      );
+      webSocketService.connect(userID: userID, token: token);
+
+      webSocketService.onPushMsg = msgSyncer.handlePushMsg;
+
+      msgSyncer.doConnectedSync();
+
+      // 恢复发送中的消息（App 重启后重新登录时调用）
+      messageManager.recoverSendingMessages();
+
+      _log.info('用户已登录: $userID');
+      return _userInfo!;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'login');
+      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '登录失败');
     }
-    _userID = userID;
-    conversationManager.setCurrentUserID(userID);
-    groupManager.setCurrentUserID(userID);
-    messageManager.setCurrentUserID(userID);
-    messageManager.setConversationManager(conversationManager);
-    friendshipManager.setCurrentUserID(userID);
-    userManager.setCurrentUserID(userID);
-    momentsManager.setCurrentUserID(userID);
-    favoriteManager.setCurrentUserID(userID);
-    // 初始化数据库（以用户维度）
-    await databaseService.switchSpace(userID: userID);
-    _loginStatus = LoginStatus.logged;
-
-    final dispatcher = NotificationDispatcher(
-      database: databaseService,
-      api: imApiService,
-      friendshipManager: friendshipManager,
-      groupManager: groupManager,
-      userManager: userManager,
-      conversationManager: conversationManager,
-      messageManager: messageManager,
-      momentsManager: momentsManager,
-      favoriteManager: favoriteManager,
-    );
-    dispatcher.setLoginUserID(userID);
-    dispatcher.listenerForService = _listenerForService;
-    _notificationDispatcher = dispatcher;
-
-    final msgSyncer = MsgSyncer(
-      database: databaseService,
-      api: imApiService,
-      notificationDispatcher: dispatcher,
-      messageManager: messageManager,
-      conversationManager: conversationManager,
-      momentsManager: momentsManager,
-      favoriteManager: favoriteManager,
-    );
-    msgSyncer.setLoginUserID(userID);
-    msgSyncer.listenerForService = _listenerForService;
-
-    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
-      instanceName: InstanceName.webSocketService,
-    );
-    webSocketService.connect(userID: userID, token: token);
-
-    webSocketService.onPushMsg = msgSyncer.handlePushMsg;
-
-    msgSyncer.doConnectedSync();
-
-    // 恢复发送中的消息（App 重启后重新登录时调用）
-    messageManager.recoverSendingMessages();
-
-    _log.info('用户已登录: $userID');
-    return _userInfo!;
   }
 
   /// 使用邮箱登录（包含 SDK login）
@@ -415,27 +447,28 @@ class IMManager {
     String? verificationCode,
   }) async {
     assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
-    _log.info('loginByEmail: email=$email');
-    final body = <String, dynamic>{'email': email, 'platform': PlatformUtils.platformID};
-    if (verificationCode != null) {
-      body['verifyCode'] = verificationCode;
-    } else {
-      body['password'] = OpenImUtils.generateMD5(password!);
+    _log.info('email=$email', methodName: 'loginByEmail');
+    try {
+      final body = <String, dynamic>{'email': email, 'platform': PlatformUtils.platformID};
+      if (verificationCode != null) {
+        body['verifyCode'] = verificationCode;
+      } else {
+        body['password'] = OpenImUtils.generateMD5(password!);
+      }
+      AuthCacheData loginData = await _chatLogin(body);
+      _authData = loginData;
+      HttpClient().setChatToken(loginData.chatToken);
+      final userInfo = await login(userID: loginData.userID, token: loginData.imToken);
+      // 保存登录数据到缓存（用于自动登录）
+      final DatabaseService db = _getIt.get<DatabaseService>(
+        instanceName: InstanceName.databaseService,
+      );
+      await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+      return userInfo;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'loginByEmail');
+      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '邮箱登录失败');
     }
-    AuthCacheData loginData = await _chatLogin(body);
-    _authData = loginData;
-    HttpClient().setChatToken(loginData.chatToken);
-    _log.info('邮箱 Chat 登录成功: $email, userID=${loginData.userID}');
-    final userInfo = await OpenIM.iMManager.login(
-      userID: loginData.userID,
-      token: loginData.imToken,
-    );
-    // 保存登录数据到缓存（用于自动登录）
-    final DatabaseService db = _getIt.get<DatabaseService>(
-      instanceName: InstanceName.databaseService,
-    );
-    await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
-    return userInfo;
   }
 
   /// 使用手机号登录（包含 SDK login）
@@ -448,31 +481,32 @@ class IMManager {
     String? verificationCode,
   }) async {
     assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
-    _log.info('loginByPhone: areaCode=$areaCode, phoneNumber=$phoneNumber');
-    final body = <String, dynamic>{
-      'areaCode': areaCode,
-      'phoneNumber': phoneNumber,
-      'platform': PlatformUtils.platformID,
-    };
-    if (verificationCode != null) {
-      body['verifyCode'] = verificationCode;
-    } else {
-      body['password'] = OpenImUtils.generateMD5(password!);
+    _log.info('areaCode=$areaCode, phoneNumber=$phoneNumber', methodName: 'loginByPhone');
+    try {
+      final body = <String, dynamic>{
+        'areaCode': areaCode,
+        'phoneNumber': phoneNumber,
+        'platform': PlatformUtils.platformID,
+      };
+      if (verificationCode != null) {
+        body['verifyCode'] = verificationCode;
+      } else {
+        body['password'] = OpenImUtils.generateMD5(password!);
+      }
+      AuthCacheData loginData = await _chatLogin(body);
+      _authData = loginData;
+      HttpClient().setChatToken(loginData.chatToken);
+      final userInfo = login(userID: loginData.userID, token: loginData.imToken);
+      // 保存登录数据到缓存（用于自动登录）
+      final DatabaseService db = _getIt.get<DatabaseService>(
+        instanceName: InstanceName.databaseService,
+      );
+      await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+      return userInfo;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'loginByPhone');
+      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '手机登录失败');
     }
-    AuthCacheData loginData = await _chatLogin(body);
-    _authData = loginData;
-    HttpClient().setChatToken(loginData.chatToken);
-    _log.info('手机号 Chat 登录成功: $areaCode$phoneNumber, userID=${loginData.userID}');
-    final userInfo = await OpenIM.iMManager.login(
-      userID: loginData.userID,
-      token: loginData.imToken,
-    );
-    // 保存登录数据到缓存（用于自动登录）
-    final DatabaseService db = _getIt.get<DatabaseService>(
-      instanceName: InstanceName.databaseService,
-    );
-    await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
-    return userInfo;
   }
 
   /// 使用账号登录（包含 SDK login）
@@ -501,29 +535,34 @@ class IMManager {
 
   /// 登出
   Future<void> logout() async {
-    _log.info('logout');
-    _loginStatus = LoginStatus.logout;
-    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
-      instanceName: InstanceName.webSocketService,
-    );
-    // 断开 WebSocket
-    await webSocketService.disconnect();
+    _log.info('退出登录方法', methodName: 'logout');
+    try {
+      _loginStatus = LoginStatus.logout;
+      final WebSocketService webSocketService = _getIt.get<WebSocketService>(
+        instanceName: InstanceName.webSocketService,
+      );
+      // 断开 WebSocket
+      await webSocketService.disconnect();
 
-    // 取消防抖 Timer
-    _notificationDispatcher?.dispose();
-    _notificationDispatcher = null;
+      // 取消防抖 Timer
+      _notificationDispatcher?.dispose();
+      _notificationDispatcher = null;
 
-    // 清除 HTTP token
-    HttpClient().setToken(null);
-    HttpClient().setChatToken(null);
-    _authData = null;
-    final DatabaseService databaseService = _getIt.get<DatabaseService>(
-      instanceName: InstanceName.databaseService,
-    );
-    // 清除登录缓存，但不关闭数据库（避免 Web 上重新登录时操作已关闭的 IndexedDB 挂起）
-    await databaseService.toStore.setValue(CacheKey.loginUserData, null, isGlobal: true);
+      // 清除 HTTP token
+      HttpClient().setToken(null);
+      HttpClient().setChatToken(null);
+      _authData = null;
+      final DatabaseService databaseService = _getIt.get<DatabaseService>(
+        instanceName: InstanceName.databaseService,
+      );
+      // 清除登录缓存，但不关闭数据库（避免 Web 上重新登录时操作已关闭的 IndexedDB 挂起）
+      await databaseService.toStore.setValue(CacheKey.loginUserData, null, isGlobal: true);
 
-    _log.info('用户已登出');
+      _log.info('用户已登出');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'logout');
+      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '退出登录失败');
+    }
   }
 
   /// 设置服务监听（用于后台推送等场景）
@@ -564,18 +603,22 @@ class IMManager {
   }) async {
     _log.info(
       'uploadFile: id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause',
+      methodName: 'uploadFile',
     );
     final file = File(filePath);
     if (!await file.exists()) {
-      throw Exception(SDKErrorCode.uploadFileNotExist.message);
+      throw OpenIMException(
+        code: SDKErrorCode.uploadFileNotExist.code,
+        message: SDKErrorCode.uploadFileNotExist.message,
+      );
     }
 
-    final fileSize = await file.length();
+    final int fileSize = await file.length();
     _uploadFileListener?.open(id, fileSize);
 
     // 分片大小: 5MB (S3/MinIO 的严格最小分片为 5MB)
-    const partSize = 5 * 1024 * 1024;
-    final partNum = (fileSize / partSize).ceil().clamp(1, 10000);
+    const int partSize = 5 * 1024 * 1024;
+    final int partNum = (fileSize / partSize).ceil().clamp(1, 10000);
     _uploadFileListener?.partSize(id, partSize, partNum);
 
     // 计算分片 MD5 和文件总 MD5
@@ -594,8 +637,8 @@ class IMManager {
 
     // server 期望的 hash 是所有分片 MD5 用逗号拼接后的字符串的 MD5
     // 对应 Go SDK 的 partMD5: md5.Sum([]byte(strings.Join(parts, ",")))
-    final combinedHashStr = partMd5s.join(',');
-    final hash = md5.convert(utf8.encode(combinedHashStr)).toString();
+    final String combinedHashStr = partMd5s.join(',');
+    final String hash = md5.convert(utf8.encode(combinedHashStr)).toString();
 
     final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
@@ -647,7 +690,10 @@ class IMManager {
     }
     var currentSignParts = (sign['parts'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
-    _log.info('Sign url: $signUrl, uploadId: $uploadIdParam, partNum: $partNum');
+    _log.info(
+      'Sign url: $signUrl, uploadId: $uploadIdParam, partNum: $partNum',
+      methodName: 'uploadFile',
+    );
 
     // 2. 逐片上传
     for (int i = 0; i < partNum; i++) {
@@ -699,7 +745,7 @@ class IMManager {
             }
           }
         }
-        _log.info('Part $partNumber headers (from list): $headers');
+        _log.info('Part $partNumber headers (from list): $headers', methodName: 'uploadFile');
       } else if (rawHeaders is Map) {
         headers = (rawHeaders).map((k, v) {
           final String val;
@@ -710,10 +756,13 @@ class IMManager {
           }
           return MapEntry(k.toString(), val);
         });
-        _log.info('Part $partNumber headers (from map): $headers');
+        _log.info('Part $partNumber headers (from map): $headers', methodName: 'uploadFile');
       } else {
         headers = null;
-        _log.info('Part $partNumber headers: null (rawHeaders type: ${rawHeaders?.runtimeType})');
+        _log.info(
+          'Part $partNumber headers: null (rawHeaders type: ${rawHeaders?.runtimeType})',
+          methodName: 'uploadFile',
+        );
       }
 
       // 构建上传 URL：优先使用预签名 URL，否则使用 signUrl + query 参数
@@ -748,11 +797,17 @@ class IMManager {
           putUrl = signUrl;
         }
       }
-      _log.info('Part $partNumber: putUrl=${putUrl.isNotEmpty ? putUrl : "empty"}');
+      _log.info(
+        'Part $partNumber: putUrl=${putUrl.isNotEmpty ? putUrl : "empty"}',
+        methodName: 'uploadFile',
+      );
 
       String? etag;
       if (putUrl.isNotEmpty) {
-        _log.info('Uploading part $partNumber to: $putUrl, size: ${partBytes.length}');
+        _log.info(
+          'Uploading part $partNumber to: $putUrl, size: ${partBytes.length}',
+          methodName: 'uploadFile',
+        );
 
         final putResp = await HttpClient().dio.put(
           putUrl,
@@ -762,7 +817,6 @@ class IMManager {
             contentType: contentType ?? 'application/octet-stream',
           ),
           onSendProgress: (sent, total) {
-            _log.info('Upload progress: sent=$sent, total=$total');
             _uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
             onProgress?.call(start + sent, fileSize);
           },
@@ -772,6 +826,7 @@ class IMManager {
         etag = putResp.headers.value('etag');
         _log.info(
           'Part $partNumber upload response: status=${putResp.statusCode}, etag=$etag, data=${putResp.data}',
+          methodName: 'uploadFile',
         );
 
         if (putResp.statusCode != null &&
@@ -794,6 +849,7 @@ class IMManager {
     try {
       _log.info(
         '--> completeMultipartUpload request: uploadID=$uploadID, parts=$partEtags, name=$_userID/$fileName, contentType=$contentType, cause=$cause',
+        methodName: 'uploadFile',
       );
       final completeResp = await imApiService.completeMultipartUpload(
         uploadID: uploadID,
@@ -804,6 +860,7 @@ class IMManager {
       );
       _log.info(
         '<-- completeMultipartUpload response: errCode=${completeResp.errCode}, errMsg=${completeResp.errMsg}, data=${completeResp.data}',
+        methodName: 'uploadFile',
       );
       if (completeResp.errCode != 0) {
         throw Exception('Complete upload failed: ${completeResp.errMsg}');
@@ -813,7 +870,12 @@ class IMManager {
       _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
       return resultUrl;
     } catch (e, s) {
-      _log.info('Exception during completeMultipartUpload: $e, \n$s');
+      _log.error(
+        'Exception during completeMultipartUpload',
+        error: e,
+        stackTrace: s,
+        methodName: 'uploadFile',
+      );
       rethrow;
     }
   }
@@ -838,7 +900,7 @@ class IMManager {
   /// 对应 Go SDK SetAppBackgroundStatus
   /// [isBackground] true=后台, false=前台
   Future<void> setAppBackgroundStatus({required bool isBackground}) async {
-    _log.info('setAppBackgroundStatus: isBackground=$isBackground');
+    _log.info('isBackground=$isBackground', methodName: 'setAppBackgroundStatus');
     final WebSocketService webSocketService = _getIt.get<WebSocketService>(
       instanceName: InstanceName.webSocketService,
     );
@@ -848,8 +910,8 @@ class IMManager {
         reqIdentifier: WebSocketIdentifier.setBackgroundStatus,
         data: _encodeBackgroundStatusReq(isBackground),
       );
-    } catch (e) {
-      _log.warning('setAppBackgroundStatus 请求失败: $e');
+    } catch (e, s) {
+      _log.error('设置失败', error: e, stackTrace: s, methodName: 'setAppBackgroundStatus');
     }
   }
 
@@ -863,11 +925,15 @@ class IMManager {
   /// 网络状态变更通知
   /// 对应 Go SDK NetworkStatusChanged —— 关闭长连接触发自动重连
   Future<void> networkStatusChanged() async {
-    _log.info('networkStatusChanged');
-    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
-      instanceName: InstanceName.webSocketService,
-    );
-    await webSocketService.reconnect();
+    _log.info('', methodName: 'networkStatusChanged');
+    try {
+      final WebSocketService webSocketService = _getIt.get<WebSocketService>(
+        instanceName: InstanceName.webSocketService,
+      );
+      await webSocketService.reconnect();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'networkStatusChanged');
+    }
   }
 
   /// 更新 FCM 推送 Token
@@ -875,18 +941,22 @@ class IMManager {
   /// [fcmToken] FCM 设备令牌
   /// [expireTime] 过期时间（秒级时间戳）
   Future<void> updateFcmToken({required String fcmToken, int expireTime = 0}) async {
-    _log.info('updateFcmToken: fcmToken=${fcmToken.substring(0, fcmToken.length.clamp(0, 8))}...');
-    final ImApiService imApiService = _getIt.get<ImApiService>(
-      instanceName: InstanceName.imApiService,
-    );
-    final resp = await imApiService.fcmUpdateToken(
-      platformID: PlatformUtils.platformID.toString(),
-      fcmToken: fcmToken,
-      account: _userID!,
-      expireTime: expireTime,
-    );
-    if (resp.errCode != 0) {
-      _log.warning('更新 FCM Token 失败: ${resp.errMsg}');
+    _log.info('fcmToken=$fcmToken', methodName: 'updateFcmToken');
+    try {
+      final ImApiService imApiService = _getIt.get<ImApiService>(
+        instanceName: InstanceName.imApiService,
+      );
+      final resp = await imApiService.fcmUpdateToken(
+        platformID: PlatformUtils.platformID.toString(),
+        fcmToken: fcmToken,
+        account: _userID!,
+        expireTime: expireTime,
+      );
+      if (resp.errCode != 0) {
+        _log.warning('更新 FCM Token 失败: ${resp.errMsg}', methodName: 'updateFcmToken');
+      }
+    } catch (e, s) {
+      _log.error('设置 fcm Token 失败', error: e, stackTrace: s, methodName: 'updateFcmToken');
     }
   }
 
@@ -894,13 +964,17 @@ class IMManager {
   /// 对应 Go SDK SetAppBadge
   /// [appUnreadCount] 角标显示的未读数量
   Future<void> setAppBadge({required int appUnreadCount}) async {
-    _log.info('setAppBadge: appUnreadCount=$appUnreadCount');
-    final ImApiService imApiService = _getIt.get<ImApiService>(
-      instanceName: InstanceName.imApiService,
-    );
-    final resp = await imApiService.setAppBadge(userID: _userID!, appUnreadCount: appUnreadCount);
-    if (resp.errCode != 0) {
-      _log.warning('设置 App 角标失败: ${resp.errMsg}');
+    _log.info('appUnreadCount=$appUnreadCount', methodName: 'setAppBadge');
+    try {
+      final ImApiService imApiService = _getIt.get<ImApiService>(
+        instanceName: InstanceName.imApiService,
+      );
+      final resp = await imApiService.setAppBadge(userID: _userID!, appUnreadCount: appUnreadCount);
+      if (resp.errCode != 0) {
+        _log.warning('设置 App 角标失败: ${resp.errMsg}');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setAppBadge');
     }
   }
 
@@ -925,7 +999,6 @@ class IMManager {
             tokenExpiredFired = true;
             _log.warning('Token 已过期');
             listener.userTokenExpired();
-            logout();
           }
         case 1502: // TokenInvalidError
         case 1503: // TokenMalformedError
@@ -936,14 +1009,12 @@ class IMManager {
             tokenInvalidFired = true;
             _log.warning('Token 无效: $errMsg');
             listener.userTokenInvalid();
-            logout();
           }
         case 1506: // TokenKickedError
           if (!kickedOfflineFired) {
             kickedOfflineFired = true;
             _log.warning('被踢下线 (Token Kicked)');
             listener.kickedOffline();
-            logout();
           }
       }
     };

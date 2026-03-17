@@ -4,6 +4,7 @@ import 'package:openim_sdk/openim_sdk.dart';
 import 'package:tostore/tostore.dart';
 
 import '../db/db_schema.dart';
+import '../utils/im_convert.dart';
 
 /// 数据库服务层
 class DatabaseService {
@@ -20,13 +21,13 @@ class DatabaseService {
     if (spaceInfo.spaceName == generateSpaceName) {
       return true;
     }
-    return await toStore.switchSpace(spaceName: generateSpaceName);
+    return toStore.switchSpace(spaceName: generateSpaceName);
   }
 
   /// 关闭数据库
   Future<void> close() async {
-    await toStore.close();
     _currentUserID = null;
+    return toStore.close();
   }
 
   // ---------------------------------------------------------------------------
@@ -34,13 +35,13 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新本地用户信息
-  Future<void> upsertUser(Map<String, dynamic> userData) async {
-    await toStore.upsert(DbTableName.localUser, userData);
+  Future<DbResult> upsertUser(Map<String, dynamic> userData) async {
+    return toStore.upsert(DbTableName.localUser, userData);
   }
 
   /// 插入或更新本地用户信息
-  Future<void> upsertUsers(List<Map<String, dynamic>> userDatas) async {
-    await toStore.batchUpsert(DbTableName.localUser, userDatas);
+  Future<DbResult> upsertUsers(List<Map<String, dynamic>> userDatas) async {
+    return toStore.batchUpsert(DbTableName.localUser, userDatas);
   }
 
   /// 获取当前登录用户信息
@@ -64,8 +65,8 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新好友
-  Future<void> upsertFriend(Map<String, dynamic> friendData) async {
-    await toStore.upsert(DbTableName.localFriend, friendData);
+  Future<DbResult> upsertFriend(Map<String, dynamic> friendData) async {
+    return toStore.upsert(DbTableName.localFriend, friendData);
   }
 
   /// 获取所有好友列表
@@ -117,14 +118,13 @@ class DatabaseService {
   }
 
   /// 删除好友
-  Future<void> deleteFriend(String friendUserID) async {
-    await toStore.delete(DbTableName.localFriend).whereEqual('friendUserID', friendUserID);
+  Future<DbResult> deleteFriend(String friendUserID) async {
+    return toStore.delete(DbTableName.localFriend).whereEqual('friendUserID', friendUserID);
   }
 
   /// 批量插入或更新好友
-  Future<void> batchUpsertFriends(List<Map<String, dynamic>> dataList) async {
-    if (dataList.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localFriend, dataList);
+  Future<DbResult> batchUpsertFriends(List<Map<String, dynamic>> dataList) async {
+    return toStore.batchUpsert(DbTableName.localFriend, dataList);
   }
 
   /// 搜索好友（利用 Tostore LIKE 查询）
@@ -159,8 +159,8 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新好友申请
-  Future<void> upsertFriendRequest(Map<String, dynamic> data) async {
-    await toStore.upsert(DbTableName.localFriendRequest, data);
+  Future<DbResult> upsertFriendRequest(Map<String, dynamic> data) async {
+    return toStore.upsert(DbTableName.localFriendRequest, data);
   }
 
   /// 获取收到的好友申请列表
@@ -194,8 +194,8 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入黑名单
-  Future<void> insertBlack(Map<String, dynamic> data) async {
-    await toStore.upsert(DbTableName.localBlack, data);
+  Future<DbResult> insertBlack(Map<String, dynamic> data) async {
+    return toStore.upsert(DbTableName.localBlack, data);
   }
 
   /// 获取黑名单列表
@@ -207,17 +207,16 @@ class DatabaseService {
   }
 
   /// 移除黑名单
-  Future<void> removeBlack(String blockUserID) async {
-    await toStore
+  Future<DbResult> removeBlack(String blockUserID) async {
+    return toStore
         .delete(DbTableName.localBlack)
         .whereEqual('ownerUserID', _currentUserID)
         .whereEqual('blockUserID', blockUserID);
   }
 
   /// 批量插入/更新黑名单
-  Future<void> batchUpsertBlacks(List<Map<String, dynamic>> blacks) async {
-    if (blacks.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localBlack, blacks);
+  Future<DbResult> batchUpsertBlacks(List<Map<String, dynamic>> blacks) async {
+    return toStore.batchUpsert(DbTableName.localBlack, blacks);
   }
 
   // ---------------------------------------------------------------------------
@@ -225,14 +224,13 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新群组
-  Future<void> upsertGroup(Map<String, dynamic> data) async {
-    await toStore.upsert(DbTableName.localGroup, data);
+  Future<DbResult> upsertGroup(Map<String, dynamic> data) async {
+    return toStore.upsert(DbTableName.localGroup, data);
   }
 
   /// 批量插入或更新群组
-  Future<void> batchUpsertGroups(List<Map<String, dynamic>> dataList) async {
-    if (dataList.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localGroup, dataList);
+  Future<DbResult> batchUpsertGroups(List<Map<String, dynamic>> dataList) async {
+    return toStore.batchUpsert(DbTableName.localGroup, dataList);
   }
 
   /// 获取已加入的群组列表
@@ -261,8 +259,8 @@ class DatabaseService {
   }
 
   /// 删除群组
-  Future<void> deleteGroup(String groupID) async {
-    await toStore.delete(DbTableName.localGroup).whereEqual('groupID', groupID);
+  Future<DbResult> deleteGroup(String groupID) async {
+    return toStore.delete(DbTableName.localGroup).whereEqual('groupID', groupID);
   }
 
   /// 搜索群组（利用 Tostore LIKE 查询）
@@ -292,14 +290,13 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新群成员
-  Future<void> upsertGroupMember(Map<String, dynamic> data) async {
-    await toStore.upsert(DbTableName.localGroupMember, data);
+  Future<DbResult> upsertGroupMember(Map<String, dynamic> data) async {
+    return toStore.upsert(DbTableName.localGroupMember, data);
   }
 
   /// 批量插入或更新群成员
-  Future<void> batchUpsertGroupMembers(List<Map<String, dynamic>> dataList) async {
-    if (dataList.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localGroupMember, dataList);
+  Future<DbResult> batchUpsertGroupMembers(List<Map<String, dynamic>> dataList) async {
+    return toStore.batchUpsert(DbTableName.localGroupMember, dataList);
   }
 
   /// 获取群成员列表
@@ -356,16 +353,16 @@ class DatabaseService {
   }
 
   /// 删除群成员
-  Future<void> deleteGroupMember(String groupID, String userID) async {
-    await toStore
+  Future<DbResult> deleteGroupMember(String groupID, String userID) async {
+    return toStore
         .delete(DbTableName.localGroupMember)
         .whereEqual('groupID', groupID)
         .whereEqual('userID', userID);
   }
 
   /// 删除群组的所有成员
-  Future<void> deleteGroupAllMembers(String groupID) async {
-    await toStore.delete(DbTableName.localGroupMember).whereEqual('groupID', groupID);
+  Future<DbResult> deleteGroupAllMembers(String groupID) async {
+    return toStore.delete(DbTableName.localGroupMember).whereEqual('groupID', groupID);
   }
 
   /// 搜索群成员（利用 Tostore LIKE 查询）
@@ -403,8 +400,8 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新群申请
-  Future<void> upsertGroupRequest(Map<String, dynamic> data) async {
-    await toStore.upsert(DbTableName.localGroupRequest, data);
+  Future<DbResult> upsertGroupRequest(Map<String, dynamic> data) async {
+    return toStore.upsert(DbTableName.localGroupRequest, data);
   }
 
   /// 获取作为接收者的群申请列表
@@ -472,19 +469,18 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新会话
-  Future<void> upsertConversation(Map<String, dynamic> data) async {
-    await toStore.upsert(DbTableName.localConversation, data);
+  Future<DbResult> upsertConversation(Map<String, dynamic> data) async {
+    return toStore.upsert(DbTableName.localConversation, data);
   }
 
   /// 批量插入或更新会话
-  Future<void> batchUpsertConversations(List<Map<String, dynamic>> dataList) async {
-    if (dataList.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localConversation, dataList);
+  Future<DbResult> batchUpsertConversations(List<Map<String, dynamic>> dataList) async {
+    return toStore.batchUpsert(DbTableName.localConversation, dataList);
   }
 
   /// 删除所有会话
-  Future<void> deleteAllConversations() async {
-    await toStore.delete(DbTableName.localConversation).allowDeleteAll();
+  Future<DbResult> deleteAllConversations() async {
+    return toStore.delete(DbTableName.localConversation).allowDeleteAll();
   }
 
   /// 获取所有会话列表
@@ -518,15 +514,15 @@ class DatabaseService {
   }
 
   /// 删除会话
-  Future<void> deleteConversation(String conversationID) async {
-    await toStore
+  Future<DbResult> deleteConversation(String conversationID) async {
+    return toStore
         .delete(DbTableName.localConversation)
         .whereEqual('conversationID', conversationID);
   }
 
   /// 更新会话属性
-  Future<void> updateConversation(String conversationID, Map<String, dynamic> data) async {
-    await toStore
+  Future<DbResult> updateConversation(String conversationID, Map<String, dynamic> data) async {
+    return toStore
         .update(DbTableName.localConversation, data)
         .whereEqual('conversationID', conversationID);
   }
@@ -550,8 +546,8 @@ class DatabaseService {
   }
 
   /// 更新会话草稿
-  Future<void> setConversationDraft(String conversationID, String draftText) async {
-    await toStore
+  Future<DbResult> setConversationDraft(String conversationID, String draftText) async {
+    return toStore
         .update(DbTableName.localConversation, {
           'draftText': draftText,
           'draftTextTime': DateTime.now().millisecondsSinceEpoch,
@@ -560,23 +556,23 @@ class DatabaseService {
   }
 
   /// 清空会话未读数
-  Future<void> clearConversationUnreadCount(String conversationID) async {
-    await toStore
+  Future<DbResult> clearConversationUnreadCount(String conversationID) async {
+    return toStore
         .update(DbTableName.localConversation, {'unreadCount': 0})
         .whereEqual('conversationID', conversationID);
   }
 
   /// 减少会话未读数
-  Future<void> decrConversationUnreadCount(String conversationID, int decrCount) async {
-    if (decrCount <= 0) return;
+  Future<DbResult> decrConversationUnreadCount(String conversationID, int decrCount) async {
+    if (decrCount <= 0) return DbResult.success();
     final data = await toStore
         .query(DbTableName.localConversation)
         .whereEqual('conversationID', conversationID)
         .first();
-    if (data == null) return;
+    if (data == null) return DbResult.success();
     final current = (data['unreadCount'] as num?)?.toInt() ?? 0;
     final newCount = (current - decrCount).clamp(0, current);
-    await toStore
+    return toStore
         .update(DbTableName.localConversation, {'unreadCount': newCount})
         .whereEqual('conversationID', conversationID);
   }
@@ -598,8 +594,8 @@ class DatabaseService {
   }
 
   /// 清空所有会话未读数
-  Future<void> clearAllUnreadCounts() async {
-    await toStore.update(DbTableName.localConversation, {'unreadCount': 0}).allowUpdateAll();
+  Future<DbResult> clearAllUnreadCounts() async {
+    return toStore.update(DbTableName.localConversation, {'unreadCount': 0}).allowUpdateAll();
   }
 
   /// 搜索会话（利用 Tostore LIKE 查询）
@@ -616,14 +612,13 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入消息
-  Future<void> insertMessage(Map<String, dynamic> msgData) async {
-    await toStore.upsert(DbTableName.localChatLog, msgData);
+  Future<DbResult> insertMessage(Map<String, dynamic> msgData) async {
+    return toStore.upsert(DbTableName.localChatLog, msgData);
   }
 
   /// 批量插入消息
-  Future<void> batchInsertMessages(List<Map<String, dynamic>> msgList) async {
-    if (msgList.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localChatLog, msgList);
+  Future<DbResult> batchInsertMessages(List<Map<String, dynamic>> msgList) async {
+    return toStore.batchUpsert(DbTableName.localChatLog, msgList);
   }
 
   /// 根据 clientMsgID 获取消息
@@ -671,6 +666,36 @@ class DatabaseService {
 
     List<Map<String, dynamic>> dataList = result.data;
 
+    // 首次加载时 (startTime == 0)，需要额外获取发送中/失败的消息
+    // 这些消息按 sendTime 排序会排在最后，但它们应该是最新消息的一部分
+    // 注意：使用 ListView(reverse: true) 时，index 0 = 底部（最新消息位置）
+    if (startTime == 0 && count > 0) {
+      // 查询状态为发送中(sending=1)或失败(failed=3)的消息
+      final pendingResult = await toStore
+          .query(DbTableName.localChatLog)
+          .whereEqual('conversationID', conversationID)
+          .whereIn('status', [1, 3]) // 1=sending, 3=failed
+          .orderByDesc('seq')
+          .limit(count);
+      if (pendingResult.data.isNotEmpty) {
+        // 将 pending 消息插入到结果开头（在最新消息位置）
+        // 这样失败消息会显示在底部（符合用户最新操作的位置）
+        final pendingMsgs = pendingResult.data;
+        // 去重：根据 clientMsgID 合并
+        final existingIds = dataList.map((m) => m['clientMsgID'] as String?).toSet();
+        // 先收集所有需要添加的消息
+        final msgsToAdd = <Map<String, dynamic>>[];
+        for (final msg in pendingMsgs) {
+          final id = msg['clientMsgID'] as String?;
+          if (id != null && !existingIds.contains(id)) {
+            msgsToAdd.add(msg);
+          }
+        }
+        // 将失败消息插入到列表开头（最新消息位置）
+        dataList.insertAll(0, msgsToAdd);
+      }
+    }
+
     // 根据 Go 客户端逻辑，严格在 Dart 端过滤掉包括 startMsg 及时间更新的消息：
     // 条件：send_time < ? OR (send_time = ? AND (seq < ? OR (seq = 0 AND client_msg_id != ?)))
     // 注意：当 startSeq = 0 时（发送中的消息），应该包含所有 seq <= 0 的消息，
@@ -696,30 +721,30 @@ class DatabaseService {
   }
 
   /// 更新消息状态
-  Future<void> updateMessageStatus(String clientMsgID, int status) async {
-    await toStore
+  Future<DbResult> updateMessageStatus(String clientMsgID, int status) async {
+    return toStore
         .update(DbTableName.localChatLog, {'status': status})
         .whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 更新消息（通用）
-  Future<void> updateMessage(String clientMsgID, Map<String, dynamic> data) async {
-    await toStore.update(DbTableName.localChatLog, data).whereEqual('clientMsgID', clientMsgID);
+  Future<DbResult> updateMessage(String clientMsgID, Map<String, dynamic> data) async {
+    return toStore.update(DbTableName.localChatLog, data).whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 删除消息
-  Future<void> deleteMessage(String clientMsgID) async {
-    await toStore.delete(DbTableName.localChatLog).whereEqual('clientMsgID', clientMsgID);
+  Future<DbResult> deleteMessage(String clientMsgID) async {
+    return toStore.delete(DbTableName.localChatLog).whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 删除会话所有消息（按 conversationID 单条件删除）
-  Future<void> deleteConversationAllMessages(String conversationID) async {
-    await toStore.delete(DbTableName.localChatLog).whereEqual('conversationID', conversationID);
+  Future<DbResult> deleteConversationAllMessages(String conversationID) async {
+    return toStore.delete(DbTableName.localChatLog).whereEqual('conversationID', conversationID);
   }
 
   /// 删除所有本地消息
-  Future<void> deleteAllMessages() async {
-    await toStore.delete(DbTableName.localChatLog).allowDeleteAll();
+  Future<DbResult> deleteAllMessages() async {
+    return toStore.delete(DbTableName.localChatLog).allowDeleteAll();
   }
 
   /// 搜索本地消息
@@ -775,10 +800,9 @@ class DatabaseService {
   }
 
   /// 批量标记消息已读
-  Future<void> markMessagesAsRead(List<String> clientMsgIDs) async {
-    if (clientMsgIDs.isEmpty) return;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    await toStore
+  Future<DbResult> markMessagesAsRead(List<String> clientMsgIDs) async {
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    return toStore
         .update(DbTableName.localChatLog, {'isRead': true, 'hasReadTime': now})
         .whereIn('clientMsgID', clientMsgIDs);
   }
@@ -788,16 +812,16 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入发送中消息
-  Future<void> insertSendingMessage(String clientMsgID, String conversationID) async {
-    await toStore.upsert(DbTableName.localSendingMessage, {
+  Future<DbResult> insertSendingMessage(String clientMsgID, String conversationID) async {
+    return toStore.upsert(DbTableName.localSendingMessage, {
       'clientMsgID': clientMsgID,
       'conversationID': conversationID,
     });
   }
 
   /// 删除发送中消息
-  Future<void> deleteSendingMessage(String clientMsgID) async {
-    await toStore.delete(DbTableName.localSendingMessage).whereEqual('clientMsgID', clientMsgID);
+  Future<DbResult> deleteSendingMessage(String clientMsgID) async {
+    return toStore.delete(DbTableName.localSendingMessage).whereEqual('clientMsgID', clientMsgID);
   }
 
   /// 获取会话的发送中消息列表
@@ -843,21 +867,25 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 更新群组部分字段
-  Future<void> updateGroup(String groupID, Map<String, dynamic> data) async {
-    await toStore.update(DbTableName.localGroup, data).whereEqual('groupID', groupID);
+  Future<DbResult> updateGroup(String groupID, Map<String, dynamic> data) async {
+    return toStore.update(DbTableName.localGroup, data).whereEqual('groupID', groupID);
   }
 
   /// 更新群成员部分字段
-  Future<void> updateGroupMember(String groupID, String userID, Map<String, dynamic> data) async {
-    await toStore
+  Future<DbResult> updateGroupMember(
+    String groupID,
+    String userID,
+    Map<String, dynamic> data,
+  ) async {
+    return toStore
         .update(DbTableName.localGroupMember, data)
         .whereEqual('groupID', groupID)
         .whereEqual('userID', userID);
   }
 
   /// 更新好友部分字段
-  Future<void> updateFriend(String friendUserID, Map<String, dynamic> data) async {
-    await toStore.update(DbTableName.localFriend, data).whereEqual('friendUserID', friendUserID);
+  Future<DbResult> updateFriend(String friendUserID, Map<String, dynamic> data) async {
+    return toStore.update(DbTableName.localFriend, data).whereEqual('friendUserID', friendUserID);
   }
 
   /// 获取会话的 maxSeq（不在 ConversationInfo 模型中的 DB 字段）
@@ -882,129 +910,33 @@ class DatabaseService {
     return seqs;
   }
 
-  /// 保存会话对象到数据库
-  Future<void> saveConversation(ConversationInfo conversation) async {
-    await toStore.upsert(DbTableName.localConversation, conversationToDbMap(conversation));
-  }
-
-  /// 批量保存会话对象到数据库
-  Future<void> batchSaveConversations(List<ConversationInfo> conversations) async {
-    if (conversations.isEmpty) return;
-    await toStore.batchUpsert(
-      DbTableName.localConversation,
-      conversations.map(conversationToDbMap).toList(),
-    );
-  }
-
-  /// 保存消息对象到数据库
-  Future<void> saveMessage(Message message) async {
-    await toStore.upsert(DbTableName.localChatLog, messageToDbMap(message));
-  }
-
-  /// 批量保存消息对象到数据库
-  Future<void> batchSaveMessages(List<Message> messages) async {
-    if (messages.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localChatLog, messages.map(messageToDbMap).toList());
-  }
-
   // ---------------------------------------------------------------------------
   // 模型转换：数据库 Map ↔ 模型对象
   // ---------------------------------------------------------------------------
 
   /// 数据库 Map 转 FriendInfo
   FriendInfo _convertFriendInfo(Map<String, dynamic> data) {
-    return FriendInfo(
-      ownerUserID: data['ownerUserID'] as String?,
-      userID: data['friendUserID'] as String?,
-      nickname: data['nickname'] as String?,
-      faceURL: data['faceURL'] as String?,
-      friendUserID: data['friendUserID'] as String?,
-      remark: data['remark'] as String?,
-      ex: data['ex'] as String?,
-      createTime: data['createTime'] as int?,
-      addSource: data['addSource'] as int?,
-      operatorUserID: data['operatorUserID'] as String?,
-    );
+    return FriendInfo.fromJson(data);
   }
 
   /// 数据库 Map 转 FriendApplicationInfo
   FriendApplicationInfo _convertFriendApplicationInfo(Map<String, dynamic> data) {
-    return FriendApplicationInfo(
-      fromUserID: data['fromUserID'] as String?,
-      fromNickname: data['fromNickname'] as String?,
-      fromFaceURL: data['fromFaceURL'] as String?,
-      toUserID: data['toUserID'] as String?,
-      toNickname: data['toNickname'] as String?,
-      toFaceURL: data['toFaceURL'] as String?,
-      handleResult: data['handleResult'] as int?,
-      reqMsg: data['reqMsg'] as String?,
-      createTime: data['createTime'] as int?,
-      handlerUserID: data['handlerUserID'] as String?,
-      handleMsg: data['handleMsg'] as String?,
-      handleTime: data['handleTime'] as int?,
-      ex: data['ex'] as String?,
-    );
+    return FriendApplicationInfo.fromJson(data);
   }
 
   /// 数据库 Map 转 GroupInfo
   GroupInfo _convertGroupInfo(Map<String, dynamic> data) {
-    return GroupInfo(
-      groupID: (data['groupID'] as String?) ?? '',
-      groupName: data['groupName'] as String?,
-      notification: data['notification'] as String?,
-      introduction: data['introduction'] as String?,
-      faceURL: data['faceURL'] as String?,
-      ownerUserID: data['ownerUserID'] as String?,
-      createTime: data['createTime'] as int?,
-      memberCount: data['memberCount'] as int?,
-      status: _intToGroupStatus(data['status'] as int?),
-      creatorUserID: data['creatorUserID'] as String?,
-      groupType: _intToGroupType(data['groupType'] as int?),
-      ex: data['ex'] as String?,
-      needVerification: _intToGroupVerification(data['needVerification'] as int?),
-      lookMemberInfo: data['lookMemberInfo'] as int?,
-      applyMemberFriend: data['applyMemberFriend'] as int?,
-      notificationUpdateTime: data['notificationUpdateTime'] as int?,
-      notificationUserID: data['notificationUserID'] as String?,
-    );
+    return GroupInfo.fromJson(data);
   }
 
   /// 数据库 Map 转 GroupMembersInfo
   GroupMembersInfo _convertGroupMembersInfo(Map<String, dynamic> data) {
-    return GroupMembersInfo(
-      groupID: data['groupID'] as String?,
-      userID: data['userID'] as String?,
-      nickname: data['nickname'] as String?,
-      faceURL: data['faceURL'] as String?,
-      roleLevel: _intToGroupRoleLevel(data['roleLevel'] as int?),
-      joinTime: data['joinTime'] as int?,
-      joinSource: _intToJoinSource(data['joinSource'] as int?),
-      muteEndTime: data['muteEndTime'] as int?,
-      inviterUserID: data['inviterUserID'] as String?,
-      operatorUserID: data['operatorUserID'] as String?,
-      ex: data['ex'] as String?,
-    );
+    return GroupMembersInfo.fromJson(data);
   }
 
   /// 数据库 Map 转 GroupApplicationInfo
   GroupApplicationInfo _convertGroupApplicationInfo(Map<String, dynamic> data) {
-    return GroupApplicationInfo(
-      groupID: data['groupID'] as String?,
-      groupName: data['groupName'] as String?,
-      groupFaceURL: data['groupFaceURL'] as String?,
-      userID: data['userID'] as String?,
-      nickname: data['nickname'] as String?,
-      userFaceURL: data['userFaceURL'] as String?,
-      handleResult: data['handleResult'] as int?,
-      reqMsg: data['reqMsg'] as String?,
-      reqTime: data['reqTime'] as int?,
-      handleUserID: data['handleUserID'] as String?,
-      handledMsg: data['handledMsg'] as String?,
-      handledTime: data['handledTime'] as int?,
-      ex: data['ex'] as String?,
-      joinSource: _intToJoinSource(data['joinSource'] as int?),
-      inviterUserID: data['inviterUserID'] as String?,
-    );
+    return GroupApplicationInfo.fromJson(data);
   }
 
   /// 数据库 Map 转 ConversationInfo
@@ -1020,12 +952,16 @@ class DatabaseService {
 
     return ConversationInfo(
       conversationID: data['conversationID'] as String,
-      conversationType: _intToConversationType(data['conversationType'] as int?),
+      conversationType: (data['conversationType'] as int?) == null
+          ? null
+          : ConversationType.fromValue(data['conversationType']),
       userID: data['userID'] as String?,
       groupID: data['groupID'] as String?,
       showName: data['showName'] as String?,
       faceURL: data['faceURL'] as String?,
-      recvMsgOpt: _intToReceiveMessageOpt(data['recvMsgOpt'] as int?),
+      recvMsgOpt: (data['recvMsgOpt'] as int?) == null
+          ? null
+          : ReceiveMessageOpt.fromValue(data['recvMsgOpt']),
       unreadCount: (data['unreadCount'] as num?)?.toInt() ?? 0,
       latestMsg: latestMsg,
       latestMsgSendTime: data['latestMsgSendTime'] as int?,
@@ -1038,127 +974,10 @@ class DatabaseService {
       msgDestructTime: data['msgDestructTime'] as int?,
       ex: data['ex'] as String?,
       isNotInGroup: data['isNotInGroup'] as bool?,
-      groupAtType: _intToGroupAtType(data['groupAtType'] as int?),
+      groupAtType: (data['groupAtType'] as int?) == null
+          ? null
+          : GroupAtType.fromValue(data['groupAtType']),
     );
-  }
-
-  /// ConversationInfo 转数据库 Map
-  static Map<String, dynamic> conversationToDbMap(ConversationInfo c) {
-    return {
-      'conversationID': c.conversationID,
-      'conversationType': c.conversationType?.value,
-      'userID': c.userID,
-      'groupID': c.groupID,
-      'showName': c.showName,
-      'faceURL': c.faceURL,
-      'recvMsgOpt': c.recvMsgOpt?.value,
-      'unreadCount': c.unreadCount,
-      'latestMsg': c.latestMsg != null ? jsonEncode(c.latestMsg!.toJson()) : null,
-      'latestMsgSendTime': c.latestMsgSendTime,
-      'draftText': c.draftText,
-      'draftTextTime': c.draftTextTime,
-      'isPinned': c.isPinned,
-      'isPrivateChat': c.isPrivateChat,
-      'burnDuration': c.burnDuration,
-      'isMsgDestruct': c.isMsgDestruct,
-      'msgDestructTime': c.msgDestructTime,
-      'ex': c.ex,
-      'isNotInGroup': c.isNotInGroup,
-      'groupAtType': c.groupAtType?.value,
-    };
-  }
-
-  /// 数据库 Map 转 Message 对象
-  Message convertMessage(Map<String, dynamic> data) {
-    final contentTypeValue = data['contentType'] as int?;
-    final content = data['content'] as String?;
-    Map<String, dynamic>? contentMap;
-    if (content != null && content.isNotEmpty) {
-      try {
-        contentMap = jsonDecode(content) as Map<String, dynamic>;
-      } catch (_) {
-        try {
-          contentMap = jsonDecode(utf8.decode(base64Decode(content))) as Map<String, dynamic>;
-        } catch (_) {}
-      }
-    }
-
-    return Message(
-      clientMsgID: data['clientMsgID'] as String?,
-      serverMsgID: data['serverMsgID'] as String?,
-      createTime: data['createTime'] as int?,
-      sendTime: data['sendTime'] as int?,
-      sessionType: _intToConversationType(data['sessionType'] as int?),
-      sendID: data['sendID'] as String?,
-      recvID: data['recvID'] as String?,
-      msgFrom: data['msgFrom'] as int?,
-      contentType: _intToMessageType(contentTypeValue),
-      senderPlatformID: _intToIMPlatform(data['senderPlatformID'] as int?),
-      senderNickname: data['senderNickname'] as String?,
-      senderFaceUrl: data['senderFaceUrl'] as String?,
-      groupID: data['groupID'] as String?,
-      localEx: data['localEx'] as String?,
-      seq: data['seq'] as int?,
-      isRead: data['isRead'] as bool?,
-      hasReadTime: data['hasReadTime'] as int?,
-      status: _intToMessageStatus(data['status'] as int?),
-      isReact: data['isReact'] as bool?,
-      isExternalExtensions: data['isExternalExtensions'] as bool?,
-      attachedInfo: data['attachedInfo'] as String?,
-      ex: data['ex'] as String?,
-      textElem: contentTypeValue == MessageType.text.value && contentMap != null
-          ? TextElem.fromJson(contentMap)
-          : null,
-      pictureElem: contentTypeValue == MessageType.picture.value && contentMap != null
-          ? PictureElem.fromJson(contentMap)
-          : null,
-      soundElem: contentTypeValue == MessageType.voice.value && contentMap != null
-          ? SoundElem.fromJson(contentMap)
-          : null,
-      videoElem: contentTypeValue == MessageType.video.value && contentMap != null
-          ? VideoElem.fromJson(contentMap)
-          : null,
-      fileElem: contentTypeValue == MessageType.file.value && contentMap != null
-          ? FileElem.fromJson(contentMap)
-          : null,
-      locationElem: contentTypeValue == MessageType.location.value && contentMap != null
-          ? LocationElem.fromJson(contentMap)
-          : null,
-      customElem: contentTypeValue == MessageType.custom.value && contentMap != null
-          ? CustomElem.fromJson(contentMap)
-          : null,
-      quoteElem: contentTypeValue == MessageType.quote.value && contentMap != null
-          ? QuoteElem.fromJson(contentMap)
-          : null,
-      mergeElem: contentTypeValue == MessageType.merger.value && contentMap != null
-          ? MergeElem.fromJson(contentMap)
-          : null,
-      faceElem: contentTypeValue == MessageType.customFace.value && contentMap != null
-          ? FaceElem.fromJson(contentMap)
-          : null,
-      cardElem: contentTypeValue == MessageType.card.value && contentMap != null
-          ? CardElem.fromJson(contentMap)
-          : null,
-      atTextElem: contentTypeValue == MessageType.atText.value && contentMap != null
-          ? AtTextElem.fromJson(contentMap)
-          : null,
-      notificationElem: contentTypeValue != null && contentTypeValue >= 1000 && contentMap != null
-          ? _parseNotificationElem(contentMap)
-          : null,
-    );
-  }
-
-  /// 解析通知消息的 content → NotificationElem
-  ///
-  /// OA 通知消息 (contentType=1400) 的 content 结构:
-  /// {"detail": "{\"text\":\"...\",\"pictureElem\":{...},\"mixType\":0,...}"}
-  /// 提取 detail 字段作为 NotificationElem.detail
-  static NotificationElem _parseNotificationElem(Map<String, dynamic> contentMap) {
-    final detailRaw = contentMap['detail'];
-    if (detailRaw is String && detailRaw.isNotEmpty) {
-      return NotificationElem(detail: detailRaw);
-    }
-    return NotificationElem(detail: jsonEncode(contentMap));
   }
 
   /// Message 转数据库 Map
@@ -1218,51 +1037,6 @@ class DatabaseService {
       'hasReadTime': msg.hasReadTime,
     };
   }
-
-  // ---------------------------------------------------------------------------
-  // 枚举转换辅助方法（静态 Map O(1) 查找，替代 firstWhere O(n)）
-  // ---------------------------------------------------------------------------
-
-  static final _convTypeMap = {for (final e in ConversationType.values) e.value: e};
-  static final _recvMsgOptMap = {for (final e in ReceiveMessageOpt.values) e.value: e};
-  static final _groupAtTypeMap = {for (final e in GroupAtType.values) e.value: e};
-  static final _groupTypeMap = {for (final e in GroupType.values) e.value: e};
-  static final _groupStatusMap = {for (final e in GroupStatus.values) e.value: e};
-  static final _groupVerifMap = {for (final e in GroupVerification.values) e.value: e};
-  static final _groupRoleLevelMap = {for (final e in GroupRoleLevel.values) e.value: e};
-  static final _joinSourceMap = {for (final e in JoinSource.values) e.value: e};
-  static final _msgTypeMap = {for (final e in MessageType.values) e.value: e};
-  static final _msgStatusMap = {for (final e in MessageStatus.values) e.value: e};
-  static final _platformMap = {for (final e in IMPlatform.values) e.value: e};
-
-  static ConversationType? _intToConversationType(int? value) =>
-      value == null ? null : _convTypeMap[value];
-
-  static ReceiveMessageOpt? _intToReceiveMessageOpt(int? value) =>
-      value == null ? null : _recvMsgOptMap[value];
-
-  static GroupAtType? _intToGroupAtType(int? value) =>
-      value == null ? null : _groupAtTypeMap[value];
-
-  static GroupType? _intToGroupType(int? value) => value == null ? null : _groupTypeMap[value];
-
-  static GroupStatus? _intToGroupStatus(int? value) =>
-      value == null ? null : _groupStatusMap[value];
-
-  static GroupVerification? _intToGroupVerification(int? value) =>
-      value == null ? null : _groupVerifMap[value];
-
-  static GroupRoleLevel? _intToGroupRoleLevel(int? value) =>
-      value == null ? null : _groupRoleLevelMap[value];
-
-  static JoinSource? _intToJoinSource(int? value) => value == null ? null : _joinSourceMap[value];
-
-  static MessageType? _intToMessageType(int? value) => value == null ? null : _msgTypeMap[value];
-
-  static MessageStatus? _intToMessageStatus(int? value) =>
-      value == null ? null : _msgStatusMap[value];
-
-  static IMPlatform? _intToIMPlatform(int? value) => value == null ? null : _platformMap[value];
 
   /// 规范化原始服务端消息 Map
   static Map<String, dynamic> _normalizeRawMsg(Map<String, dynamic> msg) {
@@ -1327,14 +1101,13 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新单条动态
-  Future<void> upsertMoment(MomentInfo moment) async {
-    await toStore.upsert(DbTableName.localMoment, moment.toJson());
+  Future<DbResult> upsertMoment(MomentInfo moment) async {
+    return toStore.upsert(DbTableName.localMoment, moment.toJson());
   }
 
   /// 批量插入或更新动态
-  Future<void> batchUpsertMoments(List<MomentInfo> moments) async {
-    if (moments.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localMoment, moments.map((m) => m.toJson()).toList());
+  Future<DbResult> batchUpsertMoments(List<MomentInfo> moments) async {
+    return toStore.batchUpsert(DbTableName.localMoment, moments.map((m) => m.toJson()).toList());
   }
 
   /// 分页获取动态列表（按 createTime 降序）
@@ -1372,13 +1145,8 @@ class DatabaseService {
   }
 
   /// 删除本地动态
-  Future<void> deleteMoment(String momentID) async {
-    await toStore.delete(DbTableName.localMoment).whereEqual('momentID', momentID);
-  }
-
-  /// 清空所有本地动态
-  Future<void> clearAllMoments() async {
-    await toStore.delete(DbTableName.localMoment);
+  Future<DbResult> deleteMoment(String momentID) async {
+    return toStore.delete(DbTableName.localMoment).whereEqual('momentID', momentID);
   }
 
   // ---------------------------------------------------------------------------
@@ -1386,14 +1154,13 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   /// 插入或更新单条收藏
-  Future<void> upsertFavorite(FavoriteItem item) async {
-    await toStore.upsert(DbTableName.localFavorite, item.toJson());
+  Future<DbResult> upsertFavorite(FavoriteItem item) async {
+    return toStore.upsert(DbTableName.localFavorite, item.toJson());
   }
 
   /// 批量插入或更新收藏
-  Future<void> batchUpsertFavorites(List<FavoriteItem> items) async {
-    if (items.isEmpty) return;
-    await toStore.batchUpsert(DbTableName.localFavorite, items.map((f) => f.toJson()).toList());
+  Future<DbResult> batchUpsertFavorites(List<FavoriteItem> items) async {
+    return toStore.batchUpsert(DbTableName.localFavorite, items.map((f) => f.toJson()).toList());
   }
 
   /// 分页获取收藏列表（按 createTime 降序）
@@ -1407,15 +1174,6 @@ class DatabaseService {
     return result.data.map((r) => FavoriteItem.fromJson(r)).toList();
   }
 
-  /// 根据 favoriteID 获取单条收藏
-  Future<FavoriteItem?> getFavoriteByID(String favoriteID) async {
-    final row = await toStore
-        .query(DbTableName.localFavorite)
-        .whereEqual('favoriteID', favoriteID)
-        .first();
-    return row != null ? FavoriteItem.fromJson(row) : null;
-  }
-
   /// 根据 targetType + targetID 查找收藏（检查是否已收藏）
   Future<FavoriteItem?> getFavoriteByTarget(String targetType, String targetID) async {
     final row = await toStore
@@ -1427,22 +1185,12 @@ class DatabaseService {
     return row != null ? FavoriteItem.fromJson(row) : null;
   }
 
-  /// 删除本地收藏
-  Future<void> deleteFavoriteByID(String favoriteID) async {
-    await toStore.delete(DbTableName.localFavorite).whereEqual('favoriteID', favoriteID);
-  }
-
   /// 按 targetType + targetID 删除收藏
-  Future<void> deleteFavoriteByTarget(String targetType, String targetID) async {
-    await toStore
+  Future<DbResult> deleteFavoriteByTarget(String targetType, String targetID) async {
+    return toStore
         .delete(DbTableName.localFavorite)
         .whereEqual('userID', _currentUserID)
         .whereEqual('targetType', targetType)
         .whereEqual('targetID', targetID);
-  }
-
-  /// 清空所有本地收藏
-  Future<void> clearAllFavorites() async {
-    await toStore.delete(DbTableName.localFavorite).whereEqual('userID', _currentUserID);
   }
 }

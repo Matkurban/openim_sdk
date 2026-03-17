@@ -9,6 +9,8 @@ import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/models/web_socket_codec.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
+import '../utils/im_convert.dart';
+
 /// 会话批量更新信息（聚合同一会话的多条推送消息）
 class ConvBatchUpdate {
   Map<String, dynamic>? latestMsg;
@@ -1167,14 +1169,14 @@ class MsgSyncer {
   /// 使用 DatabaseService.convertMessage 统一解析 content → 对应 Elem，
   /// 与从数据库加载消息走同一条路径，确保 textElem 等字段正确填充。
   void _fireNewMessage(Map<String, dynamic> msg) {
-    final message = database.convertMessage(msg);
+    final message = convertMessage(msg);
     msgListener?.recvNewMessage(message);
     listenerForService?.recvNewMessage(message);
   }
 
   /// 仅在线消息：不存储到本地，仅触发 onRecvOnlineOnlyMessage
   void _fireOnlineOnlyMessage(Map<String, dynamic> msg) {
-    final message = database.convertMessage(msg);
+    final message = convertMessage(msg);
     msgListener?.recvOnlineOnlyMessage(message);
     listenerForService?.recvOnlineOnlyMessage(message);
   }

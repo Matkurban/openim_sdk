@@ -21,6 +21,10 @@ enum MessageStatus {
   const MessageStatus(this.value);
 
   final int value;
+
+  factory MessageStatus.fromValue(int value) {
+    return values.firstWhere((item) => item.value == value, orElse: () => failed);
+  }
 }
 
 enum GetHistoryViewType {

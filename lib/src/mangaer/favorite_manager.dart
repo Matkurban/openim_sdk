@@ -46,7 +46,7 @@ class FavoriteManager {
 
   String get _chatAddr {
     final config = _getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
-    final addr = config.chatAddr;
+    final addr = config.authAddr;
     if (addr == null || addr.isEmpty) {
       throw Exception('chatAddr 未配置');
     }

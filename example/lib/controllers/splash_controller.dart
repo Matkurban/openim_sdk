@@ -25,7 +25,7 @@ class SplashController extends GetxController {
       final ok = await OpenIM.iMManager.initSDK(
         apiAddr: defaultApiAddr,
         wsAddr: defaultWsAddr,
-        chatAddr: defaultChatAddr,
+        authAddr: defaultChatAddr,
         listener: OnConnectListener(
           onConnectSuccess: () => dev.log('[Splash] WS 已连接'),
           onConnecting: () => dev.log('[Splash] WS 连接中...'),

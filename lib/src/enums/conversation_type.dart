@@ -22,4 +22,8 @@ enum ConversationType {
   const ConversationType(this.value);
 
   final int value;
+
+  factory ConversationType.fromValue(int value) {
+    return values.firstWhere((item) => item.value == value, orElse: () => single);
+  }
 }
