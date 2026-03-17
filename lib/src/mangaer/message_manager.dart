@@ -111,7 +111,7 @@ class MessageManager {
         // 如果状态仍然是 sending，我们尝试恢复发送（例如继续上传图片）
         if (status == MessageStatus.sending.value) {
           _log.info('Resuming sending message: $clientMsgID', methodName: 'recoverSendingMessages');
-          
+
           // 在后台重新触发发送流程
           sendMessage(
             message: message,
@@ -123,7 +123,7 @@ class MessageManager {
               'Recovered message send failed: $clientMsgID, error: $e',
               methodName: 'recoverSendingMessages',
             );
-            return message; 
+            return message;
           });
         }
       }
@@ -773,10 +773,7 @@ class MessageManager {
         // 仅在媒体上传后消息有变化时才更新本地DB（文本消息无需此步骤）
         final finalDbMap = DatabaseService.messageToDbMap(finalMsg);
         finalDbMap['conversationID'] = conversationID;
-        await _database.updateMessage(
-          finalMsg.clientMsgID!,
-          finalDbMap,
-        );
+        await _database.updateMessage(finalMsg.clientMsgID!, finalDbMap);
       }
 
       _log.info('消息准备发送${isOnlineOnly ? "(仅在线)" : "到本地"}: ${finalMsg.clientMsgID}');
