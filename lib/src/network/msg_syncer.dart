@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
@@ -78,7 +78,13 @@ class MsgSyncer {
 
   /// 设置当前用户 ID
   void setLoginUserID(String userID) {
-    _userID = userID;
+    _log.info('userID=$userID', methodName: 'setLoginUserID');
+    try {
+      _userID = userID;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setLoginUserID');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -87,8 +93,9 @@ class MsgSyncer {
 
   /// 连接成功后触发的数据同步
   Future<void> doConnectedSync() async {
+    _log.info('called', methodName: 'doConnectedSync');
     if (_isSyncing) {
-      _log.info('正在同步中，忽略重复触发');
+      _log.info('正在同步中，忽略重复触发', methodName: 'doConnectedSync');
       return;
     }
     _isSyncing = true;
@@ -112,19 +119,19 @@ class MsgSyncer {
       conversationListener?.syncServerProgress(100);
 
       conversationListener?.syncServerFinish(_reinstalled);
-      _log.info('数据同步完成');
+      _log.info('数据同步完成', methodName: 'doConnectedSync');
 
       // 4. 低优先级同步：朋友圈 + 收藏夹（不阻塞主同步，后台并行）
       unawaited(
         Future.wait([
           momentsManager.syncFromServer(),
           favoriteManager.syncFromServer(),
-        ]).then((_) {}).catchError((Object e) {
-          _log.warning('朋友圈/收藏夹同步异常: $e');
+        ]).then((_) {}).catchError((Object e, StackTrace s) {
+          _log.error('朋友圈/收藏夹同步异常: $e', error: e, stackTrace: s, methodName: 'doConnectedSync');
         }),
       );
     } catch (e, s) {
-      _log.severe('数据同步失败', e, s);
+      _log.error('数据同步失败', error: e, stackTrace: s, methodName: 'doConnectedSync');
       conversationListener?.syncServerFailed(_reinstalled);
     } finally {
       // 5 秒冷却期后才允许下次同步（对应 Go SDK startSync 的防重入机制）
@@ -136,25 +143,31 @@ class MsgSyncer {
 
   /// 从本地数据库加载已同步的 seq
   Future<void> _loadSeqs() async {
-    _syncedMaxSeqs.clear();
-    _localMaxSeqsBeforeSync.clear();
+    _log.info('called', methodName: '_loadSeqs');
+    try {
+      _syncedMaxSeqs.clear();
+      _localMaxSeqsBeforeSync.clear();
 
-    final conversations = await database.getAllConversations();
-    if (conversations.isEmpty) {
-      _reinstalled = true;
-      return;
-    }
-    _reinstalled = false;
+      final conversations = await database.getAllConversations();
+      if (conversations.isEmpty) {
+        _reinstalled = true;
+        return;
+      }
+      _reinstalled = false;
 
-    // 批量获取所有会话的 maxSeq（一次查询代替 N 次逐个查询）
-    final allSeqs = await database.getAllConversationMaxSeqs();
-    for (final conv in conversations) {
-      final conversationID = conv.conversationID;
-      final maxSeq = allSeqs[conversationID] ?? 0;
-      _syncedMaxSeqs[conversationID] = maxSeq;
-      _localMaxSeqsBeforeSync[conversationID] = maxSeq;
+      // 批量获取所有会话的 maxSeq（一次查询代替 N 次逐个查询）
+      final allSeqs = await database.getAllConversationMaxSeqs();
+      for (final conv in conversations) {
+        final conversationID = conv.conversationID;
+        final maxSeq = allSeqs[conversationID] ?? 0;
+        _syncedMaxSeqs[conversationID] = maxSeq;
+        _localMaxSeqsBeforeSync[conversationID] = maxSeq;
+      }
+      _log.info('已加载 ${_syncedMaxSeqs.length} 个会话的 seq', methodName: '_loadSeqs');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_loadSeqs');
+      rethrow;
     }
-    _log.info('已加载 ${_syncedMaxSeqs.length} 个会话的 seq');
   }
 
   // ---------------------------------------------------------------------------
@@ -167,11 +180,15 @@ class MsgSyncer {
   /// 优化：先获取服务端 seqs，比较本地会话，只获取/更新有变化的会话
   /// 初次安装时：获取所有会话
   Future<void> _syncConversationsAndSeqs() async {
+    _log.info('called', methodName: '_syncConversationsAndSeqs');
     try {
       // 1. 先获取本地所有会话 ID（用于比较哪些是新增的）
       final localConvs = await database.getAllConversations();
       final localConvIDs = localConvs.map((c) => c.conversationID).toSet();
-      _log.info('本地会话数: ${localConvIDs.length}, reinstalled: $_reinstalled');
+      _log.info(
+        '本地会话数: ${localConvIDs.length}, reinstalled: $_reinstalled',
+        methodName: '_syncConversationsAndSeqs',
+      );
 
       // 2. 初次安装或非首次：不同处理逻辑
       Map<String, dynamic> serverSeqs = {};
@@ -231,7 +248,7 @@ class MsgSyncer {
             if (convMaps.isNotEmpty) {
               await database.batchUpsertConversations(convMaps);
             }
-            _log.info('初次安装：已同步 ${convMaps.length} 个会话');
+            _log.info('初次安装：已同步 ${convMaps.length} 个会话', methodName: '_syncConversationsAndSeqs');
           }
         }
       } else {
@@ -246,11 +263,11 @@ class MsgSyncer {
             serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
           }
         }
-        _log.info('服务端 seq 数: ${serverSeqs.length}');
+        _log.info('服务端 seq 数: ${serverSeqs.length}', methodName: '_syncConversationsAndSeqs');
 
         // 3. 找出需要同步的会话 ID（服务端有但本地没有的会话）
         final newConvIDs = serverSeqs.keys.where((id) => !localConvIDs.contains(id)).toList();
-        _log.info('新增会话数: ${newConvIDs.length}');
+        _log.info('新增会话数: ${newConvIDs.length}', methodName: '_syncConversationsAndSeqs');
 
         // 4. 只获取新增会话的完整信息（按需获取，效率更高）
         // 对应 Go SDK: getConversationsByIDsFromServer
@@ -320,10 +337,10 @@ class MsgSyncer {
           }
         }
 
-        _log.info('会话同步完成，新增: ${convMaps.length}');
+        _log.info('会话同步完成，新增: ${convMaps.length}', methodName: '_syncConversationsAndSeqs');
       }
-    } catch (e) {
-      _log.warning('同步会话异常: $e');
+    } catch (e, s) {
+      _log.error('同步会话异常: $e', error: e, stackTrace: s, methodName: '_syncConversationsAndSeqs');
     }
   }
 
@@ -333,122 +350,143 @@ class MsgSyncer {
   /// - 单聊/通知: 优先用好友备注，否则用好友昵称，否则从用户表取
   /// - 群聊: 用群组名称和群组头像
   Future<void> _batchAddFaceURLAndName(List<Map<String, dynamic>> conversations) async {
-    final userIDs = <String>{};
-    final groupIDs = <String>{};
+    _log.info('called', methodName: '_batchAddFaceURLAndName');
+    try {
+      final userIDs = <String>{};
+      final groupIDs = <String>{};
 
-    for (final conv in conversations) {
-      final type = conv['conversationType'] as int?;
-      if (type == 1 || type == 4) {
-        // 单聊 / 通知
-        final uid = conv['userID'] as String?;
-        if (uid != null && uid.isNotEmpty) userIDs.add(uid);
-      } else if (type == 3) {
-        // 超级群
-        final gid = conv['groupID'] as String?;
-        if (gid != null && gid.isNotEmpty) groupIDs.add(gid);
-      }
-    }
-
-    // 批量查好友信息（优先使用备注）
-    final friendMap = <String, FriendInfo>{};
-    if (userIDs.isNotEmpty) {
-      final friends = await database.getFriendsByUserIDs(userIDs.toList());
-      for (final f in friends) {
-        final fid = f.friendUserID;
-        if (fid != null) friendMap[fid] = f;
-      }
-    }
-
-    // 不在好友中的 userID，从用户表查
-    final userMap = <String, UserInfo>{};
-    final notInFriendIDs = userIDs.where((id) => !friendMap.containsKey(id)).toList();
-    if (notInFriendIDs.isNotEmpty) {
-      final users = await database.getUsersByIDs(notInFriendIDs);
-      for (final u in users) {
-        final uid = u.userID;
-        if (uid != null) userMap[uid] = u;
+      for (final conv in conversations) {
+        final type = conv['conversationType'] as int?;
+        if (type == 1 || type == 4) {
+          // 单聊 / 通知
+          final uid = conv['userID'] as String?;
+          if (uid != null && uid.isNotEmpty) userIDs.add(uid);
+        } else if (type == 3) {
+          // 超级群
+          final gid = conv['groupID'] as String?;
+          if (gid != null && gid.isNotEmpty) groupIDs.add(gid);
+        }
       }
 
-      // Fallback: Fetch missing users from network
-      final notInAnyMap = notInFriendIDs.where((id) => !userMap.containsKey(id)).toList();
-      if (notInAnyMap.isNotEmpty) {
-        try {
-          final resp = await api.getUsersInfo(userIDs: notInAnyMap);
-          if (resp.errCode == 0) {
-            final netUsers = resp.data?['usersInfo'] as List? ?? [];
-            for (final u in netUsers) {
-              if (u is Map<String, dynamic>) {
-                final uid = u['userID'] as String?;
-                if (uid != null) {
-                  userMap[uid] = UserInfo.fromJson(u);
-                  // Cache it so future syncs have it
-                  await database.upsertUser(u);
+      // 批量查好友信息（优先使用备注）
+      final friendMap = <String, FriendInfo>{};
+      if (userIDs.isNotEmpty) {
+        final friends = await database.getFriendsByUserIDs(userIDs.toList());
+        for (final f in friends) {
+          final fid = f.friendUserID;
+          if (fid != null) friendMap[fid] = f;
+        }
+      }
+
+      // 不在好友中的 userID，从用户表查
+      final userMap = <String, UserInfo>{};
+      final notInFriendIDs = userIDs.where((id) => !friendMap.containsKey(id)).toList();
+      if (notInFriendIDs.isNotEmpty) {
+        final users = await database.getUsersByIDs(notInFriendIDs);
+        for (final u in users) {
+          final uid = u.userID;
+          if (uid != null) userMap[uid] = u;
+        }
+
+        // Fallback: Fetch missing users from network
+        final notInAnyMap = notInFriendIDs.where((id) => !userMap.containsKey(id)).toList();
+        if (notInAnyMap.isNotEmpty) {
+          try {
+            final resp = await api.getUsersInfo(userIDs: notInAnyMap);
+            if (resp.errCode == 0) {
+              final netUsers = resp.data?['usersInfo'] as List? ?? [];
+              for (final u in netUsers) {
+                if (u is Map<String, dynamic>) {
+                  final uid = u['userID'] as String?;
+                  if (uid != null) {
+                    userMap[uid] = UserInfo.fromJson(u);
+                    // Cache it so future syncs have it
+                    await database.upsertUser(u);
+                  }
                 }
               }
             }
+          } catch (e, s) {
+            _log.error(
+              '补充缺失用户信息失败: $e',
+              error: e,
+              stackTrace: s,
+              methodName: '_batchAddFaceURLAndName',
+            );
           }
-        } catch (_) {}
-      }
-    }
-
-    // 批量查群组信息
-    final groupMap = <String, GroupInfo>{};
-    if (groupIDs.isNotEmpty) {
-      final groups = await database.getGroupsByIDs(groupIDs.toList());
-      for (final g in groups) {
-        groupMap[g.groupID] = g;
+        }
       }
 
-      final notInGroupMap = groupIDs.where((id) => !groupMap.containsKey(id)).toList();
-      if (notInGroupMap.isNotEmpty) {
-        try {
-          final resp = await api.getGroupsInfo(groupIDs: notInGroupMap.toList());
-          if (resp.errCode == 0) {
-            final netGroups = resp.data?['groupInfoList'] as List? ?? [];
-            for (final g in netGroups) {
-              if (g is Map<String, dynamic>) {
-                final gid = g['groupID'] as String?;
-                if (gid != null) {
-                  groupMap[gid] = GroupInfo.fromJson(g);
-                  await database.upsertGroup(g);
+      // 批量查群组信息
+      final groupMap = <String, GroupInfo>{};
+      if (groupIDs.isNotEmpty) {
+        final groups = await database.getGroupsByIDs(groupIDs.toList());
+        for (final g in groups) {
+          groupMap[g.groupID] = g;
+        }
+
+        final notInGroupMap = groupIDs.where((id) => !groupMap.containsKey(id)).toList();
+        if (notInGroupMap.isNotEmpty) {
+          try {
+            final resp = await api.getGroupsInfo(groupIDs: notInGroupMap.toList());
+            if (resp.errCode == 0) {
+              final netGroups = resp.data?['groupInfoList'] as List? ?? [];
+              for (final g in netGroups) {
+                if (g is Map<String, dynamic>) {
+                  final gid = g['groupID'] as String?;
+                  if (gid != null) {
+                    groupMap[gid] = GroupInfo.fromJson(g);
+                    await database.upsertGroup(g);
+                  }
                 }
               }
             }
+          } catch (e, s) {
+            _log.error(
+              '补充缺失群组信息失败: $e',
+              error: e,
+              stackTrace: s,
+              methodName: '_batchAddFaceURLAndName',
+            );
           }
-        } catch (_) {}
+        }
       }
-    }
 
-    // 填充
-    for (final conv in conversations) {
-      final type = conv['conversationType'] as int?;
-      if (type == 1 || type == 4) {
-        final uid = conv['userID'] as String? ?? '';
-        final friend = friendMap[uid];
-        if (friend != null) {
-          final remark = friend.remark ?? '';
-          conv['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
-          conv['faceURL'] = friend.faceURL ?? '';
-        } else {
-          final user = userMap[uid];
-          if (user != null) {
-            conv['showName'] = user.nickname ?? '';
-            conv['faceURL'] = user.faceURL ?? '';
+      // 填充
+      for (final conv in conversations) {
+        final type = conv['conversationType'] as int?;
+        if (type == 1 || type == 4) {
+          final uid = conv['userID'] as String? ?? '';
+          final friend = friendMap[uid];
+          if (friend != null) {
+            final remark = friend.remark ?? '';
+            conv['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+            conv['faceURL'] = friend.faceURL ?? '';
+          } else {
+            final user = userMap[uid];
+            if (user != null) {
+              conv['showName'] = user.nickname ?? '';
+              conv['faceURL'] = user.faceURL ?? '';
+            }
+          }
+        } else if (type == 3) {
+          final gid = conv['groupID'] as String? ?? '';
+          final group = groupMap[gid];
+          if (group != null) {
+            conv['showName'] = group.groupName ?? '';
+            conv['faceURL'] = group.faceURL ?? '';
           }
         }
-      } else if (type == 3) {
-        final gid = conv['groupID'] as String? ?? '';
-        final group = groupMap[gid];
-        if (group != null) {
-          conv['showName'] = group.groupName ?? '';
-          conv['faceURL'] = group.faceURL ?? '';
-        }
       }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_batchAddFaceURLAndName');
+      rethrow;
     }
   }
 
   /// 同步好友列表
   Future<void> _syncFriends() async {
+    _log.info('called', methodName: '_syncFriends');
     try {
       int pageNumber = 1;
       const pageSize = 100;
@@ -485,14 +523,15 @@ class MsgSyncer {
         pageNumber++;
       }
       if (allFriends.isNotEmpty) await database.batchUpsertFriends(allFriends);
-      _log.info('好友同步完成');
-    } catch (e) {
-      _log.warning('同步好友异常: $e');
+      _log.info('好友同步完成', methodName: '_syncFriends');
+    } catch (e, s) {
+      _log.error('同步好友异常: $e', error: e, stackTrace: s, methodName: '_syncFriends');
     }
   }
 
   /// 同步已加入的群组及其成员
   Future<void> _syncJoinedGroups() async {
+    _log.info('called', methodName: '_syncJoinedGroups');
     try {
       int pageNumber = 1;
       const pageSize = 100;
@@ -513,7 +552,7 @@ class MsgSyncer {
         pageNumber++;
       }
       if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
-      _log.info('群组同步完成，共 ${allGroups.length} 个群');
+      _log.info('群组同步完成，共 ${allGroups.length} 个群', methodName: '_syncJoinedGroups');
 
       // 同步每个群的成员列表
       for (final group in allGroups) {
@@ -521,14 +560,15 @@ class MsgSyncer {
         if (groupID == null || groupID.isEmpty) continue;
         await _syncGroupMembersForGroup(groupID);
       }
-      _log.info('群成员同步完成');
-    } catch (e) {
-      _log.warning('同步群组异常: $e');
+      _log.info('群成员同步完成', methodName: '_syncJoinedGroups');
+    } catch (e, s) {
+      _log.error('同步群组异常: $e', error: e, stackTrace: s, methodName: '_syncJoinedGroups');
     }
   }
 
   /// 从服务器同步指定群组的所有成员到本地数据库
   Future<void> _syncGroupMembersForGroup(String groupID) async {
+    _log.info('groupID=$groupID', methodName: '_syncGroupMembersForGroup');
     try {
       int offset = 0;
       const pageSize = 100;
@@ -551,8 +591,13 @@ class MsgSyncer {
       if (allMembers.isNotEmpty) {
         await database.batchUpsertGroupMembers(allMembers);
       }
-    } catch (e) {
-      _log.warning('同步群[$groupID]成员异常: $e');
+    } catch (e, s) {
+      _log.error(
+        '同步群[$groupID]成员异常: $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_syncGroupMembersForGroup',
+      );
     }
   }
 
@@ -563,6 +608,7 @@ class MsgSyncer {
   /// - SplitPullMsgNum = 100：累计超过 100 条时分批拉取
   /// - 重装时跳过 n_ 通知会话(Go SDK: 直接记录 seq 不拉取)
   Future<void> _syncMessages() async {
+    _log.info('called', methodName: '_syncMessages');
     try {
       if (_syncedMaxSeqs.isEmpty) return;
 
@@ -591,13 +637,13 @@ class MsgSyncer {
       }
 
       if (needSyncSeqs.isEmpty) {
-        _log.info('所有会话消息已是最新');
+        _log.info('所有会话消息已是最新', methodName: '_syncMessages');
         return;
       }
 
       // 初次安装时记录日志
       if (_reinstalled) {
-        _log.info('初次安装：准备拉取 ${needSyncSeqs.length} 个会话的消息');
+        _log.info('初次安装：准备拉取 ${needSyncSeqs.length} 个会话的消息', methodName: '_syncMessages');
       }
 
       // 对应 Go SDK connectPullNums = 1
@@ -635,9 +681,9 @@ class MsgSyncer {
         _fireConversationChanged(updatedConvIDs);
       }
 
-      _log.info('消息同步完成，共处理 ${needSyncSeqs.length} 个会话');
-    } catch (e) {
-      _log.warning('同步消息异常: $e');
+      _log.info('消息同步完成，共处理 ${needSyncSeqs.length} 个会话', methodName: '_syncMessages');
+    } catch (e, s) {
+      _log.error('同步消息异常: $e', error: e, stackTrace: s, methodName: '_syncMessages');
     }
   }
 
@@ -647,6 +693,7 @@ class MsgSyncer {
     List<String> convIDs,
     Set<String> updatedConvIDs,
   ) async {
+    _log.info('called', methodName: '_pullAndStoreMsgs');
     try {
       final resp = await api.pullMsgBySeqs(
         userID: _userID,
@@ -654,7 +701,7 @@ class MsgSyncer {
         order: 1, // 降序，拉最新的
       );
       if (resp.errCode != 0) {
-        _log.warning('拉取消息失败: ${resp.errMsg}');
+        _log.error('拉取消息失败: ${resp.errMsg}', methodName: '_pullAndStoreMsgs');
         return;
       }
       final data = resp.data as Map<String, dynamic>? ?? {};
@@ -662,8 +709,8 @@ class MsgSyncer {
       await _processPulledMsgs(data['msgs'] as Map<String, dynamic>? ?? {}, updatedConvIDs);
       // 处理通知消息（对应 Go SDK triggerNotification）
       await _processPulledNotifications(data['notificationMsgs'] as Map<String, dynamic>? ?? {});
-    } catch (e) {
-      _log.warning('拉取消息批次失败: $e');
+    } catch (e, s) {
+      _log.error('拉取消息批次失败: $e', error: e, stackTrace: s, methodName: '_pullAndStoreMsgs');
     }
   }
 
@@ -676,78 +723,83 @@ class MsgSyncer {
     Map<String, dynamic> msgsByConv,
     Set<String> updatedConvIDs,
   ) async {
-    for (final entry in msgsByConv.entries) {
-      final convID = entry.key;
-      final pullMsgs = entry.value as Map<String, dynamic>? ?? {};
-      final msgList = (pullMsgs['Msgs'] ?? pullMsgs['msgs']) as List? ?? [];
+    _log.info('called', methodName: '_processPulledMsgs');
+    try {
+      for (final entry in msgsByConv.entries) {
+        final convID = entry.key;
+        final pullMsgs = entry.value as Map<String, dynamic>? ?? {};
+        final msgList = (pullMsgs['Msgs'] ?? pullMsgs['msgs']) as List? ?? [];
 
-      if (msgList.isEmpty) continue;
+        if (msgList.isEmpty) continue;
 
-      final msgMaps = <Map<String, dynamic>>[];
-      Map<String, dynamic>? latestMsg;
-      int maxSeq = 0;
-      int latestSendTime = 0;
+        final msgMaps = <Map<String, dynamic>>[];
+        Map<String, dynamic>? latestMsg;
+        int maxSeq = 0;
+        int latestSendTime = 0;
 
-      for (final msg in msgList) {
-        if (msg is Map<String, dynamic>) {
-          _decodeContentIfBase64(msg);
+        for (final msg in msgList) {
+          if (msg is Map<String, dynamic>) {
+            _decodeContentIfBase64(msg);
 
-          final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
-          final seq = (msg['seq'] as num?)?.toInt() ?? 0;
-          final sendTime = (msg['sendTime'] as num?)?.toInt() ?? 0;
+            final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
+            final seq = (msg['seq'] as num?)?.toInt() ?? 0;
+            final sendTime = (msg['sendTime'] as num?)?.toInt() ?? 0;
 
-          if (seq > maxSeq) maxSeq = seq;
+            if (seq > maxSeq) maxSeq = seq;
 
-          // 通知消息（contentType >= 1000）：路由到通知分发器
-          // 对应 Go SDK doMsgNew 中的 doNotification 分支
-          if (contentType >= 1000) {
-            final content = msg['content'] as String? ?? '';
-            notificationDispatcher.dispatch(contentType, content);
+            // 通知消息（contentType >= 1000）：路由到通知分发器
+            // 对应 Go SDK doMsgNew 中的 doNotification 分支
+            if (contentType >= 1000) {
+              final content = msg['content'] as String? ?? '';
+              notificationDispatcher.dispatch(contentType, content);
+            }
+
+            // Go SDK 在 triggerConversation 中存储所有消息（含通知），
+            // 通知/普通分流在 conversation 层（n_ 前缀）而非 contentType 层。
+            // data['msgs'] 只包含普通会话消息，所以全部存入 chatLog。
+            msgMaps.add(msg);
+
+            // 任何消息都可以作为 latestMsg（对应 Go SDK doMsgSyncByReinstalled 行为）
+            // Go SDK 在重装时会将所有消息（含通知）都设为 latestMsg
+            if (sendTime >= latestSendTime) {
+              latestSendTime = sendTime;
+              latestMsg = msg;
+            }
           }
+        }
 
-          // Go SDK 在 triggerConversation 中存储所有消息（含通知），
-          // 通知/普通分流在 conversation 层（n_ 前缀）而非 contentType 层。
-          // data['msgs'] 只包含普通会话消息，所以全部存入 chatLog。
-          msgMaps.add(msg);
-
-          // 任何消息都可以作为 latestMsg（对应 Go SDK doMsgSyncByReinstalled 行为）
-          // Go SDK 在重装时会将所有消息（含通知）都设为 latestMsg
-          if (sendTime >= latestSendTime) {
-            latestSendTime = sendTime;
-            latestMsg = msg;
+        // 批量存入消息表（注入 conversationID 以支持单条件查询）
+        if (msgMaps.isNotEmpty) {
+          for (final m in msgMaps) {
+            m['conversationID'] = convID;
           }
+          await database.batchInsertMessages(msgMaps);
+        }
+
+        // 更新会话的 latestMsg、latestMsgSendTime 和 maxSeq
+        if (latestMsg != null) {
+          final sendTime = (latestMsg['sendTime'] as num?)?.toInt() ?? 0;
+          final updates = <String, dynamic>{
+            'latestMsg': jsonEncode(latestMsg),
+            'latestMsgSendTime': sendTime,
+          };
+          if (maxSeq > 0) {
+            updates['maxSeq'] = maxSeq;
+          }
+          await database.updateConversation(convID, updates);
+          updatedConvIDs.add(convID);
+        } else if (maxSeq > 0) {
+          // 只有被删除的消息，仍需更新 maxSeq
+          await database.updateConversation(convID, {'maxSeq': maxSeq});
+        }
+
+        // 更新本地已同步 seq
+        if (maxSeq > (_syncedMaxSeqs[convID] ?? 0)) {
+          _syncedMaxSeqs[convID] = maxSeq;
         }
       }
-
-      // 批量存入消息表（注入 conversationID 以支持单条件查询）
-      if (msgMaps.isNotEmpty) {
-        for (final m in msgMaps) {
-          m['conversationID'] = convID;
-        }
-        await database.batchInsertMessages(msgMaps);
-      }
-
-      // 更新会话的 latestMsg、latestMsgSendTime 和 maxSeq
-      if (latestMsg != null) {
-        final sendTime = (latestMsg['sendTime'] as num?)?.toInt() ?? 0;
-        final updates = <String, dynamic>{
-          'latestMsg': jsonEncode(latestMsg),
-          'latestMsgSendTime': sendTime,
-        };
-        if (maxSeq > 0) {
-          updates['maxSeq'] = maxSeq;
-        }
-        await database.updateConversation(convID, updates);
-        updatedConvIDs.add(convID);
-      } else if (maxSeq > 0) {
-        // 只有被删除的消息，仍需更新 maxSeq
-        await database.updateConversation(convID, {'maxSeq': maxSeq});
-      }
-
-      // 更新本地已同步 seq
-      if (maxSeq > (_syncedMaxSeqs[convID] ?? 0)) {
-        _syncedMaxSeqs[convID] = maxSeq;
-      }
+    } catch (e, s) {
+      _log.error('处理普通消息失败: $e', error: e, stackTrace: s, methodName: '_processPulledMsgs');
     }
   }
 
@@ -756,31 +808,42 @@ class MsgSyncer {
   /// 对应 Go SDK 的 triggerNotification，将 notificationMsgs 中的
   /// 通知消息分发给 NotificationDispatcher 进行处理（好友/群组/会话变更等）。
   Future<void> _processPulledNotifications(Map<String, dynamic> msgsByConv) async {
-    for (final entry in msgsByConv.entries) {
-      final convID = entry.key;
-      final pullMsgs = entry.value as Map<String, dynamic>? ?? {};
-      final msgList = (pullMsgs['Msgs'] ?? pullMsgs['msgs']) as List? ?? [];
+    _log.info('called', methodName: '_processPulledNotifications');
+    try {
+      for (final entry in msgsByConv.entries) {
+        final convID = entry.key;
+        final pullMsgs = entry.value as Map<String, dynamic>? ?? {};
+        final msgList = (pullMsgs['Msgs'] ?? pullMsgs['msgs']) as List? ?? [];
 
-      for (final msg in msgList) {
-        if (msg is Map<String, dynamic>) {
-          _decodeContentIfBase64(msg);
-          final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
-          final content = msg['content'] as String? ?? '';
-          final seq = (msg['seq'] as num?)?.toInt() ?? 0;
-          if (contentType >= 1000) {
-            notificationDispatcher.dispatch(contentType, content);
-          }
-          if (seq > 0 && seq > (_syncedMaxSeqs[convID] ?? 0)) {
-            _syncedMaxSeqs[convID] = seq;
-            database.updateConversation(convID, {'maxSeq': seq});
+        for (final msg in msgList) {
+          if (msg is Map<String, dynamic>) {
+            _decodeContentIfBase64(msg);
+            final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
+            final content = msg['content'] as String? ?? '';
+            final seq = (msg['seq'] as num?)?.toInt() ?? 0;
+            if (contentType >= 1000) {
+              notificationDispatcher.dispatch(contentType, content);
+            }
+            if (seq > 0 && seq > (_syncedMaxSeqs[convID] ?? 0)) {
+              _syncedMaxSeqs[convID] = seq;
+              database.updateConversation(convID, {'maxSeq': seq});
+            }
           }
         }
       }
+    } catch (e, s) {
+      _log.error(
+        '处理通知消息失败: $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_processPulledNotifications',
+      );
     }
   }
 
   /// 同步自身用户信息
   Future<void> _syncSelfUserInfo() async {
+    _log.info('called', methodName: '_syncSelfUserInfo');
     try {
       final resp = await api.getUsersInfo(userIDs: [_userID]);
       if (resp.errCode != 0) return;
@@ -788,8 +851,8 @@ class MsgSyncer {
       if (users.isNotEmpty && users.first is Map<String, dynamic>) {
         await database.upsertUser(users.first as Map<String, dynamic>);
       }
-    } catch (e) {
-      _log.warning('同步用户信息异常: $e');
+    } catch (e, s) {
+      _log.error('同步自身用户信息异常: $e', error: e, stackTrace: s, methodName: '_syncSelfUserInfo');
     }
   }
 
@@ -805,6 +868,7 @@ class MsgSyncer {
   /// 3. 存储消息并更新会话（latestMsg, unreadCount, maxSeq）
   /// 4. 触发回调通知上层
   void handlePushMsg(WebSocketResponse resp) {
+    _log.info('called', methodName: 'handlePushMsg');
     if (resp.data.isEmpty) return;
 
     try {
@@ -841,6 +905,7 @@ class MsgSyncer {
           _log.warning(
             '检测到 SEQ 缺口: conv=$convID, local=$localMaxSeq, '
             'pushMin=$batchMinSeq, pushMax=$batchMaxSeq',
+            methodName: 'handlePushMsg',
           );
           gapConvIDs.add(convID);
         }
@@ -865,34 +930,39 @@ class MsgSyncer {
       // 批量写入会话更新 + 触发缺口同步和 UI 通知
       _applyBatchUpdatesAndNotify(convUpdates, gapConvIDs);
     } catch (e, s) {
-      _log.warning('处理推送消息失败: $e', e, s);
+      _log.error('处理推送消息失败: $e', error: e, stackTrace: s, methodName: 'handlePushMsg');
     }
   }
 
   /// 将 protobuf MsgData 转为 [Map<String, dynamic>]（供数据库和回调使用）
   Map<String, dynamic> _msgDataToMap(sdkws.MsgData msg) {
-    return {
-      'sendID': msg.sendID,
-      'recvID': msg.recvID,
-      'groupID': msg.groupID,
-      'clientMsgID': msg.clientMsgID,
-      'serverMsgID': msg.serverMsgID,
-      'senderPlatformID': msg.senderPlatformID,
-      'senderNickname': msg.senderNickname,
-      'senderFaceURL': msg.senderFaceURL,
-      'sessionType': msg.sessionType,
-      'msgFrom': msg.msgFrom,
-      'contentType': msg.contentType,
-      'content': utf8.decode(msg.content, allowMalformed: true),
-      'seq': msg.seq.toInt(),
-      'sendTime': msg.sendTime.toInt(),
-      'createTime': msg.createTime.toInt(),
-      'status': msg.status,
-      'isRead': msg.isRead,
-      'options': Map<String, bool>.from(msg.options),
-      'attachedInfo': msg.attachedInfo,
-      'ex': msg.ex,
-    };
+    try {
+      return {
+        'sendID': msg.sendID,
+        'recvID': msg.recvID,
+        'groupID': msg.groupID,
+        'clientMsgID': msg.clientMsgID,
+        'serverMsgID': msg.serverMsgID,
+        'senderPlatformID': msg.senderPlatformID,
+        'senderNickname': msg.senderNickname,
+        'senderFaceURL': msg.senderFaceURL,
+        'sessionType': msg.sessionType,
+        'msgFrom': msg.msgFrom,
+        'contentType': msg.contentType,
+        'content': utf8.decode(msg.content, allowMalformed: true),
+        'seq': msg.seq.toInt(),
+        'sendTime': msg.sendTime.toInt(),
+        'createTime': msg.createTime.toInt(),
+        'status': msg.status,
+        'isRead': msg.isRead,
+        'options': Map<String, bool>.from(msg.options),
+        'attachedInfo': msg.attachedInfo,
+        'ex': msg.ex,
+      };
+    } catch (e, s) {
+      _log.error('转换MsgData失败: $e', error: e, stackTrace: s, methodName: '_msgDataToMap');
+      throw Exception('MsgDataToMap failed');
+    }
   }
 
   /// 将 HTTP API 返回消息中 base64 编码的 content 解码为原始 JSON 字符串。
@@ -901,21 +971,25 @@ class MsgSyncer {
   /// content 是可直接 jsonDecode 的原始 JSON 字符串。
   /// 此方法原地修改 msg map。
   void _decodeContentIfBase64(Map<String, dynamic> msg) {
-    final content = msg['content'];
-    if (content is! String || content.isEmpty) return;
-
-    // 如果已经是合法 JSON，无需解码
     try {
-      jsonDecode(content);
-      return;
-    } catch (_) {}
+      final content = msg['content'];
+      if (content is! String || content.isEmpty) return;
 
-    // 尝试 base64 解码
-    try {
-      final decoded = utf8.decode(base64Decode(content));
-      msg['content'] = decoded;
-    } catch (_) {
-      // 既非 JSON 也非 base64，保持原值
+      // 如果已经是合法 JSON，无需解码
+      try {
+        jsonDecode(content);
+        return;
+      } catch (_) {}
+
+      // 尝试 base64 解码
+      try {
+        final decoded = utf8.decode(base64Decode(content));
+        msg['content'] = decoded;
+      } catch (_) {
+        // 既非 JSON 也非 base64，保持原值
+      }
+    } catch (e, s) {
+      _log.error('解码失败: $e', error: e, stackTrace: s, methodName: '_decodeContentIfBase64');
     }
   }
 
@@ -925,61 +999,65 @@ class MsgSyncer {
     String conversationID,
     Map<String, ConvBatchUpdate> convUpdates,
   ) {
-    final seq = msg['seq'] as int? ?? 0;
-    final contentType = msg['contentType'] as int? ?? 0;
-    final sendTime = msg['sendTime'] as int? ?? 0;
-    final sendID = msg['sendID'] as String? ?? '';
-    final isSelfMsg = sendID == _userID;
+    try {
+      final seq = msg['seq'] as int? ?? 0;
+      final contentType = msg['contentType'] as int? ?? 0;
+      final sendTime = msg['sendTime'] as int? ?? 0;
+      final sendID = msg['sendID'] as String? ?? '';
+      final isSelfMsg = sendID == _userID;
 
-    // 检查是否为仅在线消息（options 中 history == false）
-    final options = msg['options'] as Map<String, bool>? ?? const {};
-    final isHistory = options['history'] ?? true;
+      // 检查是否为仅在线消息（options 中 history == false）
+      final options = msg['options'] as Map<String, bool>? ?? const {};
+      final isHistory = options['history'] ?? true;
 
-    // 仅在线消息：不存储，仅触发 onRecvOnlineOnlyMessage
-    if (!isHistory) {
-      // Typing 消息（contentType=113）触发输入状态变更回调
-      if (contentType == 113) {
-        _fireInputStatusChanged(msg, conversationID);
+      // 仅在线消息：不存储，仅触发 onRecvOnlineOnlyMessage
+      if (!isHistory) {
+        // Typing 消息（contentType=113）触发输入状态变更回调
+        if (contentType == 113) {
+          _fireInputStatusChanged(msg, conversationID);
+        }
+        _fireOnlineOnlyMessage(msg);
+        return;
       }
-      _fireOnlineOnlyMessage(msg);
-      return;
-    }
 
-    // seq == 0 的消息是临时消息（如 typing），不存储
-    if (seq == 0) {
+      // seq == 0 的消息是临时消息（如 typing），不存储
+      if (seq == 0) {
+        _fireNewMessage(msg);
+        return;
+      }
+
+      // 通知消息（contentType >= 1000）：路由到 NotificationDispatcher
+      // Go SDK 在 triggerConversation 中存储所有消息（含通知），
+      // 通知/普通分流在 conversation 层（n_ 前缀）而非 contentType 层。
+      // pushMessages.msgs 只包含普通会话消息，所以全部存入 chatLog。
+      if (contentType >= 1000) {
+        final content = msg['content'] as String? ?? '';
+        notificationDispatcher.dispatch(contentType, content);
+      }
+
+      // 存储消息到 chatLog（注入 conversationID）
+      database.insertMessage({...msg, 'conversationID': conversationID});
+
+      // 更新 seq 追踪
+      final isNewSeq = seq > (_syncedMaxSeqs[conversationID] ?? 0);
+      if (isNewSeq) {
+        _syncedMaxSeqs[conversationID] = seq;
+      }
+
+      // 聚合会话更新
+      final update = convUpdates.putIfAbsent(conversationID, () => ConvBatchUpdate(firstMsg: msg));
+      if (sendTime >= update.latestMsgSendTime) {
+        update.latestMsg = msg;
+        update.latestMsgSendTime = sendTime;
+      }
+      if (seq > update.maxSeq) update.maxSeq = seq;
+      if (!isSelfMsg && isNewSeq) update.newUnreadCount++;
+
+      // 触发新消息回调
       _fireNewMessage(msg);
-      return;
+    } catch (e, s) {
+      _log.error('收集消息更新失败: $e', error: e, stackTrace: s, methodName: '_collectMessageUpdate');
     }
-
-    // 通知消息（contentType >= 1000）：路由到 NotificationDispatcher
-    // Go SDK 在 triggerConversation 中存储所有消息（含通知），
-    // 通知/普通分流在 conversation 层（n_ 前缀）而非 contentType 层。
-    // pushMessages.msgs 只包含普通会话消息，所以全部存入 chatLog。
-    if (contentType >= 1000) {
-      final content = msg['content'] as String? ?? '';
-      notificationDispatcher.dispatch(contentType, content);
-    }
-
-    // 存储消息到 chatLog（注入 conversationID）
-    database.insertMessage({...msg, 'conversationID': conversationID});
-
-    // 更新 seq 追踪
-    final isNewSeq = seq > (_syncedMaxSeqs[conversationID] ?? 0);
-    if (isNewSeq) {
-      _syncedMaxSeqs[conversationID] = seq;
-    }
-
-    // 聚合会话更新
-    final update = convUpdates.putIfAbsent(conversationID, () => ConvBatchUpdate(firstMsg: msg));
-    if (sendTime >= update.latestMsgSendTime) {
-      update.latestMsg = msg;
-      update.latestMsgSendTime = sendTime;
-    }
-    if (seq > update.maxSeq) update.maxSeq = seq;
-    if (!isSelfMsg && isNewSeq) update.newUnreadCount++;
-
-    // 触发新消息回调
-    _fireNewMessage(msg);
   }
 
   /// 批量应用会话更新到 DB，并触发通知
@@ -1080,6 +1158,7 @@ class MsgSyncer {
     String? userID,
     String? groupID,
   ) async {
+    _log.info('conversationID=$conversationID', methodName: '_enrichNewConversation');
     try {
       final updates = <String, dynamic>{};
 
@@ -1110,8 +1189,13 @@ class MsgSyncer {
       if (updates.isNotEmpty) {
         await database.updateConversation(conversationID, updates);
       }
-    } catch (e) {
-      _log.fine('补充会话信息失败: $conversationID, $e');
+    } catch (e, s) {
+      _log.error(
+        '补充会话信息失败: $conversationID, $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_enrichNewConversation',
+      );
     }
   }
 
@@ -1121,22 +1205,32 @@ class MsgSyncer {
   /// 1. 更新 seq 追踪
   /// 2. 路由到 NotificationDispatcher 进行解析和回调
   void _processNotificationMessage(Map<String, dynamic> msg, String conversationID) {
-    final seq = msg['seq'] as int? ?? 0;
-    final contentType = msg['contentType'] as int? ?? 0;
+    try {
+      final seq = msg['seq'] as int? ?? 0;
+      final contentType = msg['contentType'] as int? ?? 0;
 
-    // 更新 seq
-    if (seq > 0 && seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
-      _syncedMaxSeqs[conversationID] = seq;
-      database.updateConversation(conversationID, {'maxSeq': seq});
+      // 更新 seq
+      if (seq > 0 && seq > (_syncedMaxSeqs[conversationID] ?? 0)) {
+        _syncedMaxSeqs[conversationID] = seq;
+        database.updateConversation(conversationID, {'maxSeq': seq});
+      }
+
+      // 路由到通知分发器
+      final content = msg['content'] as String? ?? '';
+      notificationDispatcher.dispatch(contentType, content);
+    } catch (e, s) {
+      _log.error(
+        '处理通知消息失败: $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_processNotificationMessage',
+      );
     }
-
-    // 路由到通知分发器
-    final content = msg['content'] as String? ?? '';
-    notificationDispatcher.dispatch(contentType, content);
   }
 
   /// 检测并同步 SEQ 缺口（对应 Go SDK compareSeqsAndBatchSync 的部分逻辑）
   Future<void> _syncMissingMessages(Set<String> convIDs) async {
+    _log.info('called', methodName: '_syncMissingMessages');
     try {
       // 获取这些会话的服务端最新 maxSeq
       final seqRanges = <Map<String, dynamic>>[];
@@ -1153,10 +1247,10 @@ class MsgSyncer {
         if (updatedConvIDs.isNotEmpty) {
           _fireConversationChanged(updatedConvIDs);
         }
-        _log.info('缺口同步完成: ${convIDs.length} 个会话');
+        _log.info('缺口同步完成: ${convIDs.length} 个会话', methodName: '_syncMissingMessages');
       }
-    } catch (e) {
-      _log.warning('缺口同步失败: $e');
+    } catch (e, s) {
+      _log.error('缺口同步失败: $e', error: e, stackTrace: s, methodName: '_syncMissingMessages');
     }
   }
 
@@ -1203,8 +1297,8 @@ class MsgSyncer {
           platformIDs: platformIDs,
         ),
       );
-    } catch (e) {
-      _log.fine('处理输入状态变更失败: $e');
+    } catch (e, s) {
+      _log.error('处理输入状态变更失败: $e', error: e, stackTrace: s, methodName: '_fireInputStatusChanged');
     }
   }
 

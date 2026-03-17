@@ -1,5 +1,5 @@
 import 'package:get_it/get_it.dart';
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -35,49 +35,69 @@ class UserManager {
   /// 获取用户信息（走缓存机制）
   /// [userIDList] 用户ID列表
   Future<List<UserInfo>> getUsersInfo({required List<String> userIDList}) async {
-    _log.info('getUsersInfo: userIDList=$userIDList');
-    return getUsersInfoWithCache(userIDList: userIDList);
+    _log.info('userIDList=$userIDList', methodName: 'getUsersInfo');
+    try {
+      return await getUsersInfoWithCache(userIDList: userIDList);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUsersInfo');
+      rethrow;
+    }
   }
 
   /// 从缓存获取用户信息，缺失部分从服务器获取并回写本地
   Future<List<UserInfo>> getUsersInfoWithCache({required List<String> userIDList}) async {
-    _log.info('getUsersInfoWithCache: userIDList=$userIDList');
-    if (userIDList.isEmpty) return [];
+    _log.info('userIDList=$userIDList', methodName: 'getUsersInfoWithCache');
+    try {
+      if (userIDList.isEmpty) return [];
 
-    // 1. 查询本地数据库
-    final dbUsers = await _database.getUsersByIDs(userIDList);
-    final result = dbUsers.toList();
+      // 1. 查询本地数据库
+      final dbUsers = await _database.getUsersByIDs(userIDList);
+      final result = dbUsers.toList();
 
-    // 2. 对比找出未缓存的用户 ID（Set O(1) 查找）
-    final cachedIDs = result.map((u) => u.userID).toSet();
-    final missingIDs = userIDList.where((id) => !cachedIDs.contains(id)).toList();
+      // 2. 对比找出未缓存的用户 ID（Set O(1) 查找）
+      final cachedIDs = result.map((u) => u.userID).toSet();
+      final missingIDs = userIDList.where((id) => !cachedIDs.contains(id)).toList();
 
-    // 3. 远程拉取缺失数据
-    if (missingIDs.isNotEmpty) {
-      final srvUsers = await getUsersInfoFromSrv(userIDList: missingIDs);
-      result.addAll(srvUsers);
-      // 4. 更新到本地缓存
-      await _database.upsertUsers(srvUsers.map((u) => u.toJson()).toList());
+      // 3. 远程拉取缺失数据
+      if (missingIDs.isNotEmpty) {
+        final srvUsers = await getUsersInfoFromSrv(userIDList: missingIDs);
+        result.addAll(srvUsers);
+        // 4. 更新到本地缓存
+        await _database.upsertUsers(srvUsers.map((u) => u.toJson()).toList());
+      }
+
+      return result;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUsersInfoWithCache');
+      rethrow;
     }
-
-    return result;
   }
 
   /// 强制从服务器获取用户信息
   Future<List<UserInfo>> getUsersInfoFromSrv({required List<String> userIDList}) async {
-    _log.info('getUsersInfoFromSrv: userIDList=$userIDList');
-    if (userIDList.isEmpty) return [];
-    final resp = await _api.getUsersInfo(userIDs: userIDList);
-    if (resp.errCode == 0 && resp.data is List) {
-      return (resp.data as List).map((v) => UserInfo.fromJson(v)).toList();
+    _log.info('userIDList=$userIDList', methodName: 'getUsersInfoFromSrv');
+    try {
+      if (userIDList.isEmpty) return [];
+      final resp = await _api.getUsersInfo(userIDs: userIDList);
+      if (resp.errCode == 0 && resp.data is List) {
+        return (resp.data as List).map((v) => UserInfo.fromJson(v)).toList();
+      }
+      throw Exception('从服务器获取用户信息失败: ${resp.errMsg}');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUsersInfoFromSrv');
+      rethrow;
     }
-    throw Exception('从服务器获取用户信息失败: ${resp.errMsg}');
   }
 
   /// 获取当前登录用户信息
   Future<UserInfo?> getSelfUserInfo() async {
-    _log.info('getSelfUserInfo');
-    return _database.getLoginUser();
+    _log.info('called', methodName: 'getSelfUserInfo');
+    try {
+      return await _database.getLoginUser();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getSelfUserInfo');
+      rethrow;
+    }
   }
 
   /// 修改当前登录用户信息
@@ -92,114 +112,145 @@ class UserManager {
     String? ex,
   }) async {
     _log.info(
-      'setSelfInfo: nickname=$nickname, faceURL=$faceURL, globalRecvMsgOpt=$globalRecvMsgOpt',
+      'nickname=$nickname, faceURL=$faceURL, globalRecvMsgOpt=$globalRecvMsgOpt',
+      methodName: 'setSelfInfo',
     );
-    final updateData = <String, dynamic>{};
-    if (nickname != null) updateData['nickname'] = nickname;
-    if (faceURL != null) updateData['faceURL'] = faceURL;
-    if (globalRecvMsgOpt != null) updateData['globalRecvMsgOpt'] = globalRecvMsgOpt;
-    if (ex != null) updateData['ex'] = ex;
+    try {
+      final updateData = <String, dynamic>{};
+      if (nickname != null) updateData['nickname'] = nickname;
+      if (faceURL != null) updateData['faceURL'] = faceURL;
+      if (globalRecvMsgOpt != null) updateData['globalRecvMsgOpt'] = globalRecvMsgOpt;
+      if (ex != null) updateData['ex'] = ex;
 
-    if (updateData.isEmpty) return;
+      if (updateData.isEmpty) return;
 
-    // 获取当前用户信息并合并更新
-    final current = await _database.getLoginUser();
-    if (current != null) {
-      await _database.upsertUser({...current.toJson(), ...updateData});
-    }
+      // 获取当前用户信息并合并更新
+      final current = await _database.getLoginUser();
+      if (current != null) {
+        await _database.upsertUser({...current.toJson(), ...updateData});
+      }
 
-    _log.info('用户信息已更新');
+      _log.info('用户信息已更新', methodName: 'setSelfInfo');
 
-    // 触发监听回调
-    final updated = await getSelfUserInfo();
-    if (updated != null) {
-      listener?.selfInfoUpdated(updated);
-    }
+      // 触发监听回调
+      final updated = await getSelfUserInfo();
+      if (updated != null) {
+        listener?.selfInfoUpdated(updated);
+      }
 
-    // 5. 同步到服务器
-    updateData['userID'] = current?.userID;
-    final resp = await _api.updateUserInfo(userInfo: updateData);
-    if (resp.errCode != 0) {
-      _log.warning('同步用户信息到服务器失败: ${resp.errMsg}');
+      // 5. 同步到服务器
+      updateData['userID'] = current?.userID;
+      final resp = await _api.updateUserInfo(userInfo: updateData);
+      if (resp.errCode != 0) {
+        _log.warning('同步用户信息到服务器失败: ${resp.errMsg}');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setSelfInfo');
+      rethrow;
     }
   }
 
   /// 订阅用户在线状态
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> subscribeUsersStatus(List<String> userIDs) async {
-    _log.info('subscribeUsersStatus: userIDs=$userIDs');
-    final resp = await _api.subscribeUsersStatus(
-      userID: _currentUserID,
-      userIDs: userIDs,
-      genre: 1, // 1 for subscribe (assumed based on common logic)
-    );
-    if (resp.errCode != 0) {
-      throw Exception('订阅用户状态失败: ${resp.errMsg}');
+    _log.info('userIDs=$userIDs', methodName: 'subscribeUsersStatus');
+    try {
+      final resp = await _api.subscribeUsersStatus(
+        userID: _currentUserID,
+        userIDs: userIDs,
+        genre: 1, // 1 for subscribe (assumed based on common logic)
+      );
+      if (resp.errCode != 0) {
+        throw Exception('订阅用户状态失败: ${resp.errMsg}');
+      }
+      final data = resp.data;
+      if (data is Map && data['statusList'] is List) {
+        return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'subscribeUsersStatus');
+      rethrow;
     }
-    final data = resp.data;
-    if (data is Map && data['statusList'] is List) {
-      return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
-    }
-    return [];
   }
 
   /// 取消订阅用户在线状态
   /// [userIDs] 用户ID列表
   Future<void> unsubscribeUsersStatus(List<String> userIDs) async {
-    _log.info('unsubscribeUsersStatus: userIDs=$userIDs');
-    final resp = await _api.subscribeUsersStatus(
-      userID: _currentUserID,
-      userIDs: userIDs,
-      genre: 2, // 2 for unsubscribe
-    );
-    if (resp.errCode != 0) {
-      throw Exception('取消订阅用户状态失败: ${resp.errMsg}');
+    _log.info('userIDs=$userIDs', methodName: 'unsubscribeUsersStatus');
+    try {
+      final resp = await _api.subscribeUsersStatus(
+        userID: _currentUserID,
+        userIDs: userIDs,
+        genre: 2, // 2 for unsubscribe
+      );
+      if (resp.errCode != 0) {
+        throw Exception('取消订阅用户状态失败: ${resp.errMsg}');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'unsubscribeUsersStatus');
+      rethrow;
     }
   }
 
   /// 获取已订阅用户的在线状态
   Future<List<UserStatusInfo>> getSubscribeUsersStatus() async {
-    _log.info('getSubscribeUsersStatus');
-    final resp = await _api.getSubscribeUsersStatus(userID: _currentUserID);
-    if (resp.errCode != 0) {
-      throw Exception('获取已订阅用户状态失败: ${resp.errMsg}');
+    _log.info('called', methodName: 'getSubscribeUsersStatus');
+    try {
+      final resp = await _api.getSubscribeUsersStatus(userID: _currentUserID);
+      if (resp.errCode != 0) {
+        throw Exception('获取已订阅用户状态失败: ${resp.errMsg}');
+      }
+      final data = resp.data;
+      if (data is Map && data['statusList'] is List) {
+        return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getSubscribeUsersStatus');
+      rethrow;
     }
-    final data = resp.data;
-    if (data is Map && data['statusList'] is List) {
-      return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
-    }
-    return [];
   }
 
   /// 获取用户在线状态
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> getUserStatus(List<String> userIDs) async {
-    _log.info('getUserStatus: userIDs=$userIDs');
-    final resp = await _api.getUserStatus(userID: _currentUserID, userIDs: userIDs);
-    if (resp.errCode != 0) {
-      throw Exception('获取用户状态失败: ${resp.errMsg}');
+    _log.info('userIDs=$userIDs', methodName: 'getUserStatus');
+    try {
+      final resp = await _api.getUserStatus(userID: _currentUserID, userIDs: userIDs);
+      if (resp.errCode != 0) {
+        throw Exception('获取用户状态失败: ${resp.errMsg}');
+      }
+      final data = resp.data;
+      if (data is Map && data['statusList'] is List) {
+        return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
+      }
+      return [];
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUserStatus');
+      rethrow;
     }
-    final data = resp.data;
-    if (data is Map && data['statusList'] is List) {
-      return (data['statusList'] as List).map((e) => UserStatusInfo.fromJson(e)).toList();
-    }
-    return [];
   }
 
   /// 获取用户客户端配置
   /// 对应 Go SDK GetUserClientConfig
   /// 返回服务端下发的配置 KV 对
   Future<Map<String, String>> getUserClientConfig() async {
-    _log.info('getUserClientConfig');
-    final resp = await _api.getUserClientConfig(userID: _currentUserID);
-    if (resp.errCode != 0) {
-      throw Exception('获取用户客户端配置失败: ${resp.errMsg}');
+    _log.info('called', methodName: 'getUserClientConfig');
+    try {
+      final resp = await _api.getUserClientConfig(userID: _currentUserID);
+      if (resp.errCode != 0) {
+        throw Exception('获取用户客户端配置失败: ${resp.errMsg}');
+      }
+      final data = resp.data;
+      if (data is Map && data['configs'] is Map) {
+        return (data['configs'] as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
+      }
+      return {};
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUserClientConfig');
+      rethrow;
     }
-    final data = resp.data;
-    if (data is Map && data['configs'] is Map) {
-      return (data['configs'] as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
-    }
-    return {};
   }
 
   // ---------------------------------------------------------------------------
@@ -215,19 +266,24 @@ class UserManager {
     int pageNumber = 1,
     int showNumber = 10,
   }) async {
-    _log.info('searchFriendInfo: keyword=$keyword');
-    final resp = await _api.searchFriend(
-      keyword: keyword,
-      pageNumber: pageNumber,
-      showNumber: showNumber,
-    );
-    if (resp.isSuccess && resp.data is Map) {
-      final users = (resp.data as Map)['users'];
-      if (users is List) {
-        return users.map((e) => FriendInfo.fromJson(e as Map<String, dynamic>)).toList();
+    _log.info('keyword=$keyword', methodName: 'searchFriendInfo');
+    try {
+      final resp = await _api.searchFriend(
+        keyword: keyword,
+        pageNumber: pageNumber,
+        showNumber: showNumber,
+      );
+      if (resp.isSuccess && resp.data is Map) {
+        final users = (resp.data as Map)['users'];
+        if (users is List) {
+          return users.map((e) => FriendInfo.fromJson(e as Map<String, dynamic>)).toList();
+        }
       }
+      return [];
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'searchFriendInfo');
+      rethrow;
     }
-    return [];
   }
 
   /// 搜索用户完整信息（chat 服务端）
@@ -239,37 +295,47 @@ class UserManager {
     int pageNumber = 1,
     int showNumber = 10,
   }) async {
-    _log.info('searchUserFullInfo: keyword=$keyword');
-    final resp = await _api.searchUserFullInfo(
-      keyword: keyword,
-      pageNumber: pageNumber,
-      showNumber: showNumber,
-    );
-    if (resp.isSuccess && resp.data is Map) {
-      final users = (resp.data as Map)['users'];
-      if (users is List) {
-        return users.map((e) => FullUserInfo.fromJson(e as Map<String, dynamic>)).toList();
+    _log.info('keyword=$keyword', methodName: 'searchUserFullInfo');
+    try {
+      final resp = await _api.searchUserFullInfo(
+        keyword: keyword,
+        pageNumber: pageNumber,
+        showNumber: showNumber,
+      );
+      if (resp.isSuccess && resp.data is Map) {
+        final users = (resp.data as Map)['users'];
+        if (users is List) {
+          return users.map((e) => FullUserInfo.fromJson(e as Map<String, dynamic>)).toList();
+        }
       }
+      return [];
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'searchUserFullInfo');
+      rethrow;
     }
-    return [];
   }
 
   /// 获取用户完整信息（chat 服务端）
   /// [userID] 用户ID
   Future<FullUserInfo?> getUserFullInfo({required String userID}) async {
-    _log.info('getUserFullInfo: userID=$userID');
-    final resp = await _api.getUserFullInfo(userIDs: [userID]);
-    if (resp.isSuccess && resp.data is Map) {
-      final dataMap = resp.data as Map;
-      final users = dataMap['users'];
-      if (users is List && users.isNotEmpty) {
-        final first = users.first;
-        if (first is Map<String, dynamic>) {
-          return FullUserInfo.fromJson(first);
+    _log.info('userID=$userID', methodName: 'getUserFullInfo');
+    try {
+      final resp = await _api.getUserFullInfo(userIDs: [userID]);
+      if (resp.isSuccess && resp.data is Map) {
+        final dataMap = resp.data as Map;
+        final users = dataMap['users'];
+        if (users is List && users.isNotEmpty) {
+          final first = users.first;
+          if (first is Map<String, dynamic>) {
+            return FullUserInfo.fromJson(first);
+          }
         }
       }
+      return null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUserFullInfo');
+      rethrow;
     }
-    return null;
   }
 
   /// 更新用户信息（chat 服务端）
@@ -285,20 +351,25 @@ class UserManager {
     int? gender,
     int? birth,
   }) async {
-    _log.info('updateChatUserInfo: nickname=$nickname, faceURL=$faceURL');
-    final resp = await _api.updateChatUserInfo(
-      userID: _currentUserID,
-      account: account,
-      phoneNumber: phoneNumber,
-      areaCode: areaCode,
-      email: email,
-      nickname: nickname,
-      faceURL: faceURL,
-      gender: gender,
-      birth: birth,
-    );
-    if (!resp.isSuccess) {
-      throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+    _log.info('nickname=$nickname, faceURL=$faceURL', methodName: 'updateChatUserInfo');
+    try {
+      final resp = await _api.updateChatUserInfo(
+        userID: _currentUserID,
+        account: account,
+        phoneNumber: phoneNumber,
+        areaCode: areaCode,
+        email: email,
+        nickname: nickname,
+        faceURL: faceURL,
+        gender: gender,
+        birth: birth,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateChatUserInfo');
+      rethrow;
     }
   }
 
@@ -306,12 +377,17 @@ class UserManager {
   /// [roomId] 房间ID
   /// [userId] 用户ID
   Future<String?> getRtcToken({required String roomId, required String userId}) async {
-    _log.info('getRtcToken: roomId=$roomId, userId=$userId');
-    final resp = await _api.getRtcToken(roomId: roomId, userId: userId);
-    if (resp.isSuccess && resp.data is Map) {
-      return (resp.data as Map)['token'] as String?;
+    _log.info('roomId=$roomId, userId=$userId', methodName: 'getRtcToken');
+    try {
+      final resp = await _api.getRtcToken(roomId: roomId, userId: userId);
+      if (resp.isSuccess && resp.data is Map) {
+        return (resp.data as Map)['token'] as String?;
+      }
+      return null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getRtcToken');
+      rethrow;
     }
-    return null;
   }
 
   /// 注册账号（chat 服务端）
@@ -332,29 +408,34 @@ class UserManager {
     bool autoLogin = true,
     required String deviceID,
   }) async {
-    _log.info('register: nickname=$nickname, email=$email, phone=$phoneNumber');
-    final resp = await _api.register(
-      nickname: nickname,
-      password: password,
-      faceURL: faceURL,
-      areaCode: areaCode,
-      phoneNumber: phoneNumber,
-      email: email,
-      account: account,
-      birth: birth,
-      gender: gender,
-      verificationCode: verificationCode,
-      invitationCode: invitationCode,
-      autoLogin: autoLogin,
-      deviceID: deviceID,
-    );
-    if (!resp.isSuccess) {
-      throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+    _log.info('nickname=$nickname, email=$email, phone=$phoneNumber', methodName: 'register');
+    try {
+      final resp = await _api.register(
+        nickname: nickname,
+        password: password,
+        faceURL: faceURL,
+        areaCode: areaCode,
+        phoneNumber: phoneNumber,
+        email: email,
+        account: account,
+        birth: birth,
+        gender: gender,
+        verificationCode: verificationCode,
+        invitationCode: invitationCode,
+        autoLogin: autoLogin,
+        deviceID: deviceID,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+      if (resp.data is Map<String, dynamic>) {
+        return AuthCacheData.fromJson(resp.data);
+      }
+      return null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'register');
+      rethrow;
     }
-    if (resp.data is Map<String, dynamic>) {
-      return AuthCacheData.fromJson(resp.data);
-    }
-    return null;
   }
 
   /// 发送验证码（chat 服务端）
@@ -366,16 +447,24 @@ class UserManager {
     required int usedFor,
     String? invitationCode,
   }) async {
-    _log.info('sendVerificationCode: email=$email, phone=$phoneNumber, usedFor=$usedFor');
-    final resp = await _api.sendVerificationCode(
-      areaCode: areaCode,
-      phoneNumber: phoneNumber,
-      email: email,
-      usedFor: usedFor,
-      invitationCode: invitationCode,
+    _log.info(
+      'email=$email, phone=$phoneNumber, usedFor=$usedFor',
+      methodName: 'sendVerificationCode',
     );
-    if (!resp.isSuccess) {
-      throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+    try {
+      final resp = await _api.sendVerificationCode(
+        areaCode: areaCode,
+        phoneNumber: phoneNumber,
+        email: email,
+        usedFor: usedFor,
+        invitationCode: invitationCode,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'sendVerificationCode');
+      rethrow;
     }
   }
 }

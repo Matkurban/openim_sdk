@@ -602,7 +602,7 @@ class IMManager {
     void Function(int sent, int total)? onProgress,
   }) async {
     _log.info(
-      'uploadFile: id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause',
+      'id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause',
       methodName: 'uploadFile',
     );
     final file = File(filePath);

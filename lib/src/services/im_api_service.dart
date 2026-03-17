@@ -1,4 +1,4 @@
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
@@ -17,15 +17,27 @@ class ImApiService {
 
   /// 解析 Token 有效性
   Future<ApiResponse> parseToken({required String token}) async {
-    return HttpClient().post(ImApiUrl.parseToken, data: {'token': token});
+    _log.info('token=${token.isNotEmpty ? "***" : ""}', methodName: 'parseToken');
+    try {
+      return await HttpClient().post(ImApiUrl.parseToken, data: {'token': token});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'parseToken');
+      rethrow;
+    }
   }
 
   /// 获取用户 Token（管理端使用）
   Future<ApiResponse> getUserToken({required String userID, int? platformID}) async {
-    return HttpClient().post(
-      ImApiUrl.getUserToken,
-      data: {'userID': userID, 'platformID': platformID ?? PlatformUtils.platformID},
-    );
+    _log.info('userID=$userID, platformID=$platformID', methodName: 'getUserToken');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getUserToken,
+        data: {'userID': userID, 'platformID': platformID ?? PlatformUtils.platformID},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUserToken');
+      rethrow;
+    }
   }
 
   /// 注册接口，支持邮箱或手机号注册
@@ -44,27 +56,36 @@ class ImApiService {
     bool autoLogin = true,
     required String deviceID,
   }) async {
-    return await HttpClient().chatPost(
-      ChatApiUrl.register,
-      data: {
-        "deviceID": deviceID,
-        "verifyCode": verificationCode,
-        "platform": PlatformUtils.platformID,
-        "invitationCode": invitationCode,
-        "autoLogin": autoLogin,
-        "user": {
-          "nickname": nickname,
-          "faceURL": faceURL,
-          "birth": birth,
-          "gender": gender,
-          "email": email,
-          "areaCode": areaCode,
-          "phoneNumber": phoneNumber,
-          "account": account,
-          "password": OpenImUtils.generateMD5(password),
-        },
-      },
+    _log.info(
+      'nickname=$nickname, areaCode=$areaCode, phoneNumber=$phoneNumber, email=$email, account=$account, birth=$birth, gender=$gender, verificationCode=$verificationCode, invitationCode=$invitationCode, autoLogin=$autoLogin, deviceID=$deviceID',
+      methodName: 'register',
     );
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.register,
+        data: {
+          "deviceID": deviceID,
+          "verifyCode": verificationCode,
+          "platform": PlatformUtils.platformID,
+          "invitationCode": invitationCode,
+          "autoLogin": autoLogin,
+          "user": {
+            "nickname": nickname,
+            "faceURL": faceURL,
+            "birth": birth,
+            "gender": gender,
+            "email": email,
+            "areaCode": areaCode,
+            "phoneNumber": phoneNumber,
+            "account": account,
+            "password": OpenImUtils.generateMD5(password),
+          },
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'register');
+      rethrow;
+    }
   }
 
   /// 发送验证码
@@ -75,16 +96,25 @@ class ImApiService {
     required int usedFor,
     String? invitationCode,
   }) async {
-    return await HttpClient().chatPost(
-      ChatApiUrl.captcha,
-      data: {
-        "areaCode": ?areaCode,
-        "phoneNumber": ?phoneNumber,
-        "email": ?email,
-        "usedFor": usedFor,
-        "invitationCode": ?invitationCode,
-      },
+    _log.info(
+      'areaCode=$areaCode, phoneNumber=$phoneNumber, email=$email, usedFor=$usedFor, invitationCode=$invitationCode',
+      methodName: 'sendVerificationCode',
     );
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.captcha,
+        data: {
+          "areaCode": ?areaCode,
+          "phoneNumber": ?phoneNumber,
+          "email": ?email,
+          "usedFor": usedFor,
+          "invitationCode": ?invitationCode,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'sendVerificationCode');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -93,12 +123,24 @@ class ImApiService {
 
   /// 获取指定用户信息
   Future<ApiResponse> getUsersInfo({required List<String> userIDs}) async {
-    return HttpClient().post(ImApiUrl.getUsersInfo, data: {'userIDs': userIDs});
+    _log.info('userIDs=$userIDs', methodName: 'getUsersInfo');
+    try {
+      return await HttpClient().post(ImApiUrl.getUsersInfo, data: {'userIDs': userIDs});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUsersInfo');
+      rethrow;
+    }
   }
 
   /// 更新用户信息
   Future<ApiResponse> updateUserInfo({required Map<String, dynamic> userInfo}) async {
-    return HttpClient().post(ImApiUrl.updateUserInfo, data: userInfo);
+    _log.info('userInfo=$userInfo', methodName: 'updateUserInfo');
+    try {
+      return await HttpClient().post(ImApiUrl.updateUserInfo, data: userInfo);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateUserInfo');
+      rethrow;
+    }
   }
 
   /// 订阅用户状态
@@ -107,30 +149,63 @@ class ImApiService {
     required List<String> userIDs,
     required int genre,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.subscribeUsersStatus,
-      data: {'userID': userID, 'userIDs': userIDs, 'genre': genre},
-    );
+    _log.info('userID=$userID, userIDs=$userIDs, genre=$genre', methodName: 'subscribeUsersStatus');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.subscribeUsersStatus,
+        data: {'userID': userID, 'userIDs': userIDs, 'genre': genre},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'subscribeUsersStatus');
+      rethrow;
+    }
   }
 
   /// 获取已订阅用户状态
   Future<ApiResponse> getSubscribeUsersStatus({required String userID}) async {
-    return HttpClient().post(ImApiUrl.getSubscribeUsersStatus, data: {'userID': userID});
+    _log.info('userID=$userID', methodName: 'getSubscribeUsersStatus');
+    try {
+      return await HttpClient().post(ImApiUrl.getSubscribeUsersStatus, data: {'userID': userID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getSubscribeUsersStatus');
+      rethrow;
+    }
   }
 
   /// 获取用户在线状态
   Future<ApiResponse> getUserStatus({required String userID, required List<String> userIDs}) async {
-    return HttpClient().post(ImApiUrl.getUserStatus, data: {'userID': userID, 'userIDs': userIDs});
+    _log.info('userID=$userID, userIDs=$userIDs', methodName: 'getUserStatus');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getUserStatus,
+        data: {'userID': userID, 'userIDs': userIDs},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUserStatus');
+      rethrow;
+    }
   }
 
   /// 更新用户扩展信息
   Future<ApiResponse> updateUserInfoEx({required Map<String, dynamic> userInfo}) async {
-    return HttpClient().post(ImApiUrl.updateUserInfoEx, data: userInfo);
+    _log.info('userInfo=$userInfo', methodName: 'updateUserInfoEx');
+    try {
+      return await HttpClient().post(ImApiUrl.updateUserInfoEx, data: userInfo);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateUserInfoEx');
+      rethrow;
+    }
   }
 
   /// 获取用户客户端配置
   Future<ApiResponse> getUserClientConfig({required String userID}) async {
-    return HttpClient().post(ImApiUrl.getUserClientConfig, data: {'userID': userID});
+    _log.info('userID=$userID', methodName: 'getUserClientConfig');
+    try {
+      return await HttpClient().post(ImApiUrl.getUserClientConfig, data: {'userID': userID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUserClientConfig');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -143,13 +218,22 @@ class ImApiService {
     int pageNumber = 1,
     int showNumber = 10,
   }) async {
-    return HttpClient().chatPost(
-      ChatApiUrl.searchFriend,
-      data: {
-        'keyword': keyword,
-        'pagination': {'pageNumber': pageNumber, 'showNumber': showNumber},
-      },
+    _log.info(
+      'keyword=$keyword, pageNumber=$pageNumber, showNumber=$showNumber',
+      methodName: 'searchFriend',
     );
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.searchFriend,
+        data: {
+          'keyword': keyword,
+          'pagination': {'pageNumber': pageNumber, 'showNumber': showNumber},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'searchFriend');
+      rethrow;
+    }
   }
 
   /// 搜索用户完整信息（chat 服务端）
@@ -158,25 +242,40 @@ class ImApiService {
     int pageNumber = 1,
     int showNumber = 10,
   }) async {
-    return HttpClient().chatPost(
-      ChatApiUrl.searchUserFull,
-      data: {
-        'keyword': keyword,
-        'pagination': {'pageNumber': pageNumber, 'showNumber': showNumber},
-      },
+    _log.info(
+      'keyword=$keyword, pageNumber=$pageNumber, showNumber=$showNumber',
+      methodName: 'searchUserFullInfo',
     );
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.searchUserFull,
+        data: {
+          'keyword': keyword,
+          'pagination': {'pageNumber': pageNumber, 'showNumber': showNumber},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'searchUserFullInfo');
+      rethrow;
+    }
   }
 
   /// 获取用户完整信息（chat 服务端）
   Future<ApiResponse> getUserFullInfo({required List<String> userIDs}) async {
-    return HttpClient().chatPost(
-      ChatApiUrl.getUserFull,
-      data: {
-        'pagination': {'pageNumber': 1, 'showNumber': userIDs.length},
-        'userIDs': userIDs,
-        'platform': PlatformUtils.platformID,
-      },
-    );
+    _log.info('userIDs=$userIDs', methodName: 'getUserFullInfo');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.getUserFull,
+        data: {
+          'pagination': {'pageNumber': 1, 'showNumber': userIDs.length},
+          'userIDs': userIDs,
+          'platform': PlatformUtils.platformID,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUserFullInfo');
+      rethrow;
+    }
   }
 
   /// 更新用户信息（chat 服务端）
@@ -191,29 +290,44 @@ class ImApiService {
     int? gender,
     int? birth,
   }) async {
-    return HttpClient().chatPost(
-      ChatApiUrl.updateUser,
-      data: {
-        'userID': userID,
-        'platform': PlatformUtils.platformID,
-        'account': ?account,
-        'phoneNumber': ?phoneNumber,
-        'areaCode': ?areaCode,
-        'email': ?email,
-        'nickname': ?nickname,
-        'faceURL': ?faceURL,
-        'gender': ?gender,
-        'birth': ?birth,
-      },
+    _log.info(
+      'userID=$userID, account=$account, phoneNumber=$phoneNumber, areaCode=$areaCode, email=$email, nickname=$nickname, gender=$gender, birth=$birth',
+      methodName: 'updateChatUserInfo',
     );
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.updateUser,
+        data: {
+          'userID': userID,
+          'platform': PlatformUtils.platformID,
+          'account': ?account,
+          'phoneNumber': ?phoneNumber,
+          'areaCode': ?areaCode,
+          'email': ?email,
+          'nickname': ?nickname,
+          'faceURL': ?faceURL,
+          'gender': ?gender,
+          'birth': ?birth,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateChatUserInfo');
+      rethrow;
+    }
   }
 
   /// 获取 RTC Token（chat 服务端）
   Future<ApiResponse> getRtcToken({required String roomId, required String userId}) async {
-    return HttpClient().chatPost(
-      ChatApiUrl.getRtcToken,
-      data: {'roomId': roomId, 'userId': userId},
-    );
+    _log.info('roomId=$roomId, userId=$userId', methodName: 'getRtcToken');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.getRtcToken,
+        data: {'roomId': roomId, 'userId': userId},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getRtcToken');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -227,15 +341,24 @@ class ImApiService {
     String? reqMsg,
     String? ex,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.addFriend,
-      data: {
-        'fromUserID': fromUserID,
-        'toUserID': toUserID,
-        'reqMsg': reqMsg ?? '',
-        'ex': ex ?? '',
-      },
+    _log.info(
+      'fromUserID=$fromUserID, toUserID=$toUserID, reqMsg=$reqMsg',
+      methodName: 'addFriend',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.addFriend,
+        data: {
+          'fromUserID': fromUserID,
+          'toUserID': toUserID,
+          'reqMsg': reqMsg ?? '',
+          'ex': ex ?? '',
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addFriend');
+      rethrow;
+    }
   }
 
   /// 删除好友
@@ -243,10 +366,16 @@ class ImApiService {
     required String ownerUserID,
     required String friendUserID,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.deleteFriend,
-      data: {'ownerUserID': ownerUserID, 'friendUserID': friendUserID},
-    );
+    _log.info('ownerUserID=$ownerUserID, friendUserID=$friendUserID', methodName: 'deleteFriend');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.deleteFriend,
+        data: {'ownerUserID': ownerUserID, 'friendUserID': friendUserID},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteFriend');
+      rethrow;
+    }
   }
 
   /// 获取收到的好友申请列表
@@ -255,13 +384,22 @@ class ImApiService {
     int offset = 0,
     int count = 100,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getRecvFriendApplicationList,
-      data: {
-        'userID': userID,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
+    _log.info(
+      'userID=$userID, offset=$offset, count=$count',
+      methodName: 'getRecvFriendApplicationList',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getRecvFriendApplicationList,
+        data: {
+          'userID': userID,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getRecvFriendApplicationList');
+      rethrow;
+    }
   }
 
   /// 获取发出的好友申请列表
@@ -270,13 +408,22 @@ class ImApiService {
     int offset = 0,
     int count = 100,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getSelfFriendApplicationList,
-      data: {
-        'userID': userID,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
+    _log.info(
+      'userID=$userID, offset=$offset, count=$count',
+      methodName: 'getSelfFriendApplicationList',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getSelfFriendApplicationList,
+        data: {
+          'userID': userID,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getSelfFriendApplicationList');
+      rethrow;
+    }
   }
 
   /// 回复好友申请
@@ -286,20 +433,35 @@ class ImApiService {
     required int handleResult,
     String? handleMsg,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.addFriendResponse,
-      data: {
-        'fromUserID': fromUserID,
-        'toUserID': toUserID,
-        'handleResult': handleResult,
-        'handleMsg': handleMsg ?? '',
-      },
+    _log.info(
+      'fromUserID=$fromUserID, toUserID=$toUserID, handleResult=$handleResult, handleMsg=$handleMsg',
+      methodName: 'addFriendResponse',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.addFriendResponse,
+        data: {
+          'fromUserID': fromUserID,
+          'toUserID': toUserID,
+          'handleResult': handleResult,
+          'handleMsg': handleMsg ?? '',
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addFriendResponse');
+      rethrow;
+    }
   }
 
   /// 更新好友信息（备注、置顶等）
   Future<ApiResponse> updateFriends({required Map<String, dynamic> req}) async {
-    return HttpClient().post(ImApiUrl.updateFriends, data: req);
+    _log.info('req=$req', methodName: 'updateFriends');
+    try {
+      return await HttpClient().post(ImApiUrl.updateFriends, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateFriends');
+      rethrow;
+    }
   }
 
   /// 拉取好友列表（分页）
@@ -308,13 +470,19 @@ class ImApiService {
     int offset = 0,
     int count = 100,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getFriendList,
-      data: {
-        'userID': userID,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
-    );
+    _log.info('userID=$userID, offset=$offset, count=$count', methodName: 'getFriendList');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getFriendList,
+        data: {
+          'userID': userID,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getFriendList');
+      rethrow;
+    }
   }
 
   /// 获取指定好友信息
@@ -322,20 +490,41 @@ class ImApiService {
     required String ownerUserID,
     required List<String> friendUserIDs,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getDesignatedFriends,
-      data: {'ownerUserID': ownerUserID, 'friendUserIDs': friendUserIDs},
+    _log.info(
+      'ownerUserID=$ownerUserID, friendUserIDs=$friendUserIDs',
+      methodName: 'getDesignatedFriends',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getDesignatedFriends,
+        data: {'ownerUserID': ownerUserID, 'friendUserIDs': friendUserIDs},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getDesignatedFriends');
+      rethrow;
+    }
   }
 
   /// 增量同步好友
   Future<ApiResponse> getIncrementalFriends({required Map<String, dynamic> req}) async {
-    return HttpClient().post(ImApiUrl.getIncrementalFriends, data: req);
+    _log.info('req=$req', methodName: 'getIncrementalFriends');
+    try {
+      return await HttpClient().post(ImApiUrl.getIncrementalFriends, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getIncrementalFriends');
+      rethrow;
+    }
   }
 
   /// 获取完整好友 ID 列表
   Future<ApiResponse> getFullFriendUserIDs({required String userID}) async {
-    return HttpClient().post(ImApiUrl.getFullFriendUserIDs, data: {'userID': userID});
+    _log.info('userID=$userID', methodName: 'getFullFriendUserIDs');
+    try {
+      return await HttpClient().post(ImApiUrl.getFullFriendUserIDs, data: {'userID': userID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getFullFriendUserIDs');
+      rethrow;
+    }
   }
 
   /// 添加黑名单
@@ -344,10 +533,16 @@ class ImApiService {
     required String blackUserID,
     String? ex,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.addBlack,
-      data: {'ownerUserID': ownerUserID, 'blackUserID': blackUserID, 'ex': ex ?? ''},
-    );
+    _log.info('ownerUserID=$ownerUserID, blackUserID=$blackUserID', methodName: 'addBlack');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.addBlack,
+        data: {'ownerUserID': ownerUserID, 'blackUserID': blackUserID, 'ex': ex ?? ''},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addBlack');
+      rethrow;
+    }
   }
 
   /// 移除黑名单
@@ -355,10 +550,16 @@ class ImApiService {
     required String ownerUserID,
     required String blackUserID,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.removeBlack,
-      data: {'ownerUserID': ownerUserID, 'blackUserID': blackUserID},
-    );
+    _log.info('ownerUserID=$ownerUserID, blackUserID=$blackUserID', methodName: 'removeBlack');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.removeBlack,
+        data: {'ownerUserID': ownerUserID, 'blackUserID': blackUserID},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'removeBlack');
+      rethrow;
+    }
   }
 
   /// 获取黑名单列表
@@ -367,13 +568,19 @@ class ImApiService {
     int offset = 0,
     int count = 100,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getBlackList,
-      data: {
-        'userID': userID,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
-    );
+    _log.info('userID=$userID, offset=$offset, count=$count', methodName: 'getBlackList');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getBlackList,
+        data: {
+          'userID': userID,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getBlackList');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -382,12 +589,24 @@ class ImApiService {
 
   /// 创建群组
   Future<ApiResponse> createGroup({required Map<String, dynamic> req}) async {
-    return HttpClient().post(ImApiUrl.createGroup, data: req);
+    _log.info('req=$req', methodName: 'createGroup');
+    try {
+      return await HttpClient().post(ImApiUrl.createGroup, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createGroup');
+      rethrow;
+    }
   }
 
   /// 设置群信息
   Future<ApiResponse> setGroupInfoEx({required Map<String, dynamic> req}) async {
-    return HttpClient().post(ImApiUrl.setGroupInfoEx, data: req);
+    _log.info('req=$req', methodName: 'setGroupInfoEx');
+    try {
+      return await HttpClient().post(ImApiUrl.setGroupInfoEx, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setGroupInfoEx');
+      rethrow;
+    }
   }
 
   /// 加入群组
@@ -398,26 +617,50 @@ class ImApiService {
     String? inviterUserID,
     String? ex,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.joinGroup,
-      data: {
-        'groupID': groupID,
-        'reqMessage': reqMessage ?? '',
-        'joinSource': joinSource,
-        'inviterUserID': inviterUserID ?? '',
-        'ex': ex ?? '',
-      },
+    _log.info(
+      'groupID=$groupID, reqMessage=$reqMessage, joinSource=$joinSource, inviterUserID=$inviterUserID',
+      methodName: 'joinGroup',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.joinGroup,
+        data: {
+          'groupID': groupID,
+          'reqMessage': reqMessage ?? '',
+          'joinSource': joinSource,
+          'inviterUserID': inviterUserID ?? '',
+          'ex': ex ?? '',
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'joinGroup');
+      rethrow;
+    }
   }
 
   /// 退出群组
   Future<ApiResponse> quitGroup({required String userID, required String groupID}) async {
-    return HttpClient().post(ImApiUrl.quitGroup, data: {'userID': userID, 'groupID': groupID});
+    _log.info('userID=$userID, groupID=$groupID', methodName: 'quitGroup');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.quitGroup,
+        data: {'userID': userID, 'groupID': groupID},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'quitGroup');
+      rethrow;
+    }
   }
 
   /// 获取群信息
   Future<ApiResponse> getGroupsInfo({required List<String> groupIDs}) async {
-    return HttpClient().post(ImApiUrl.getGroupsInfo, data: {'groupIDs': groupIDs});
+    _log.info('groupIDs=$groupIDs', methodName: 'getGroupsInfo');
+    try {
+      return await HttpClient().post(ImApiUrl.getGroupsInfo, data: {'groupIDs': groupIDs});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupsInfo');
+      rethrow;
+    }
   }
 
   /// 获取群成员列表（分页）
@@ -427,14 +670,23 @@ class ImApiService {
     int count = 100,
     int filter = 0,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getGroupMemberList,
-      data: {
-        'groupID': groupID,
-        'filter': filter,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
+    _log.info(
+      'groupID=$groupID, offset=$offset, count=$count, filter=$filter',
+      methodName: 'getGroupMemberList',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getGroupMemberList,
+        data: {
+          'groupID': groupID,
+          'filter': filter,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupMemberList');
+      rethrow;
+    }
   }
 
   /// 获取指定群成员信息
@@ -442,10 +694,16 @@ class ImApiService {
     required String groupID,
     required List<String> userIDs,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getGroupMembersInfo,
-      data: {'groupID': groupID, 'userIDs': userIDs},
-    );
+    _log.info('groupID=$groupID, userIDs=$userIDs', methodName: 'getGroupMembersInfo');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getGroupMembersInfo,
+        data: {'groupID': groupID, 'userIDs': userIDs},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupMembersInfo');
+      rethrow;
+    }
   }
 
   /// 邀请用户入群
@@ -454,10 +712,19 @@ class ImApiService {
     required List<String> invitedUserIDs,
     String? reason,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.inviteUserToGroup,
-      data: {'groupID': groupID, 'invitedUserIDs': invitedUserIDs, 'reason': reason ?? ''},
+    _log.info(
+      'groupID=$groupID, invitedUserIDs=$invitedUserIDs, reason=$reason',
+      methodName: 'inviteUserToGroup',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.inviteUserToGroup,
+        data: {'groupID': groupID, 'invitedUserIDs': invitedUserIDs, 'reason': reason ?? ''},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'inviteUserToGroup');
+      rethrow;
+    }
   }
 
   /// 获取已加入群列表
@@ -466,13 +733,22 @@ class ImApiService {
     int offset = 0,
     int count = 100,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getJoinedGroupList,
-      data: {
-        'fromUserID': fromUserID,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
+    _log.info(
+      'fromUserID=$fromUserID, offset=$offset, count=$count',
+      methodName: 'getJoinedGroupList',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getJoinedGroupList,
+        data: {
+          'fromUserID': fromUserID,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getJoinedGroupList');
+      rethrow;
+    }
   }
 
   /// 踢出群成员
@@ -481,10 +757,19 @@ class ImApiService {
     required List<String> kickedUserIDs,
     String? reason,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.kickGroup,
-      data: {'groupID': groupID, 'kickedUserIDs': kickedUserIDs, 'reason': reason ?? ''},
+    _log.info(
+      'groupID=$groupID, kickedUserIDs=$kickedUserIDs, reason=$reason',
+      methodName: 'kickGroupMember',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.kickGroup,
+        data: {'groupID': groupID, 'kickedUserIDs': kickedUserIDs, 'reason': reason ?? ''},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'kickGroupMember');
+      rethrow;
+    }
   }
 
   /// 转让群主
@@ -493,14 +778,23 @@ class ImApiService {
     required String oldOwnerUserID,
     required String newOwnerUserID,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.transferGroup,
-      data: {
-        'groupID': groupID,
-        'oldOwnerUserID': oldOwnerUserID,
-        'newOwnerUserID': newOwnerUserID,
-      },
+    _log.info(
+      'groupID=$groupID, oldOwnerUserID=$oldOwnerUserID, newOwnerUserID=$newOwnerUserID',
+      methodName: 'transferGroup',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.transferGroup,
+        data: {
+          'groupID': groupID,
+          'oldOwnerUserID': oldOwnerUserID,
+          'newOwnerUserID': newOwnerUserID,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'transferGroup');
+      rethrow;
+    }
   }
 
   /// 获取收到的入群申请
@@ -509,13 +803,22 @@ class ImApiService {
     int offset = 0,
     int count = 100,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getRecvGroupApplicationList,
-      data: {
-        'fromUserID': userID,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
+    _log.info(
+      'userID=$userID, offset=$offset, count=$count',
+      methodName: 'getRecvGroupApplicationList',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getRecvGroupApplicationList,
+        data: {
+          'fromUserID': userID,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getRecvGroupApplicationList');
+      rethrow;
+    }
   }
 
   /// 获取发出的入群申请
@@ -524,13 +827,22 @@ class ImApiService {
     int offset = 0,
     int count = 100,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getSendGroupApplicationList,
-      data: {
-        'fromUserID': userID,
-        'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
-      },
+    _log.info(
+      'userID=$userID, offset=$offset, count=$count',
+      methodName: 'getSendGroupApplicationList',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getSendGroupApplicationList,
+        data: {
+          'fromUserID': userID,
+          'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getSendGroupApplicationList');
+      rethrow;
+    }
   }
 
   /// 处理入群申请
@@ -540,20 +852,35 @@ class ImApiService {
     required String handledMsg,
     required int handleResult,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.groupApplicationResponse,
-      data: {
-        'groupID': groupID,
-        'fromUserID': fromUserID,
-        'handledMsg': handledMsg,
-        'handleResult': handleResult,
-      },
+    _log.info(
+      'groupID=$groupID, fromUserID=$fromUserID, handledMsg=$handledMsg, handleResult=$handleResult',
+      methodName: 'groupApplicationResponse',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.groupApplicationResponse,
+        data: {
+          'groupID': groupID,
+          'fromUserID': fromUserID,
+          'handledMsg': handledMsg,
+          'handleResult': handleResult,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'groupApplicationResponse');
+      rethrow;
+    }
   }
 
   /// 解散群
   Future<ApiResponse> dismissGroup({required String groupID}) async {
-    return HttpClient().post(ImApiUrl.dismissGroup, data: {'groupID': groupID});
+    _log.info('groupID=$groupID', methodName: 'dismissGroup');
+    try {
+      return await HttpClient().post(ImApiUrl.dismissGroup, data: {'groupID': groupID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'dismissGroup');
+      rethrow;
+    }
   }
 
   /// 禁言群成员
@@ -562,10 +889,19 @@ class ImApiService {
     required String userID,
     required int mutedSeconds,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.muteGroupMember,
-      data: {'groupID': groupID, 'userID': userID, 'mutedSeconds': mutedSeconds},
+    _log.info(
+      'groupID=$groupID, userID=$userID, mutedSeconds=$mutedSeconds',
+      methodName: 'muteGroupMember',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.muteGroupMember,
+        data: {'groupID': groupID, 'userID': userID, 'mutedSeconds': mutedSeconds},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'muteGroupMember');
+      rethrow;
+    }
   }
 
   /// 取消禁言群成员
@@ -573,25 +909,49 @@ class ImApiService {
     required String groupID,
     required String userID,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.cancelMuteGroupMember,
-      data: {'groupID': groupID, 'userID': userID},
-    );
+    _log.info('groupID=$groupID, userID=$userID', methodName: 'cancelMuteGroupMember');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.cancelMuteGroupMember,
+        data: {'groupID': groupID, 'userID': userID},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'cancelMuteGroupMember');
+      rethrow;
+    }
   }
 
   /// 全员禁言
   Future<ApiResponse> muteGroup({required String groupID}) async {
-    return HttpClient().post(ImApiUrl.muteGroup, data: {'groupID': groupID});
+    _log.info('groupID=$groupID', methodName: 'muteGroup');
+    try {
+      return await HttpClient().post(ImApiUrl.muteGroup, data: {'groupID': groupID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'muteGroup');
+      rethrow;
+    }
   }
 
   /// 取消全员禁言
   Future<ApiResponse> cancelMuteGroup({required String groupID}) async {
-    return HttpClient().post(ImApiUrl.cancelMuteGroup, data: {'groupID': groupID});
+    _log.info('groupID=$groupID', methodName: 'cancelMuteGroup');
+    try {
+      return await HttpClient().post(ImApiUrl.cancelMuteGroup, data: {'groupID': groupID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'cancelMuteGroup');
+      rethrow;
+    }
   }
 
   /// 设置群成员信息
   Future<ApiResponse> setGroupMemberInfo({required Map<String, dynamic> req}) async {
-    return HttpClient().post(ImApiUrl.setGroupMemberInfo, data: req);
+    _log.info('req=$req', methodName: 'setGroupMemberInfo');
+    try {
+      return await HttpClient().post(ImApiUrl.setGroupMemberInfo, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setGroupMemberInfo');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -600,7 +960,13 @@ class ImApiService {
 
   /// 发送消息
   Future<ApiResponse> sendMsg({required Map<String, dynamic> msgData}) async {
-    return HttpClient().post(ImApiUrl.sendMsg, data: msgData);
+    _log.info('msgData=$msgData', methodName: 'sendMsg');
+    try {
+      return await HttpClient().post(ImApiUrl.sendMsg, data: msgData);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'sendMsg');
+      rethrow;
+    }
   }
 
   /// 撤回消息
@@ -609,10 +975,16 @@ class ImApiService {
     required String conversationID,
     required int seq,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.revokeMsg,
-      data: {'userID': userID, 'conversationID': conversationID, 'seq': seq},
-    );
+    _log.info('userID=$userID, conversationID=$conversationID, seq=$seq', methodName: 'revokeMsg');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.revokeMsg,
+        data: {'userID': userID, 'conversationID': conversationID, 'seq': seq},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'revokeMsg');
+      rethrow;
+    }
   }
 
   /// 标记消息为已读
@@ -621,10 +993,19 @@ class ImApiService {
     required String conversationID,
     required List<int> seqs,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.markMsgsAsRead,
-      data: {'userID': userID, 'conversationID': conversationID, 'seqs': seqs},
+    _log.info(
+      'userID=$userID, conversationID=$conversationID, seqs=$seqs',
+      methodName: 'markMsgsAsRead',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.markMsgsAsRead,
+        data: {'userID': userID, 'conversationID': conversationID, 'seqs': seqs},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'markMsgsAsRead');
+      rethrow;
+    }
   }
 
   /// 标记会话为已读
@@ -633,10 +1014,19 @@ class ImApiService {
     required String conversationID,
     required int hasReadSeq,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.markConversationAsRead,
-      data: {'userID': userID, 'conversationID': conversationID, 'hasReadSeq': hasReadSeq},
+    _log.info(
+      'userID=$userID, conversationID=$conversationID, hasReadSeq=$hasReadSeq',
+      methodName: 'markConversationAsRead',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.markConversationAsRead,
+        data: {'userID': userID, 'conversationID': conversationID, 'hasReadSeq': hasReadSeq},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'markConversationAsRead');
+      rethrow;
+    }
   }
 
   /// 删除消息
@@ -645,10 +1035,19 @@ class ImApiService {
     required String conversationID,
     required List<int> seqs,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.deleteMsgs,
-      data: {'userID': userID, 'conversationID': conversationID, 'seqs': seqs},
+    _log.info(
+      'userID=$userID, conversationID=$conversationID, seqs=$seqs',
+      methodName: 'deleteMsgs',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.deleteMsgs,
+        data: {'userID': userID, 'conversationID': conversationID, 'seqs': seqs},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteMsgs');
+      rethrow;
+    }
   }
 
   /// 清空会话消息
@@ -656,15 +1055,30 @@ class ImApiService {
     required String userID,
     required List<String> conversationIDs,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.clearConversationMsg,
-      data: {'userID': userID, 'conversationIDs': conversationIDs},
+    _log.info(
+      'userID=$userID, conversationIDs=$conversationIDs',
+      methodName: 'clearConversationMsg',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.clearConversationMsg,
+        data: {'userID': userID, 'conversationIDs': conversationIDs},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'clearConversationMsg');
+      rethrow;
+    }
   }
 
   /// 清空全部消息
   Future<ApiResponse> clearAllMsg({required String userID}) async {
-    return HttpClient().post(ImApiUrl.clearAllMsg, data: {'userID': userID});
+    _log.info('userID=$userID', methodName: 'clearAllMsg');
+    try {
+      return await HttpClient().post(ImApiUrl.clearAllMsg, data: {'userID': userID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'clearAllMsg');
+      rethrow;
+    }
   }
 
   /// 获取会话已读和最大 seq
@@ -672,10 +1086,24 @@ class ImApiService {
     required String userID,
     required List<String> conversationIDs,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getConversationsHasReadAndMaxSeq,
-      data: {'userID': userID, 'conversationIDs': conversationIDs},
+    _log.info(
+      'userID=$userID, conversationIDs=$conversationIDs',
+      methodName: 'getConversationsHasReadAndMaxSeq',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getConversationsHasReadAndMaxSeq,
+        data: {'userID': userID, 'conversationIDs': conversationIDs},
+      );
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'getConversationsHasReadAndMaxSeq',
+      );
+      rethrow;
+    }
   }
 
   /// 按 seq 范围拉取云端消息（HTTP REST 接口）
@@ -687,15 +1115,30 @@ class ImApiService {
     required List<Map<String, dynamic>> seqRanges,
     int order = 0,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.pullMsgBySeqs,
-      data: {'userID': userID, 'seqRanges': seqRanges, 'order': order},
+    _log.info(
+      'userID=$userID, order=$order, seqRanges=${seqRanges.length} items',
+      methodName: 'pullMsgBySeqs',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.pullMsgBySeqs,
+        data: {'userID': userID, 'seqRanges': seqRanges, 'order': order},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'pullMsgBySeqs');
+      rethrow;
+    }
   }
 
   /// 获取服务器时间
   Future<ApiResponse> getServerTime() async {
-    return HttpClient().post(ImApiUrl.getServerTime, data: {});
+    _log.info('called', methodName: 'getServerTime');
+    try {
+      return await HttpClient().post(ImApiUrl.getServerTime, data: {});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getServerTime');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -707,30 +1150,66 @@ class ImApiService {
     required String ownerUserID,
     required List<String> conversationIDs,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.getConversations,
-      data: {'ownerUserID': ownerUserID, 'conversationIDs': conversationIDs},
+    _log.info(
+      'ownerUserID=$ownerUserID, conversationIDs=$conversationIDs',
+      methodName: 'getConversations',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getConversations,
+        data: {'ownerUserID': ownerUserID, 'conversationIDs': conversationIDs},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getConversations');
+      rethrow;
+    }
   }
 
   /// 获取全部会话
   Future<ApiResponse> getAllConversations({required String ownerUserID}) async {
-    return HttpClient().post(ImApiUrl.getAllConversations, data: {'ownerUserID': ownerUserID});
+    _log.info('ownerUserID=$ownerUserID', methodName: 'getAllConversations');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getAllConversations,
+        data: {'ownerUserID': ownerUserID},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getAllConversations');
+      rethrow;
+    }
   }
 
   /// 设置会话属性
   Future<ApiResponse> setConversations({required Map<String, dynamic> req}) async {
-    return HttpClient().post(ImApiUrl.setConversations, data: req);
+    _log.info('req=$req', methodName: 'setConversations');
+    try {
+      return await HttpClient().post(ImApiUrl.setConversations, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setConversations');
+      rethrow;
+    }
   }
 
   /// 增量同步会话
   Future<ApiResponse> getIncrementalConversation({required Map<String, dynamic> req}) async {
-    return HttpClient().post(ImApiUrl.getIncrementalConversation, data: req);
+    _log.info('req=$req', methodName: 'getIncrementalConversation');
+    try {
+      return await HttpClient().post(ImApiUrl.getIncrementalConversation, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getIncrementalConversation');
+      rethrow;
+    }
   }
 
   /// 获取完整会话 ID 列表
   Future<ApiResponse> getFullConversationIDs({required String userID}) async {
-    return HttpClient().post(ImApiUrl.getFullConversationIDs, data: {'userID': userID});
+    _log.info('userID=$userID', methodName: 'getFullConversationIDs');
+    try {
+      return await HttpClient().post(ImApiUrl.getFullConversationIDs, data: {'userID': userID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getFullConversationIDs');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -744,23 +1223,38 @@ class ImApiService {
     required String account,
     int expireTime = 0,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.fcmUpdateToken,
-      data: {
-        'platformID': platformID,
-        'fcmToken': fcmToken,
-        'account': account,
-        'expireTime': expireTime,
-      },
+    _log.info(
+      'platformID=$platformID, fcmToken=$fcmToken, account=$account, expireTime=$expireTime',
+      methodName: 'fcmUpdateToken',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.fcmUpdateToken,
+        data: {
+          'platformID': platformID,
+          'fcmToken': fcmToken,
+          'account': account,
+          'expireTime': expireTime,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'fcmUpdateToken');
+      rethrow;
+    }
   }
 
   /// 设置 App 角标
   Future<ApiResponse> setAppBadge({required String userID, required int appUnreadCount}) async {
-    return HttpClient().post(
-      ImApiUrl.setAppBadge,
-      data: {'userID': userID, 'appUnreadCount': appUnreadCount},
-    );
+    _log.info('userID=$userID, appUnreadCount=$appUnreadCount', methodName: 'setAppBadge');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.setAppBadge,
+        data: {'userID': userID, 'appUnreadCount': appUnreadCount},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setAppBadge');
+      rethrow;
+    }
   }
 
   /// 发起分片上传
@@ -773,26 +1267,41 @@ class ImApiService {
     required String name,
     required String contentType,
   }) async {
-    return HttpClient().post(
-      ImApiUrl.objectInitiateUpload,
-      data: {
-        'hash': hash,
-        'size': size,
-        'partSize': partSize,
-        'maxParts': maxParts,
-        'cause': cause,
-        'name': name,
-        'contentType': contentType,
-      },
+    _log.info(
+      'hash=$hash, size=$size, partSize=$partSize, maxParts=$maxParts, cause=$cause, name=$name, contentType=$contentType',
+      methodName: 'initiateMultipartUpload',
     );
+    try {
+      return await HttpClient().post(
+        ImApiUrl.objectInitiateUpload,
+        data: {
+          'hash': hash,
+          'size': size,
+          'partSize': partSize,
+          'maxParts': maxParts,
+          'cause': cause,
+          'name': name,
+          'contentType': contentType,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'initiateMultipartUpload');
+      rethrow;
+    }
   }
 
   /// 获取额外的分片上传签名
   Future<ApiResponse> authSign({required String uploadID, required List<int> partNumbers}) async {
-    return HttpClient().post(
-      ImApiUrl.objectAuthSign,
-      data: {'uploadID': uploadID, 'partNumbers': partNumbers},
-    );
+    _log.info('uploadID=$uploadID, partNumbers=$partNumbers', methodName: 'authSign');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.objectAuthSign,
+        data: {'uploadID': uploadID, 'partNumbers': partNumbers},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'authSign');
+      rethrow;
+    }
   }
 
   /// 完成分片上传
@@ -804,21 +1313,28 @@ class ImApiService {
     required String cause,
   }) async {
     _log.info(
-      'completeMultipartUpload request: uploadID=$uploadID, parts=$parts, name=$name, contentType=$contentType, cause=$cause',
+      'uploadID=$uploadID, parts=$parts, name=$name, contentType=$contentType, cause=$cause',
+      methodName: 'completeMultipartUpload',
     );
-    final result = await HttpClient().post(
-      ImApiUrl.objectCompleteUpload,
-      data: {
-        'uploadID': uploadID,
-        'parts': parts,
-        'name': name,
-        'contentType': contentType,
-        'cause': cause,
-      },
-    );
-    _log.info(
-      'completeMultipartUpload response: errCode=${result.errCode}, errMsg=${result.errMsg}, data=${result.data}',
-    );
-    return result;
+    try {
+      final result = await HttpClient().post(
+        ImApiUrl.objectCompleteUpload,
+        data: {
+          'uploadID': uploadID,
+          'parts': parts,
+          'name': name,
+          'contentType': contentType,
+          'cause': cause,
+        },
+      );
+      _log.info(
+        'response errCode=${result.errCode}, errMsg=${result.errMsg}, data=${result.data}',
+        methodName: 'completeMultipartUpload',
+      );
+      return result;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'completeMultipartUpload');
+      rethrow;
+    }
   }
 }

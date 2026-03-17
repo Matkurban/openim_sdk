@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/listener/moments_listener.dart';
@@ -57,6 +57,7 @@ class MomentsManager {
   }
 
   Future<ApiResponse> _post(String path, Map<String, dynamic> data) async {
+    _log.info('path=$path', methodName: '_post');
     final dio = Dio(
       BaseOptions(
         baseUrl: _chatAddr,
@@ -73,9 +74,17 @@ class MomentsManager {
     try {
       final response = await dio.post(path, data: data);
       return ApiResponse.fromJson(response.data as Map<String, dynamic>);
-    } on DioException catch (e) {
-      _log.severe('MomentsManager POST $path failed: ${e.message}');
-      return ApiResponse(errCode: -1, errMsg: e.message ?? 'network error', errDlt: '', data: null);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_post');
+      if (e is DioException) {
+        return ApiResponse(
+          errCode: -1,
+          errMsg: e.message ?? 'network error',
+          errDlt: '',
+          data: null,
+        );
+      }
+      return ApiResponse(errCode: -1, errMsg: e.toString(), errDlt: '', data: null);
     } finally {
       dio.close();
     }
@@ -87,33 +96,43 @@ class MomentsManager {
 
   /// 发布朋友圈动态
   Future<MomentInfo?> createMoment({required MomentCreateReq request}) async {
-    _log.info('createMoment: content=${request.content}');
-    final resp = await _post('/moment/create', request.toJson());
-    if (!resp.isSuccess) {
-      _log.warning('createMoment failed: ${resp.errMsg}');
-      return null;
-    }
-    if (resp.data is Map<String, dynamic>) {
-      final dataMap = resp.data as Map<String, dynamic>;
-      if (dataMap['moment'] is Map<String, dynamic>) {
-        final moment = MomentInfo.fromJson(dataMap['moment'] as Map<String, dynamic>);
-        await _database.upsertMoment(moment);
-        return moment;
+    _log.info('content=${request.content}', methodName: 'createMoment');
+    try {
+      final resp = await _post('/moment/create', request.toJson());
+      if (!resp.isSuccess) {
+        _log.warning('createMoment failed: ${resp.errMsg}');
+        return null;
       }
+      if (resp.data is Map<String, dynamic>) {
+        final dataMap = resp.data as Map<String, dynamic>;
+        if (dataMap['moment'] is Map<String, dynamic>) {
+          final moment = MomentInfo.fromJson(dataMap['moment'] as Map<String, dynamic>);
+          await _database.upsertMoment(moment);
+          return moment;
+        }
+      }
+      return null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createMoment');
+      rethrow;
     }
-    return null;
   }
 
   /// 删除朋友圈动态
   Future<bool> deleteMoment({required String momentID}) async {
-    _log.info('deleteMoment: $momentID');
-    final resp = await _post('/moment/delete', {'momentID': momentID});
-    if (resp.isSuccess) {
-      await _database.deleteMoment(momentID);
-      return true;
+    _log.info('momentID: $momentID', methodName: 'deleteMoment');
+    try {
+      final resp = await _post('/moment/delete', {'momentID': momentID});
+      if (resp.isSuccess) {
+        await _database.deleteMoment(momentID);
+        return true;
+      }
+      _log.warning('deleteMoment failed: ${resp.errMsg}');
+      return false;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteMoment');
+      rethrow;
     }
-    _log.warning('deleteMoment failed: ${resp.errMsg}');
-    return false;
   }
 
   // ---------------------------------------------------------------------------
@@ -129,30 +148,37 @@ class MomentsManager {
     int pageNumber = 1,
     int showNumber = 20,
   }) async {
-    _log.info('getMomentList: ownerUserID=$ownerUserID, page=$pageNumber, size=$showNumber');
+    _log.info(
+      'ownerUserID=$ownerUserID, page=$pageNumber, size=$showNumber',
+      methodName: 'getMomentList',
+    );
+    try {
+      // 先查本地
+      final offset = (pageNumber - 1) * showNumber;
+      final localMoments = ownerUserID != null && ownerUserID.isNotEmpty
+          ? await _database.getMomentsByUserID(ownerUserID, offset: offset, count: showNumber)
+          : await _database.getMoments(offset: offset, count: showNumber);
 
-    // 先查本地
-    final offset = (pageNumber - 1) * showNumber;
-    final localMoments = ownerUserID != null && ownerUserID.isNotEmpty
-        ? await _database.getMomentsByUserID(ownerUserID, offset: offset, count: showNumber)
-        : await _database.getMoments(offset: offset, count: showNumber);
+      // 本地有数据时直接返回，后台异步刷新
+      if (localMoments.isNotEmpty) {
+        _fetchAndCacheMoments(
+          ownerUserID: ownerUserID,
+          pageNumber: pageNumber,
+          showNumber: showNumber,
+        );
+        return MomentListResponse(total: localMoments.length, moments: localMoments);
+      }
 
-    // 本地有数据时直接返回，后台异步刷新
-    if (localMoments.isNotEmpty) {
-      _fetchAndCacheMoments(
+      // 本地无数据时直接走网络
+      return await fetchMomentListFromServer(
         ownerUserID: ownerUserID,
         pageNumber: pageNumber,
         showNumber: showNumber,
       );
-      return MomentListResponse(total: localMoments.length, moments: localMoments);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getMomentList');
+      rethrow;
     }
-
-    // 本地无数据时直接走网络
-    return fetchMomentListFromServer(
-      ownerUserID: ownerUserID,
-      pageNumber: pageNumber,
-      showNumber: showNumber,
-    );
   }
 
   /// 仅从网络获取（强制刷新）
@@ -161,20 +187,29 @@ class MomentsManager {
     int pageNumber = 1,
     int showNumber = 20,
   }) async {
-    final resp = await _post('/moment/list', {
-      'ownerUserID': ownerUserID ?? '',
-      'pageNumber': pageNumber,
-      'showNumber': showNumber,
-    });
-    if (!resp.isSuccess || resp.data is! Map<String, dynamic>) {
-      return MomentListResponse.empty();
+    _log.info(
+      'ownerUserID=$ownerUserID, page=$pageNumber, size=$showNumber',
+      methodName: 'fetchMomentListFromServer',
+    );
+    try {
+      final resp = await _post('/moment/list', {
+        'ownerUserID': ownerUserID ?? '',
+        'pageNumber': pageNumber,
+        'showNumber': showNumber,
+      });
+      if (!resp.isSuccess || resp.data is! Map<String, dynamic>) {
+        return MomentListResponse.empty();
+      }
+      final response = MomentListResponse.fromJson(resp.data as Map<String, dynamic>);
+      // 写入本地
+      if (response.moments.isNotEmpty) {
+        await _database.batchUpsertMoments(response.moments);
+      }
+      return response;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'fetchMomentListFromServer');
+      rethrow;
     }
-    final response = MomentListResponse.fromJson(resp.data as Map<String, dynamic>);
-    // 写入本地
-    if (response.moments.isNotEmpty) {
-      await _database.batchUpsertMoments(response.moments);
-    }
-    return response;
   }
 
   /// 后台拉取网络数据并缓存
@@ -183,6 +218,10 @@ class MomentsManager {
     int pageNumber = 1,
     int showNumber = 20,
   }) async {
+    _log.info(
+      'ownerUserID=$ownerUserID, page=$pageNumber, size=$showNumber',
+      methodName: '_fetchAndCacheMoments',
+    );
     try {
       final resp = await _post('/moment/list', {
         'ownerUserID': ownerUserID ?? '',
@@ -195,8 +234,8 @@ class MomentsManager {
         await _database.batchUpsertMoments(response.moments);
         listener?.momentListUpdated(response.moments);
       }
-    } catch (e) {
-      _log.fine('后台同步朋友圈失败: $e');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_fetchAndCacheMoments');
     }
   }
 
@@ -206,36 +245,49 @@ class MomentsManager {
 
   /// 点赞动态
   Future<bool> likeMoment({required String momentID, String? ownerUserID}) async {
-    _log.info('likeMoment: $momentID');
-    final resp = await _post('/moment/like', {'momentID': momentID, 'ownerUserID': ?ownerUserID});
-    if (resp.isSuccess) {
-      final like = MomentLikeWithUser(
-        momentID: momentID,
-        userID: _currentUserID,
-        createTime: DateTime.now().toIso8601String(),
-      );
-      // 更新本地动态的点赞信息
-      await _updateLocalMomentLike(momentID, like, add: true);
-      return true;
+    _log.info('momentID: $momentID', methodName: 'likeMoment');
+    try {
+      final resp = await _post('/moment/like', {'momentID': momentID, 'ownerUserID': ?ownerUserID});
+      if (resp.isSuccess) {
+        final like = MomentLikeWithUser(
+          momentID: momentID,
+          userID: _currentUserID,
+          createTime: DateTime.now().toIso8601String(),
+        );
+        // 更新本地动态的点赞信息
+        await _updateLocalMomentLike(momentID, like, add: true);
+        return true;
+      }
+      _log.warning('likeMoment failed: ${resp.errMsg}');
+      return false;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'likeMoment');
+      rethrow;
     }
-    _log.warning('likeMoment failed: ${resp.errMsg}');
-    return false;
   }
 
   /// 取消点赞
   Future<bool> unlikeMoment({required String momentID, String? ownerUserID}) async {
-    _log.info('unlikeMoment: $momentID');
-    final resp = await _post('/moment/unlike', {'momentID': momentID, 'ownerUserID': ?ownerUserID});
-    if (resp.isSuccess) {
-      await _updateLocalMomentLike(
-        momentID,
-        MomentLikeWithUser(momentID: momentID, userID: _currentUserID, createTime: ''),
-        add: false,
-      );
-      return true;
+    _log.info('momentID: $momentID', methodName: 'unlikeMoment');
+    try {
+      final resp = await _post('/moment/unlike', {
+        'momentID': momentID,
+        'ownerUserID': ?ownerUserID,
+      });
+      if (resp.isSuccess) {
+        await _updateLocalMomentLike(
+          momentID,
+          MomentLikeWithUser(momentID: momentID, userID: _currentUserID, createTime: ''),
+          add: false,
+        );
+        return true;
+      }
+      _log.warning('unlikeMoment failed: ${resp.errMsg}');
+      return false;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'unlikeMoment');
+      rethrow;
     }
-    _log.warning('unlikeMoment failed: ${resp.errMsg}');
-    return false;
   }
 
   Future<void> _updateLocalMomentLike(
@@ -243,17 +295,23 @@ class MomentsManager {
     MomentLikeWithUser like, {
     required bool add,
   }) async {
-    final moment = await _database.getMomentByID(momentID);
-    if (moment == null) return;
-    final likes = List<MomentLikeWithUser>.from(moment.likes);
-    if (add) {
-      likes.removeWhere((l) => l.userID == like.userID);
-      likes.add(like);
-    } else {
-      likes.removeWhere((l) => l.userID == like.userID);
+    _log.info('momentID: $momentID, add: $add', methodName: '_updateLocalMomentLike');
+    try {
+      final moment = await _database.getMomentByID(momentID);
+      if (moment == null) return;
+      final likes = List<MomentLikeWithUser>.from(moment.likes);
+      if (add) {
+        likes.removeWhere((l) => l.userID == like.userID);
+        likes.add(like);
+      } else {
+        likes.removeWhere((l) => l.userID == like.userID);
+      }
+      final updated = moment.copyWith(likes: likes, likeCount: likes.length);
+      await _database.upsertMoment(updated);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_updateLocalMomentLike');
+      rethrow;
     }
-    final updated = moment.copyWith(likes: likes, likeCount: likes.length);
-    await _database.upsertMoment(updated);
   }
 
   // ---------------------------------------------------------------------------
@@ -267,40 +325,50 @@ class MomentsManager {
     String? replyToUserID,
     String? ownerUserID,
   }) async {
-    _log.info('commentMoment: momentID=$momentID, content=$content');
-    final resp = await _post('/moment/comment', {
-      'momentID': momentID,
-      'content': content,
-      if (replyToUserID != null && replyToUserID.isNotEmpty) 'replyToUserID': replyToUserID,
-      'ownerUserID': ?ownerUserID,
-    });
-    if (!resp.isSuccess) {
-      _log.warning('commentMoment failed: ${resp.errMsg}');
-      return null;
-    }
-    if (resp.data is Map<String, dynamic>) {
-      final data = resp.data as Map<String, dynamic>;
-      if (data['comment'] is Map<String, dynamic>) {
-        final comment = MomentCommentWithUser.fromJson(data['comment'] as Map<String, dynamic>);
-        await _updateLocalMomentComment(momentID, comment, add: true);
-        return comment;
+    _log.info('momentID=$momentID, content=$content', methodName: 'commentMoment');
+    try {
+      final resp = await _post('/moment/comment', {
+        'momentID': momentID,
+        'content': content,
+        if (replyToUserID != null && replyToUserID.isNotEmpty) 'replyToUserID': replyToUserID,
+        'ownerUserID': ?ownerUserID,
+      });
+      if (!resp.isSuccess) {
+        _log.warning('commentMoment failed: ${resp.errMsg}');
+        return null;
       }
+      if (resp.data is Map<String, dynamic>) {
+        final data = resp.data as Map<String, dynamic>;
+        if (data['comment'] is Map<String, dynamic>) {
+          final comment = MomentCommentWithUser.fromJson(data['comment'] as Map<String, dynamic>);
+          await _updateLocalMomentComment(momentID, comment, add: true);
+          return comment;
+        }
+      }
+      return null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'commentMoment');
+      rethrow;
     }
-    return null;
   }
 
   /// 删除评论
   Future<bool> deleteComment({required String commentID, String? momentID}) async {
-    _log.info('deleteComment: $commentID');
-    final resp = await _post('/moment/delete_comment', {'commentID': commentID});
-    if (resp.isSuccess) {
-      if (momentID != null) {
-        await _updateLocalMomentComment(momentID, null, add: false, removeCommentID: commentID);
+    _log.info('commentID: $commentID', methodName: 'deleteComment');
+    try {
+      final resp = await _post('/moment/delete_comment', {'commentID': commentID});
+      if (resp.isSuccess) {
+        if (momentID != null) {
+          await _updateLocalMomentComment(momentID, null, add: false, removeCommentID: commentID);
+        }
+        return true;
       }
-      return true;
+      _log.warning('deleteComment failed: ${resp.errMsg}');
+      return false;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteComment');
+      rethrow;
     }
-    _log.warning('deleteComment failed: ${resp.errMsg}');
-    return false;
   }
 
   Future<void> _updateLocalMomentComment(
@@ -309,16 +377,22 @@ class MomentsManager {
     required bool add,
     String? removeCommentID,
   }) async {
-    final moment = await _database.getMomentByID(momentID);
-    if (moment == null) return;
-    final comments = List<MomentCommentWithUser>.from(moment.comments);
-    if (add && comment != null) {
-      comments.add(comment);
-    } else if (removeCommentID != null) {
-      comments.removeWhere((c) => c.commentID == removeCommentID);
+    _log.info('momentID: $momentID, add: $add', methodName: '_updateLocalMomentComment');
+    try {
+      final moment = await _database.getMomentByID(momentID);
+      if (moment == null) return;
+      final comments = List<MomentCommentWithUser>.from(moment.comments);
+      if (add && comment != null) {
+        comments.add(comment);
+      } else if (removeCommentID != null) {
+        comments.removeWhere((c) => c.commentID == removeCommentID);
+      }
+      final updated = moment.copyWith(comments: comments, commentCount: comments.length);
+      await _database.upsertMoment(updated);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_updateLocalMomentComment');
+      rethrow;
     }
-    final updated = moment.copyWith(comments: comments, commentCount: comments.length);
-    await _database.upsertMoment(updated);
   }
 
   // ---------------------------------------------------------------------------
@@ -327,58 +401,63 @@ class MomentsManager {
 
   /// 处理来自 WS 的朋友圈业务通知
   Future<void> handleNotification(String key, Map<String, dynamic> data) async {
-    _log.info('handleNotification: key=$key');
-    switch (key) {
-      case 'moment_created':
-        if (data['moment'] is Map<String, dynamic>) {
-          final moment = MomentInfo.fromJson(data['moment'] as Map<String, dynamic>);
-          // Skip if this is our own moment (already handled in createMoment())
-          if (moment.userID == _currentUserID) break;
-          await _database.upsertMoment(moment);
-          listener?.momentPublished(moment);
-        }
-      case 'moment_deleted':
-        final momentID = data['momentID'] as String? ?? '';
-        if (momentID.isNotEmpty) {
-          await _database.deleteMoment(momentID);
-          listener?.momentDeleted(momentID);
-        }
-      case 'moment_liked':
-        if (data['like'] is Map<String, dynamic>) {
-          final like = MomentLikeWithUser.fromJson(data['like'] as Map<String, dynamic>);
-          final momentID = data['momentID'] as String? ?? like.momentID;
-          await _updateLocalMomentLike(momentID, like, add: true);
-          listener?.momentLiked(like);
-        }
-      case 'moment_unliked':
-        final momentID = data['momentID'] as String? ?? '';
-        final userID = data['userID'] as String? ?? '';
-        if (momentID.isNotEmpty) {
-          await _updateLocalMomentLike(
-            momentID,
-            MomentLikeWithUser(momentID: momentID, userID: userID, createTime: ''),
-            add: false,
-          );
-          listener?.momentUnliked(momentID, userID);
-        }
-      case 'moment_commented':
-        if (data['comment'] is Map<String, dynamic>) {
-          final comment = MomentCommentWithUser.fromJson(data['comment'] as Map<String, dynamic>);
+    _log.info('key=$key', methodName: 'handleNotification');
+    try {
+      switch (key) {
+        case 'moment_created':
+          if (data['moment'] is Map<String, dynamic>) {
+            final moment = MomentInfo.fromJson(data['moment'] as Map<String, dynamic>);
+            // Skip if this is our own moment (already handled in createMoment())
+            if (moment.userID == _currentUserID) break;
+            await _database.upsertMoment(moment);
+            listener?.momentPublished(moment);
+          }
+        case 'moment_deleted':
           final momentID = data['momentID'] as String? ?? '';
           if (momentID.isNotEmpty) {
-            await _updateLocalMomentComment(momentID, comment, add: true);
+            await _database.deleteMoment(momentID);
+            listener?.momentDeleted(momentID);
           }
-          listener?.momentCommented(comment);
-        }
-      case 'moment_comment_deleted':
-        final commentID = data['commentID'] as String? ?? '';
-        final momentID = data['momentID'] as String? ?? '';
-        if (commentID.isNotEmpty && momentID.isNotEmpty) {
-          await _updateLocalMomentComment(momentID, null, add: false, removeCommentID: commentID);
-        }
-        if (commentID.isNotEmpty) {
-          listener?.momentCommentDeleted(commentID);
-        }
+        case 'moment_liked':
+          if (data['like'] is Map<String, dynamic>) {
+            final like = MomentLikeWithUser.fromJson(data['like'] as Map<String, dynamic>);
+            final momentID = data['momentID'] as String? ?? like.momentID;
+            await _updateLocalMomentLike(momentID, like, add: true);
+            listener?.momentLiked(like);
+          }
+        case 'moment_unliked':
+          final momentID = data['momentID'] as String? ?? '';
+          final userID = data['userID'] as String? ?? '';
+          if (momentID.isNotEmpty) {
+            await _updateLocalMomentLike(
+              momentID,
+              MomentLikeWithUser(momentID: momentID, userID: userID, createTime: ''),
+              add: false,
+            );
+            listener?.momentUnliked(momentID, userID);
+          }
+        case 'moment_commented':
+          if (data['comment'] is Map<String, dynamic>) {
+            final comment = MomentCommentWithUser.fromJson(data['comment'] as Map<String, dynamic>);
+            final momentID = data['momentID'] as String? ?? '';
+            if (momentID.isNotEmpty) {
+              await _updateLocalMomentComment(momentID, comment, add: true);
+            }
+            listener?.momentCommented(comment);
+          }
+        case 'moment_comment_deleted':
+          final commentID = data['commentID'] as String? ?? '';
+          final momentID = data['momentID'] as String? ?? '';
+          if (commentID.isNotEmpty && momentID.isNotEmpty) {
+            await _updateLocalMomentComment(momentID, null, add: false, removeCommentID: commentID);
+          }
+          if (commentID.isNotEmpty) {
+            listener?.momentCommentDeleted(commentID);
+          }
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'handleNotification');
+      rethrow;
     }
   }
 
@@ -388,12 +467,12 @@ class MomentsManager {
 
   /// 全量同步第一页数据到本地（由 MsgSyncer 在 doConnectedSync 中调用）
   Future<void> syncFromServer() async {
+    _log.info('开始同步朋友圈', methodName: 'syncFromServer');
     try {
-      _log.info('syncFromServer: 开始同步朋友圈');
       await fetchMomentListFromServer(pageNumber: 1, showNumber: 50);
-      _log.info('syncFromServer: 朋友圈同步完成');
-    } catch (e) {
-      _log.warning('syncFromServer: 朋友圈同步失败: $e');
+      _log.info('朋友圈同步完成', methodName: 'syncFromServer');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'syncFromServer');
     }
   }
 }

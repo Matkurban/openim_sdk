@@ -54,26 +54,44 @@ class ConversationManager {
       'sourceID=$sourceID, sessionType=$sessionType',
       methodName: 'getConversationIDBySessionType',
     );
-    if (sessionType == ConversationType.single.value) {
-      return OpenImUtils.genSingleConversationID(_currentUserID, sourceID);
-    } else if (sessionType == ConversationType.superGroup.value) {
-      return OpenImUtils.genGroupConversationID(sourceID);
-    } else {
-      return OpenImUtils.genNotificationConversationID(_currentUserID, sourceID);
+    try {
+      if (sessionType == ConversationType.single.value) {
+        return OpenImUtils.genSingleConversationID(_currentUserID, sourceID);
+      } else if (sessionType == ConversationType.superGroup.value) {
+        return OpenImUtils.genGroupConversationID(sourceID);
+      } else {
+        return OpenImUtils.genNotificationConversationID(_currentUserID, sourceID);
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'getConversationIDBySessionType',
+      );
+      rethrow;
     }
   }
 
   /// 获取 @所有人 标识
-  String getAtAllTag() => atAllTag;
+  String getAtAllTag() {
+    _log.info('called', methodName: 'getAtAllTag');
+    try {
+      return atAllTag;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getAtAllTag');
+      rethrow;
+    }
+  }
 
   /// @所有人 标识
   String get atAllTag => 'AtAllTag';
 
   /// 获取所有会话列表
   Future<List<ConversationInfo>> getAllConversationList() async {
-    _log.info('', methodName: 'getAllConversationList');
+    _log.info('called', methodName: 'getAllConversationList');
     try {
-      return _database.getAllConversations();
+      return await _database.getAllConversations();
     } catch (e, s) {
       _log.error(
         '获取所有会话方法发生了异常，返回了空列表。',
@@ -89,8 +107,13 @@ class ConversationManager {
   /// [offset] 起始索引
   /// [count] 每页数量
   Future<List<ConversationInfo>> getConversationListSplit({int offset = 0, int count = 20}) async {
-    _log.info('getConversationListSplit: offset=$offset, count=$count');
-    return _database.getConversationsPage(offset, count);
+    _log.info('offset=$offset, count=$count', methodName: 'getConversationListSplit');
+    try {
+      return await _database.getConversationsPage(offset, count);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getConversationListSplit');
+      rethrow;
+    }
   }
 
   /// 查询会话，如果不存在则创建
@@ -100,26 +123,31 @@ class ConversationManager {
     required String sourceID,
     required int sessionType,
   }) async {
-    _log.info('getOneConversation: sourceID=$sourceID, sessionType=$sessionType');
-    final conversationID = getConversationIDBySessionType(
-      sourceID: sourceID,
-      sessionType: sessionType,
-    );
-    final data = await _database.getConversation(conversationID);
-    if (data != null) {
-      return data;
+    _log.info('sourceID=$sourceID, sessionType=$sessionType', methodName: 'getOneConversation');
+    try {
+      final conversationID = getConversationIDBySessionType(
+        sourceID: sourceID,
+        sessionType: sessionType,
+      );
+      final data = await _database.getConversation(conversationID);
+      if (data != null) {
+        return data;
+      }
+      // 不存在则自动创建
+      final newConv = <String, dynamic>{
+        'conversationID': conversationID,
+        'conversationType': sessionType,
+        'userID': sessionType == ConversationType.single.value ? sourceID : null,
+        'groupID': sessionType != ConversationType.single.value ? sourceID : null,
+        'unreadCount': 0,
+      };
+      await _database.upsertConversation(newConv);
+      return (await _database.getConversation(conversationID)) ??
+          ConversationInfo(conversationID: conversationID);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getOneConversation');
+      rethrow;
     }
-    // 不存在则自动创建
-    final newConv = <String, dynamic>{
-      'conversationID': conversationID,
-      'conversationType': sessionType,
-      'userID': sessionType == ConversationType.single.value ? sourceID : null,
-      'groupID': sessionType != ConversationType.single.value ? sourceID : null,
-      'unreadCount': 0,
-    };
-    await _database.upsertConversation(newConv);
-    return (await _database.getConversation(conversationID)) ??
-        ConversationInfo(conversationID: conversationID);
   }
 
   /// 根据会话ID列表获取多个会话
@@ -127,42 +155,58 @@ class ConversationManager {
   Future<List<ConversationInfo>> getMultipleConversation({
     required List<String> conversationIDList,
   }) async {
-    _log.info('getMultipleConversation: conversationIDList=$conversationIDList');
-    return _database.getMultipleConversations(conversationIDList);
+    _log.info('conversationIDList=$conversationIDList', methodName: 'getMultipleConversation');
+    try {
+      return await _database.getMultipleConversations(conversationIDList);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getMultipleConversation');
+      rethrow;
+    }
   }
 
   /// 搜索会话
   /// [name] 搜索关键字
   Future<List<ConversationInfo>> searchConversations(String name) async {
-    _log.info('searchConversations: name=$name');
-    return _database.searchConversations(name);
+    _log.info('name=$name', methodName: 'searchConversations');
+    try {
+      return await _database.searchConversations(name);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'searchConversations');
+      rethrow;
+    }
   }
 
   /// 自定义会话列表排序
   /// 置顶会话优先，然后按最新消息时间或草稿时间排序
   List<ConversationInfo> simpleSort(List<ConversationInfo> list) {
-    return list..sort((a, b) {
-      if ((a.isPinned == true && b.isPinned == true) ||
-          (a.isPinned != true && b.isPinned != true)) {
-        final aCompare = (a.draftTextTime ?? 0) > (a.latestMsgSendTime ?? 0)
-            ? (a.draftTextTime ?? 0)
-            : (a.latestMsgSendTime ?? 0);
-        final bCompare = (b.draftTextTime ?? 0) > (b.latestMsgSendTime ?? 0)
-            ? (b.draftTextTime ?? 0)
-            : (b.latestMsgSendTime ?? 0);
-        if (aCompare > bCompare) {
+    _log.info('called', methodName: 'simpleSort');
+    try {
+      return list..sort((a, b) {
+        if ((a.isPinned == true && b.isPinned == true) ||
+            (a.isPinned != true && b.isPinned != true)) {
+          final aCompare = (a.draftTextTime ?? 0) > (a.latestMsgSendTime ?? 0)
+              ? (a.draftTextTime ?? 0)
+              : (a.latestMsgSendTime ?? 0);
+          final bCompare = (b.draftTextTime ?? 0) > (b.latestMsgSendTime ?? 0)
+              ? (b.draftTextTime ?? 0)
+              : (b.latestMsgSendTime ?? 0);
+          if (aCompare > bCompare) {
+            return -1;
+          } else if (aCompare < bCompare) {
+            return 1;
+          } else {
+            return 0;
+          }
+        } else if (a.isPinned == true && b.isPinned != true) {
           return -1;
-        } else if (aCompare < bCompare) {
-          return 1;
         } else {
-          return 0;
+          return 1;
         }
-      } else if (a.isPinned == true && b.isPinned != true) {
-        return -1;
-      } else {
-        return 1;
-      }
-    });
+      });
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'simpleSort');
+      rethrow;
+    }
   }
 
   /// 设置会话属性（免打扰、置顶等）
@@ -172,52 +216,72 @@ class ConversationManager {
     required String conversationID,
     required ConversationReq req,
   }) async {
-    _log.info('setConversation: conversationID=$conversationID, req=$req');
-    final updateData = req.toJson()..removeWhere((_, v) => v == null);
-    if (updateData.isNotEmpty) {
-      await _database.updateConversation(conversationID, updateData);
-    }
-    _log.info('会话属性已更新: $conversationID');
-    await _notifyConversationChanged([conversationID]);
+    _log.info('conversationID=$conversationID, req=$req', methodName: 'setConversation');
+    try {
+      final updateData = req.toJson()..removeWhere((_, v) => v == null);
+      if (updateData.isNotEmpty) {
+        await _database.updateConversation(conversationID, updateData);
+      }
+      _log.info('会话属性已更新: $conversationID', methodName: 'setConversation');
+      await _notifyConversationChanged([conversationID]);
 
-    // 同步到服务器
-    final resp = await _api.setConversations(
-      req: {'userID': _currentUserID, 'conversationID': conversationID, ...updateData},
-    );
-    if (resp.errCode != 0) {
-      _log.warning('同步会话属性到服务器失败: ${resp.errMsg}');
+      // 同步到服务器
+      final resp = await _api.setConversations(
+        req: {'userID': _currentUserID, 'conversationID': conversationID, ...updateData},
+      );
+      if (resp.errCode != 0) {
+        _log.warning('同步会话属性到服务器失败: ${resp.errMsg}');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setConversation');
+      rethrow;
     }
   }
 
   /// 置顶会话
   /// [conversationID] 会话ID
   /// [isPinned] true: 置顶, false: 取消置顶
-  Future<void> pinConversation({required String conversationID, required bool isPinned}) {
-    _log.info('pinConversation: conversationID=$conversationID, isPinned=$isPinned');
-    final req = ConversationReq(isPinned: isPinned);
-    return setConversation(conversationID: conversationID, req: req);
+  Future<void> pinConversation({required String conversationID, required bool isPinned}) async {
+    _log.info('conversationID=$conversationID, isPinned=$isPinned', methodName: 'pinConversation');
+    try {
+      final req = ConversationReq(isPinned: isPinned);
+      return await setConversation(conversationID: conversationID, req: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'pinConversation');
+      rethrow;
+    }
   }
 
   /// 隐藏会话
   /// [conversationID] 会话ID
   Future<void> hideConversation({required String conversationID}) async {
-    _log.info('hideConversation: conversationID=$conversationID');
-    await _database.deleteConversation(conversationID);
-    _log.info('会话已隐藏: $conversationID');
-    await _notifyConversationChanged([conversationID]);
+    _log.info('conversationID=$conversationID', methodName: 'hideConversation');
+    try {
+      await _database.deleteConversation(conversationID);
+      _log.info('会话已隐藏: $conversationID', methodName: 'hideConversation');
+      await _notifyConversationChanged([conversationID]);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'hideConversation');
+      rethrow;
+    }
   }
 
   /// 隐藏所有会话
   Future<void> hideAllConversations() async {
-    _log.info('hideAllConversations');
-    final allConvs = await _database.getAllConversations();
-    await _database.deleteAllConversations();
-    _log.info('所有会话已隐藏');
-    if (allConvs.isNotEmpty) {
-      listener?.conversationChanged(allConvs);
+    _log.info('called', methodName: 'hideAllConversations');
+    try {
+      final allConvs = await _database.getAllConversations();
+      await _database.deleteAllConversations();
+      _log.info('所有会话已隐藏', methodName: 'hideAllConversations');
+      if (allConvs.isNotEmpty) {
+        listener?.conversationChanged(allConvs);
+      }
+      final total = await getTotalUnreadMsgCount();
+      listener?.totalUnreadMessageCountChanged(total);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'hideAllConversations');
+      rethrow;
     }
-    final total = await getTotalUnreadMsgCount();
-    listener?.totalUnreadMessageCountChanged(total);
   }
 
   /// 设置会话草稿
@@ -227,16 +291,29 @@ class ConversationManager {
     required String conversationID,
     required String draftText,
   }) async {
-    _log.info('setConversationDraft: conversationID=$conversationID, draftText=$draftText');
-    await _database.setConversationDraft(conversationID, draftText);
-    _log.info('会话草稿已设置: $conversationID');
-    await _notifyConversationChanged([conversationID]);
+    _log.info(
+      'conversationID=$conversationID, draftText=$draftText',
+      methodName: 'setConversationDraft',
+    );
+    try {
+      await _database.setConversationDraft(conversationID, draftText);
+      _log.info('会话草稿已设置: $conversationID', methodName: 'setConversationDraft');
+      await _notifyConversationChanged([conversationID]);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setConversationDraft');
+      rethrow;
+    }
   }
 
   /// 获取未读消息总数
   Future<int> getTotalUnreadMsgCount() async {
-    _log.info('getTotalUnreadMsgCount');
-    return _database.getTotalUnreadCount();
+    _log.info('called', methodName: 'getTotalUnreadMsgCount');
+    try {
+      return await _database.getTotalUnreadCount();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getTotalUnreadMsgCount');
+      rethrow;
+    }
   }
 
   /// 标记会话消息已读
@@ -244,25 +321,31 @@ class ConversationManager {
   Future<void> markConversationMessageAsRead({required String conversationID}) async {
     // 防止重入：同一会话正在标记已读时跳过
     if (_markingAsRead.contains(conversationID)) {
-      _log.info('markConversationMessageAsRead: 跳过重入调用 conversationID=$conversationID');
+      _log.info(
+        '跳过重入调用 conversationID=$conversationID',
+        methodName: 'markConversationMessageAsRead',
+      );
       return;
     }
 
-    // 检查未读数是否已经为 0（对应 Go SDK 的 UnreadCount==0 守卫）
-    final conv = await _database.getConversation(conversationID);
-    if (conv == null || conv.unreadCount == 0) {
-      _log.info('markConversationMessageAsRead: 未读数已为0，跳过 conversationID=$conversationID');
-      return;
-    }
-
-    _markingAsRead.add(conversationID);
     try {
-      _log.info('markConversationMessageAsRead: conversationID=$conversationID');
+      // 检查未读数是否已经为 0（对应 Go SDK 的 UnreadCount==0 守卫）
+      final conv = await _database.getConversation(conversationID);
+      if (conv == null || conv.unreadCount == 0) {
+        _log.info(
+          '未读数已为0，跳过 conversationID=$conversationID',
+          methodName: 'markConversationMessageAsRead',
+        );
+        return;
+      }
+
+      _markingAsRead.add(conversationID);
+      _log.info('conversationID=$conversationID', methodName: 'markConversationMessageAsRead');
       // 获取当前会话的 maxSeq 用于服务端标记已读
       final hasReadSeq = await _database.getConversationMaxSeq(conversationID);
 
       await _database.clearConversationUnreadCount(conversationID);
-      _log.info('会话已标记已读: $conversationID');
+      _log.info('会话已标记已读: $conversationID', methodName: 'markConversationMessageAsRead');
 
       final total = await getTotalUnreadMsgCount();
       listener?.totalUnreadMessageCountChanged(total);
@@ -279,6 +362,14 @@ class ConversationManager {
           _log.warning('标记会话已读同步服务器失败: ${resp.errMsg}');
         }
       }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'markConversationMessageAsRead',
+      );
+      rethrow;
     } finally {
       _markingAsRead.remove(conversationID);
     }
@@ -286,17 +377,27 @@ class ConversationManager {
 
   /// 标记所有会话消息已读
   Future<void> markAllConversationMessageAsRead() async {
-    _log.info('markAllConversationMessageAsRead');
-    final allConversations = await _database.getAllConversations();
-    final affectedIDs = allConversations
-        .where((c) => c.unreadCount > 0)
-        .map((c) => c.conversationID)
-        .toList();
-    await _database.clearAllUnreadCounts();
-    _log.info('所有会话已标记已读');
-    listener?.totalUnreadMessageCountChanged(0);
-    if (affectedIDs.isNotEmpty) {
-      await _notifyConversationChanged(affectedIDs);
+    _log.info('called', methodName: 'markAllConversationMessageAsRead');
+    try {
+      final allConversations = await _database.getAllConversations();
+      final affectedIDs = allConversations
+          .where((c) => c.unreadCount > 0)
+          .map((c) => c.conversationID)
+          .toList();
+      await _database.clearAllUnreadCounts();
+      _log.info('所有会话已标记已读', methodName: 'markAllConversationMessageAsRead');
+      listener?.totalUnreadMessageCountChanged(0);
+      if (affectedIDs.isNotEmpty) {
+        await _notifyConversationChanged(affectedIDs);
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'markAllConversationMessageAsRead',
+      );
+      rethrow;
     }
   }
 
@@ -309,98 +410,127 @@ class ConversationManager {
     required List<String> clientMsgIDs,
   }) async {
     _log.info(
-      'markMessagesAsReadByMsgID: conversationID=$conversationID, clientMsgIDs=$clientMsgIDs',
+      'conversationID=$conversationID, clientMsgIDs=$clientMsgIDs',
+      methodName: 'markMessagesAsReadByMsgID',
     );
-    if (clientMsgIDs.isEmpty) return;
+    try {
+      if (clientMsgIDs.isEmpty) return;
 
-    // 1. 验证会话存在
-    final conv = await _database.getConversation(conversationID);
-    if (conv == null) {
-      _log.warning('会话不存在: $conversationID');
-      return;
-    }
+      // 1. 验证会话存在
+      final conv = await _database.getConversation(conversationID);
+      if (conv == null) {
+        _log.warning('会话不存在: $conversationID');
+        return;
+      }
 
-    // 2. 获取消息列表
-    final msgs = await _database.getMessagesByClientMsgIDs(clientMsgIDs);
-    if (msgs.isEmpty) return;
+      // 2. 获取消息列表
+      final msgs = await _database.getMessagesByClientMsgIDs(clientMsgIDs);
+      if (msgs.isEmpty) return;
 
-    // 3. 过滤出未读的、非自己发的消息（对应 Go SDK getAsReadMsgMapAndList）
-    final asReadMsgIDs = <String>[];
-    final seqs = <int>[];
-    for (final msg in msgs) {
-      if (!(msg.isRead ?? false) && msg.sendID != _currentUserID) {
-        final seq = msg.seq ?? 0;
-        if (seq > 0) {
-          asReadMsgIDs.add(msg.clientMsgID!);
-          seqs.add(seq);
+      // 3. 过滤出未读的、非自己发的消息（对应 Go SDK getAsReadMsgMapAndList）
+      final asReadMsgIDs = <String>[];
+      final seqs = <int>[];
+      for (final msg in msgs) {
+        if (!(msg.isRead ?? false) && msg.sendID != _currentUserID) {
+          final seq = msg.seq ?? 0;
+          if (seq > 0) {
+            asReadMsgIDs.add(msg.clientMsgID!);
+            seqs.add(seq);
+          }
         }
       }
+
+      if (seqs.isEmpty) {
+        _log.info('没有需要标记已读的消息', methodName: 'markMessagesAsReadByMsgID');
+        return;
+      }
+
+      // 4. 同步到服务器
+      final resp = await _api.markMsgsAsRead(
+        userID: _currentUserID,
+        conversationID: conversationID,
+        seqs: seqs,
+      );
+      if (resp.errCode != 0) {
+        _log.warning('标记消息已读同步服务器失败: ${resp.errMsg}');
+      }
+
+      // 5. 更新本地 DB
+      final decrCount = await _database.markConversationMessageAsReadDB(
+        conversationID,
+        asReadMsgIDs,
+      );
+
+      // 6. 减少未读数
+      await _database.decrConversationUnreadCount(conversationID, decrCount);
+
+      // 7. 触发未读数变更
+      final total = await getTotalUnreadMsgCount();
+      listener?.totalUnreadMessageCountChanged(total);
+      await _notifyConversationChanged([conversationID]);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'markMessagesAsReadByMsgID');
+      rethrow;
     }
-
-    if (seqs.isEmpty) {
-      _log.info('没有需要标记已读的消息');
-      return;
-    }
-
-    // 4. 同步到服务器
-    final resp = await _api.markMsgsAsRead(
-      userID: _currentUserID,
-      conversationID: conversationID,
-      seqs: seqs,
-    );
-    if (resp.errCode != 0) {
-      _log.warning('标记消息已读同步服务器失败: ${resp.errMsg}');
-    }
-
-    // 5. 更新本地 DB
-    final decrCount = await _database.markConversationMessageAsReadDB(conversationID, asReadMsgIDs);
-
-    // 6. 减少未读数
-    await _database.decrConversationUnreadCount(conversationID, decrCount);
-
-    // 7. 触发未读数变更
-    final total = await getTotalUnreadMsgCount();
-    listener?.totalUnreadMessageCountChanged(total);
-    await _notifyConversationChanged([conversationID]);
   }
 
   /// 删除会话及其所有消息（本地和服务器）
   /// [conversationID] 会话ID
   Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
-    _log.info('deleteConversationAndDeleteAllMsg: conversationID=$conversationID');
-    await _clearConversationMessages(conversationID);
-    await _database.deleteConversation(conversationID);
-    _log.info('会话及消息已删除: $conversationID');
-    await _notifyConversationChanged([conversationID]);
-    final total = await getTotalUnreadMsgCount();
-    listener?.totalUnreadMessageCountChanged(total);
+    _log.info('conversationID=$conversationID', methodName: 'deleteConversationAndDeleteAllMsg');
+    try {
+      await _clearConversationMessages(conversationID);
+      await _database.deleteConversation(conversationID);
+      _log.info('会话及消息已删除: $conversationID', methodName: 'deleteConversationAndDeleteAllMsg');
+      await _notifyConversationChanged([conversationID]);
+      final total = await getTotalUnreadMsgCount();
+      listener?.totalUnreadMessageCountChanged(total);
 
-    final resp = await _api.clearConversationMsg(
-      userID: _currentUserID,
-      conversationIDs: [conversationID],
-    );
-    if (resp.errCode != 0) {
-      _log.warning('删除会话及消息失败: ${resp.errMsg}');
+      final resp = await _api.clearConversationMsg(
+        userID: _currentUserID,
+        conversationIDs: [conversationID],
+      );
+      if (resp.errCode != 0) {
+        _log.warning('删除会话及消息失败: ${resp.errMsg}');
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'deleteConversationAndDeleteAllMsg',
+      );
+      rethrow;
     }
   }
 
   /// 清空会话消息
   /// [conversationID] 会话ID
   Future<void> clearConversationAndDeleteAllMsg({required String conversationID}) async {
-    _log.info('clearConversationAndDeleteAllMsg: conversationID=$conversationID');
-    await _clearConversationMessages(conversationID);
-    await _database.deleteConversation(conversationID);
-    _log.info('会话及消息已清空: $conversationID');
-    await _notifyConversationChanged([conversationID]);
-    final total = await getTotalUnreadMsgCount();
-    listener?.totalUnreadMessageCountChanged(total);
+    _log.info('conversationID=$conversationID', methodName: 'clearConversationAndDeleteAllMsg');
+    try {
+      await _clearConversationMessages(conversationID);
+      await _database.deleteConversation(conversationID);
+      _log.info('会话及消息已清空: $conversationID', methodName: 'clearConversationAndDeleteAllMsg');
+      await _notifyConversationChanged([conversationID]);
+      final total = await getTotalUnreadMsgCount();
+      listener?.totalUnreadMessageCountChanged(total);
 
-    final resp = await _api.clearConversationMsg(
-      userID: _currentUserID,
-      conversationIDs: [conversationID],
-    );
-    if (resp.errCode != 0) {
-      _log.warning('清空会话消息失败: ${resp.errMsg}');
+      final resp = await _api.clearConversationMsg(
+        userID: _currentUserID,
+        conversationIDs: [conversationID],
+      );
+      if (resp.errCode != 0) {
+        _log.warning('清空会话消息失败: ${resp.errMsg}');
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'clearConversationAndDeleteAllMsg',
+      );
+      rethrow;
     }
   }
 
@@ -408,51 +538,52 @@ class ConversationManager {
   /// [conversationID] 会话ID
   /// [focus] 是否正在输入
   Future<void> changeInputStates({required String conversationID, required bool focus}) async {
-    _log.info('changeInputStates: conversationID=$conversationID, focus=$focus');
-    _log.info('输入状态变更: $conversationID, focus=$focus');
-
-    // 获取会话信息以确定接收方
-    final conv = await _database.getConversation(conversationID);
-    if (conv == null) return;
-
-    final recvID = conv.userID ?? '';
-    final groupID = conv.groupID ?? '';
-    final convType = conv.conversationType?.value ?? 1;
-
-    // 构造 Typing 消息（对应 Go SDK 的 entering.go）
-    final typingElem = {'msgTips': focus ? 'yes' : 'no'};
-    final options = <String, bool>{
-      'history': false,
-      'persistent': false,
-      'senderSync': false,
-      'conversationUpdate': false,
-      'senderConversationUpdate': false,
-      'unreadCount': false,
-      'offlinePush': false,
-    };
-    final msgData = {
-      'sendID': _currentUserID,
-      'recvID': recvID,
-      'groupID': groupID,
-      'clientMsgID': '${DateTime.now().microsecondsSinceEpoch}',
-      'sessionType': convType,
-      'msgFrom': 100,
-      'contentType': 113, // Typing
-      'content': jsonEncode(typingElem),
-      'senderPlatformID': PlatformUtils.currentPlatform.value,
-      'createTime': DateTime.now().millisecondsSinceEpoch,
-      'sendTime': 0,
-      'options': options,
-    };
-
+    _log.info('conversationID=$conversationID, focus=$focus', methodName: 'changeInputStates');
     try {
+      _log.info('输入状态变更: $conversationID, focus=$focus', methodName: 'changeInputStates');
+
+      // 获取会话信息以确定接收方
+      final conv = await _database.getConversation(conversationID);
+      if (conv == null) return;
+
+      final recvID = conv.userID ?? '';
+      final groupID = conv.groupID ?? '';
+      final convType = conv.conversationType?.value ?? 1;
+
+      // 构造 Typing 消息（对应 Go SDK 的 entering.go）
+      final typingElem = {'msgTips': focus ? 'yes' : 'no'};
+      final options = <String, bool>{
+        'history': false,
+        'persistent': false,
+        'senderSync': false,
+        'conversationUpdate': false,
+        'senderConversationUpdate': false,
+        'unreadCount': false,
+        'offlinePush': false,
+      };
+      final msgData = {
+        'sendID': _currentUserID,
+        'recvID': recvID,
+        'groupID': groupID,
+        'clientMsgID': '${DateTime.now().microsecondsSinceEpoch}',
+        'sessionType': convType,
+        'msgFrom': 100,
+        'contentType': 113, // Typing
+        'content': jsonEncode(typingElem),
+        'senderPlatformID': PlatformUtils.currentPlatform.value,
+        'createTime': DateTime.now().millisecondsSinceEpoch,
+        'sendTime': 0,
+        'options': options,
+      };
+
       final wsData = Uint8List.fromList(utf8.encode(jsonEncode(msgData)));
       await _webSocketService.sendRequestWaitResponse(
         reqIdentifier: WebSocketIdentifier.sendMsg,
         data: wsData,
       );
-    } catch (e) {
-      _log.warning('发送输入状态失败: $e');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'changeInputStates');
+      rethrow;
     }
   }
 
@@ -460,20 +591,38 @@ class ConversationManager {
   /// [conversationID] 会话ID
   /// [userID] 对方用户ID
   Future<List<int>?> getInputStates(String conversationID, String userID) async {
-    // 监听端提供平台列表，通常为实时响应
-    return [];
+    _log.info('conversationID=$conversationID, userID=$userID', methodName: 'getInputStates');
+    try {
+      // 监听端提供平台列表，通常为实时响应
+      return [];
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getInputStates');
+      rethrow;
+    }
   }
 
   /// 清空指定会话的所有消息
   Future<void> _clearConversationMessages(String conversationID) async {
-    await _database.deleteConversationAllMessages(conversationID);
+    _log.info('conversationID=$conversationID', methodName: '_clearConversationMessages');
+    try {
+      await _database.deleteConversationAllMessages(conversationID);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_clearConversationMessages');
+      rethrow;
+    }
   }
 
   /// 通知会话变更
   Future<void> _notifyConversationChanged(List<String> conversationIDs) async {
-    final conversations = await getMultipleConversation(conversationIDList: conversationIDs);
-    if (conversations.isNotEmpty) {
-      listener?.conversationChanged(conversations);
+    _log.info('conversationIDs=$conversationIDs', methodName: '_notifyConversationChanged');
+    try {
+      final conversations = await getMultipleConversation(conversationIDList: conversationIDs);
+      if (conversations.isNotEmpty) {
+        listener?.conversationChanged(conversations);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_notifyConversationChanged');
+      rethrow;
     }
   }
 }

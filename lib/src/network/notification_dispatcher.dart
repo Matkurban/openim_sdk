@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -82,52 +82,82 @@ class NotificationDispatcher {
 
   /// 防抖触发好友同步（多条好友通知合并为一次同步）
   void _debounceSyncFriends() {
-    _friendSyncPending = true;
-    _friendSyncTimer?.cancel();
-    _friendSyncTimer = Timer(_syncDebounce, () {
-      if (_friendSyncPending) {
-        _friendSyncPending = false;
-        _syncFriends();
-      }
-    });
+    _log.info('called', methodName: '_debounceSyncFriends');
+    try {
+      _friendSyncPending = true;
+      _friendSyncTimer?.cancel();
+      _friendSyncTimer = Timer(_syncDebounce, () {
+        if (_friendSyncPending) {
+          _friendSyncPending = false;
+          _syncFriends();
+        }
+      });
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_debounceSyncFriends');
+      rethrow;
+    }
   }
 
   /// 防抖触发群组同步
   void _debounceSyncJoinedGroups() {
-    _groupSyncPending = true;
-    _groupSyncTimer?.cancel();
-    _groupSyncTimer = Timer(_syncDebounce, () {
-      if (_groupSyncPending) {
-        _groupSyncPending = false;
-        _syncJoinedGroups();
-      }
-    });
+    _log.info('called', methodName: '_debounceSyncJoinedGroups');
+    try {
+      _groupSyncPending = true;
+      _groupSyncTimer?.cancel();
+      _groupSyncTimer = Timer(_syncDebounce, () {
+        if (_groupSyncPending) {
+          _groupSyncPending = false;
+          _syncJoinedGroups();
+        }
+      });
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_debounceSyncJoinedGroups');
+      rethrow;
+    }
   }
 
   /// 防抖触发会话同步
   void _debounceSyncConversations() {
-    _conversationSyncPending = true;
-    _conversationSyncTimer?.cancel();
-    _conversationSyncTimer = Timer(_syncDebounce, () {
-      if (_conversationSyncPending) {
-        _conversationSyncPending = false;
-        _syncConversations();
-      }
-    });
+    _log.info('called', methodName: '_debounceSyncConversations');
+    try {
+      _conversationSyncPending = true;
+      _conversationSyncTimer?.cancel();
+      _conversationSyncTimer = Timer(_syncDebounce, () {
+        if (_conversationSyncPending) {
+          _conversationSyncPending = false;
+          _syncConversations();
+        }
+      });
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_debounceSyncConversations');
+      rethrow;
+    }
   }
 
   void setLoginUserID(String userID) {
-    _userID = userID;
+    _log.info('userID=$userID', methodName: 'setLoginUserID');
+    try {
+      _userID = userID;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setLoginUserID');
+      rethrow;
+    }
   }
 
   /// 取消所有防抖 Timer，释放资源（登出时调用）
   void dispose() {
-    _friendSyncTimer?.cancel();
-    _friendSyncTimer = null;
-    _groupSyncTimer?.cancel();
-    _groupSyncTimer = null;
-    _conversationSyncTimer?.cancel();
-    _conversationSyncTimer = null;
+    _log.info('called', methodName: 'dispose');
+    try {
+      _friendSyncTimer?.cancel();
+      _friendSyncTimer = null;
+      _groupSyncTimer?.cancel();
+      _groupSyncTimer = null;
+      _conversationSyncTimer?.cancel();
+      _conversationSyncTimer = null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'dispose');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -136,16 +166,25 @@ class NotificationDispatcher {
 
   /// 分发一条通知消息 (contentType >= 1000)
   void dispatch(int contentType, String content) {
+    _log.info(
+      'contentType=$contentType, content=${content.length > 50 ? "..." : content}',
+      methodName: 'dispatch',
+    );
     try {
-      // 解析 NotificationElem → detail JSON
-      final detail = _extractDetail(content);
-      if (detail == null) {
-        _log.fine('通知无 detail: contentType=$contentType');
-        return;
+      try {
+        // 解析 NotificationElem → detail JSON
+        final detail = _extractDetail(content);
+        if (detail == null) {
+          _log.info('通知无 detail: contentType=$contentType', methodName: 'dispatch');
+          return;
+        }
+        _route(contentType, detail);
+      } catch (e, s) {
+        _log.error(e.toString(), error: e, stackTrace: s, methodName: 'dispatch');
       }
-      _route(contentType, detail);
     } catch (e, s) {
-      _log.warning('分发通知失败: contentType=$contentType', e, s);
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'dispatch');
+      rethrow;
     }
   }
 
@@ -154,43 +193,49 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _route(int contentType, Map<String, dynamic> detail) {
-    final ct = contentType;
+    _log.info('contentType=$contentType', methodName: '_route');
+    try {
+      final ct = contentType;
 
-    // Friend notifications: 1201-1210
-    if (ct > MessageType.friendNotificationBegin.value &&
-        ct < MessageType.friendNotificationEnd.value) {
-      _onFriendNotification(ct, detail);
-      return;
-    }
+      // Friend notifications: 1201-1210
+      if (ct > MessageType.friendNotificationBegin.value &&
+          ct < MessageType.friendNotificationEnd.value) {
+        _onFriendNotification(ct, detail);
+        return;
+      }
 
-    // User notifications: 1301-1399
-    if (ct > MessageType.userNotificationBegin.value &&
-        ct < MessageType.userNotificationEnd.value) {
-      _onUserNotification(ct, detail);
-      return;
-    }
+      // User notifications: 1301-1399
+      if (ct > MessageType.userNotificationBegin.value &&
+          ct < MessageType.userNotificationEnd.value) {
+        _onUserNotification(ct, detail);
+        return;
+      }
 
-    // Group notifications: 1500-1599
-    if (ct > MessageType.groupNotificationBegin.value &&
-        ct < MessageType.groupNotificationEnd.value) {
-      _onGroupNotification(ct, detail);
-      return;
-    }
+      // Group notifications: 1500-1599
+      if (ct > MessageType.groupNotificationBegin.value &&
+          ct < MessageType.groupNotificationEnd.value) {
+        _onGroupNotification(ct, detail);
+        return;
+      }
 
-    // Conversation / message-level notifications
-    switch (ct) {
-      case 1300: // conversationChangeNotification
-        _onConversationChanged(detail);
-      case 1701: // conversationPrivateChatNotification
-        _onConversationPrivateChat(detail);
-      case 2001: // businessNotification
-        _onBusinessNotification(detail);
-      case 2101: // revokeNotification
-        _onRevokeMsg(detail);
-      case 2200: // hasReadReceipt
-        _onReadReceipt(detail);
-      default:
-        _log.fine('未处理的通知类型: $ct');
+      // Conversation / message-level notifications
+      switch (ct) {
+        case 1300: // conversationChangeNotification
+          _onConversationChanged(detail);
+        case 1701: // conversationPrivateChatNotification
+          _onConversationPrivateChat(detail);
+        case 2001: // businessNotification
+          _onBusinessNotification(detail);
+        case 2101: // revokeNotification
+          _onRevokeMsg(detail);
+        case 2200: // hasReadReceipt
+          _onReadReceipt(detail);
+        default:
+          _log.info('未处理的通知类型: $ct', methodName: '_route');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_route');
+      rethrow;
     }
   }
 
@@ -199,70 +244,79 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onFriendNotification(int ct, Map<String, dynamic> detail) {
-    _log.fine('FriendNotification: contentType=$ct, detail=$detail');
-    switch (ct) {
-      case 1201: // friendApplicationApproved
-        _debounceSyncFriends();
-        final info = FriendApplicationInfo.fromJson(detail);
-        friendshipListener?.friendApplicationAccepted(info);
-        listenerForService?.friendApplicationAccepted(info);
+    _log.info('ct=$ct', methodName: '_onFriendNotification');
+    try {
+      _log.info(
+        'FriendNotification: contentType=$ct, detail=$detail',
+        methodName: '_onFriendNotification',
+      );
+      switch (ct) {
+        case 1201: // friendApplicationApproved
+          _debounceSyncFriends();
+          final info = FriendApplicationInfo.fromJson(detail);
+          friendshipListener?.friendApplicationAccepted(info);
+          listenerForService?.friendApplicationAccepted(info);
 
-      case 1202: // friendApplicationRejected
-        final info = FriendApplicationInfo.fromJson(detail);
-        friendshipListener?.friendApplicationRejected(info);
+        case 1202: // friendApplicationRejected
+          final info = FriendApplicationInfo.fromJson(detail);
+          friendshipListener?.friendApplicationRejected(info);
 
-      case 1203: // friendApplication (new)
-        final info = FriendApplicationInfo.fromJson(detail);
-        friendshipListener?.friendApplicationAdded(info);
-        listenerForService?.friendApplicationAdded(info);
+        case 1203: // friendApplication (new)
+          final info = FriendApplicationInfo.fromJson(detail);
+          friendshipListener?.friendApplicationAdded(info);
+          listenerForService?.friendApplicationAdded(info);
 
-      case 1204: // friendAdded
-        _debounceSyncFriends();
-        if (detail['friend'] != null) {
-          final info = FriendInfo.fromJson(detail['friend'] as Map<String, dynamic>);
-          friendshipListener?.friendAdded(info);
-        }
+        case 1204: // friendAdded
+          _debounceSyncFriends();
+          if (detail['friend'] != null) {
+            final info = FriendInfo.fromJson(detail['friend'] as Map<String, dynamic>);
+            friendshipListener?.friendAdded(info);
+          }
 
-      case 1205: // friendDeleted
-        _debounceSyncFriends();
-        if (detail['fromToUserID'] != null) {
-          final fromTo = detail['fromToUserID'] as Map<String, dynamic>;
-          final deletedUserID = fromTo['toUserID'] as String? ?? '';
-          friendshipListener?.friendDeleted(FriendInfo(friendUserID: deletedUserID));
-        }
+        case 1205: // friendDeleted
+          _debounceSyncFriends();
+          if (detail['fromToUserID'] != null) {
+            final fromTo = detail['fromToUserID'] as Map<String, dynamic>;
+            final deletedUserID = fromTo['toUserID'] as String? ?? '';
+            friendshipListener?.friendDeleted(FriendInfo(friendUserID: deletedUserID));
+          }
 
-      case 1206: // friendRemarkSet
-        _syncFriendsAndNotifyChanged(detail);
+        case 1206: // friendRemarkSet
+          _syncFriendsAndNotifyChanged(detail);
 
-      case 1207: // blackAdded
-        _syncBlackList();
-        if (detail['fromToUserID'] != null) {
-          final fromTo = detail['fromToUserID'] as Map<String, dynamic>;
-          friendshipListener?.blackAdded(
-            BlacklistInfo(
-              blockUserID: fromTo['toUserID'] as String?,
-              ownerUserID: fromTo['fromUserID'] as String?,
-            ),
-          );
-        }
+        case 1207: // blackAdded
+          _syncBlackList();
+          if (detail['fromToUserID'] != null) {
+            final fromTo = detail['fromToUserID'] as Map<String, dynamic>;
+            friendshipListener?.blackAdded(
+              BlacklistInfo(
+                blockUserID: fromTo['toUserID'] as String?,
+                ownerUserID: fromTo['fromUserID'] as String?,
+              ),
+            );
+          }
 
-      case 1208: // blackDeleted
-        _syncBlackList();
-        if (detail['fromToUserID'] != null) {
-          final fromTo = detail['fromToUserID'] as Map<String, dynamic>;
-          friendshipListener?.blackDeleted(
-            BlacklistInfo(
-              blockUserID: fromTo['toUserID'] as String?,
-              ownerUserID: fromTo['fromUserID'] as String?,
-            ),
-          );
-        }
+        case 1208: // blackDeleted
+          _syncBlackList();
+          if (detail['fromToUserID'] != null) {
+            final fromTo = detail['fromToUserID'] as Map<String, dynamic>;
+            friendshipListener?.blackDeleted(
+              BlacklistInfo(
+                blockUserID: fromTo['toUserID'] as String?,
+                ownerUserID: fromTo['fromUserID'] as String?,
+              ),
+            );
+          }
 
-      case 1209: // friendInfoUpdated
-        _syncFriendsAndNotifyChanged(detail);
+        case 1209: // friendInfoUpdated
+          _syncFriendsAndNotifyChanged(detail);
 
-      case 1210: // friendsInfoUpdate
-        _syncFriendsAndNotifyChanged(detail);
+        case 1210: // friendsInfoUpdate
+          _syncFriendsAndNotifyChanged(detail);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onFriendNotification');
+      rethrow;
     }
   }
 
@@ -271,20 +325,26 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onUserNotification(int ct, Map<String, dynamic> detail) {
-    switch (ct) {
-      case 1303: // userInfoUpdated
-        final userID = detail['userID'] as String? ?? '';
-        if (userID == _userID) {
-          _syncSelfUserInfo();
-        }
+    _log.info('ct=$ct', methodName: '_onUserNotification');
+    try {
+      switch (ct) {
+        case 1303: // userInfoUpdated
+          final userID = detail['userID'] as String? ?? '';
+          if (userID == _userID) {
+            _syncSelfUserInfo();
+          }
 
-      case 1304: // userStatusChange
-        final info = UserStatusInfo(
-          userID: detail['fromUserID'] as String?,
-          status: detail['status'] as int?,
-          platformIDs: detail['platformID'] != null ? [detail['platformID'] as int] : null,
-        );
-        userListener?.userStatusChanged(info);
+        case 1304: // userStatusChange
+          final info = UserStatusInfo(
+            userID: detail['fromUserID'] as String?,
+            status: detail['status'] as int?,
+            platformIDs: detail['platformID'] != null ? [detail['platformID'] as int] : null,
+          );
+          userListener?.userStatusChanged(info);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onUserNotification');
+      rethrow;
     }
   }
 
@@ -293,150 +353,156 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onGroupNotification(int ct, Map<String, dynamic> detail) {
-    switch (ct) {
-      case 1501: // groupCreated
-        _syncJoinedGroupsAndNotifyAdded();
+    _log.info('ct=$ct', methodName: '_onGroupNotification');
+    try {
+      switch (ct) {
+        case 1501: // groupCreated
+          _syncJoinedGroupsAndNotifyAdded();
 
-      case 1502: // groupInfoSet
-        _debounceSyncJoinedGroups();
-        if (detail['group'] != null) {
-          groupListener?.groupInfoChanged(
-            GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
-          );
-        }
-
-      case 1503: // joinGroupApplication
-        final info = GroupApplicationInfo.fromJson(detail);
-        groupListener?.groupApplicationAdded(info);
-        listenerForService?.groupApplicationAdded(info);
-
-      case 1504: // memberQuit
-        final quitUser = detail['quitUser'] as Map<String, dynamic>?;
-        final quitUserID = quitUser?['userID'] as String?;
-        if (quitUserID == _userID) {
-          _syncJoinedGroupsAndNotifyDeleted(detail);
-        }
-        if (quitUser != null) {
-          final gid = detail['group'] is Map
-              ? (detail['group'] as Map)['groupID'] as String?
-              : null;
-          if (gid != null && quitUserID != null) {
-            database.deleteGroupMember(gid, quitUserID);
+        case 1502: // groupInfoSet
+          _debounceSyncJoinedGroups();
+          if (detail['group'] != null) {
+            groupListener?.groupInfoChanged(
+              GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
+            );
           }
-          groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(quitUser));
-        }
 
-      case 1505: // groupApplicationAccepted
-        _syncJoinedGroupsAndNotifyAdded();
-        final info = GroupApplicationInfo.fromJson(detail);
-        groupListener?.groupApplicationAccepted(info);
-        listenerForService?.groupApplicationAccepted(info);
+        case 1503: // joinGroupApplication
+          final info = GroupApplicationInfo.fromJson(detail);
+          groupListener?.groupApplicationAdded(info);
+          listenerForService?.groupApplicationAdded(info);
 
-      case 1506: // groupApplicationRejected
-        final info = GroupApplicationInfo.fromJson(detail);
-        groupListener?.groupApplicationRejected(info);
+        case 1504: // memberQuit
+          final quitUser = detail['quitUser'] as Map<String, dynamic>?;
+          final quitUserID = quitUser?['userID'] as String?;
+          if (quitUserID == _userID) {
+            _syncJoinedGroupsAndNotifyDeleted(detail);
+          }
+          if (quitUser != null) {
+            final gid = detail['group'] is Map
+                ? (detail['group'] as Map)['groupID'] as String?
+                : null;
+            if (gid != null && quitUserID != null) {
+              database.deleteGroupMember(gid, quitUserID);
+            }
+            groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(quitUser));
+          }
 
-      case 1507: // groupOwnerTransferred
-        _debounceSyncJoinedGroups();
-        if (detail['group'] != null) {
-          groupListener?.groupInfoChanged(
-            GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
-          );
-        }
+        case 1505: // groupApplicationAccepted
+          _syncJoinedGroupsAndNotifyAdded();
+          final info = GroupApplicationInfo.fromJson(detail);
+          groupListener?.groupApplicationAccepted(info);
+          listenerForService?.groupApplicationAccepted(info);
 
-      case 1508: // memberKicked
-        final kickedList = detail['kickedUserList'] as List?;
-        final isSelf =
-            kickedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
-        if (isSelf) {
-          _syncJoinedGroupsAndNotifyDeleted(detail);
-        }
-        if (kickedList != null) {
-          final gid = detail['group'] is Map
-              ? (detail['group'] as Map)['groupID'] as String?
-              : null;
-          for (final u in kickedList) {
-            if (u is Map<String, dynamic>) {
-              if (gid != null && u['userID'] != null) {
-                database.deleteGroupMember(gid, u['userID'] as String);
+        case 1506: // groupApplicationRejected
+          final info = GroupApplicationInfo.fromJson(detail);
+          groupListener?.groupApplicationRejected(info);
+
+        case 1507: // groupOwnerTransferred
+          _debounceSyncJoinedGroups();
+          if (detail['group'] != null) {
+            groupListener?.groupInfoChanged(
+              GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
+            );
+          }
+
+        case 1508: // memberKicked
+          final kickedList = detail['kickedUserList'] as List?;
+          final isSelf =
+              kickedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
+          if (isSelf) {
+            _syncJoinedGroupsAndNotifyDeleted(detail);
+          }
+          if (kickedList != null) {
+            final gid = detail['group'] is Map
+                ? (detail['group'] as Map)['groupID'] as String?
+                : null;
+            for (final u in kickedList) {
+              if (u is Map<String, dynamic>) {
+                if (gid != null && u['userID'] != null) {
+                  database.deleteGroupMember(gid, u['userID'] as String);
+                }
+                groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(u));
               }
-              groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(u));
             }
           }
-        }
 
-      case 1509: // memberInvited
-        final invitedList = detail['invitedUserList'] as List?;
-        final isSelf =
-            invitedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
-        if (isSelf) {
-          _syncJoinedGroupsAndNotifyAdded();
-        }
-        if (invitedList != null) {
-          for (final u in invitedList) {
-            if (u is Map<String, dynamic>) {
-              database.upsertGroupMember(u);
-              groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(u));
+        case 1509: // memberInvited
+          final invitedList = detail['invitedUserList'] as List?;
+          final isSelf =
+              invitedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
+          if (isSelf) {
+            _syncJoinedGroupsAndNotifyAdded();
+          }
+          if (invitedList != null) {
+            for (final u in invitedList) {
+              if (u is Map<String, dynamic>) {
+                database.upsertGroupMember(u);
+                groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(u));
+              }
             }
           }
-        }
 
-      case 1510: // memberEnter
-        final entrantUser = detail['entrantUser'] as Map<String, dynamic>?;
-        final entrantUserID = entrantUser?['userID'] as String?;
-        if (entrantUserID == _userID) {
-          _syncJoinedGroupsAndNotifyAdded();
-        }
-        if (entrantUser != null) {
-          database.upsertGroupMember(entrantUser);
-          groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(entrantUser));
-        }
-
-      case 1511: // groupDismissed
-        if (detail['group'] != null) {
-          final groupMap = detail['group'] as Map<String, dynamic>;
-          final gid = groupMap['groupID'] as String?;
-          if (gid != null) {
-            database.deleteGroupAllMembers(gid);
-            database.deleteGroup(gid);
-            final convID = OpenImUtils.genGroupConversationID(gid);
-            database.updateConversation(convID, {'isNotInGroup': true});
+        case 1510: // memberEnter
+          final entrantUser = detail['entrantUser'] as Map<String, dynamic>?;
+          final entrantUserID = entrantUser?['userID'] as String?;
+          if (entrantUserID == _userID) {
+            _syncJoinedGroupsAndNotifyAdded();
           }
-          groupListener?.groupDismissed(GroupInfo.fromJson(groupMap));
-        }
+          if (entrantUser != null) {
+            database.upsertGroupMember(entrantUser);
+            groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(entrantUser));
+          }
 
-      case 1512: // groupMemberMuted
-      case 1513: // groupMemberCancelMuted
-      case 1514: // groupMuted
-      case 1515: // groupCancelMuted
-      case 1516: // groupMemberInfoSet
-      case 1517: // groupMemberSetToAdmin
-      case 1518: // groupMemberSetToOrdinaryUser
-        _debounceSyncJoinedGroups();
-        if (detail['group'] != null) {
-          groupListener?.groupInfoChanged(
-            GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
-          );
-        }
-        if (detail['changedUser'] != null) {
-          final changedUser = detail['changedUser'] as Map<String, dynamic>;
-          database.upsertGroupMember(changedUser);
-          groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(changedUser));
-        }
-        if (detail['mutedUser'] != null) {
-          final mutedUser = detail['mutedUser'] as Map<String, dynamic>;
-          database.upsertGroupMember(mutedUser);
-          groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(mutedUser));
-        }
+        case 1511: // groupDismissed
+          if (detail['group'] != null) {
+            final groupMap = detail['group'] as Map<String, dynamic>;
+            final gid = groupMap['groupID'] as String?;
+            if (gid != null) {
+              database.deleteGroupAllMembers(gid);
+              database.deleteGroup(gid);
+              final convID = OpenImUtils.genGroupConversationID(gid);
+              database.updateConversation(convID, {'isNotInGroup': true});
+            }
+            groupListener?.groupDismissed(GroupInfo.fromJson(groupMap));
+          }
 
-      case 1519: // groupInfoSetAnnouncement
-      case 1520: // groupInfoSetName
-        _debounceSyncJoinedGroups();
-        if (detail['group'] != null) {
-          groupListener?.groupInfoChanged(
-            GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
-          );
-        }
+        case 1512: // groupMemberMuted
+        case 1513: // groupMemberCancelMuted
+        case 1514: // groupMuted
+        case 1515: // groupCancelMuted
+        case 1516: // groupMemberInfoSet
+        case 1517: // groupMemberSetToAdmin
+        case 1518: // groupMemberSetToOrdinaryUser
+          _debounceSyncJoinedGroups();
+          if (detail['group'] != null) {
+            groupListener?.groupInfoChanged(
+              GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
+            );
+          }
+          if (detail['changedUser'] != null) {
+            final changedUser = detail['changedUser'] as Map<String, dynamic>;
+            database.upsertGroupMember(changedUser);
+            groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(changedUser));
+          }
+          if (detail['mutedUser'] != null) {
+            final mutedUser = detail['mutedUser'] as Map<String, dynamic>;
+            database.upsertGroupMember(mutedUser);
+            groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(mutedUser));
+          }
+
+        case 1519: // groupInfoSetAnnouncement
+        case 1520: // groupInfoSetName
+          _debounceSyncJoinedGroups();
+          if (detail['group'] != null) {
+            groupListener?.groupInfoChanged(
+              GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
+            );
+          }
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onGroupNotification');
+      rethrow;
     }
   }
 
@@ -445,12 +511,24 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onConversationChanged(Map<String, dynamic> detail) {
-    // 服务端会话设置变更 → 重新同步会话
-    _debounceSyncConversations();
+    _log.info('called', methodName: '_onConversationChanged');
+    try {
+      // 服务端会话设置变更 → 重新同步会话
+      _debounceSyncConversations();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onConversationChanged');
+      rethrow;
+    }
   }
 
   void _onConversationPrivateChat(Map<String, dynamic> detail) {
-    _debounceSyncConversations();
+    _log.info('called', methodName: '_onConversationPrivateChat');
+    try {
+      _debounceSyncConversations();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onConversationPrivateChat');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -458,58 +536,86 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   void _onBusinessNotification(Map<String, dynamic> detail) {
-    // The detail from openim-server BusinessNotification wraps key+data in a nested structure.
-    // Structure: { "detail": "{\"key\":\"moment_created\",\"data\":\"{...}\"}" }
-    // At this point, `detail` is already the parsed inner JSON.
-    final key = detail['key'] as String?;
-    final dataStr = detail['data'] as String?;
+    _log.info('called', methodName: '_onBusinessNotification');
+    try {
+      // The detail from openim-server BusinessNotification wraps key+data in a nested structure.
+      // Structure: { "detail": "{\"key\":\"moment_created\",\"data\":\"{...}\"}" }
+      // At this point, `detail` is already the parsed inner JSON.
+      final key = detail['key'] as String?;
+      final dataStr = detail['data'] as String?;
 
-    if (key != null && dataStr != null) {
-      // Try to route to moment/favorite managers
-      if (key.startsWith('moment_') || key.startsWith('favorite_')) {
-        _onMomentOrFavoriteNotification(key, dataStr);
-        return;
+      if (key != null && dataStr != null) {
+        // Try to route to moment/favorite managers
+        if (key.startsWith('moment_') || key.startsWith('favorite_')) {
+          _onMomentOrFavoriteNotification(key, dataStr);
+          return;
+        }
       }
-    }
 
-    // Fallback: pass to custom business listener
-    final detailStr = detail['detail'] as String? ?? jsonEncode(detail);
-    customBusinessListener?.recvCustomBusinessMessage(detailStr);
+      // Fallback: pass to custom business listener
+      final detailStr = detail['detail'] as String? ?? jsonEncode(detail);
+      customBusinessListener?.recvCustomBusinessMessage(detailStr);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onBusinessNotification');
+      rethrow;
+    }
   }
 
   void _onMomentOrFavoriteNotification(String key, String dataStr) {
+    _log.info('key=$key', methodName: '_onMomentOrFavoriteNotification');
     try {
-      final data = jsonDecode(dataStr) as Map<String, dynamic>;
-      if (key.startsWith('moment_')) {
-        momentsManager.handleNotification(key, data);
-      } else if (key.startsWith('favorite_')) {
-        favoriteManager.handleNotification(key, data);
+      try {
+        final data = jsonDecode(dataStr) as Map<String, dynamic>;
+        if (key.startsWith('moment_')) {
+          momentsManager.handleNotification(key, data);
+        } else if (key.startsWith('favorite_')) {
+          favoriteManager.handleNotification(key, data);
+        }
+      } catch (e, s) {
+        _log.error(
+          '解析 moment/favorite 通知失败: key=$key, error=$e',
+          error: e,
+          stackTrace: s,
+          methodName: '_onMomentOrFavoriteNotification',
+        );
       }
-    } catch (e) {
-      _log.warning('解析 moment/favorite 通知失败: key=$key, error=$e');
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_onMomentOrFavoriteNotification',
+      );
+      rethrow;
     }
   }
 
   void _onRevokeMsg(Map<String, dynamic> detail) {
-    final clientMsgID = detail['clientMsgID'] as String?;
-    final conversationID = detail['conversationID'] as String?;
-    final info = RevokedInfo(
-      revokerID: detail['revokerUserID'] as String?,
-      clientMsgID: clientMsgID,
-      revokeTime: detail['revokeTime'] as int?,
-      sessionType: _intToConversationType(detail['sesstionType'] as int?),
-    );
+    _log.info('called', methodName: '_onRevokeMsg');
+    try {
+      final clientMsgID = detail['clientMsgID'] as String?;
+      final conversationID = detail['conversationID'] as String?;
+      final info = RevokedInfo(
+        revokerID: detail['revokerUserID'] as String?,
+        clientMsgID: clientMsgID,
+        revokeTime: detail['revokeTime'] as int?,
+        sessionType: _intToConversationType(detail['sesstionType'] as int?),
+      );
 
-    // 标记本地消息已删除
-    if (clientMsgID != null) {
-      database.updateMessage(clientMsgID, {'status': MessageStatus.deleted.value});
-    }
+      // 标记本地消息已删除
+      if (clientMsgID != null) {
+        database.updateMessage(clientMsgID, {'status': MessageStatus.deleted.value});
+      }
 
-    msgListener?.newRecvMessageRevoked(info);
+      msgListener?.newRecvMessageRevoked(info);
 
-    // 如果被撤回的消息是会话的 latestMsg，更新会话（对应 Go SDK revoke.go）
-    if (conversationID != null && clientMsgID != null) {
-      _updateConversationIfLatestMsgRevoked(conversationID, clientMsgID);
+      // 如果被撤回的消息是会话的 latestMsg，更新会话（对应 Go SDK revoke.go）
+      if (conversationID != null && clientMsgID != null) {
+        _updateConversationIfLatestMsgRevoked(conversationID, clientMsgID);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onRevokeMsg');
+      rethrow;
     }
   }
 
@@ -518,86 +624,142 @@ class NotificationDispatcher {
     String conversationID,
     String clientMsgID,
   ) async {
+    _log.info(
+      'conversationID=$conversationID, clientMsgID=$clientMsgID',
+      methodName: '_updateConversationIfLatestMsgRevoked',
+    );
     try {
-      final conv = await database.getConversation(conversationID);
-      if (conv?.latestMsg == null) return;
-      if (conv!.latestMsg!.clientMsgID != clientMsgID) return;
+      try {
+        final conv = await database.getConversation(conversationID);
+        if (conv?.latestMsg == null) return;
+        if (conv!.latestMsg!.clientMsgID != clientMsgID) return;
 
-      final msgs = await database.getHistoryMessages(conversationID: conversationID, count: 1);
-      if (msgs.isNotEmpty) {
-        await database.updateConversation(conversationID, {
-          'latestMsg': jsonEncode(msgs.first.toJson()),
-          'latestMsgSendTime': msgs.first.sendTime,
-        });
-      } else {
-        await database.updateConversation(conversationID, {
-          'latestMsg': '',
-          'latestMsgSendTime': 0,
-        });
+        final msgs = await database.getHistoryMessages(conversationID: conversationID, count: 1);
+        if (msgs.isNotEmpty) {
+          await database.updateConversation(conversationID, {
+            'latestMsg': jsonEncode(msgs.first.toJson()),
+            'latestMsgSendTime': msgs.first.sendTime,
+          });
+        } else {
+          await database.updateConversation(conversationID, {
+            'latestMsg': '',
+            'latestMsgSendTime': 0,
+          });
+        }
+        final updated = await database.getConversation(conversationID);
+        if (updated != null) {
+          conversationListener?.conversationChanged([updated]);
+        }
+      } catch (e, s) {
+        _log.error(
+          e.toString(),
+          error: e,
+          stackTrace: s,
+          methodName: '_updateConversationIfLatestMsgRevoked',
+        );
       }
-      final updated = await database.getConversation(conversationID);
-      if (updated != null) {
-        conversationListener?.conversationChanged([updated]);
-      }
-    } catch (_) {}
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_updateConversationIfLatestMsgRevoked',
+      );
+      rethrow;
+    }
   }
 
   void _onReadReceipt(Map<String, dynamic> detail) {
-    final conversationID = detail['conversationID'] as String?;
-    final hasReadSeq = detail['hasReadSeq'] as int?;
-    final markAsReadUserID = detail['markAsReadUserID'] as String?;
-    final seqs = (detail['seqs'] as List?)?.map((e) => e as int).toList() ?? [];
+    _log.info('called', methodName: '_onReadReceipt');
+    try {
+      final conversationID = detail['conversationID'] as String?;
+      final hasReadSeq = detail['hasReadSeq'] as int?;
+      final markAsReadUserID = detail['markAsReadUserID'] as String?;
+      final seqs = (detail['seqs'] as List?)?.map((e) => e as int).toList() ?? [];
 
-    if (conversationID != null && hasReadSeq != null) {
-      database.updateConversation(conversationID, {'hasReadSeq': hasReadSeq});
-    }
+      if (conversationID != null && hasReadSeq != null) {
+        database.updateConversation(conversationID, {'hasReadSeq': hasReadSeq});
+      }
 
-    if (markAsReadUserID != _userID) {
-      // 对方已读：触发 OnRecvC2CReadReceipt + 更新 latestMsg 已读状态
-      final receipts = <ReadReceiptInfo>[
-        ReadReceiptInfo(
-          userID: markAsReadUserID,
-          msgIDList: seqs.map((e) => e.toString()).toList(),
-          readTime: detail['readTime'] as int?,
-        ),
-      ];
-      msgListener?.recvC2CReadReceipt(receipts);
-      // 更新会话（对应 Go SDK doReadDrawing 的 latestMsg IsRead 更新）
-      if (conversationID != null) {
-        _updateConversationAfterReadReceipt(conversationID);
+      if (markAsReadUserID != _userID) {
+        // 对方已读：触发 OnRecvC2CReadReceipt + 更新 latestMsg 已读状态
+        final receipts = <ReadReceiptInfo>[
+          ReadReceiptInfo(
+            userID: markAsReadUserID,
+            msgIDList: seqs.map((e) => e.toString()).toList(),
+            readTime: detail['readTime'] as int?,
+          ),
+        ];
+        msgListener?.recvC2CReadReceipt(receipts);
+        // 更新会话（对应 Go SDK doReadDrawing 的 latestMsg IsRead 更新）
+        if (conversationID != null) {
+          _updateConversationAfterReadReceipt(conversationID);
+        }
+      } else {
+        // 自己在其他设备已读：减少未读数（对应 Go SDK doUnreadCount）
+        if (conversationID != null) {
+          _handleSelfReadReceipt(conversationID, hasReadSeq ?? 0, seqs);
+        }
       }
-    } else {
-      // 自己在其他设备已读：减少未读数（对应 Go SDK doUnreadCount）
-      if (conversationID != null) {
-        _handleSelfReadReceipt(conversationID, hasReadSeq ?? 0, seqs);
-      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onReadReceipt');
+      rethrow;
     }
   }
 
   /// 对方已读后更新会话（latestMsg 的 isRead 状态）
   Future<void> _updateConversationAfterReadReceipt(String conversationID) async {
+    _log.info('conversationID=$conversationID', methodName: '_updateConversationAfterReadReceipt');
     try {
-      final conv = await database.getConversation(conversationID);
-      if (conv == null) return;
-      // 触发 conversationChanged 让 UI 更新已读状态
-      conversationListener?.conversationChanged([conv]);
-    } catch (_) {}
+      try {
+        final conv = await database.getConversation(conversationID);
+        if (conv == null) return;
+        // 触发 conversationChanged 让 UI 更新已读状态
+        conversationListener?.conversationChanged([conv]);
+      } catch (e, s) {
+        _log.error(
+          e.toString(),
+          error: e,
+          stackTrace: s,
+          methodName: '_updateConversationAfterReadReceipt',
+        );
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_updateConversationAfterReadReceipt',
+      );
+      rethrow;
+    }
   }
 
   /// 自己在其他设备标记已读的处理（对应 Go SDK doUnreadCount）
   Future<void> _handleSelfReadReceipt(String conversationID, int hasReadSeq, List<int> seqs) async {
+    _log.info(
+      'conversationID=$conversationID, hasReadSeq=$hasReadSeq',
+      methodName: '_handleSelfReadReceipt',
+    );
     try {
-      final conv = await database.getConversation(conversationID);
-      if (conv == null) return;
-      if (conv.unreadCount > 0) {
-        await database.clearConversationUnreadCount(conversationID);
+      try {
+        final conv = await database.getConversation(conversationID);
+        if (conv == null) return;
+        if (conv.unreadCount > 0) {
+          await database.clearConversationUnreadCount(conversationID);
+        }
+        conversationListener?.conversationChanged([
+          await database.getConversation(conversationID) ?? conv,
+        ]);
+        final total = await database.getTotalUnreadCount();
+        conversationListener?.totalUnreadMessageCountChanged(total);
+      } catch (e, s) {
+        _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleSelfReadReceipt');
       }
-      conversationListener?.conversationChanged([
-        await database.getConversation(conversationID) ?? conv,
-      ]);
-      final total = await database.getTotalUnreadCount();
-      conversationListener?.totalUnreadMessageCountChanged(total);
-    } catch (_) {}
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleSelfReadReceipt');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -609,6 +771,7 @@ class NotificationDispatcher {
   /// Go SDK 的 content 是 NotificationElem 的 JSON: {"detail":"..."}
   /// detail 字段本身是 JSON string（特定 Tips 结构）
   Map<String, dynamic>? _extractDetail(String content) {
+    _log.info('called', methodName: '_extractDetail');
     if (content.isEmpty) return null;
 
     try {
@@ -619,7 +782,8 @@ class NotificationDispatcher {
       }
       // 原始 map 可能本身就是 detail
       return map;
-    } catch (_) {
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_extractDetail');
       return null;
     }
   }
@@ -629,6 +793,7 @@ class NotificationDispatcher {
   // ---------------------------------------------------------------------------
 
   Future<void> _syncFriends() async {
+    _log.info('called', methodName: '_syncFriends');
     try {
       int pageNumber = 1;
       const pageSize = 100;
@@ -663,12 +828,13 @@ class NotificationDispatcher {
         pageNumber++;
       }
       if (allFriends.isNotEmpty) await database.batchUpsertFriends(allFriends);
-    } catch (e) {
-      _log.warning('同步好友异常: $e');
+    } catch (e, s) {
+      _log.error('同步好友异常: $e', error: e, stackTrace: s, methodName: '_syncFriends');
     }
   }
 
   Future<void> _syncBlackList() async {
+    _log.info('called', methodName: '_syncBlackList');
     // 黑名单量一般较少，全量拉取
     try {
       final resp = await api.getBlackList(userID: _userID);
@@ -683,12 +849,13 @@ class NotificationDispatcher {
       if (batch.isNotEmpty) {
         await database.batchUpsertBlacks(batch);
       }
-    } catch (e) {
-      _log.warning('同步黑名单异常: $e');
+    } catch (e, s) {
+      _log.error('同步黑名单异常: $e', error: e, stackTrace: s, methodName: '_syncBlackList');
     }
   }
 
   Future<void> _syncJoinedGroups() async {
+    _log.info('called', methodName: '_syncJoinedGroups');
     try {
       int pageNumber = 1;
       const pageSize = 100;
@@ -716,13 +883,14 @@ class NotificationDispatcher {
         if (groupID == null || groupID.isEmpty) continue;
         await _syncGroupMembersForGroup(groupID);
       }
-    } catch (e) {
-      _log.warning('同步群组异常: $e');
+    } catch (e, s) {
+      _log.error('同步群组异常: $e', error: e, stackTrace: s, methodName: '_syncJoinedGroups');
     }
   }
 
   /// 从服务器同步指定群组的所有成员到本地数据库
   Future<void> _syncGroupMembersForGroup(String groupID) async {
+    _log.info('groupID=$groupID', methodName: '_syncGroupMembersForGroup');
     try {
       int offset = 0;
       const pageSize = 100;
@@ -745,12 +913,18 @@ class NotificationDispatcher {
       if (allMembers.isNotEmpty) {
         await database.batchUpsertGroupMembers(allMembers);
       }
-    } catch (e) {
-      _log.warning('同步群[$groupID]成员异常: $e');
+    } catch (e, s) {
+      _log.error(
+        '同步群[$groupID]成员异常: $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_syncGroupMembersForGroup',
+      );
     }
   }
 
   Future<void> _syncSelfUserInfo() async {
+    _log.info('called', methodName: '_syncSelfUserInfo');
     try {
       final resp = await api.getUsersInfo(userIDs: [_userID]);
       if (resp.errCode != 0) return;
@@ -762,12 +936,13 @@ class NotificationDispatcher {
           userListener?.selfInfoUpdated(updated);
         }
       }
-    } catch (e) {
-      _log.warning('同步用户信息异常: $e');
+    } catch (e, s) {
+      _log.error('同步用户信息异常: $e', error: e, stackTrace: s, methodName: '_syncSelfUserInfo');
     }
   }
 
   Future<void> _syncConversations() async {
+    _log.info('called', methodName: '_syncConversations');
     try {
       final resp = await api.getAllConversations(ownerUserID: _userID);
       if (resp.errCode != 0) return;
@@ -816,8 +991,8 @@ class NotificationDispatcher {
           }
         }
       }
-    } catch (e) {
-      _log.warning('同步会话异常: $e');
+    } catch (e, s) {
+      _log.error('同步会话异常: $e', error: e, stackTrace: s, methodName: '_syncConversations');
     }
   }
 
@@ -841,19 +1016,25 @@ class NotificationDispatcher {
   ///
   /// 对应 Go SDK 的 IncrSyncFriends → syncer.Update → OnFriendInfoChanged
   Future<void> _syncFriendsAndNotifyChanged(Map<String, dynamic> detail) async {
-    // 提取变更用户 ID
-    final fromTo = detail['fromToUserID'] as Map<String, dynamic>?;
-    final userID = detail['userID'] as String?;
-    final changedUserID = fromTo?['toUserID'] as String? ?? userID;
+    _log.info('called', methodName: '_syncFriendsAndNotifyChanged');
+    try {
+      // 提取变更用户 ID
+      final fromTo = detail['fromToUserID'] as Map<String, dynamic>?;
+      final userID = detail['userID'] as String?;
+      final changedUserID = fromTo?['toUserID'] as String? ?? userID;
 
-    await _syncFriends();
+      await _syncFriends();
 
-    // 同步完成后用最新数据通知
-    if (changedUserID != null && changedUserID.isNotEmpty) {
-      final updated = await database.getFriendByUserID(changedUserID);
-      if (updated != null) {
-        friendshipListener?.friendInfoChanged(updated);
+      // 同步完成后用最新数据通知
+      if (changedUserID != null && changedUserID.isNotEmpty) {
+        final updated = await database.getFriendByUserID(changedUserID);
+        if (updated != null) {
+          friendshipListener?.friendInfoChanged(updated);
+        }
       }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_syncFriendsAndNotifyChanged');
+      rethrow;
     }
   }
 
@@ -861,13 +1042,24 @@ class NotificationDispatcher {
   ///
   /// 对应 Go SDK 的 IncrSyncJoinGroup → syncer.Insert → OnJoinedGroupAdded
   Future<void> _syncJoinedGroupsAndNotifyAdded() async {
-    final oldGroupIDs = (await database.getJoinedGroupList()).map((g) => g.groupID).toSet();
-    await _syncJoinedGroups();
-    final newGroups = await database.getJoinedGroupList();
-    for (final g in newGroups) {
-      if (!oldGroupIDs.contains(g.groupID)) {
-        groupListener?.joinedGroupAdded(g);
+    _log.info('called', methodName: '_syncJoinedGroupsAndNotifyAdded');
+    try {
+      final oldGroupIDs = (await database.getJoinedGroupList()).map((g) => g.groupID).toSet();
+      await _syncJoinedGroups();
+      final newGroups = await database.getJoinedGroupList();
+      for (final g in newGroups) {
+        if (!oldGroupIDs.contains(g.groupID)) {
+          groupListener?.joinedGroupAdded(g);
+        }
       }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_syncJoinedGroupsAndNotifyAdded',
+      );
+      rethrow;
     }
   }
 
@@ -876,25 +1068,36 @@ class NotificationDispatcher {
   /// 直接从 detail 中提取 groupID，做针对性的本地删除，
   /// 避免全量同步所有群组和成员导致的大量 unique constraint 警告。
   Future<void> _syncJoinedGroupsAndNotifyDeleted(Map<String, dynamic> detail) async {
-    final groupMap = detail['group'] as Map<String, dynamic>?;
-    final groupID = groupMap?['groupID'] as String?;
-    if (groupID == null || groupID.isEmpty) return;
+    _log.info('called', methodName: '_syncJoinedGroupsAndNotifyDeleted');
+    try {
+      final groupMap = detail['group'] as Map<String, dynamic>?;
+      final groupID = groupMap?['groupID'] as String?;
+      if (groupID == null || groupID.isEmpty) return;
 
-    // 获取群信息用于回调通知
-    final groupInfo = await database.getGroupByID(groupID);
+      // 获取群信息用于回调通知
+      final groupInfo = await database.getGroupByID(groupID);
 
-    // 本地删除群成员、群组
-    await database.deleteGroupAllMembers(groupID);
-    await database.deleteGroup(groupID);
+      // 本地删除群成员、群组
+      await database.deleteGroupAllMembers(groupID);
+      await database.deleteGroup(groupID);
 
-    // 更新会话的 isNotInGroup 字段并通知 UI
-    final convID = OpenImUtils.genGroupConversationID(groupID);
-    await database.updateConversation(convID, {'isNotInGroup': true});
-    final conv = await database.getConversation(convID);
-    if (conv != null) {
-      conversationListener?.conversationChanged([conv]);
+      // 更新会话的 isNotInGroup 字段并通知 UI
+      final convID = OpenImUtils.genGroupConversationID(groupID);
+      await database.updateConversation(convID, {'isNotInGroup': true});
+      final conv = await database.getConversation(convID);
+      if (conv != null) {
+        conversationListener?.conversationChanged([conv]);
+      }
+
+      groupListener?.joinedGroupDeleted(groupInfo ?? GroupInfo(groupID: groupID));
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_syncJoinedGroupsAndNotifyDeleted',
+      );
+      rethrow;
     }
-
-    groupListener?.joinedGroupDeleted(groupInfo ?? GroupInfo(groupID: groupID));
   }
 }

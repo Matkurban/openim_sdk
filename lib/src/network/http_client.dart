@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/src/utils/open_im_utils.dart';
 
 import '../models/api_response.dart';
@@ -45,31 +45,43 @@ class HttpClient {
     Duration? sendTimeout,
     Map<String, dynamic>? headers,
   }) {
-    _dio.options.baseUrl = baseUrl;
-    if (connectTimeout != null) _dio.options.connectTimeout = connectTimeout;
-    if (receiveTimeout != null) _dio.options.receiveTimeout = receiveTimeout;
-    if (sendTimeout != null) _dio.options.sendTimeout = sendTimeout;
-    if (headers != null) _dio.options.headers.addAll(headers);
-    // 每次请求动态生成 operationID，便于服务端日志追踪
-    _dio.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          options.headers['operationID'] = OpenImUtils.generateOperationID(
-            operationName: 'openim_sdk_network_request',
-          );
-          handler.next(options);
-        },
-      ),
-    );
+    _log.info('baseUrl=$baseUrl', methodName: 'init');
+    try {
+      _dio.options.baseUrl = baseUrl;
+      if (connectTimeout != null) _dio.options.connectTimeout = connectTimeout;
+      if (receiveTimeout != null) _dio.options.receiveTimeout = receiveTimeout;
+      if (sendTimeout != null) _dio.options.sendTimeout = sendTimeout;
+      if (headers != null) _dio.options.headers.addAll(headers);
+      // 每次请求动态生成 operationID，便于服务端日志追踪
+      _dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            options.headers['operationID'] = OpenImUtils.generateOperationID(
+              operationName: 'openim_sdk_network_request',
+            );
+            handler.next(options);
+          },
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'init');
+      rethrow;
+    }
   }
 
   /// 设置 IM Token
   void setToken(String? token) {
-    _token = token;
-    if (token != null) {
-      _dio.options.headers['token'] = token;
-    } else {
-      _dio.options.headers.remove('token');
+    _log.info('token=${token != null ? "***" : "null"}', methodName: 'setToken');
+    try {
+      _token = token;
+      if (token != null) {
+        _dio.options.headers['token'] = token;
+      } else {
+        _dio.options.headers.remove('token');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setToken');
+      rethrow;
     }
   }
 
@@ -78,38 +90,50 @@ class HttpClient {
 
   /// 初始化 Chat 服务端客户端
   void initChat({required String baseUrl}) {
-    _chatDio = Dio(
-      BaseOptions(
-        baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
-        contentType: Headers.jsonContentType,
-        responseType: ResponseType.json,
-      ),
-    );
-    // _chatDio!.interceptors.add(TalkerDioLogger());
-    _chatDio!.interceptors.add(
-      InterceptorsWrapper(
-        onRequest: (options, handler) {
-          options.headers['operationID'] = OpenImUtils.generateOperationID(
-            operationName: 'openim_sdk_chat_request',
-          );
-          handler.next(options);
-        },
-      ),
-    );
+    _log.info('baseUrl=$baseUrl', methodName: 'initChat');
+    try {
+      _chatDio = Dio(
+        BaseOptions(
+          baseUrl: baseUrl,
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+          sendTimeout: const Duration(seconds: 30),
+          contentType: Headers.jsonContentType,
+          responseType: ResponseType.json,
+        ),
+      );
+      // _chatDio!.interceptors.add(TalkerDioLogger());
+      _chatDio!.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            options.headers['operationID'] = OpenImUtils.generateOperationID(
+              operationName: 'openim_sdk_chat_request',
+            );
+            handler.next(options);
+          },
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'initChat');
+      rethrow;
+    }
   }
 
   /// 设置 Chat Token
   void setChatToken(String? token) {
-    _chatToken = token;
-    if (_chatDio != null) {
-      if (token != null) {
-        _chatDio!.options.headers['token'] = token;
-      } else {
-        _chatDio!.options.headers.remove('token');
+    _log.info('token=${token != null ? "***" : "null"}', methodName: 'setChatToken');
+    try {
+      _chatToken = token;
+      if (_chatDio != null) {
+        if (token != null) {
+          _chatDio!.options.headers['token'] = token;
+        } else {
+          _chatDio!.options.headers.remove('token');
+        }
       }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setChatToken');
+      rethrow;
     }
   }
 
@@ -121,7 +145,13 @@ class HttpClient {
 
   /// 添加自定义拦截器
   void addInterceptor(Interceptor interceptor) {
-    _dio.interceptors.add(interceptor);
+    _log.info('called', methodName: 'addInterceptor');
+    try {
+      _dio.interceptors.add(interceptor);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addInterceptor');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -135,14 +165,20 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    return _request(
-      () => _dio.get(
-        path,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-      ),
-    );
+    _log.info('path=$path', methodName: 'get');
+    try {
+      return _request(
+        () => _dio.get(
+          path,
+          queryParameters: queryParameters,
+          options: options,
+          cancelToken: cancelToken,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'get');
+      rethrow;
+    }
   }
 
   /// POST 请求
@@ -153,15 +189,21 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    return _request(
-      () => _dio.post(
-        path,
-        data: data,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-      ),
-    );
+    _log.info('path=$path', methodName: 'post');
+    try {
+      return _request(
+        () => _dio.post(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: options,
+          cancelToken: cancelToken,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'post');
+      rethrow;
+    }
   }
 
   /// PUT 请求
@@ -173,16 +215,22 @@ class HttpClient {
     CancelToken? cancelToken,
     void Function(int, int)? onSendProgress,
   }) async {
-    return _request(
-      () => _dio.put(
-        path,
-        data: data,
-        queryParameters: queryParameters,
-        options: options,
-        onSendProgress: onSendProgress,
-        cancelToken: cancelToken,
-      ),
-    );
+    _log.info('path=$path', methodName: 'put');
+    try {
+      return _request(
+        () => _dio.put(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: options,
+          onSendProgress: onSendProgress,
+          cancelToken: cancelToken,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'put');
+      rethrow;
+    }
   }
 
   /// DELETE 请求
@@ -193,15 +241,21 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    return _request(
-      () => _dio.delete(
-        path,
-        data: data,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-      ),
-    );
+    _log.info('path=$path', methodName: 'delete');
+    try {
+      return _request(
+        () => _dio.delete(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: options,
+          cancelToken: cancelToken,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'delete');
+      rethrow;
+    }
   }
 
   /// 上传文件
@@ -212,15 +266,21 @@ class HttpClient {
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
   }) async {
-    return _request(
-      () => _dio.post(
-        path,
-        data: formData,
-        options: options,
-        cancelToken: cancelToken,
-        onSendProgress: onSendProgress,
-      ),
-    );
+    _log.info('path=$path', methodName: 'upload');
+    try {
+      return _request(
+        () => _dio.post(
+          path,
+          data: formData,
+          options: options,
+          cancelToken: cancelToken,
+          onSendProgress: onSendProgress,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'upload');
+      rethrow;
+    }
   }
 
   /// 下载文件
@@ -231,13 +291,19 @@ class HttpClient {
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
   }) {
-    return _dio.download(
-      urlPath,
-      savePath,
-      queryParameters: queryParameters,
-      cancelToken: cancelToken,
-      onReceiveProgress: onReceiveProgress,
-    );
+    _log.info('urlPath=$urlPath, savePath=$savePath', methodName: 'download');
+    try {
+      return _dio.download(
+        urlPath,
+        savePath,
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+        onReceiveProgress: onReceiveProgress,
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'download');
+      rethrow;
+    }
   }
 
   /// Chat 服务端 POST 请求
@@ -248,18 +314,24 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    if (_chatDio == null) {
-      throw StateError('Chat client not initialized. Call initChat() first.');
+    _log.info('path=$path', methodName: 'chatPost');
+    try {
+      if (_chatDio == null) {
+        throw StateError('Chat client not initialized. Call initChat() first.');
+      }
+      return await _request(
+        () => _chatDio!.post(
+          path,
+          data: data,
+          queryParameters: queryParameters,
+          options: options,
+          cancelToken: cancelToken,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'chatPost');
+      rethrow;
     }
-    return _request(
-      () => _chatDio!.post(
-        path,
-        data: data,
-        queryParameters: queryParameters,
-        options: options,
-        cancelToken: cancelToken,
-      ),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -268,57 +340,70 @@ class HttpClient {
 
   /// 统一请求处理 & 异常捕获
   Future<ApiResponse> _request(Future<Response> Function() request) async {
+    _log.info('called', methodName: '_request');
     try {
       final response = await request();
       return _handleResponse(response);
     } on DioException catch (e) {
       return _handleDioException(e);
     } catch (e, s) {
-      _log.severe('Unknown error', e, s);
+      _log.error('Unknown error', error: e, stackTrace: s, methodName: '_request');
       return ApiResponse(errCode: -1, errMsg: e.toString(), errDlt: s.toString(), data: null);
     }
   }
 
   /// 解析响应数据为 [ApiResponse]
   ApiResponse _handleResponse(Response response) {
-    final data = response.data;
-    if (data is Map<String, dynamic>) {
-      final resp = ApiResponse.fromJson(data);
-      if (resp.errCode != 0) {
-        onApiError?.call(resp.errCode, resp.errMsg);
+    _log.info('called', methodName: '_handleResponse');
+    try {
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final resp = ApiResponse.fromJson(data);
+        if (resp.errCode != 0) {
+          onApiError?.call(resp.errCode, resp.errMsg);
+        }
+        return resp;
       }
-      return resp;
+      return ApiResponse(errCode: 0, errMsg: '', errDlt: '', data: data);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleResponse');
+      rethrow;
     }
-    return ApiResponse(errCode: 0, errMsg: '', errDlt: '', data: data);
   }
 
   /// 处理 Dio 异常
   ApiResponse _handleDioException(DioException e) {
-    final String message;
-    switch (e.type) {
-      case DioExceptionType.connectionTimeout:
-        message = '连接超时';
-      case DioExceptionType.sendTimeout:
-        message = '请求发送超时';
-      case DioExceptionType.receiveTimeout:
-        message = '响应接收超时';
-      case DioExceptionType.badCertificate:
-        message = '证书验证失败';
-      case DioExceptionType.badResponse:
-        message = '服务器响应异常 (${e.response?.statusCode})';
-      case DioExceptionType.cancel:
-        message = '请求已取消';
-      case DioExceptionType.connectionError:
-        message = '网络连接异常，请检查网络';
-      case DioExceptionType.unknown:
-        message = '未知网络错误: ${e.message}';
+    _log.info('called', methodName: '_handleDioException');
+    try {
+      final String message;
+      switch (e.type) {
+        case DioExceptionType.connectionTimeout:
+          message = '连接超时';
+        case DioExceptionType.sendTimeout:
+          message = '请求发送超时';
+        case DioExceptionType.receiveTimeout:
+          message = '响应接收超时';
+        case DioExceptionType.badCertificate:
+          message = '证书验证失败';
+        case DioExceptionType.badResponse:
+          message = '服务器响应异常 (${e.response?.statusCode})';
+        case DioExceptionType.cancel:
+          message = '请求已取消';
+        case DioExceptionType.connectionError:
+          message = '网络连接异常，请检查网络';
+        case DioExceptionType.unknown:
+          message = '未知网络错误: ${e.message}';
+      }
+      _log.warning('DioException [${e.type}]: $message', methodName: '_handleDioException');
+      return ApiResponse(
+        errCode: e.response?.statusCode ?? -1,
+        errMsg: message,
+        errDlt: e.message ?? '',
+        data: null,
+      );
+    } catch (err, s) {
+      _log.error(err.toString(), error: err, stackTrace: s, methodName: '_handleDioException');
+      rethrow;
     }
-    _log.warning('DioException [${e.type}]: $message');
-    return ApiResponse(
-      errCode: e.response?.statusCode ?? -1,
-      errMsg: message,
-      errDlt: e.message ?? '',
-      data: null,
-    );
   }
 }

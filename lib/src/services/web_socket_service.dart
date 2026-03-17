@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/enums/web_socket_status.dart';
 import 'package:universal_platform/universal_platform.dart';
@@ -87,52 +87,79 @@ class WebSocketService {
     required String token,
     bool compression = true,
   }) async {
-    _userID = userID;
-    _token = token;
-    // dart:io 的 gzip 在 Web 平台不可用，自动禁用压缩
-    _compression = UniversalPlatform.isWeb ? false : compression;
-    _codec = WebSocketCodecs(enableCompression: _compression);
-    _userDisconnected = false;
-    _isReconnecting = false;
-    _reconnectAttempts = 0;
-    _reconnectIndex = -1;
-    await _doConnect();
+    _log.info(
+      'userID=$userID, compression=$compression, token=${token.isNotEmpty ? "***" : ""}',
+      methodName: 'connect',
+    );
+    try {
+      _userID = userID;
+      _token = token;
+      // dart:io 的 gzip 在 Web 平台不可用，自动禁用压缩
+      _compression = UniversalPlatform.isWeb ? false : compression;
+      _codec = WebSocketCodecs(enableCompression: _compression);
+      _userDisconnected = false;
+      _isReconnecting = false;
+      _reconnectAttempts = 0;
+      _reconnectIndex = -1;
+      await _doConnect();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'connect');
+      rethrow;
+    }
   }
 
   /// 主动断开连接
   Future<void> disconnect() async {
-    _userDisconnected = true;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _stopHeartbeat();
-    _cancelAllPendingRequests('connection closed by user');
-    await _subscription?.cancel();
-    _subscription = null;
-    await _channel?.sink.close();
-    _channel = null;
-    _setStatus(WebSocketStatus.closed);
-    _log.info('WebSocket 已主动断开');
+    _log.info('called', methodName: 'disconnect');
+    try {
+      _userDisconnected = true;
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      _stopHeartbeat();
+      _cancelAllPendingRequests('connection closed by user');
+      await _subscription?.cancel();
+      _subscription = null;
+      await _channel?.sink.close();
+      _channel = null;
+      _setStatus(WebSocketStatus.closed);
+      _log.info('WebSocket 已主动断开');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'disconnect');
+      rethrow;
+    }
   }
 
   /// 设置前后台状态
   void setBackground(bool isBackground) {
-    _log.info('setBackground: $isBackground');
+    _log.info('isBackground: $isBackground', methodName: 'setBackground');
+    try {
+      // implementation omitted in original
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setBackground');
+      rethrow;
+    }
   }
 
   /// 断开后重连（对应 Go SDK NetworkStatusChanged → Close → 自动重连）
   Future<void> reconnect() async {
-    if (_userDisconnected) return;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _stopHeartbeat();
-    _cancelAllPendingRequests('network status changed');
-    await _subscription?.cancel();
-    _subscription = null;
-    await _channel?.sink.close();
-    _channel = null;
-    _reconnectAttempts = 0;
-    _reconnectIndex = -1;
-    await _doConnect();
+    _log.info('called', methodName: 'reconnect');
+    try {
+      if (_userDisconnected) return;
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      _stopHeartbeat();
+      _cancelAllPendingRequests('network status changed');
+      await _subscription?.cancel();
+      _subscription = null;
+      await _channel?.sink.close();
+      _channel = null;
+      _reconnectAttempts = 0;
+      _reconnectIndex = -1;
+      await _doConnect();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'reconnect');
+      rethrow;
+    }
   }
 
   /// 发送请求并等待响应
@@ -150,40 +177,49 @@ class WebSocketService {
     Uint8List? data,
     String? operationID,
   }) async {
-    if (!isConnected) {
-      throw StateError('WebSocket 未连接');
-    }
-    final opID = operationID ?? OpenImUtils.generateOperationID();
-    final msgIncr = _generateMsgIncr();
-    final req = WebSocketRequest(
-      reqIdentifier: reqIdentifier,
-      token: _token,
-      sendID: _userID,
-      operationID: opID,
-      msgIncr: msgIncr,
-      data: data,
+    _log.info(
+      'reqIdentifier=$reqIdentifier, operationID=$operationID',
+      methodName: 'sendRequestWaitResponse',
     );
-
-    final completer = Completer<WebSocketResponse>();
-    _pendingRequests[msgIncr] = completer;
-
-    // 超时处理
-    final timer = Timer(_requestTimeout, () {
-      if (_pendingRequests.containsKey(msgIncr)) {
-        _pendingRequests.remove(msgIncr);
-        if (!completer.isCompleted) {
-          completer.completeError(TimeoutException('WebSocket 请求超时', _requestTimeout));
-        }
-      }
-    });
-
     try {
-      _sendBinary(req);
-      final resp = await completer.future;
-      return resp;
-    } finally {
-      timer.cancel();
-      _pendingRequests.remove(msgIncr);
+      if (!isConnected) {
+        throw StateError('WebSocket 未连接');
+      }
+      final opID = operationID ?? OpenImUtils.generateOperationID();
+      final msgIncr = _generateMsgIncr();
+      final req = WebSocketRequest(
+        reqIdentifier: reqIdentifier,
+        token: _token,
+        sendID: _userID,
+        operationID: opID,
+        msgIncr: msgIncr,
+        data: data,
+      );
+
+      final completer = Completer<WebSocketResponse>();
+      _pendingRequests[msgIncr] = completer;
+
+      // 超时处理
+      final timer = Timer(_requestTimeout, () {
+        if (_pendingRequests.containsKey(msgIncr)) {
+          _pendingRequests.remove(msgIncr);
+          if (!completer.isCompleted) {
+            completer.completeError(TimeoutException('WebSocket 请求超时', _requestTimeout));
+          }
+        }
+      });
+
+      try {
+        _sendBinary(req);
+        final resp = await completer.future;
+        return resp;
+      } finally {
+        timer.cancel();
+        _pendingRequests.remove(msgIncr);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'sendRequestWaitResponse');
+      rethrow;
     }
   }
 
@@ -192,101 +228,149 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   Future<void> _doConnect() async {
-    if (_connStatus == WebSocketStatus.connecting) return;
-    _setStatus(WebSocketStatus.connecting);
-    connectListener.onConnecting?.call();
-
-    final url = _buildWsUrl();
-    _log.info('正在连接 WebSocket: $url');
-
+    _log.info('called', methodName: '_doConnect');
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
-      await _channel!.ready;
-      _startListening();
+      if (_connStatus == WebSocketStatus.connecting) return;
+      _setStatus(WebSocketStatus.connecting);
+      connectListener.onConnecting?.call();
 
-      // 连接成功
-      _setStatus(WebSocketStatus.connected);
-      _reconnectAttempts = 0;
-      _reconnectIndex = -1;
+      final url = _buildWsUrl();
+      _log.info('正在连接 WebSocket: $url', methodName: '_doConnect');
 
-      _startHeartbeat();
+      try {
+        _channel = WebSocketChannel.connect(Uri.parse(url));
+        await _channel!.ready;
+        _startListening();
 
-      connectListener.onConnectSuccess?.call();
-      _log.info('WebSocket 连接成功');
-    } catch (e) {
-      _log.warning('WebSocket 连接失败: $e');
-      _setStatus(WebSocketStatus.closed);
-      _stopHeartbeat();
-      connectListener.onConnectFailed?.call(-1, e.toString());
-      _scheduleReconnect();
+        // 连接成功
+        _setStatus(WebSocketStatus.connected);
+        _reconnectAttempts = 0;
+        _reconnectIndex = -1;
+
+        _startHeartbeat();
+
+        connectListener.onConnectSuccess?.call();
+        _log.info('WebSocket 连接成功', methodName: '_doConnect');
+      } catch (e) {
+        _log.warning('WebSocket 连接失败: $e', methodName: '_doConnect');
+        _setStatus(WebSocketStatus.closed);
+        _stopHeartbeat();
+        connectListener.onConnectFailed?.call(-1, e.toString());
+        _scheduleReconnect();
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_doConnect');
+      rethrow;
     }
   }
 
   String _buildWsUrl() {
-    final sb = StringBuffer(wsUrl);
-    sb.write('?sendID=$_userID');
-    sb.write('&token=$_token');
-    sb.write('&platformID=$platformID');
-    sb.write('&operationID=${OpenImUtils.generateOperationID()}');
-    sb.write('&isBackground=false');
-    sb.write('&sdkType=js');
-    sb.write('&isMsgResp=true');
-    if (_compression) {
-      sb.write('&compression=gzip');
+    _log.info('called', methodName: '_buildWsUrl');
+    try {
+      final sb = StringBuffer(wsUrl);
+      sb.write('?sendID=$_userID');
+      sb.write('&token=$_token');
+      sb.write('&platformID=$platformID');
+      sb.write('&operationID=${OpenImUtils.generateOperationID()}');
+      sb.write('&isBackground=false');
+      sb.write('&sdkType=js');
+      sb.write('&isMsgResp=true');
+      if (_compression) {
+        sb.write('&compression=gzip');
+      }
+      return sb.toString();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_buildWsUrl');
+      rethrow;
     }
-    return sb.toString();
   }
 
   void _startListening() {
-    _subscription?.cancel();
-    _subscription = _channel?.stream.listen(_onMessage, onError: _onError, onDone: _onDone);
+    _log.info('called', methodName: '_startListening');
+    try {
+      _subscription?.cancel();
+      _subscription = _channel?.stream.listen(_onMessage, onError: _onError, onDone: _onDone);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_startListening');
+      rethrow;
+    }
   }
 
   void _onMessage(dynamic message) {
-    _log.info(message);
-    if (message is List<int>) {
-      _handleBinaryMessage(Uint8List.fromList(message));
-    } else if (message is String) {
-      _handleTextMessage(message);
+    _log.info(
+      'message=${message.toString().length > 100 ? "..." : message}',
+      methodName: '_onMessage',
+    );
+    try {
+      if (message is List<int>) {
+        _handleBinaryMessage(Uint8List.fromList(message));
+      } else if (message is String) {
+        _handleTextMessage(message);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onMessage');
+      rethrow;
     }
   }
 
   /// 处理文本消息（ping/pong，对应 ws_js.go handlerText）
   void _handleTextMessage(String text) {
+    _log.info('text=${text.length > 50 ? "..." : text}', methodName: '_handleTextMessage');
     try {
-      final msg = jsonDecode(text) as Map<String, dynamic>;
-      final type = msg['type'] as String? ?? '';
-      switch (type) {
-        case 'pong':
-          _lastPong = DateTime.now();
-          _log.fine('收到 pong');
-        case '':
-          // 服务端连接成功响应 {errCode, errMsg, errDlt}，无 type 字段
-          break;
-        default:
-          _log.warning('未知文本消息类型: $type');
+      try {
+        final msg = jsonDecode(text) as Map<String, dynamic>;
+        final type = msg['type'] as String? ?? '';
+        switch (type) {
+          case 'pong':
+            _lastPong = DateTime.now();
+            _log.info('收到 pong', methodName: '_handleTextMessage');
+          case '':
+            // 服务端连接成功响应 {errCode, errMsg, errDlt}，无 type 字段
+            break;
+          default:
+            _log.warning('未知文本消息类型: $type', methodName: '_handleTextMessage');
+        }
+      } catch (e) {
+        _log.warning('解析文本消息失败: $e', methodName: '_handleTextMessage');
       }
-    } catch (e) {
-      _log.warning('解析文本消息失败: $e');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleTextMessage');
+      rethrow;
     }
   }
 
   void _onError(dynamic error) {
-    _log.warning('WebSocket 错误: $error');
-    _handleDisconnect();
+    _log.warning('WebSocket 错误: $error', methodName: '_onError');
+    try {
+      _handleDisconnect();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onError');
+      rethrow;
+    }
   }
 
   void _onDone() {
-    _log.info('WebSocket 连接已关闭');
-    _handleDisconnect();
+    _log.info('WebSocket 连接已关闭', methodName: '_onDone');
+    try {
+      _handleDisconnect();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onDone');
+      rethrow;
+    }
   }
 
   void _handleDisconnect() {
-    _setStatus(WebSocketStatus.closed);
-    _stopHeartbeat();
-    _cancelAllPendingRequests('connection lost');
-    if (!_userDisconnected) {
-      _scheduleReconnect();
+    _log.info('called', methodName: '_handleDisconnect');
+    try {
+      _setStatus(WebSocketStatus.closed);
+      _stopHeartbeat();
+      _cancelAllPendingRequests('connection lost');
+      if (!_userDisconnected) {
+        _scheduleReconnect();
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleDisconnect');
+      rethrow;
     }
   }
 
@@ -295,30 +379,48 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _startHeartbeat() {
-    _stopHeartbeat();
-    _lastPong = DateTime.now();
-    _heartbeatTimer = Timer.periodic(_pingPeriod, (_) => _sendPing());
+    _log.info('called', methodName: '_startHeartbeat');
+    try {
+      _stopHeartbeat();
+      _lastPong = DateTime.now();
+      _heartbeatTimer = Timer.periodic(_pingPeriod, (_) => _sendPing());
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_startHeartbeat');
+      rethrow;
+    }
   }
 
   void _stopHeartbeat() {
-    _heartbeatTimer?.cancel();
-    _heartbeatTimer = null;
+    _log.info('called', methodName: '_stopHeartbeat');
+    try {
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer = null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_stopHeartbeat');
+      rethrow;
+    }
   }
 
   /// 发送 ping 文本消息（对应 ws_js.go WriteMessage(PingMessage, ...)）
   void _sendPing() {
-    if (_channel == null || !isConnected) return;
-    // 检测连接健康：如果超过 2 个心跳周期未收到 pong，视为连接断开
-    if (_lastPong != null &&
-        DateTime.now().difference(_lastPong!).inSeconds > _pingPeriod.inSeconds * 2) {
-      _log.warning('超时未收到 pong，连接可能已断开');
-      _handleDisconnect();
-      return;
+    _log.info('called', methodName: '_sendPing');
+    try {
+      if (_channel == null || !isConnected) return;
+      // 检测连接健康：如果超过 2 个心跳周期未收到 pong，视为连接断开
+      if (_lastPong != null &&
+          DateTime.now().difference(_lastPong!).inSeconds > _pingPeriod.inSeconds * 2) {
+        _log.warning('超时未收到 pong，连接可能已断开', methodName: '_sendPing');
+        _handleDisconnect();
+        return;
+      }
+      final opID = OpenImUtils.generateOperationID();
+      final ping = jsonEncode({'type': 'ping', 'body': opID});
+      _channel!.sink.add(ping);
+      _log.info('发送 ping: $opID', methodName: '_sendPing');
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_sendPing');
+      rethrow;
     }
-    final opID = OpenImUtils.generateOperationID();
-    final ping = jsonEncode({'type': 'ping', 'body': opID});
-    _channel!.sink.add(ping);
-    _log.info('发送 ping: $opID');
   }
 
   // ---------------------------------------------------------------------------
@@ -326,69 +428,91 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _handleBinaryMessage(Uint8List raw) {
-    // gzip 解压 + JSON 解码（sdkType=js 协议，data 字段为 base64 编码的 protobuf）
-    WebSocketResponse resp;
+    _log.info('called', methodName: '_handleBinaryMessage');
     try {
-      resp = _codec.decodeResponse(raw);
-    } catch (e) {
-      _log.warning('消息解码失败: $e');
-      return;
-    }
+      // gzip 解压 + JSON 解码（sdkType=js 协议，data 字段为 base64 编码的 protobuf）
+      WebSocketResponse resp;
+      try {
+        resp = _codec.decodeResponse(raw);
+      } catch (e) {
+        _log.warning('消息解码失败: $e', methodName: '_handleBinaryMessage');
+        return;
+      }
 
-    _log.fine(
-      '收到消息: reqIdentifier=${resp.reqIdentifier}, '
-      'errCode=${resp.errCode}, msgIncr=${resp.msgIncr}',
-    );
+      _log.info(
+        '收到消息: reqIdentifier=${resp.reqIdentifier}, '
+        'errCode=${resp.errCode}, msgIncr=${resp.msgIncr}',
+        methodName: '_handleBinaryMessage',
+      );
 
-    switch (resp.reqIdentifier) {
-      case WebSocketIdentifier.pushMsg:
-        onPushMsg?.call(resp);
+      switch (resp.reqIdentifier) {
+        case WebSocketIdentifier.pushMsg:
+          onPushMsg?.call(resp);
 
-      case WebSocketIdentifier.kickOnlineMsg:
-        _log.warning('被踢下线');
-        connectListener.onKickedOffline?.call();
-        _userDisconnected = true;
-        disconnect();
+        case WebSocketIdentifier.kickOnlineMsg:
+          _log.warning('被踢下线', methodName: '_handleBinaryMessage');
+          connectListener.onKickedOffline?.call();
+          _userDisconnected = true;
+          disconnect();
 
-      case WebSocketIdentifier.logoutMsg:
-        _notifyResponse(resp);
-        _userDisconnected = true;
-        disconnect();
+        case WebSocketIdentifier.logoutMsg:
+          _notifyResponse(resp);
+          _userDisconnected = true;
+          disconnect();
 
-      case WebSocketIdentifier.wsSubUserOnlineStatus:
-        onUserOnlineStatusChanged?.call(resp);
+        case WebSocketIdentifier.wsSubUserOnlineStatus:
+          onUserOnlineStatusChanged?.call(resp);
 
-      // 请求响应类消息，通过 msgIncr 匹配到对应的 Completer
-      case WebSocketIdentifier.getNewestSeq:
-      case WebSocketIdentifier.pullMsgByRange:
-      case WebSocketIdentifier.pullMsgBySeqList:
-      case WebSocketIdentifier.getConvMaxReadSeq:
-      case WebSocketIdentifier.pullConvLastMessage:
-      case WebSocketIdentifier.sendMsg:
-      case WebSocketIdentifier.sendSignalMsg:
-      case WebSocketIdentifier.setBackgroundStatus:
-        _notifyResponse(resp);
+        // 请求响应类消息，通过 msgIncr 匹配到对应的 Completer
+        case WebSocketIdentifier.getNewestSeq:
+        case WebSocketIdentifier.pullMsgByRange:
+        case WebSocketIdentifier.pullMsgBySeqList:
+        case WebSocketIdentifier.getConvMaxReadSeq:
+        case WebSocketIdentifier.pullConvLastMessage:
+        case WebSocketIdentifier.sendMsg:
+        case WebSocketIdentifier.sendSignalMsg:
+        case WebSocketIdentifier.setBackgroundStatus:
+          _notifyResponse(resp);
 
-      default:
-        _log.warning('未知的 reqIdentifier: ${resp.reqIdentifier}');
+        default:
+          _log.warning(
+            '未知的 reqIdentifier: ${resp.reqIdentifier}',
+            methodName: '_handleBinaryMessage',
+          );
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleBinaryMessage');
+      rethrow;
     }
   }
 
   /// 将服务端响应路由到等待中的请求 Completer
   void _notifyResponse(WebSocketResponse resp) {
-    final completer = _pendingRequests.remove(resp.msgIncr);
-    if (completer != null && !completer.isCompleted) {
-      completer.complete(resp);
-    } else {
-      _log.fine('无匹配请求: msgIncr=${resp.msgIncr}');
+    _log.info('msgIncr=${resp.msgIncr}', methodName: '_notifyResponse');
+    try {
+      final completer = _pendingRequests.remove(resp.msgIncr);
+      if (completer != null && !completer.isCompleted) {
+        completer.complete(resp);
+      } else {
+        _log.info('无匹配请求: msgIncr=${resp.msgIncr}', methodName: '_notifyResponse');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_notifyResponse');
+      rethrow;
     }
   }
 
   void _sendBinary(WebSocketRequest req) {
-    if (_channel == null) return;
-    // JSON 编码 + gzip 压缩（sdkType=js 协议）
-    final encoded = _codec.encodeRequest(req);
-    _channel!.sink.add(encoded);
+    _log.info('reqIdentifier=${req.reqIdentifier}', methodName: '_sendBinary');
+    try {
+      if (_channel == null) return;
+      // JSON 编码 + gzip 压缩（sdkType=js 协议）
+      final encoded = _codec.encodeRequest(req);
+      _channel!.sink.add(encoded);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_sendBinary');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -396,25 +520,31 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _scheduleReconnect() {
-    if (_userDisconnected || _isReconnecting) return;
-    if (_reconnectAttempts >= _maxReconnectAttempts) {
-      _log.severe('已达最大重连次数 ($_maxReconnectAttempts)，停止重连');
-      connectListener.onConnectFailed?.call(-1, '超过最大重连次数');
-      return;
+    _log.info('called', methodName: '_scheduleReconnect');
+    try {
+      if (_userDisconnected || _isReconnecting) return;
+      if (_reconnectAttempts >= _maxReconnectAttempts) {
+        _log.error('已达最大重连次数 ($_maxReconnectAttempts)，停止重连', methodName: '_scheduleReconnect');
+        connectListener.onConnectFailed?.call(-1, '超过最大重连次数');
+        return;
+      }
+
+      _isReconnecting = true;
+      _reconnectIndex++;
+      final interval = _backoffIntervals[_reconnectIndex % _backoffIntervals.length];
+      _reconnectAttempts++;
+
+      _log.info('将在 ${interval}s 后重连 (第 $_reconnectAttempts 次)', methodName: '_scheduleReconnect');
+      _reconnectTimer = Timer(Duration(seconds: interval), () async {
+        _reconnectTimer = null;
+        _isReconnecting = false;
+        if (_userDisconnected) return;
+        await _doConnect();
+      });
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_scheduleReconnect');
+      rethrow;
     }
-
-    _isReconnecting = true;
-    _reconnectIndex++;
-    final interval = _backoffIntervals[_reconnectIndex % _backoffIntervals.length];
-    _reconnectAttempts++;
-
-    _log.info('将在 ${interval}s 后重连 (第 $_reconnectAttempts 次)');
-    _reconnectTimer = Timer(Duration(seconds: interval), () async {
-      _reconnectTimer = null;
-      _isReconnecting = false;
-      if (_userDisconnected) return;
-      await _doConnect();
-    });
   }
 
   // ---------------------------------------------------------------------------
@@ -422,20 +552,38 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _setStatus(WebSocketStatus status) {
-    _connStatus = status;
+    _log.info('status=$status', methodName: '_setStatus');
+    try {
+      _connStatus = status;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_setStatus');
+      rethrow;
+    }
   }
 
   String _generateMsgIncr() {
-    _msgIncrCounter++;
-    return '${_userID}_${DateTime.now().millisecondsSinceEpoch}_$_msgIncrCounter';
+    _log.info('called', methodName: '_generateMsgIncr');
+    try {
+      _msgIncrCounter++;
+      return '${_userID}_${DateTime.now().millisecondsSinceEpoch}_$_msgIncrCounter';
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_generateMsgIncr');
+      rethrow;
+    }
   }
 
   void _cancelAllPendingRequests(String reason) {
-    for (final entry in _pendingRequests.entries) {
-      if (!entry.value.isCompleted) {
-        entry.value.completeError(StateError(reason));
+    _log.info('reason=$reason', methodName: '_cancelAllPendingRequests');
+    try {
+      for (final entry in _pendingRequests.entries) {
+        if (!entry.value.isCompleted) {
+          entry.value.completeError(StateError(reason));
+        }
       }
+      _pendingRequests.clear();
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_cancelAllPendingRequests');
+      rethrow;
     }
-    _pendingRequests.clear();
   }
 }

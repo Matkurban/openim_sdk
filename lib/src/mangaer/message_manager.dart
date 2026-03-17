@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
-import 'package:logging/logging.dart';
+import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -69,14 +69,17 @@ class MessageManager {
   /// 与 Go SDK 行为一致：将所有发送中的消息标记为失败
   /// Go SDK 参考：open_im_sdk/userRelated.go handlerSendingMsg
   Future<void> recoverSendingMessages() async {
-    _log.info('Recovering sending messages...');
+    _log.info('Recovering sending messages...', methodName: 'recoverSendingMessages');
     try {
       final allSendingMessages = await _database.getAllSendingMessages();
       if (allSendingMessages.isEmpty) {
-        _log.info('No sending messages to recover');
+        _log.info('No sending messages to recover', methodName: 'recoverSendingMessages');
         return;
       }
-      _log.info('Found ${allSendingMessages.length} sending messages to recover');
+      _log.info(
+        'Found ${allSendingMessages.length} sending messages to recover',
+        methodName: 'recoverSendingMessages',
+      );
 
       for (final msg in allSendingMessages) {
         final clientMsgID = msg['clientMsgID'] as String?;
@@ -87,7 +90,10 @@ class MessageManager {
         if (message == null) {
           // 消息不存在，删除发送记录
           await _database.deleteSendingMessage(clientMsgID);
-          _log.info('Message not found, deleted sending record: $clientMsgID');
+          _log.info(
+            'Message not found, deleted sending record: $clientMsgID',
+            methodName: 'recoverSendingMessages',
+          );
           continue;
         }
 
@@ -98,6 +104,7 @@ class MessageManager {
           await _database.deleteSendingMessage(clientMsgID);
           _log.info(
             'Message already processed (status=$status), deleted sending record: $clientMsgID',
+            methodName: 'recoverSendingMessages',
           );
           continue;
         }
@@ -110,7 +117,7 @@ class MessageManager {
           // 更新消息状态为失败
           await _database.updateMessage(clientMsgID, {'status': MessageStatus.failed.value});
           await _database.deleteSendingMessage(clientMsgID);
-          _log.info('Marked message as failed: $clientMsgID');
+          _log.info('Marked message as failed: $clientMsgID', methodName: 'recoverSendingMessages');
 
           // 与 Go SDK 一致：更新会话的 latestMsg 状态
           // Go SDK 参考：handlerSendingMsg 中对 latestMsg 的处理
@@ -123,11 +130,19 @@ class MessageManager {
                   await _database.updateConversation(conversationID, {
                     'latestMsg': jsonEncode(failedMsg.toJson()),
                   });
-                  _log.info('Updated conversation latestMsg status to failed: $conversationID');
+                  _log.info(
+                    'Updated conversation latestMsg status to failed: $conversationID',
+                    methodName: 'recoverSendingMessages',
+                  );
                 }
               }
-            } catch (e) {
-              _log.warning('Failed to update conversation latestMsg: $e');
+            } catch (e, s) {
+              _log.warning(
+                'Failed to update conversation latestMsg: $e',
+                error: e,
+                stackTrace: s,
+                methodName: 'recoverSendingMessages',
+              );
             }
           }
 
@@ -136,20 +151,30 @@ class MessageManager {
         }
       }
 
-      _log.info('Sending messages recovery completed');
+      _log.info('Sending messages recovery completed', methodName: 'recoverSendingMessages');
     } catch (e, s) {
-      _log.warning('Failed to recover sending messages: $e', e, s);
+      _log.error(
+        'Failed to recover sending messages: $e',
+        error: e,
+        stackTrace: s,
+        methodName: 'recoverSendingMessages',
+      );
     }
   }
 
   /// 创建文本消息
   /// [text] 文本内容
   Message createTextMessage({required String text}) {
-    _log.info('createTextMessage: text=$text');
-    return _createMessage(
-      contentType: MessageType.text,
-      textElem: TextElem(content: text),
-    );
+    _log.info('text=$text', methodName: 'createTextMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.text,
+        textElem: TextElem(content: text),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createTextMessage');
+      rethrow;
+    }
   }
 
   /// 创建 @ 消息
@@ -163,37 +188,52 @@ class MessageManager {
     List<AtUserInfo> atUserInfoList = const [],
     Message? quoteMessage,
   }) {
-    _log.info('createTextAtMessage: text=$text, atUserIDList=$atUserIDList');
-    return _createMessage(
-      contentType: MessageType.atText,
-      atTextElem: AtTextElem(
-        text: text,
-        atUserList: atUserIDList,
-        atUsersInfo: atUserInfoList,
-        quoteMessage: quoteMessage,
-      ),
-    );
+    _log.info('text=$text, atUserIDList=$atUserIDList', methodName: 'createTextAtMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.atText,
+        atTextElem: AtTextElem(
+          text: text,
+          atUserList: atUserIDList,
+          atUsersInfo: atUserInfoList,
+          quoteMessage: quoteMessage,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createTextAtMessage');
+      rethrow;
+    }
   }
 
   /// 创建图片消息（本地文件路径）
   /// [imagePath] 图片路径
   Message createImageMessage({required String imagePath}) {
-    _log.info('createImageMessage: imagePath=$imagePath');
-    return _createMessage(
-      contentType: MessageType.picture,
-      pictureElem: PictureElem(sourcePath: imagePath),
-    );
+    _log.info('imagePath=$imagePath', methodName: 'createImageMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.picture,
+        pictureElem: PictureElem(sourcePath: imagePath),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createImageMessage');
+      rethrow;
+    }
   }
 
   /// 创建语音消息
   /// [soundPath] 语音文件路径
   /// [duration] 时长（秒）
   Message createSoundMessage({required String soundPath, required int duration}) {
-    _log.info('createSoundMessage: soundPath=$soundPath, duration=$duration');
-    return _createMessage(
-      contentType: MessageType.voice,
-      soundElem: SoundElem(soundPath: soundPath, duration: duration),
-    );
+    _log.info('soundPath=$soundPath, duration=$duration', methodName: 'createSoundMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.voice,
+        soundElem: SoundElem(soundPath: soundPath, duration: duration),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createSoundMessage');
+      rethrow;
+    }
   }
 
   /// 创建视频消息
@@ -207,27 +247,40 @@ class MessageManager {
     required int duration,
     required String snapshotPath,
   }) {
-    _log.info('createVideoMessage: videoPath=$videoPath, videoType=$videoType, duration=$duration');
-    return _createMessage(
-      contentType: MessageType.video,
-      videoElem: VideoElem(
-        videoPath: videoPath,
-        videoType: videoType,
-        duration: duration,
-        snapshotPath: snapshotPath,
-      ),
+    _log.info(
+      'videoPath=$videoPath, videoType=$videoType, duration=$duration',
+      methodName: 'createVideoMessage',
     );
+    try {
+      return _createMessage(
+        contentType: MessageType.video,
+        videoElem: VideoElem(
+          videoPath: videoPath,
+          videoType: videoType,
+          duration: duration,
+          snapshotPath: snapshotPath,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createVideoMessage');
+      rethrow;
+    }
   }
 
   /// 创建文件消息
   /// [filePath] 文件路径
   /// [fileName] 文件名
   Message createFileMessage({required String filePath, required String fileName}) {
-    _log.info('createFileMessage: filePath=$filePath, fileName=$fileName');
-    return _createMessage(
-      contentType: MessageType.file,
-      fileElem: FileElem(filePath: filePath, fileName: fileName),
-    );
+    _log.info('filePath=$filePath, fileName=$fileName', methodName: 'createFileMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.file,
+        fileElem: FileElem(filePath: filePath, fileName: fileName),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createFileMessage');
+      rethrow;
+    }
   }
 
   /// 创建合并消息
@@ -239,24 +292,37 @@ class MessageManager {
     required String title,
     required List<String> summaryList,
   }) {
-    _log.info('createMergerMessage: title=$title, messageCount=${messageList.length}');
-    return _createMessage(
-      contentType: MessageType.merger,
-      mergeElem: MergeElem(title: title, abstractList: summaryList, multiMessage: messageList),
+    _log.info(
+      'title=$title, messageCount=${messageList.length}',
+      methodName: 'createMergerMessage',
     );
+    try {
+      return _createMessage(
+        contentType: MessageType.merger,
+        mergeElem: MergeElem(title: title, abstractList: summaryList, multiMessage: messageList),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createMergerMessage');
+      rethrow;
+    }
   }
 
   /// 创建转发消息
   /// [message] 被转发的消息
   Message createForwardMessage({required Message message}) {
-    _log.info('createForwardMessage: clientMsgID=${message.clientMsgID}');
-    return message.copyWith(
-      clientMsgID: OpenImUtils.generateClientMsgID(_currentUserID),
-      createTime: _nowMillis(),
-      sendTime: 0,
-      status: MessageStatus.sending,
-      sendID: _currentUserID,
-    );
+    _log.info('clientMsgID=${message.clientMsgID}', methodName: 'createForwardMessage');
+    try {
+      return message.copyWith(
+        clientMsgID: OpenImUtils.generateClientMsgID(_currentUserID),
+        createTime: _nowMillis(),
+        sendTime: 0,
+        status: MessageStatus.sending,
+        sendID: _currentUserID,
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createForwardMessage');
+      rethrow;
+    }
   }
 
   /// 创建位置消息
@@ -269,16 +335,22 @@ class MessageManager {
     required String description,
   }) {
     _log.info(
-      'createLocationMessage: latitude=$latitude, longitude=$longitude, description=$description',
+      'latitude=$latitude, longitude=$longitude, description=$description',
+      methodName: 'createLocationMessage',
     );
-    return _createMessage(
-      contentType: MessageType.location,
-      locationElem: LocationElem(
-        description: description,
-        longitude: longitude,
-        latitude: latitude,
-      ),
-    );
+    try {
+      return _createMessage(
+        contentType: MessageType.location,
+        locationElem: LocationElem(
+          description: description,
+          longitude: longitude,
+          latitude: latitude,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createLocationMessage');
+      rethrow;
+    }
   }
 
   /// 创建自定义消息
@@ -290,22 +362,32 @@ class MessageManager {
     required String extension,
     required String description,
   }) {
-    _log.info('createCustomMessage: description=$description');
-    return _createMessage(
-      contentType: MessageType.custom,
-      customElem: CustomElem(data: data, extension: extension, description: description),
-    );
+    _log.info('description=$description', methodName: 'createCustomMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.custom,
+        customElem: CustomElem(data: data, extension: extension, description: description),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createCustomMessage');
+      rethrow;
+    }
   }
 
   /// 创建引用消息
   /// [text] 回复内容
   /// [quoteMsg] 被引用的消息
   Message createQuoteMessage({required String text, required Message quoteMsg}) {
-    _log.info('createQuoteMessage: text=$text, quoteMsgID=${quoteMsg.clientMsgID}');
-    return _createMessage(
-      contentType: MessageType.quote,
-      quoteElem: QuoteElem(text: text, quoteMessage: quoteMsg),
-    );
+    _log.info('text=$text, quoteMsgID=${quoteMsg.clientMsgID}', methodName: 'createQuoteMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.quote,
+        quoteElem: QuoteElem(text: text, quoteMessage: quoteMsg),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createQuoteMessage');
+      rethrow;
+    }
   }
 
   /// 创建名片消息
@@ -319,46 +401,61 @@ class MessageManager {
     String? faceURL,
     String? ex,
   }) {
-    _log.info('createCardMessage: userID=$userID, nickname=$nickname');
-    return _createMessage(
-      contentType: MessageType.card,
-      cardElem: CardElem(userID: userID, nickname: nickname, faceURL: faceURL, ex: ex),
-    );
+    _log.info('userID=$userID, nickname=$nickname', methodName: 'createCardMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.card,
+        cardElem: CardElem(userID: userID, nickname: nickname, faceURL: faceURL, ex: ex),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createCardMessage');
+      rethrow;
+    }
   }
 
   /// 创建自定义表情消息
   /// [index] 位置表情，根据index匹配
   /// [data] URL表情，直接使用URL展示
   Message createFaceMessage({int index = -1, String? data}) {
-    _log.info('createFaceMessage: index=$index');
-    return _createMessage(
-      contentType: MessageType.customFace,
-      faceElem: FaceElem(index: index, data: data ?? ''),
-    );
+    _log.info('index=$index', methodName: 'createFaceMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.customFace,
+        faceElem: FaceElem(index: index, data: data ?? ''),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createFaceMessage');
+      rethrow;
+    }
   }
 
   /// 创建高级文本消息（富文本）
   /// [text] 输入内容
   /// [list] 富文本消息详情
   Message createAdvancedTextMessage({required String text, List<RichMessageInfo> list = const []}) {
-    _log.info('createAdvancedTextMessage: text=$text, listCount=${list.length}');
-    return _createMessage(
-      contentType: MessageType.advancedText,
-      advancedTextElem: AdvancedTextElem(
-        text: text,
-        messageEntityList: list
-            .map(
-              (e) => MessageEntity(
-                type: e.type,
-                offset: e.offset,
-                length: e.length,
-                url: e.url,
-                ex: e.info,
-              ),
-            )
-            .toList(),
-      ),
-    );
+    _log.info('text=$text, listCount=${list.length}', methodName: 'createAdvancedTextMessage');
+    try {
+      return _createMessage(
+        contentType: MessageType.advancedText,
+        advancedTextElem: AdvancedTextElem(
+          text: text,
+          messageEntityList: list
+              .map(
+                (e) => MessageEntity(
+                  type: e.type,
+                  offset: e.offset,
+                  length: e.length,
+                  url: e.url,
+                  ex: e.info,
+                ),
+              )
+              .toList(),
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createAdvancedTextMessage');
+      rethrow;
+    }
   }
 
   /// 创建高级引用消息（富文本引用）
@@ -370,24 +467,32 @@ class MessageManager {
     required Message quoteMsg,
     List<RichMessageInfo> list = const [],
   }) {
-    _log.info('createAdvancedQuoteMessage: text=$text, quoteMsgID=${quoteMsg.clientMsgID}');
-    final entities = list
-        .map(
-          (e) => MessageEntity(
-            type: e.type,
-            offset: e.offset,
-            length: e.length,
-            url: e.url,
-            ex: e.info,
-          ),
-        )
-        .toList();
-
-    return _createMessage(
-      contentType: MessageType.quote,
-      quoteElem: QuoteElem(text: text, quoteMessage: quoteMsg),
-      advancedTextElem: AdvancedTextElem(text: text, messageEntityList: entities),
+    _log.info(
+      'text=$text, quoteMsgID=${quoteMsg.clientMsgID}',
+      methodName: 'createAdvancedQuoteMessage',
     );
+    try {
+      final entities = list
+          .map(
+            (e) => MessageEntity(
+              type: e.type,
+              offset: e.offset,
+              length: e.length,
+              url: e.url,
+              ex: e.info,
+            ),
+          )
+          .toList();
+
+      return _createMessage(
+        contentType: MessageType.quote,
+        quoteElem: QuoteElem(text: text, quoteMessage: quoteMsg),
+        advancedTextElem: AdvancedTextElem(text: text, messageEntityList: entities),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createAdvancedQuoteMessage');
+      rethrow;
+    }
   }
 
   /// 通过URL创建图片消息
@@ -401,39 +506,60 @@ class MessageManager {
     required PictureInfo snapshotPicture,
     String? sourcePath,
   }) {
-    _log.info('createImageMessageByURL: sourcePath=$sourcePath');
-    return _createMessage(
-      contentType: MessageType.picture,
-      pictureElem: PictureElem(
-        sourcePath: sourcePath,
-        sourcePicture: sourcePicture,
-        bigPicture: bigPicture,
-        snapshotPicture: snapshotPicture,
-      ),
-    );
+    _log.info('sourcePath=$sourcePath', methodName: 'createImageMessageByURL');
+    try {
+      return _createMessage(
+        contentType: MessageType.picture,
+        pictureElem: PictureElem(
+          sourcePath: sourcePath,
+          sourcePicture: sourcePicture,
+          bigPicture: bigPicture,
+          snapshotPicture: snapshotPicture,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createImageMessageByURL');
+      rethrow;
+    }
   }
 
   /// 通过URL创建语音消息
   /// [soundElem] 语音消息元素
   Message createSoundMessageByURL({required SoundElem soundElem}) {
-    _log.info('createSoundMessageByURL: duration=${soundElem.duration}');
-    return _createMessage(contentType: MessageType.voice, soundElem: soundElem);
+    _log.info('duration=${soundElem.duration}', methodName: 'createSoundMessageByURL');
+    try {
+      return _createMessage(contentType: MessageType.voice, soundElem: soundElem);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createSoundMessageByURL');
+      rethrow;
+    }
   }
 
   /// 通过URL创建视频消息
   /// [videoElem] 视频消息元素
   Message createVideoMessageByURL({required VideoElem videoElem}) {
     _log.info(
-      'createVideoMessageByURL: videoType=${videoElem.videoType}, duration=${videoElem.duration}',
+      'videoType=${videoElem.videoType}, duration=${videoElem.duration}',
+      methodName: 'createVideoMessageByURL',
     );
-    return _createMessage(contentType: MessageType.video, videoElem: videoElem);
+    try {
+      return _createMessage(contentType: MessageType.video, videoElem: videoElem);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createVideoMessageByURL');
+      rethrow;
+    }
   }
 
   /// 通过URL创建文件消息
   /// [fileElem] 文件消息元素
   Message createFileMessageByURL({required FileElem fileElem}) {
-    _log.info('createFileMessageByURL: fileName=${fileElem.fileName}');
-    return _createMessage(contentType: MessageType.file, fileElem: fileElem);
+    _log.info('fileName=${fileElem.fileName}', methodName: 'createFileMessageByURL');
+    try {
+      return _createMessage(contentType: MessageType.file, fileElem: fileElem);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createFileMessageByURL');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -840,7 +966,7 @@ class MessageManager {
     bool isOnlineOnly = false,
   }) async {
     _log.info(
-      'sendMessage: clientMsgID=${message.clientMsgID}, contentType=${message.contentType}, userID=$userID, groupID=$groupID, isOnlineOnly=$isOnlineOnly',
+      'clientMsgID=${message.clientMsgID}, contentType=${message.contentType}, userID=$userID, groupID=$groupID, isOnlineOnly=$isOnlineOnly',
     );
     final isGroupMsg = groupID != null && groupID.isNotEmpty;
     final sessionType = isGroupMsg ? ConversationType.superGroup : ConversationType.single;
@@ -935,14 +1061,20 @@ class MessageManager {
     String? userID,
     String? groupID,
     bool isOnlineOnly = false,
-  }) {
-    return sendMessage(
-      message: message,
-      offlinePushInfo: offlinePushInfo,
-      userID: userID,
-      groupID: groupID,
-      isOnlineOnly: isOnlineOnly,
-    );
+  }) async {
+    _log.info('isOnlineOnly=$isOnlineOnly', methodName: 'sendMessageNotOss');
+    try {
+      return await sendMessage(
+        message: message,
+        offlinePushInfo: offlinePushInfo,
+        userID: userID,
+        groupID: groupID,
+        isOnlineOnly: isOnlineOnly,
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'sendMessageNotOss');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -961,114 +1093,130 @@ class MessageManager {
     int? count,
   }) async {
     _log.info(
-      'getAdvancedHistoryMessageList: conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, viewType=$viewType, count=$count',
+      'conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, viewType=$viewType, count=$count',
+      methodName: 'getAdvancedHistoryMessageList',
     );
-    final queryCount = count ?? 40;
-    int startTime = startMsg?.sendTime ?? 0;
+    try {
+      final queryCount = count ?? 40;
+      int startTime = startMsg?.sendTime ?? 0;
 
-    if (startMsg?.clientMsgID != null && startMsg!.clientMsgID!.isNotEmpty) {
-      final existingMsg = await _database.getMessage(startMsg.clientMsgID!);
-      final dbSendTime = existingMsg?.sendTime ?? 0;
-      if (dbSendTime > 0) {
-        startTime = dbSendTime;
-      }
-    }
-
-    final conv = await _database.getConversation(conversationID ?? '');
-    if (conv == null) {
-      return AdvancedMessage(messageList: [], isEnd: true);
-    }
-
-    var dataList = await _database.getHistoryMessages(
-      conversationID: conversationID ?? '',
-      startTime: startTime,
-      startSeq: startMsg?.seq ?? 0,
-      startClientMsgID: startMsg?.clientMsgID ?? '',
-      count: queryCount + 1,
-    );
-
-    // 如果本地数据不足，尝试从云端拉取
-    // 对应 Go SDK 的 fetchMessagesWithGapCheck：先本地后云端
-    if (dataList.length <= queryCount) {
-      final convMaxSeq = await _database.getConversationMaxSeq(conversationID ?? '');
-      // 即使 convMaxSeq = 0 也尝试拉取（首次安装时可能为 0），确保能获取历史消息
-      // 只有当 seq 为 0 且本地已有消息时才跳过（说明确实没有更多消息）
-      if (convMaxSeq >= 0) {
-        // 确定从哪个 seq 开始向前拉取
-        int currentSeq;
-        if (startMsg != null && (startMsg.seq ?? 0) > 1) {
-          currentSeq = startMsg.seq!;
-          if (dataList.isNotEmpty) {
-            currentSeq = dataList.last.seq ?? currentSeq;
-          }
-        } else if (dataList.isNotEmpty) {
-          // 有本地数据但不足，从最早一条的 seq 向前拉取
-          currentSeq = dataList.last.seq ?? convMaxSeq;
-        } else {
-          // 无本地数据，从会话 maxSeq 开始拉取最新消息
-          // convMaxSeq = 0 时，currentSeq = 1 表示尝试拉取 seq=1 的消息
-          currentSeq = convMaxSeq > 0 ? convMaxSeq + 1 : 1;
+      if (startMsg?.clientMsgID != null && startMsg!.clientMsgID!.isNotEmpty) {
+        final existingMsg = await _database.getMessage(startMsg.clientMsgID!);
+        final dbSendTime = existingMsg?.sendTime ?? 0;
+        if (dbSendTime > 0) {
+          startTime = dbSendTime;
         }
+      }
 
-        // 始终尝试拉取（currentSeq >= 1），服务器返回空说明没有更多消息
-        if (currentSeq >= 1) {
-          final beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
-          final endSeq = currentSeq - 1;
-          if (endSeq >= beginSeq) {
-            try {
-              final resp = await _api.pullMsgBySeqs(
-                userID: _currentUserID,
-                seqRanges: [
-                  {
-                    'conversationID': conversationID,
-                    'begin': beginSeq,
-                    'end': endSeq,
-                    'num': queryCount,
-                  },
-                ],
-                order: 1, // 降序
-              );
-              if (resp.errCode == 0) {
-                final data = resp.data as Map<String, dynamic>? ?? {};
-                final msgsJson = data['msgs'] as Map<String, dynamic>? ?? {};
-                final convMsgs = msgsJson[conversationID] as Map<String, dynamic>? ?? {};
-                final pulledMsgs = (convMsgs['Msgs'] ?? convMsgs['msgs']) as List? ?? [];
+      final conv = await _database.getConversation(conversationID ?? '');
+      if (conv == null) {
+        return AdvancedMessage(messageList: [], isEnd: true);
+      }
 
-                final batchInsert = <Map<String, dynamic>>[];
-                for (final netMsg in pulledMsgs) {
-                  if (netMsg is Map) {
-                    final m = Map<String, dynamic>.from(netMsg);
-                    m['conversationID'] = conversationID;
-                    // Go SDK 存储所有消息（含通知），通知/普通分流在 conversation 层
-                    // （n_ 前缀）而非 contentType 层，pull_msg_by_seq 的 msgs 字段
-                    // 只返回普通会话消息，所以全部存入 chatLog。
-                    batchInsert.add(m);
+      var dataList = await _database.getHistoryMessages(
+        conversationID: conversationID ?? '',
+        startTime: startTime,
+        startSeq: startMsg?.seq ?? 0,
+        startClientMsgID: startMsg?.clientMsgID ?? '',
+        count: queryCount + 1,
+      );
+
+      // 如果本地数据不足，尝试从云端拉取
+      // 对应 Go SDK 的 fetchMessagesWithGapCheck：先本地后云端
+      if (dataList.length <= queryCount) {
+        final convMaxSeq = await _database.getConversationMaxSeq(conversationID ?? '');
+        // 即使 convMaxSeq = 0 也尝试拉取（首次安装时可能为 0），确保能获取历史消息
+        // 只有当 seq 为 0 且本地已有消息时才跳过（说明确实没有更多消息）
+        if (convMaxSeq >= 0) {
+          // 确定从哪个 seq 开始向前拉取
+          int currentSeq;
+          if (startMsg != null && (startMsg.seq ?? 0) > 1) {
+            currentSeq = startMsg.seq!;
+            if (dataList.isNotEmpty) {
+              currentSeq = dataList.last.seq ?? currentSeq;
+            }
+          } else if (dataList.isNotEmpty) {
+            // 有本地数据但不足，从最早一条的 seq 向前拉取
+            currentSeq = dataList.last.seq ?? convMaxSeq;
+          } else {
+            // 无本地数据，从会话 maxSeq 开始拉取最新消息
+            // convMaxSeq = 0 时，currentSeq = 1 表示尝试拉取 seq=1 的消息
+            currentSeq = convMaxSeq > 0 ? convMaxSeq + 1 : 1;
+          }
+
+          // 始终尝试拉取（currentSeq >= 1），服务器返回空说明没有更多消息
+          if (currentSeq >= 1) {
+            final beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
+            final endSeq = currentSeq - 1;
+            if (endSeq >= beginSeq) {
+              try {
+                final resp = await _api.pullMsgBySeqs(
+                  userID: _currentUserID,
+                  seqRanges: [
+                    {
+                      'conversationID': conversationID,
+                      'begin': beginSeq,
+                      'end': endSeq,
+                      'num': queryCount,
+                    },
+                  ],
+                  order: 1, // 降序
+                );
+                if (resp.errCode == 0) {
+                  final data = resp.data as Map<String, dynamic>? ?? {};
+                  final msgsJson = data['msgs'] as Map<String, dynamic>? ?? {};
+                  final convMsgs = msgsJson[conversationID] as Map<String, dynamic>? ?? {};
+                  final pulledMsgs = (convMsgs['Msgs'] ?? convMsgs['msgs']) as List? ?? [];
+
+                  final batchInsert = <Map<String, dynamic>>[];
+                  for (final netMsg in pulledMsgs) {
+                    if (netMsg is Map) {
+                      final m = Map<String, dynamic>.from(netMsg);
+                      m['conversationID'] = conversationID;
+                      // Go SDK 存储所有消息（含通知），通知/普通分流在 conversation 层
+                      // （n_ 前缀）而非 contentType 层，pull_msg_by_seq 的 msgs 字段
+                      // 只返回普通会话消息，所以全部存入 chatLog。
+                      batchInsert.add(m);
+                    }
+                  }
+                  if (batchInsert.isNotEmpty) {
+                    await _database.batchInsertMessages(batchInsert);
+                    // 重新查询使得本地有序并拼接新数据
+                    dataList = await _database.getHistoryMessages(
+                      conversationID: conversationID ?? '',
+                      startTime: startTime,
+                      startSeq: startMsg?.seq ?? 0,
+                      startClientMsgID: startMsg?.clientMsgID ?? '',
+                      count: queryCount + 1,
+                    );
                   }
                 }
-                if (batchInsert.isNotEmpty) {
-                  await _database.batchInsertMessages(batchInsert);
-                  // 重新查询使得本地有序并拼接新数据
-                  dataList = await _database.getHistoryMessages(
-                    conversationID: conversationID ?? '',
-                    startTime: startTime,
-                    startSeq: startMsg?.seq ?? 0,
-                    startClientMsgID: startMsg?.clientMsgID ?? '',
-                    count: queryCount + 1,
-                  );
-                }
+              } catch (e, s) {
+                _log.warning(
+                  '云端历史消息拉取失败: $e',
+                  error: e,
+                  stackTrace: s,
+                  methodName: 'getAdvancedHistoryMessageList',
+                );
               }
-            } catch (e) {
-              _log.warning('云端历史消息拉取失败: $e');
             }
           }
         }
       }
+
+      final isEnd = dataList.length <= queryCount;
+      final actualData = isEnd ? dataList : dataList.sublist(0, queryCount);
+
+      return AdvancedMessage(messageList: actualData, isEnd: isEnd);
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'getAdvancedHistoryMessageList',
+      );
+      rethrow;
     }
-
-    final isEnd = dataList.length <= queryCount;
-    final actualData = isEnd ? dataList : dataList.sublist(0, queryCount);
-
-    return AdvancedMessage(messageList: actualData, isEnd: isEnd);
   }
 
   /// 反向获取历史消息（startMsg之后接收的消息）
@@ -1083,40 +1231,56 @@ class MessageManager {
     int? count,
   }) async {
     _log.info(
-      'getAdvancedHistoryMessageListReverse: conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, count=$count',
+      'conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, count=$count',
+      methodName: 'getAdvancedHistoryMessageListReverse',
     );
-    final result = await getAdvancedHistoryMessageList(
-      conversationID: conversationID,
-      startMsg: startMsg,
-      viewType: viewType,
-      count: count,
-    );
-    return result.copyWith(messageList: result.messageList?.reversed.toList());
+    try {
+      final result = await getAdvancedHistoryMessageList(
+        conversationID: conversationID,
+        startMsg: startMsg,
+        viewType: viewType,
+        count: count,
+      );
+      return result.copyWith(messageList: result.messageList?.reversed.toList());
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'getAdvancedHistoryMessageListReverse',
+      );
+      rethrow;
+    }
   }
 
   /// 根据消息ID列表查找消息
   /// [searchParams] 搜索参数列表
   Future<SearchResult> findMessageList({required List<SearchParams> searchParams}) async {
-    _log.info('findMessageList: searchParamsCount=${searchParams.length}');
-    final resultItems = <SearchResultItems>[];
-    int totalCount = 0;
+    _log.info('searchParamsCount=${searchParams.length}', methodName: 'findMessageList');
+    try {
+      final resultItems = <SearchResultItems>[];
+      int totalCount = 0;
 
-    for (final param in searchParams) {
-      if (param.clientMsgIDList == null || param.clientMsgIDList!.isEmpty) continue;
-      final messages = await _database.getMessagesByClientMsgIDs(param.clientMsgIDList!);
-      if (messages.isNotEmpty) {
-        totalCount += messages.length;
-        resultItems.add(
-          SearchResultItems(
-            conversationID: param.conversationID,
-            messageCount: messages.length,
-            messageList: messages,
-          ),
-        );
+      for (final param in searchParams) {
+        if (param.clientMsgIDList == null || param.clientMsgIDList!.isEmpty) continue;
+        final messages = await _database.getMessagesByClientMsgIDs(param.clientMsgIDList!);
+        if (messages.isNotEmpty) {
+          totalCount += messages.length;
+          resultItems.add(
+            SearchResultItems(
+              conversationID: param.conversationID,
+              messageCount: messages.length,
+              messageList: messages,
+            ),
+          );
+        }
       }
-    }
 
-    return SearchResult(totalCount: totalCount, findResultItems: resultItems);
+      return SearchResult(totalCount: totalCount, findResultItems: resultItems);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'findMessageList');
+      rethrow;
+    }
   }
 
   /// 搜索本地消息
@@ -1141,32 +1305,38 @@ class MessageManager {
     int count = 40,
   }) async {
     _log.info(
-      'searchLocalMessages: conversationID=$conversationID, keywordList=$keywordList, pageIndex=$pageIndex, count=$count',
+      'conversationID=$conversationID, keywordList=$keywordList, pageIndex=$pageIndex, count=$count',
+      methodName: 'searchLocalMessages',
     );
-    final keyword = keywordList.isNotEmpty ? keywordList.first : null;
-    final offset = (pageIndex - 1) * count;
+    try {
+      final keyword = keywordList.isNotEmpty ? keywordList.first : null;
+      final offset = (pageIndex - 1) * count;
 
-    final dataList = await _database.searchMessages(
-      conversationID: conversationID,
-      keyword: keyword,
-      messageTypes: messageTypeList.isEmpty ? null : messageTypeList,
-      startTime: searchTimePosition > 0 ? searchTimePosition : null,
-      endTime: searchTimePeriod > 0 ? searchTimePosition + searchTimePeriod : null,
-      offset: offset,
-      count: count,
-    );
+      final dataList = await _database.searchMessages(
+        conversationID: conversationID,
+        keyword: keyword,
+        messageTypes: messageTypeList.isEmpty ? null : messageTypeList,
+        startTime: searchTimePosition > 0 ? searchTimePosition : null,
+        endTime: searchTimePeriod > 0 ? searchTimePosition + searchTimePeriod : null,
+        offset: offset,
+        count: count,
+      );
 
-    final messages = dataList;
-    return SearchResult(
-      totalCount: messages.length,
-      searchResultItems: [
-        SearchResultItems(
-          conversationID: conversationID,
-          messageCount: messages.length,
-          messageList: messages,
-        ),
-      ],
-    );
+      final messages = dataList;
+      return SearchResult(
+        totalCount: messages.length,
+        searchResultItems: [
+          SearchResultItems(
+            conversationID: conversationID,
+            messageCount: messages.length,
+            messageList: messages,
+          ),
+        ],
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'searchLocalMessages');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1177,33 +1347,41 @@ class MessageManager {
   /// [conversationID] 会话ID
   /// [clientMsgID] 消息ID
   Future<void> revokeMessage({required String conversationID, required String clientMsgID}) async {
-    _log.info('revokeMessage: conversationID=$conversationID, clientMsgID=$clientMsgID');
-    // 获取消息的 seq 用于服务端撤回
-    final msg = await _database.getMessage(clientMsgID);
-    final seq = msg?.seq ?? 0;
-
-    await _database.updateMessage(clientMsgID, {
-      'contentType': MessageType.revokeMessageNotification.value,
-    });
-    _log.info('消息已撤回: $clientMsgID');
-
-    msgListener?.newRecvMessageRevoked(
-      RevokedInfo(clientMsgID: clientMsgID, revokerID: _currentUserID, revokeTime: _nowMillis()),
+    _log.info(
+      'conversationID=$conversationID, clientMsgID=$clientMsgID',
+      methodName: 'revokeMessage',
     );
+    try {
+      // 获取消息的 seq 用于服务端撤回
+      final msg = await _database.getMessage(clientMsgID);
+      final seq = msg?.seq ?? 0;
 
-    // 如果撤回的消息是会话的最新消息，更新会话 latestMsg（对应 Go SDK revoke.go）
-    await _updateConversationIfLatestMsg(conversationID, clientMsgID);
+      await _database.updateMessage(clientMsgID, {
+        'contentType': MessageType.revokeMessageNotification.value,
+      });
+      _log.info('消息已撤回: $clientMsgID', methodName: 'revokeMessage');
 
-    // 同步到服务器
-    if (seq > 0) {
-      final resp = await _api.revokeMsg(
-        userID: _currentUserID,
-        conversationID: conversationID,
-        seq: seq,
+      msgListener?.newRecvMessageRevoked(
+        RevokedInfo(clientMsgID: clientMsgID, revokerID: _currentUserID, revokeTime: _nowMillis()),
       );
-      if (resp.errCode != 0) {
-        _log.warning('撤回消息同步服务器失败: ${resp.errMsg}');
+
+      // 如果撤回的消息是会话的最新消息，更新会话 latestMsg（对应 Go SDK revoke.go）
+      await _updateConversationIfLatestMsg(conversationID, clientMsgID);
+
+      // 同步到服务器
+      if (seq > 0) {
+        final resp = await _api.revokeMsg(
+          userID: _currentUserID,
+          conversationID: conversationID,
+          seq: seq,
+        );
+        if (resp.errCode != 0) {
+          _log.warning('撤回消息同步服务器失败: ${resp.errMsg}');
+        }
       }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'revokeMessage');
+      rethrow;
     }
   }
 
@@ -1215,23 +1393,36 @@ class MessageManager {
     required String clientMsgID,
   }) async {
     _log.info(
-      'deleteMessageFromLocalStorage: conversationID=$conversationID, clientMsgID=$clientMsgID',
+      'conversationID=$conversationID, clientMsgID=$clientMsgID',
+      methodName: 'deleteMessageFromLocalStorage',
     );
-    final deletedMsg = await _database.getMessage(clientMsgID);
-    await _database.deleteMessage(clientMsgID);
-    _log.info('消息已从本地删除: $clientMsgID');
+    try {
+      final deletedMsg = await _database.getMessage(clientMsgID);
+      await _database.deleteMessage(clientMsgID);
+      _log.info('消息已从本地删除: $clientMsgID', methodName: 'deleteMessageFromLocalStorage');
 
-    // 如果删除的是未读消息（非自己发送），减少未读数（对应 Go SDK delete.go）
-    if (deletedMsg != null && !(deletedMsg.isRead ?? true) && deletedMsg.sendID != _currentUserID) {
-      await _database.decrConversationUnreadCount(conversationID, 1);
-      _notifyConversationAndUnread(conversationID);
-    }
+      // 如果删除的是未读消息（非自己发送），减少未读数（对应 Go SDK delete.go）
+      if (deletedMsg != null &&
+          !(deletedMsg.isRead ?? true) &&
+          deletedMsg.sendID != _currentUserID) {
+        await _database.decrConversationUnreadCount(conversationID, 1);
+        _notifyConversationAndUnread(conversationID);
+      }
 
-    // 如果删除的是会话最新消息，更新 latestMsg
-    await _updateConversationIfLatestMsg(conversationID, clientMsgID);
+      // 如果删除的是会话最新消息，更新 latestMsg
+      await _updateConversationIfLatestMsg(conversationID, clientMsgID);
 
-    if (deletedMsg != null) {
-      msgListener?.msgDeleted(deletedMsg);
+      if (deletedMsg != null) {
+        msgListener?.msgDeleted(deletedMsg);
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'deleteMessageFromLocalStorage',
+      );
+      rethrow;
     }
   }
 
@@ -1243,77 +1434,93 @@ class MessageManager {
     required String clientMsgID,
   }) async {
     _log.info(
-      'deleteMessageFromLocalAndSvr: conversationID=$conversationID, clientMsgID=$clientMsgID',
+      'conversationID=$conversationID, clientMsgID=$clientMsgID',
+      methodName: 'deleteMessageFromLocalAndSvr',
     );
-    // 获取消息的 seq 用于服务端删除
-    final msg = await _database.getMessage(clientMsgID);
-    final seq = msg?.seq ?? 0;
+    try {
+      // 获取消息的 seq 用于服务端删除
+      final msg = await _database.getMessage(clientMsgID);
+      final seq = msg?.seq ?? 0;
 
-    await _database.deleteMessage(clientMsgID);
-    _log.info('消息已从本地和服务器删除: $clientMsgID');
+      await _database.deleteMessage(clientMsgID);
+      _log.info('消息已从本地和服务器删除: $clientMsgID', methodName: 'deleteMessageFromLocalAndSvr');
 
-    // 如果删除的是未读消息（非自己发送），减少未读数
-    if (msg != null && !(msg.isRead ?? true) && msg.sendID != _currentUserID) {
-      await _database.decrConversationUnreadCount(conversationID, 1);
-      _notifyConversationAndUnread(conversationID);
-    }
-
-    // 如果删除的是会话最新消息，更新 latestMsg
-    await _updateConversationIfLatestMsg(conversationID, clientMsgID);
-
-    if (msg != null) {
-      msgListener?.msgDeleted(msg);
-    }
-
-    // 同步到服务器
-    if (seq > 0) {
-      final resp = await _api.deleteMsgs(
-        userID: _currentUserID,
-        conversationID: conversationID,
-        seqs: [seq],
-      );
-      if (resp.errCode != 0) {
-        _log.warning('删除消息同步服务器失败: ${resp.errMsg}');
+      // 如果删除的是未读消息（非自己发送），减少未读数
+      if (msg != null && !(msg.isRead ?? true) && msg.sendID != _currentUserID) {
+        await _database.decrConversationUnreadCount(conversationID, 1);
+        _notifyConversationAndUnread(conversationID);
       }
+
+      // 如果删除的是会话最新消息，更新 latestMsg
+      await _updateConversationIfLatestMsg(conversationID, clientMsgID);
+
+      if (msg != null) {
+        msgListener?.msgDeleted(msg);
+      }
+
+      // 同步到服务器
+      if (seq > 0) {
+        final resp = await _api.deleteMsgs(
+          userID: _currentUserID,
+          conversationID: conversationID,
+          seqs: [seq],
+        );
+        if (resp.errCode != 0) {
+          _log.warning('删除消息同步服务器失败: ${resp.errMsg}');
+        }
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteMessageFromLocalAndSvr');
+      rethrow;
     }
   }
 
   /// 删除所有本地消息
   Future<void> deleteAllMsgFromLocal() async {
-    _log.info('deleteAllMsgFromLocal');
-    // 先获取所有会话用于回调
-    final allConvs = await _database.getAllConversations();
-    final affectedIDs = allConvs.map((c) => c.conversationID).toList();
+    _log.info('called', methodName: 'deleteAllMsgFromLocal');
+    try {
+      // 先获取所有会话用于回调
+      final allConvs = await _database.getAllConversations();
+      final affectedIDs = allConvs.map((c) => c.conversationID).toList();
 
-    await _database.deleteAllMessages();
-    _log.info('所有本地消息已删除');
+      await _database.deleteAllMessages();
+      _log.info('所有本地消息已删除', methodName: 'deleteAllMsgFromLocal');
 
-    // 清理会话并触发回调（对应 Go SDK deleteAllMsgFromLocal）
-    if (affectedIDs.isNotEmpty) {
-      final listener = _conversationManager?.listener;
-      final convList = await _database.getMultipleConversations(affectedIDs);
-      if (convList.isNotEmpty) {
-        listener?.conversationChanged(convList);
+      // 清理会话并触发回调（对应 Go SDK deleteAllMsgFromLocal）
+      if (affectedIDs.isNotEmpty) {
+        final listener = _conversationManager?.listener;
+        final convList = await _database.getMultipleConversations(affectedIDs);
+        if (convList.isNotEmpty) {
+          listener?.conversationChanged(convList);
+        }
+        final total = await _database.getTotalUnreadCount();
+        listener?.totalUnreadMessageCountChanged(total);
       }
-      final total = await _database.getTotalUnreadCount();
-      listener?.totalUnreadMessageCountChanged(total);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteAllMsgFromLocal');
+      rethrow;
     }
   }
 
   /// 删除所有消息（本地和服务器）
   Future<void> deleteAllMsgFromLocalAndSvr() async {
-    _log.info('deleteAllMsgFromLocalAndSvr');
-    await _database.deleteAllMessages();
-    _log.info('所有消息已从本地和服务器删除');
+    _log.info('called', methodName: 'deleteAllMsgFromLocalAndSvr');
+    try {
+      await _database.deleteAllMessages();
+      _log.info('所有消息已从本地和服务器删除', methodName: 'deleteAllMsgFromLocalAndSvr');
 
-    // 触发 totalUnreadChanged（对应 Go SDK deleteAllMsgFromLocalAndServer）
-    final total = await _database.getTotalUnreadCount();
-    _conversationManager?.listener?.totalUnreadMessageCountChanged(total);
+      // 触发 totalUnreadChanged（对应 Go SDK deleteAllMsgFromLocalAndServer）
+      final total = await _database.getTotalUnreadCount();
+      _conversationManager?.listener?.totalUnreadMessageCountChanged(total);
 
-    // 同步到服务器
-    final resp = await _api.clearAllMsg(userID: _currentUserID);
-    if (resp.errCode != 0) {
-      _log.warning('清空所有消息同步服务器失败: ${resp.errMsg}');
+      // 同步到服务器
+      final resp = await _api.clearAllMsg(userID: _currentUserID);
+      if (resp.errCode != 0) {
+        _log.warning('清空所有消息同步服务器失败: ${resp.errMsg}');
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteAllMsgFromLocalAndSvr');
+      rethrow;
     }
   }
 
@@ -1326,20 +1533,28 @@ class MessageManager {
     required String clientMsgID,
     required String localEx,
   }) async {
-    _log.info('setMessageLocalEx: conversationID=$conversationID, clientMsgID=$clientMsgID');
-    await _database.updateMessage(clientMsgID, {'localEx': localEx});
+    _log.info(
+      'conversationID=$conversationID, clientMsgID=$clientMsgID',
+      methodName: 'setMessageLocalEx',
+    );
+    try {
+      await _database.updateMessage(clientMsgID, {'localEx': localEx});
 
-    // 如果修改的是会话的最新消息，更新会话 latestMsg（对应 Go SDK SetMessageLocalEx）
-    final conv = await _database.getConversation(conversationID);
-    if (conv?.latestMsg != null && conv!.latestMsg!.clientMsgID == clientMsgID) {
-      final updatedMsg = conv.latestMsg!.copyWith(localEx: localEx);
-      await _database.updateConversation(conversationID, {
-        'latestMsg': jsonEncode(updatedMsg.toJson()),
-      });
-      final updated = await _database.getConversation(conversationID);
-      if (updated != null) {
-        _conversationManager?.listener?.conversationChanged([updated]);
+      // 如果修改的是会话的最新消息，更新会话 latestMsg（对应 Go SDK SetMessageLocalEx）
+      final conv = await _database.getConversation(conversationID);
+      if (conv?.latestMsg != null && conv!.latestMsg!.clientMsgID == clientMsgID) {
+        final updatedMsg = conv.latestMsg!.copyWith(localEx: localEx);
+        await _database.updateConversation(conversationID, {
+          'latestMsg': jsonEncode(updatedMsg.toJson()),
+        });
+        final updated = await _database.getConversation(conversationID);
+        if (updated != null) {
+          _conversationManager?.listener?.conversationChanged([updated]);
+        }
       }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setMessageLocalEx');
+      rethrow;
     }
   }
 
@@ -1352,22 +1567,35 @@ class MessageManager {
     String? senderID,
     Message? message,
   }) async {
-    _log.info('insertSingleMessageToLocalStorage: receiverID=$receiverID, senderID=$senderID');
-    final msg = (message ?? _createMessage(contentType: MessageType.text)).copyWith(
-      sendID: senderID,
-      recvID: receiverID,
-      sessionType: ConversationType.single,
-      status: MessageStatus.succeeded,
-      sendTime: _nowMillis(),
+    _log.info(
+      'receiverID=$receiverID, senderID=$senderID',
+      methodName: 'insertSingleMessageToLocalStorage',
     );
-    final conversationID = OpenImUtils.genSingleConversationID(
-      senderID == _currentUserID ? _currentUserID : (senderID ?? ''),
-      senderID == _currentUserID ? (receiverID ?? '') : (senderID ?? ''),
-    );
-    await _database.insertMessage(DatabaseService.messageToDbMap(msg));
-    // 触发会话更新（对应 Go SDK InsertSingleMessageToLocalStorage 的 AddConOrUpLatMsg）
-    await _updateConversationLatestMsg(conversationID, msg, ConversationType.single);
-    return msg;
+    try {
+      final msg = (message ?? _createMessage(contentType: MessageType.text)).copyWith(
+        sendID: senderID,
+        recvID: receiverID,
+        sessionType: ConversationType.single,
+        status: MessageStatus.succeeded,
+        sendTime: _nowMillis(),
+      );
+      final conversationID = OpenImUtils.genSingleConversationID(
+        senderID == _currentUserID ? _currentUserID : (senderID ?? ''),
+        senderID == _currentUserID ? (receiverID ?? '') : (senderID ?? ''),
+      );
+      await _database.insertMessage(DatabaseService.messageToDbMap(msg));
+      // 触发会话更新（对应 Go SDK InsertSingleMessageToLocalStorage 的 AddConOrUpLatMsg）
+      await _updateConversationLatestMsg(conversationID, msg, ConversationType.single);
+      return msg;
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'insertSingleMessageToLocalStorage',
+      );
+      rethrow;
+    }
   }
 
   /// 插入群聊消息到本地存储
@@ -1379,19 +1607,32 @@ class MessageManager {
     String? senderID,
     Message? message,
   }) async {
-    _log.info('insertGroupMessageToLocalStorage: groupID=$groupID, senderID=$senderID');
-    final msg = (message ?? _createMessage(contentType: MessageType.text)).copyWith(
-      sendID: senderID,
-      groupID: groupID,
-      sessionType: ConversationType.superGroup,
-      status: MessageStatus.succeeded,
-      sendTime: _nowMillis(),
+    _log.info(
+      'groupID=$groupID, senderID=$senderID',
+      methodName: 'insertGroupMessageToLocalStorage',
     );
-    final conversationID = OpenImUtils.genGroupConversationID(groupID ?? '');
-    await _database.insertMessage(DatabaseService.messageToDbMap(msg));
-    // 触发会话更新（对应 Go SDK InsertGroupMessageToLocalStorage 的 AddConOrUpLatMsg）
-    await _updateConversationLatestMsg(conversationID, msg, ConversationType.superGroup);
-    return msg;
+    try {
+      final msg = (message ?? _createMessage(contentType: MessageType.text)).copyWith(
+        sendID: senderID,
+        groupID: groupID,
+        sessionType: ConversationType.superGroup,
+        status: MessageStatus.succeeded,
+        sendTime: _nowMillis(),
+      );
+      final conversationID = OpenImUtils.genGroupConversationID(groupID ?? '');
+      await _database.insertMessage(DatabaseService.messageToDbMap(msg));
+      // 触发会话更新（对应 Go SDK InsertGroupMessageToLocalStorage 的 AddConOrUpLatMsg）
+      await _updateConversationLatestMsg(conversationID, msg, ConversationType.superGroup);
+      return msg;
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'insertGroupMessageToLocalStorage',
+      );
+      rethrow;
+    }
   }
 
   /// 创建图片消息（通过完整文件路径）
@@ -1399,33 +1640,48 @@ class MessageManager {
   /// 对应 Go SDK CreateImageMessageFromFullPath：
   /// 通过 getImageInfo 获取 width / height / type，填充 SourcePicture
   Message createImageMessageFromFullPath({required String imagePath, String? operationID}) {
-    _log.info('createImageMessageFromFullPath: imagePath=$imagePath');
-    final file = File(imagePath);
-    final fileSize = file.existsSync() ? file.lengthSync() : 0;
-    final ext = imagePath.split('.').last.toLowerCase();
-    final imageType = 'image/$ext';
-
-    // 尝试读取图片宽高（对应 Go SDK 的 getImageInfo）
-    int width = 0;
-    int height = 0;
+    _log.info('imagePath=$imagePath', methodName: 'createImageMessageFromFullPath');
     try {
-      final bytes = file.readAsBytesSync();
-      final decoded = _decodeImageDimensions(bytes);
-      if (decoded != null) {
-        width = decoded.width;
-        height = decoded.height;
-      }
-    } catch (e) {
-      _log.warning('读取图片尺寸失败: $e');
-    }
+      final file = File(imagePath);
+      final fileSize = file.existsSync() ? file.lengthSync() : 0;
+      final ext = imagePath.split('.').last.toLowerCase();
+      final imageType = 'image/$ext';
 
-    return _createMessage(
-      contentType: MessageType.picture,
-      pictureElem: PictureElem(
-        sourcePath: imagePath,
-        sourcePicture: PictureInfo(width: width, height: height, type: imageType, size: fileSize),
-      ),
-    );
+      // 尝试读取图片宽高（对应 Go SDK 的 getImageInfo）
+      int width = 0;
+      int height = 0;
+      try {
+        final bytes = file.readAsBytesSync();
+        final decoded = _decodeImageDimensions(bytes);
+        if (decoded != null) {
+          width = decoded.width;
+          height = decoded.height;
+        }
+      } catch (e, s) {
+        _log.warning(
+          '读取图片尺寸失败: $e',
+          error: e,
+          stackTrace: s,
+          methodName: 'createImageMessageFromFullPath',
+        );
+      }
+
+      return _createMessage(
+        contentType: MessageType.picture,
+        pictureElem: PictureElem(
+          sourcePath: imagePath,
+          sourcePicture: PictureInfo(width: width, height: height, type: imageType, size: fileSize),
+        ),
+      );
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'createImageMessageFromFullPath',
+      );
+      rethrow;
+    }
   }
 
   /// 创建语音消息（通过完整文件路径）
@@ -1437,14 +1693,27 @@ class MessageManager {
     required int duration,
     String? operationID,
   }) {
-    _log.info('createSoundMessageFromFullPath: soundPath=$soundPath, duration=$duration');
-    final file = File(soundPath);
-    final fileSize = file.existsSync() ? file.lengthSync() : 0;
-
-    return _createMessage(
-      contentType: MessageType.voice,
-      soundElem: SoundElem(soundPath: soundPath, duration: duration, dataSize: fileSize),
+    _log.info(
+      'soundPath=$soundPath, duration=$duration',
+      methodName: 'createSoundMessageFromFullPath',
     );
+    try {
+      final file = File(soundPath);
+      final fileSize = file.existsSync() ? file.lengthSync() : 0;
+
+      return _createMessage(
+        contentType: MessageType.voice,
+        soundElem: SoundElem(soundPath: soundPath, duration: duration, dataSize: fileSize),
+      );
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'createSoundMessageFromFullPath',
+      );
+      rethrow;
+    }
   }
 
   /// 创建视频消息（通过完整文件路径）
@@ -1461,44 +1730,60 @@ class MessageManager {
     String? operationID,
   }) {
     _log.info(
-      'createVideoMessageFromFullPath: videoPath=$videoPath, videoType=$videoType, duration=$duration',
+      'videoPath=$videoPath, videoType=$videoType, duration=$duration',
+      methodName: 'createVideoMessageFromFullPath',
     );
-    final videoFile = File(videoPath);
-    final videoSize = videoFile.existsSync() ? videoFile.lengthSync() : 0;
+    try {
+      final videoFile = File(videoPath);
+      final videoSize = videoFile.existsSync() ? videoFile.lengthSync() : 0;
 
-    int snapWidth = 0;
-    int snapHeight = 0;
-    int snapSize = 0;
-    if (snapshotPath.isNotEmpty) {
-      final snapFile = File(snapshotPath);
-      if (snapFile.existsSync()) {
-        snapSize = snapFile.lengthSync();
-        try {
-          final bytes = snapFile.readAsBytesSync();
-          final decoded = _decodeImageDimensions(bytes);
-          if (decoded != null) {
-            snapWidth = decoded.width;
-            snapHeight = decoded.height;
+      int snapWidth = 0;
+      int snapHeight = 0;
+      int snapSize = 0;
+      if (snapshotPath.isNotEmpty) {
+        final snapFile = File(snapshotPath);
+        if (snapFile.existsSync()) {
+          snapSize = snapFile.lengthSync();
+          try {
+            final bytes = snapFile.readAsBytesSync();
+            final decoded = _decodeImageDimensions(bytes);
+            if (decoded != null) {
+              snapWidth = decoded.width;
+              snapHeight = decoded.height;
+            }
+          } catch (e, s) {
+            _log.warning(
+              '读取视频缩略图尺寸失败: $e',
+              error: e,
+              stackTrace: s,
+              methodName: 'createVideoMessageFromFullPath',
+            );
           }
-        } catch (e) {
-          _log.warning('读取视频缩略图尺寸失败: $e');
         }
       }
-    }
 
-    return _createMessage(
-      contentType: MessageType.video,
-      videoElem: VideoElem(
-        videoPath: videoPath,
-        videoType: videoType,
-        duration: duration,
-        videoSize: videoSize,
-        snapshotPath: snapshotPath,
-        snapshotWidth: snapWidth,
-        snapshotHeight: snapHeight,
-        snapshotSize: snapSize,
-      ),
-    );
+      return _createMessage(
+        contentType: MessageType.video,
+        videoElem: VideoElem(
+          videoPath: videoPath,
+          videoType: videoType,
+          duration: duration,
+          videoSize: videoSize,
+          snapshotPath: snapshotPath,
+          snapshotWidth: snapWidth,
+          snapshotHeight: snapHeight,
+          snapshotSize: snapSize,
+        ),
+      );
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'createVideoMessageFromFullPath',
+      );
+      rethrow;
+    }
   }
 
   /// 创建文件消息（通过完整文件路径）
@@ -1510,29 +1795,60 @@ class MessageManager {
     required String fileName,
     String? operationID,
   }) {
-    _log.info('createFileMessageFromFullPath: filePath=$filePath, fileName=$fileName');
-    final file = File(filePath);
-    final fileSize = file.existsSync() ? file.lengthSync() : 0;
-
-    return _createMessage(
-      contentType: MessageType.file,
-      fileElem: FileElem(filePath: filePath, fileName: fileName, fileSize: fileSize),
+    _log.info(
+      'filePath=$filePath, fileName=$fileName',
+      methodName: 'createFileMessageFromFullPath',
     );
+    try {
+      final file = File(filePath);
+      final fileSize = file.existsSync() ? file.lengthSync() : 0;
+
+      return _createMessage(
+        contentType: MessageType.file,
+        fileElem: FileElem(filePath: filePath, fileName: fileName, fileSize: fileSize),
+      );
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'createFileMessageFromFullPath',
+      );
+      rethrow;
+    }
   }
 
   /// 处理收到的新消息
   void onRecvNewMessage(Message message) {
-    msgListener?.recvNewMessage(message);
+    _log.info('called', methodName: 'onRecvNewMessage');
+    try {
+      msgListener?.recvNewMessage(message);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'onRecvNewMessage');
+      rethrow;
+    }
   }
 
   /// 处理收到的离线消息
   void onRecvOfflineNewMessage(Message message) {
-    msgListener?.recvOfflineNewMessage(message);
+    _log.info('called', methodName: 'onRecvOfflineNewMessage');
+    try {
+      msgListener?.recvOfflineNewMessage(message);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'onRecvOfflineNewMessage');
+      rethrow;
+    }
   }
 
   /// 处理收到的仅在线消息
   void onRecvOnlineOnlyMessage(Message message) {
-    msgListener?.recvOnlineOnlyMessage(message);
+    _log.info('called', methodName: 'onRecvOnlineOnlyMessage');
+    try {
+      msgListener?.recvOnlineOnlyMessage(message);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'onRecvOnlineOnlyMessage');
+      rethrow;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1611,78 +1927,104 @@ class MessageManager {
     Message message,
     ConversationType sessionType,
   ) async {
-    final conv = await _database.getConversation(conversationID);
-    final listener = _conversationManager?.listener;
-    if (conv != null) {
-      // 仅当新消息时间 >= 现有最新消息时间时才更新（对应 Go SDK 判断）
-      final existingTime = conv.latestMsgSendTime ?? 0;
-      if ((message.sendTime ?? 0) >= existingTime) {
-        await _database.updateConversation(conversationID, {
+    _log.info('conversationID=$conversationID', methodName: '_updateConversationLatestMsg');
+    try {
+      final conv = await _database.getConversation(conversationID);
+      final listener = _conversationManager?.listener;
+      if (conv != null) {
+        // 仅当新消息时间 >= 现有最新消息时间时才更新（对应 Go SDK 判断）
+        final existingTime = conv.latestMsgSendTime ?? 0;
+        if ((message.sendTime ?? 0) >= existingTime) {
+          await _database.updateConversation(conversationID, {
+            'latestMsg': jsonEncode(message.toJson()),
+            'latestMsgSendTime': message.sendTime,
+          });
+          // 触发 OnConversationChanged
+          final updated = await _database.getConversation(conversationID);
+          if (updated != null) {
+            listener?.conversationChanged([updated]);
+          }
+        }
+      } else {
+        // 新会话
+        await _database.upsertConversation({
+          'conversationID': conversationID,
+          'conversationType': sessionType.value,
+          'userID': message.recvID,
+          'groupID': message.groupID,
           'latestMsg': jsonEncode(message.toJson()),
           'latestMsgSendTime': message.sendTime,
+          'unreadCount': 0,
         });
-        // 触发 OnConversationChanged
-        final updated = await _database.getConversation(conversationID);
-        if (updated != null) {
-          listener?.conversationChanged([updated]);
+        // 触发 OnNewConversation
+        final newConv = await _database.getConversation(conversationID);
+        if (newConv != null) {
+          listener?.newConversation([newConv]);
         }
       }
-    } else {
-      // 新会话
-      await _database.upsertConversation({
-        'conversationID': conversationID,
-        'conversationType': sessionType.value,
-        'userID': message.recvID,
-        'groupID': message.groupID,
-        'latestMsg': jsonEncode(message.toJson()),
-        'latestMsgSendTime': message.sendTime,
-        'unreadCount': 0,
-      });
-      // 触发 OnNewConversation
-      final newConv = await _database.getConversation(conversationID);
-      if (newConv != null) {
-        listener?.newConversation([newConv]);
-      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_updateConversationLatestMsg');
+      rethrow;
     }
   }
 
   /// 如果被删除/撤回的消息是会话的 latestMsg，则更新 latestMsg 为次新消息
   /// 对应 Go SDK delete.go / revoke.go 中的 latestMsg 判断更新逻辑
   Future<void> _updateConversationIfLatestMsg(String conversationID, String clientMsgID) async {
-    final conv = await _database.getConversation(conversationID);
-    if (conv?.latestMsg == null) return;
-    if (conv!.latestMsg!.clientMsgID != clientMsgID) return;
-
-    // latestMsg 被删除/撤回，查找次新消息
+    _log.info(
+      'conversationID=$conversationID, clientMsgID=$clientMsgID',
+      methodName: '_updateConversationIfLatestMsg',
+    );
     try {
-      final msgs = await _database.getHistoryMessages(conversationID: conversationID, count: 1);
-      if (msgs.isNotEmpty) {
-        await _database.updateConversation(conversationID, {
-          'latestMsg': jsonEncode(msgs.first.toJson()),
-          'latestMsgSendTime': msgs.first.sendTime,
-        });
-      } else {
-        await _database.updateConversation(conversationID, {
-          'latestMsg': '',
-          'latestMsgSendTime': 0,
-        });
-      }
-      final updated = await _database.getConversation(conversationID);
-      if (updated != null) {
-        _conversationManager?.listener?.conversationChanged([updated]);
-      }
-    } catch (_) {}
+      final conv = await _database.getConversation(conversationID);
+      if (conv?.latestMsg == null) return;
+      if (conv!.latestMsg!.clientMsgID != clientMsgID) return;
+
+      // latestMsg 被删除/撤回，查找次新消息
+      try {
+        final msgs = await _database.getHistoryMessages(conversationID: conversationID, count: 1);
+        if (msgs.isNotEmpty) {
+          await _database.updateConversation(conversationID, {
+            'latestMsg': jsonEncode(msgs.first.toJson()),
+            'latestMsgSendTime': msgs.first.sendTime,
+          });
+        } else {
+          await _database.updateConversation(conversationID, {
+            'latestMsg': '',
+            'latestMsgSendTime': 0,
+          });
+        }
+        final updated = await _database.getConversation(conversationID);
+        if (updated != null) {
+          _conversationManager?.listener?.conversationChanged([updated]);
+        }
+      } catch (_) {}
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_updateConversationIfLatestMsg',
+      );
+      rethrow;
+    }
   }
 
   /// 触发 conversationChanged + totalUnreadChanged（删除未读消息后使用）
   Future<void> _notifyConversationAndUnread(String conversationID) async {
-    final listener = _conversationManager?.listener;
-    final conv = await _database.getConversation(conversationID);
-    if (conv != null) {
-      listener?.conversationChanged([conv]);
+    _log.info('conversationID=$conversationID', methodName: '_notifyConversationAndUnread');
+    try {
+      final listener = _conversationManager?.listener;
+      final conv = await _database.getConversation(conversationID);
+      if (conv != null) {
+        listener?.conversationChanged([conv]);
+      }
+      final total = await _database.getTotalUnreadCount();
+      listener?.totalUnreadMessageCountChanged(total);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_notifyConversationAndUnread');
+      rethrow;
     }
-    final total = await _database.getTotalUnreadCount();
-    listener?.totalUnreadMessageCountChanged(total);
   }
 
   /// 通过 WebSocket 发送消息（使用 protobuf）
@@ -1692,51 +2034,60 @@ class MessageManager {
     ConversationType sessionType,
     bool isOnlineOnly,
   ) async {
-    // 1. 构建 MsgData protobuf
-    final msgData = _buildMsgData(message, isOnlineOnly);
-
-    // 2. 序列化为 protobuf 字节
-    final msgDataBytes = msgData.writeToBuffer();
-
-    // 3. 通过 WebSocket 发送
-    if (!_webSocketService.isConnected) {
-      throw StateError('WebSocket 未连接');
-    }
-
+    _log.info(
+      'conversationID=$conversationID, clientMsgID=${message.clientMsgID}',
+      methodName: '_sendMsgViaWebSocket',
+    );
     try {
-      final resp = await _webSocketService.sendRequestWaitResponse(
-        reqIdentifier: WebSocketIdentifier.sendMsg,
-        data: msgDataBytes,
-      );
+      // 1. 构建 MsgData protobuf
+      final msgData = _buildMsgData(message, isOnlineOnly);
 
-      if (resp.errCode == 0) {
-        // 解析响应：服务器返回修改后的消息或发送结果
-        final sentMsg = message.copyWith(status: MessageStatus.succeeded, sendTime: _nowMillis());
+      // 2. 序列化为 protobuf 字节
+      final msgDataBytes = msgData.writeToBuffer();
 
-        // 仅在线消息不更新本地存储和会话
-        if (!isOnlineOnly) {
-          await _database.updateMessage(sentMsg.clientMsgID!, {
-            'status': MessageStatus.succeeded.value,
-            'sendTime': sentMsg.sendTime,
-          });
-          await _database.deleteSendingMessage(sentMsg.clientMsgID!);
-          await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
-        }
-        return sentMsg;
-      } else {
-        _log.warning('消息发送失败: errCode=${resp.errCode}, errMsg=${resp.errMsg}');
-        final failedMsg = message.copyWith(status: MessageStatus.failed);
-        if (!isOnlineOnly) {
-          await _database.updateMessage(failedMsg.clientMsgID!, {
-            'status': MessageStatus.failed.value,
-          });
-          await _database.deleteSendingMessage(failedMsg.clientMsgID!);
-          await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
-        }
-        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      // 3. 通过 WebSocket 发送
+      if (!_webSocketService.isConnected) {
+        throw StateError('WebSocket 未连接');
       }
-    } catch (e) {
-      _log.warning('WebSocket 发送失败: $e');
+
+      try {
+        final resp = await _webSocketService.sendRequestWaitResponse(
+          reqIdentifier: WebSocketIdentifier.sendMsg,
+          data: msgDataBytes,
+        );
+
+        if (resp.errCode == 0) {
+          // 解析响应：服务器返回修改后的消息或发送结果
+          final sentMsg = message.copyWith(status: MessageStatus.succeeded, sendTime: _nowMillis());
+
+          // 仅在线消息不更新本地存储和会话
+          if (!isOnlineOnly) {
+            await _database.updateMessage(sentMsg.clientMsgID!, {
+              'status': MessageStatus.succeeded.value,
+              'sendTime': sentMsg.sendTime,
+            });
+            await _database.deleteSendingMessage(sentMsg.clientMsgID!);
+            await _updateConversationLatestMsg(conversationID, sentMsg, sessionType);
+          }
+          return sentMsg;
+        } else {
+          _log.warning('消息发送失败: errCode=${resp.errCode}, errMsg=${resp.errMsg}');
+          final failedMsg = message.copyWith(status: MessageStatus.failed);
+          if (!isOnlineOnly) {
+            await _database.updateMessage(failedMsg.clientMsgID!, {
+              'status': MessageStatus.failed.value,
+            });
+            await _database.deleteSendingMessage(failedMsg.clientMsgID!);
+            await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
+          }
+          throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+        }
+      } catch (e) {
+        _log.warning('WebSocket 发送失败: $e');
+        rethrow;
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_sendMsgViaWebSocket');
       rethrow;
     }
   }
