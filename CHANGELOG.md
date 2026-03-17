@@ -4,11 +4,21 @@
 
 ### 修复
 
+- **修复文件上传进度回调不生效**：`uploadFile()` 新增 `onProgress` 参数，`_handleMediaUploadIfNeeded()` 在上传文件时传入进度回调，将上传进度通过 `OnMsgSendProgressListener.progress()` 通知给调用方，与 Go SDK 行为一致
+
+- **修复切换会话时发送中的消息消失**：`getHistoryMessages()` 的过滤逻辑在 `startSeq=0` 时错误地排除了其他发送中的消息（seq=0）。修改过滤条件为：当 startSeq=0 时，包含所有 seq<=0 的消息，只排除与 startMsgID 相同的消息本身，确保切换回原会话时能看到之前正在发送的消息
+
+- **修复历史消息无法拉取**：`getAdvancedHistoryMessageList` 中 `convMaxSeq > 0` 的检查阻止了对新会话（maxSeq=0）拉取历史消息。修改为即使 maxSeq=0 也尝试拉取，确保首次安装时进入聊天页面能获取历史记录
+
+- **修复初次安装时会话列表 latestMsg 为空**：优化 `_syncMessages()` 逻辑，初次安装时（`reinstalled=true`）无论 seq 是否为 0 都尝试拉取消息，确保 `latestMsg` 能正确显示在会话列表中，与 Go SDK 的 `connectPullNums=1` 行为一致
+
 - **修复文件上传失败（500 错误）**：修正分片上传 URL 构造逻辑，服务器返回的 `partInfo.url` 不完整，需手动拼接 `signUrl + uploadId + partNumber`；修复响应头解析（服务器返回 List 而非 Map）；修复 ETag 格式（S3 返回带双引号，需去除）
 
 - **修复切换会话时上传消息丢失**：新增 `recoverSendingMessages()` 方法，与 Go SDK 行为一致，App 重启后登录时自动将所有发送中的消息标记为失败（而非直接删除），用户可长按消息重发
 
 - **修复消息同步效率问题**：优化 `_syncConversationsAndSeqs()` 逻辑，与 Go SDK 保持一致，先获取服务端 seqs 与本地会话比较，只获取新增会话的完整信息，已存在会话只更新 seq，减少不必要的网络请求和数据处理
+
+- **修复初次安装时无法同步会话**：优化 `_syncConversationsAndSeqs()` 逻辑，初次安装时（本地无会话或 reinstalled=true）直接调用 `getAllConversations` 获取所有会话，与 Go SDK 行为一致
 
 ## 1.2.0
 

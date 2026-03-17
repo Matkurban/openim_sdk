@@ -419,6 +419,14 @@ class MessageManager {
   Future<Message> _handleMediaUploadIfNeeded(Message msg) async {
     final clientMsgID = msg.clientMsgID ?? '';
 
+    // 辅助方法：调用消息发送进度回调
+    void reportProgress(int sent, int total) {
+      if (total > 0) {
+        final progress = ((sent / total) * 100).round();
+        msgSendProgressListener?.progress(clientMsgID, progress);
+      }
+    }
+
     if (msg.contentType == MessageType.picture && msg.pictureElem != null) {
       final elem = msg.pictureElem!;
       if (elem.sourcePath != null &&
@@ -438,6 +446,7 @@ class MessageManager {
             fileName: uploadName,
             contentType: contentType,
             cause: 'msg-picture',
+            onProgress: reportProgress,
           );
 
           // Go SDK: s.PictureElem.SourcePicture.Url = res.URL
@@ -475,6 +484,7 @@ class MessageManager {
             fileName: uploadName,
             contentType: 'audio/$ext',
             cause: 'msg-voice',
+            onProgress: reportProgress,
           );
 
           return msg.copyWith(
@@ -506,6 +516,7 @@ class MessageManager {
             fileName: uploadName,
             contentType: contentType,
             cause: 'msg-video',
+            onProgress: reportProgress,
           );
           newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
         }
@@ -527,6 +538,7 @@ class MessageManager {
             fileName: uploadName,
             contentType: 'image/$ext',
             cause: 'msg-video-snapshot',
+            onProgress: reportProgress,
           );
           newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
         }
@@ -551,6 +563,7 @@ class MessageManager {
             fileName: uploadName,
             contentType: contentType,
             cause: 'msg-file',
+            onProgress: reportProgress,
           );
           return msg.copyWith(
             fileElem: elem.copyWith(sourceUrl: url, fileSize: fileSize, fileName: baseName),
@@ -560,6 +573,227 @@ class MessageManager {
     }
 
     return msg;
+  }
+
+  /// 检查消息是否需要上传媒体文件
+  bool _needsMediaUpload(Message msg) {
+    if (msg.contentType == MessageType.picture && msg.pictureElem != null) {
+      final elem = msg.pictureElem!;
+      return elem.sourcePath != null &&
+          elem.sourcePath!.isNotEmpty &&
+          (elem.sourcePicture?.url == null || elem.sourcePicture!.url!.isEmpty);
+    } else if (msg.contentType == MessageType.voice && msg.soundElem != null) {
+      final elem = msg.soundElem!;
+      return elem.soundPath != null &&
+          elem.soundPath!.isNotEmpty &&
+          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty);
+    } else if (msg.contentType == MessageType.video && msg.videoElem != null) {
+      final elem = msg.videoElem!;
+      return (elem.videoPath != null &&
+              elem.videoPath!.isNotEmpty &&
+              (elem.videoUrl == null || elem.videoUrl!.isEmpty)) ||
+          (elem.snapshotPath != null &&
+              elem.snapshotPath!.isNotEmpty &&
+              (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty));
+    } else if (msg.contentType == MessageType.file && msg.fileElem != null) {
+      final elem = msg.fileElem!;
+      return elem.filePath != null &&
+          elem.filePath!.isNotEmpty &&
+          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty);
+    }
+    return false;
+  }
+
+  /// 在后台处理媒体文件上传，不阻塞主流程
+  Future<void> _handleMediaUploadInBackground(
+    Message sendMsg,
+    String conversationID,
+    ConversationType sessionType,
+    bool isOnlineOnly,
+  ) async {
+    try {
+      // 辅助方法：调用消息发送进度回调
+      void reportProgress(int sent, int total) {
+        if (total > 0) {
+          final progress = ((sent / total) * 100).round();
+          msgSendProgressListener?.progress(sendMsg.clientMsgID ?? '', progress);
+        }
+      }
+
+      // 构建带进度回调的 uploadFile 参数
+      Message updatedMsg = sendMsg;
+
+      // 处理图片
+      if (sendMsg.contentType == MessageType.picture && sendMsg.pictureElem != null) {
+        final elem = sendMsg.pictureElem!;
+        if (elem.sourcePath != null && elem.sourcePath!.isNotEmpty) {
+          final file = File(elem.sourcePath!);
+          if (file.existsSync()) {
+            final fileSize = file.lengthSync();
+            final ext = elem.sourcePath!.split('.').last.toLowerCase();
+            final uploadName = 'picture_${sendMsg.clientMsgID}.$ext';
+            final contentType = elem.sourcePicture?.type ?? 'image/$ext';
+
+            final url = await OpenIM.iMManager.uploadFile(
+              id: sendMsg.clientMsgID!,
+              filePath: elem.sourcePath!,
+              fileName: uploadName,
+              contentType: contentType,
+              cause: 'msg-picture',
+              onProgress: reportProgress,
+            );
+
+            final sourcePic = (elem.sourcePicture ?? const PictureInfo()).copyWith(
+              url: url,
+              size: fileSize,
+            );
+            final snapshotPic = PictureInfo(width: 640, height: 640, url: url);
+
+            updatedMsg = updatedMsg.copyWith(
+              pictureElem: elem.copyWith(
+                sourcePicture: sourcePic,
+                bigPicture: sourcePic,
+                snapshotPicture: snapshotPic,
+              ),
+            );
+          }
+        }
+      }
+      // 处理语音
+      else if (sendMsg.contentType == MessageType.voice && sendMsg.soundElem != null) {
+        final elem = sendMsg.soundElem!;
+        if (elem.soundPath != null && elem.soundPath!.isNotEmpty) {
+          final file = File(elem.soundPath!);
+          if (file.existsSync()) {
+            final fileSize = file.lengthSync();
+            final ext = elem.soundPath!.split('.').last.toLowerCase();
+            final uploadName = 'voice_${sendMsg.clientMsgID}.$ext';
+
+            final url = await OpenIM.iMManager.uploadFile(
+              id: sendMsg.clientMsgID!,
+              filePath: elem.soundPath!,
+              fileName: uploadName,
+              contentType: 'audio/$ext',
+              cause: 'msg-voice',
+              onProgress: reportProgress,
+            );
+
+            updatedMsg = updatedMsg.copyWith(
+              soundElem: elem.copyWith(sourceUrl: url, dataSize: fileSize),
+            );
+          }
+        }
+      }
+      // 处理视频
+      else if (sendMsg.contentType == MessageType.video && sendMsg.videoElem != null) {
+        final elem = sendMsg.videoElem!;
+        var newElem = elem;
+
+        // 上传视频文件
+        if (elem.videoPath != null &&
+            elem.videoPath!.isNotEmpty &&
+            (elem.videoUrl == null || elem.videoUrl!.isEmpty)) {
+          final file = File(elem.videoPath!);
+          if (file.existsSync()) {
+            final fileSize = file.lengthSync();
+            final ext = elem.videoPath!.split('.').last.toLowerCase();
+            final uploadName = 'video_${sendMsg.clientMsgID}.$ext';
+            final contentType = _getMimeType(
+              elem.videoPath!,
+              fallback: elem.videoType ?? 'video/mp4',
+            );
+
+            final url = await OpenIM.iMManager.uploadFile(
+              id: sendMsg.clientMsgID!,
+              filePath: elem.videoPath!,
+              fileName: uploadName,
+              contentType: contentType,
+              cause: 'msg-video',
+              onProgress: reportProgress,
+            );
+            newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
+          }
+        }
+
+        // 上传视频缩略图
+        if (elem.snapshotPath != null &&
+            elem.snapshotPath!.isNotEmpty &&
+            (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty)) {
+          final file = File(elem.snapshotPath!);
+          if (file.existsSync()) {
+            final fileSize = file.lengthSync();
+            final ext = elem.snapshotPath!.split('.').last.toLowerCase();
+            final uploadName = 'videoSnapshot_${sendMsg.clientMsgID}.$ext';
+
+            final url = await OpenIM.iMManager.uploadFile(
+              id: '${sendMsg.clientMsgID}_snapshot',
+              filePath: elem.snapshotPath!,
+              fileName: uploadName,
+              contentType: 'image/$ext',
+              cause: 'msg-video-snapshot',
+              onProgress: reportProgress,
+            );
+            newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
+          }
+        }
+        updatedMsg = updatedMsg.copyWith(videoElem: newElem);
+      }
+      // 处理文件
+      else if (sendMsg.contentType == MessageType.file && sendMsg.fileElem != null) {
+        final elem = sendMsg.fileElem!;
+        if (elem.filePath != null &&
+            elem.filePath!.isNotEmpty &&
+            (elem.sourceUrl == null || elem.sourceUrl!.isEmpty)) {
+          final file = File(elem.filePath!);
+          if (file.existsSync()) {
+            final fileSize = file.lengthSync();
+            final baseName = elem.fileName ?? elem.filePath!.split(Platform.pathSeparator).last;
+            final uploadName = 'file_${sendMsg.clientMsgID}/$baseName';
+            final contentType = _getMimeType(elem.filePath!);
+
+            final url = await OpenIM.iMManager.uploadFile(
+              id: sendMsg.clientMsgID!,
+              filePath: elem.filePath!,
+              fileName: uploadName,
+              contentType: contentType,
+              cause: 'msg-file',
+              onProgress: reportProgress,
+            );
+            updatedMsg = updatedMsg.copyWith(
+              fileElem: elem.copyWith(sourceUrl: url, fileSize: fileSize, fileName: baseName),
+            );
+          }
+        }
+      }
+
+      // 上传完成后，更新数据库中的消息
+      if (!isOnlineOnly) {
+        await _database.updateMessage(
+          sendMsg.clientMsgID!,
+          DatabaseService.messageToDbMap(updatedMsg),
+        );
+        // 更新会话最新消息
+        await _updateConversationLatestMsg(conversationID, updatedMsg, sessionType);
+      }
+
+      // 通过 WebSocket 发送消息（使用 protobuf 编码，与 Go SDK 保持一致）
+      final sentMsg = await _sendMsgViaWebSocket(
+        updatedMsg,
+        conversationID,
+        sessionType,
+        isOnlineOnly,
+      );
+      _log.info('媒体文件消息发送成功: ${sentMsg.clientMsgID}');
+    } catch (e) {
+      _log.warning('媒体文件上传或消息发送失败: $e');
+      final failedMsg = sendMsg.copyWith(status: MessageStatus.failed);
+      if (!isOnlineOnly) {
+        await _database.updateMessage(sendMsg.clientMsgID!, {'status': MessageStatus.failed.value});
+        await _database.deleteSendingMessage(sendMsg.clientMsgID!);
+        // 更新会话最新消息为失败状态
+        await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
+      }
+    }
   }
 
   /// 发送消息
@@ -593,6 +827,26 @@ class MessageManager {
     final conversationID = isGroupMsg
         ? OpenImUtils.genGroupConversationID(groupID)
         : OpenImUtils.genSingleConversationID(_currentUserID, userID!);
+
+    // 检查是否需要上传媒体文件
+    final bool needsMediaUpload = _needsMediaUpload(sendMsg);
+
+    // 仅在线消息不存储到本地
+    if (!isOnlineOnly) {
+      // 对于媒体文件消息，先存储到 DB（状态为 sending），让 UI 立即显示
+      // 上传完成后再更新消息内容（URL 等）
+      if (needsMediaUpload) {
+        await _database.insertMessage(DatabaseService.messageToDbMap(sendMsg));
+        await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
+        // 立即更新会话，让 UI 立即看到"发送中"的最新消息
+        await _updateConversationLatestMsg(conversationID, sendMsg, sessionType);
+      }
+
+      // 启动媒体上传（在后台进行，不阻塞消息存储）
+      _handleMediaUploadInBackground(sendMsg, conversationID, sessionType, isOnlineOnly);
+      // 返回发送中的消息（不等待上传完成）
+      return sendMsg;
+    }
 
     // Handle media uploading before inserting to DB or sending via WS
     final finalMsg = await _handleMediaUploadIfNeeded(sendMsg);
@@ -703,7 +957,9 @@ class MessageManager {
     // 对应 Go SDK 的 fetchMessagesWithGapCheck：先本地后云端
     if (dataList.length <= queryCount) {
       final convMaxSeq = await _database.getConversationMaxSeq(conversationID ?? '');
-      if (convMaxSeq > 0) {
+      // 即使 convMaxSeq = 0 也尝试拉取（首次安装时可能为 0），确保能获取历史消息
+      // 只有当 seq 为 0 且本地已有消息时才跳过（说明确实没有更多消息）
+      if (convMaxSeq >= 0) {
         // 确定从哪个 seq 开始向前拉取
         int currentSeq;
         if (startMsg != null && (startMsg.seq ?? 0) > 1) {
@@ -716,10 +972,12 @@ class MessageManager {
           currentSeq = dataList.last.seq ?? convMaxSeq;
         } else {
           // 无本地数据，从会话 maxSeq 开始拉取最新消息
-          currentSeq = convMaxSeq + 1;
+          // convMaxSeq = 0 时，currentSeq = 1 表示尝试拉取 seq=1 的消息
+          currentSeq = convMaxSeq > 0 ? convMaxSeq + 1 : 1;
         }
 
-        if (currentSeq > 1) {
+        // 始终尝试拉取（currentSeq >= 1），服务器返回空说明没有更多消息
+        if (currentSeq >= 1) {
           final beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
           final endSeq = currentSeq - 1;
           if (endSeq >= beginSeq) {

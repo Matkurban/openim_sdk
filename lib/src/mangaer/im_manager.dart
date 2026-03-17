@@ -553,12 +553,14 @@ class IMManager {
   /// [fileName] 上传后的文件名
   /// [contentType] MIME 类型（可选，自动检测）
   /// [cause] 上传原因/用途
+  /// [onProgress] 上传进度回调 (sent, total)
   Future<String> uploadFile({
     required String id,
     required String filePath,
     required String fileName,
     String? contentType,
     String? cause,
+    void Function(int sent, int total)? onProgress,
   }) async {
     _log.info(
       'uploadFile: id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause',
@@ -762,6 +764,7 @@ class IMManager {
           onSendProgress: (sent, total) {
             _log.info('Upload progress: sent=$sent, total=$total');
             _uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
+            onProgress?.call(start + sent, fileSize);
           },
         );
 

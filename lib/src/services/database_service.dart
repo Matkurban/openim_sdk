@@ -673,6 +673,8 @@ class DatabaseService {
 
     // 根据 Go 客户端逻辑，严格在 Dart 端过滤掉包括 startMsg 及时间更新的消息：
     // 条件：send_time < ? OR (send_time = ? AND (seq < ? OR (seq = 0 AND client_msg_id != ?)))
+    // 注意：当 startSeq = 0 时（发送中的消息），应该包含所有 seq <= 0 的消息，
+    // 只排除 startMsg 本身（通过 clientMsgID 排除）
     if (startTime > 0 && dataList.isNotEmpty) {
       dataList = dataList.where((record) {
         final int sendTime = record['sendTime'] ?? 0;
@@ -682,7 +684,9 @@ class DatabaseService {
         if (sendTime < startTime) return true;
         if (sendTime == startTime) {
           if (startSeq > 0) return seq < startSeq;
-          return seq == 0 && clientMsgID != startClientMsgID;
+          // startSeq == 0 时（发送中的消息），包含所有 seq <= 0 的消息，
+          // 只排除与 startMsgID 相同的消息本身
+          return seq <= startSeq && clientMsgID != startClientMsgID;
         }
         return false;
       }).toList();
