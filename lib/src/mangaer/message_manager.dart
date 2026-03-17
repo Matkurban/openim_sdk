@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
 import 'package:logging/logging.dart';
@@ -60,6 +62,58 @@ class MessageManager {
   @internal
   void setCurrentUserID(String userID) {
     _currentUserID = userID;
+  }
+
+  /// 恢复发送中的消息
+  /// App 启动或重新登录后调用，检查本地存储的发送中消息
+  /// 与 Go SDK 行为一致：将所有发送中的消息标记为失败
+  /// Go SDK 参考：open_im_sdk/userRelated.go handlerSendingMsg
+  Future<void> recoverSendingMessages() async {
+    _log.info('Recovering sending messages...');
+    try {
+      final allSendingMessages = await _database.getAllSendingMessages();
+      if (allSendingMessages.isEmpty) {
+        _log.info('No sending messages to recover');
+        return;
+      }
+      _log.info('Found ${allSendingMessages.length} sending messages to recover');
+
+      for (final msg in allSendingMessages) {
+        final clientMsgID = msg['clientMsgID'] as String?;
+        if (clientMsgID == null) continue;
+
+        final message = await _database.getMessage(clientMsgID);
+        if (message == null) {
+          // 消息不存在，删除发送记录
+          await _database.deleteSendingMessage(clientMsgID);
+          _log.info('Message not found, deleted sending record: $clientMsgID');
+          continue;
+        }
+
+        final status = message.status?.value;
+
+        // 如果已经是成功或失败状态，跳过
+        if (status == MessageStatus.succeeded.value || status == MessageStatus.failed.value) {
+          await _database.deleteSendingMessage(clientMsgID);
+          _log.info(
+            'Message already processed (status=$status), deleted sending record: $clientMsgID',
+          );
+          continue;
+        }
+
+        // 如果状态仍然是 sending，标记为失败（与 Go SDK 一致）
+        // 这意味着 App 重启前消息正在发送但未完成，现在标记为失败
+        if (status == MessageStatus.sending.value) {
+          await _database.updateMessage(clientMsgID, {'status': MessageStatus.failed.value});
+          await _database.deleteSendingMessage(clientMsgID);
+          _log.info('Marked message as failed: $clientMsgID');
+        }
+      }
+
+      _log.info('Sending messages recovery completed');
+    } catch (e, s) {
+      _log.warning('Failed to recover sending messages: $e', e, s);
+    }
   }
 
   /// 创建文本消息
@@ -360,6 +414,154 @@ class MessageManager {
   // 消息发送
   // ---------------------------------------------------------------------------
 
+  /// 内部方法：发送前判断是否包含本地文件路径，若有则进行上传，并且更新Message内容
+  /// 对应 Go SDK sendMessage 中的 media file handle（Picture/Sound/Video/File 分支）
+  Future<Message> _handleMediaUploadIfNeeded(Message msg) async {
+    final clientMsgID = msg.clientMsgID ?? '';
+
+    if (msg.contentType == MessageType.picture && msg.pictureElem != null) {
+      final elem = msg.pictureElem!;
+      if (elem.sourcePath != null &&
+          elem.sourcePath!.isNotEmpty &&
+          (elem.sourcePicture?.url == null || elem.sourcePicture!.url!.isEmpty)) {
+        final file = File(elem.sourcePath!);
+        if (file.existsSync()) {
+          final fileSize = file.lengthSync();
+          final ext = elem.sourcePath!.split('.').last.toLowerCase();
+          // Go SDK: c.fileName("picture", s.ClientMsgID) + filepathExt
+          final uploadName = 'picture_$clientMsgID.$ext';
+          final contentType = elem.sourcePicture?.type ?? 'image/$ext';
+
+          final url = await OpenIM.iMManager.uploadFile(
+            id: clientMsgID,
+            filePath: elem.sourcePath!,
+            fileName: uploadName,
+            contentType: contentType,
+            cause: 'msg-picture',
+          );
+
+          // Go SDK: s.PictureElem.SourcePicture.Url = res.URL
+          //         s.PictureElem.BigPicture = s.PictureElem.SourcePicture
+          //         s.PictureElem.SnapshotPicture = 640x640 thumbnail URL
+          final sourcePic = (elem.sourcePicture ?? const PictureInfo()).copyWith(
+            url: url,
+            size: fileSize,
+          );
+          final snapshotPic = PictureInfo(width: 640, height: 640, url: url);
+
+          return msg.copyWith(
+            pictureElem: elem.copyWith(
+              sourcePicture: sourcePic,
+              bigPicture: sourcePic,
+              snapshotPicture: snapshotPic,
+            ),
+          );
+        }
+      }
+    } else if (msg.contentType == MessageType.voice && msg.soundElem != null) {
+      final elem = msg.soundElem!;
+      if (elem.soundPath != null &&
+          elem.soundPath!.isNotEmpty &&
+          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty)) {
+        final file = File(elem.soundPath!);
+        if (file.existsSync()) {
+          final fileSize = file.lengthSync();
+          final ext = elem.soundPath!.split('.').last.toLowerCase();
+          final uploadName = 'voice_$clientMsgID.$ext';
+
+          final url = await OpenIM.iMManager.uploadFile(
+            id: clientMsgID,
+            filePath: elem.soundPath!,
+            fileName: uploadName,
+            contentType: 'audio/$ext',
+            cause: 'msg-voice',
+          );
+
+          return msg.copyWith(
+            soundElem: elem.copyWith(sourceUrl: url, dataSize: fileSize),
+          );
+        }
+      }
+    } else if (msg.contentType == MessageType.video && msg.videoElem != null) {
+      final elem = msg.videoElem!;
+      var newElem = elem;
+
+      // 上传视频文件
+      if (elem.videoPath != null &&
+          elem.videoPath!.isNotEmpty &&
+          (elem.videoUrl == null || elem.videoUrl!.isEmpty)) {
+        final file = File(elem.videoPath!);
+        if (file.existsSync()) {
+          final fileSize = file.lengthSync();
+          final ext = elem.videoPath!.split('.').last.toLowerCase();
+          final uploadName = 'video_$clientMsgID.$ext';
+          final contentType = _getMimeType(
+            elem.videoPath!,
+            fallback: elem.videoType ?? 'video/mp4',
+          );
+
+          final url = await OpenIM.iMManager.uploadFile(
+            id: clientMsgID,
+            filePath: elem.videoPath!,
+            fileName: uploadName,
+            contentType: contentType,
+            cause: 'msg-video',
+          );
+          newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
+        }
+      }
+
+      // 上传视频缩略图
+      if (elem.snapshotPath != null &&
+          elem.snapshotPath!.isNotEmpty &&
+          (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty)) {
+        final file = File(elem.snapshotPath!);
+        if (file.existsSync()) {
+          final fileSize = file.lengthSync();
+          final ext = elem.snapshotPath!.split('.').last.toLowerCase();
+          final uploadName = 'videoSnapshot_$clientMsgID.$ext';
+
+          final url = await OpenIM.iMManager.uploadFile(
+            id: '${clientMsgID}_snapshot',
+            filePath: elem.snapshotPath!,
+            fileName: uploadName,
+            contentType: 'image/$ext',
+            cause: 'msg-video-snapshot',
+          );
+          newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
+        }
+      }
+      return msg.copyWith(videoElem: newElem);
+    } else if (msg.contentType == MessageType.file && msg.fileElem != null) {
+      final elem = msg.fileElem!;
+      if (elem.filePath != null &&
+          elem.filePath!.isNotEmpty &&
+          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty)) {
+        final file = File(elem.filePath!);
+        if (file.existsSync()) {
+          final fileSize = file.lengthSync();
+          final baseName = elem.fileName ?? elem.filePath!.split(Platform.pathSeparator).last;
+          // Go SDK: c.fileName("file", s.ClientMsgID) + "/" + filepath.Base(name)
+          final uploadName = 'file_$clientMsgID/$baseName';
+          final contentType = _getMimeType(elem.filePath!);
+
+          final url = await OpenIM.iMManager.uploadFile(
+            id: clientMsgID,
+            filePath: elem.filePath!,
+            fileName: uploadName,
+            contentType: contentType,
+            cause: 'msg-file',
+          );
+          return msg.copyWith(
+            fileElem: elem.copyWith(sourceUrl: url, fileSize: fileSize, fileName: baseName),
+          );
+        }
+      }
+    }
+
+    return msg;
+  }
+
   /// 发送消息
   /// [message] 消息内容
   /// [offlinePushInfo] 离线消息显示内容
@@ -392,21 +594,24 @@ class MessageManager {
         ? OpenImUtils.genGroupConversationID(groupID)
         : OpenImUtils.genSingleConversationID(_currentUserID, userID!);
 
+    // Handle media uploading before inserting to DB or sending via WS
+    final finalMsg = await _handleMediaUploadIfNeeded(sendMsg);
+
     // 仅在线消息不存储到本地
     if (!isOnlineOnly) {
-      await _database.insertMessage(DatabaseService.messageToDbMap(sendMsg));
-      await _database.insertSendingMessage(sendMsg.clientMsgID!, conversationID);
+      await _database.insertMessage(DatabaseService.messageToDbMap(finalMsg));
+      await _database.insertSendingMessage(finalMsg.clientMsgID!, conversationID);
       // 立即更新会话（对应 Go SDK 发送前的 AddConOrUpLatMsg）
       // 让 UI 立即看到"发送中"的最新消息
-      await _updateConversationLatestMsg(conversationID, sendMsg, sessionType);
+      await _updateConversationLatestMsg(conversationID, finalMsg, sessionType);
     }
 
-    _log.info('消息已发送${isOnlineOnly ? "(仅在线)" : "到本地"}: ${sendMsg.clientMsgID}');
+    _log.info('消息已发送${isOnlineOnly ? "(仅在线)" : "到本地"}: ${finalMsg.clientMsgID}');
 
     // 通过 WebSocket 发送消息（使用 protobuf 编码，与 Go SDK 保持一致）
     try {
       final sentMsg = await _sendMsgViaWebSocket(
-        sendMsg,
+        finalMsg,
         conversationID,
         sessionType,
         isOnlineOnly,
@@ -899,21 +1104,55 @@ class MessageManager {
 
   /// 创建图片消息（通过完整文件路径）
   /// [imagePath] 图片的完整路径
+  /// 对应 Go SDK CreateImageMessageFromFullPath：
+  /// 通过 getImageInfo 获取 width / height / type，填充 SourcePicture
   Message createImageMessageFromFullPath({required String imagePath, String? operationID}) {
     _log.info('createImageMessageFromFullPath: imagePath=$imagePath');
-    return createImageMessage(imagePath: imagePath);
+    final file = File(imagePath);
+    final fileSize = file.existsSync() ? file.lengthSync() : 0;
+    final ext = imagePath.split('.').last.toLowerCase();
+    final imageType = 'image/$ext';
+
+    // 尝试读取图片宽高（对应 Go SDK 的 getImageInfo）
+    int width = 0;
+    int height = 0;
+    try {
+      final bytes = file.readAsBytesSync();
+      final decoded = _decodeImageDimensions(bytes);
+      if (decoded != null) {
+        width = decoded.width;
+        height = decoded.height;
+      }
+    } catch (e) {
+      _log.warning('读取图片尺寸失败: $e');
+    }
+
+    return _createMessage(
+      contentType: MessageType.picture,
+      pictureElem: PictureElem(
+        sourcePath: imagePath,
+        sourcePicture: PictureInfo(width: width, height: height, type: imageType, size: fileSize),
+      ),
+    );
   }
 
   /// 创建语音消息（通过完整文件路径）
   /// [soundPath] 语音文件的完整路径
   /// [duration] 时长（秒）
+  /// 对应 Go SDK CreateSoundMessageFromFullPath：获取 DataSize
   Message createSoundMessageFromFullPath({
     required String soundPath,
     required int duration,
     String? operationID,
   }) {
     _log.info('createSoundMessageFromFullPath: soundPath=$soundPath, duration=$duration');
-    return createSoundMessage(soundPath: soundPath, duration: duration);
+    final file = File(soundPath);
+    final fileSize = file.existsSync() ? file.lengthSync() : 0;
+
+    return _createMessage(
+      contentType: MessageType.voice,
+      soundElem: SoundElem(soundPath: soundPath, duration: duration, dataSize: fileSize),
+    );
   }
 
   /// 创建视频消息（通过完整文件路径）
@@ -921,6 +1160,7 @@ class MessageManager {
   /// [videoType] 视频MIME类型
   /// [duration] 时长（秒）
   /// [snapshotPath] 缩略图完整路径
+  /// 对应 Go SDK CreateVideoMessageFromFullPath：获取 VideoSize、SnapshotSize/Width/Height
   Message createVideoMessageFromFullPath({
     required String videoPath,
     required String videoType,
@@ -931,24 +1171,61 @@ class MessageManager {
     _log.info(
       'createVideoMessageFromFullPath: videoPath=$videoPath, videoType=$videoType, duration=$duration',
     );
-    return createVideoMessage(
-      videoPath: videoPath,
-      videoType: videoType,
-      duration: duration,
-      snapshotPath: snapshotPath,
+    final videoFile = File(videoPath);
+    final videoSize = videoFile.existsSync() ? videoFile.lengthSync() : 0;
+
+    int snapWidth = 0;
+    int snapHeight = 0;
+    int snapSize = 0;
+    if (snapshotPath.isNotEmpty) {
+      final snapFile = File(snapshotPath);
+      if (snapFile.existsSync()) {
+        snapSize = snapFile.lengthSync();
+        try {
+          final bytes = snapFile.readAsBytesSync();
+          final decoded = _decodeImageDimensions(bytes);
+          if (decoded != null) {
+            snapWidth = decoded.width;
+            snapHeight = decoded.height;
+          }
+        } catch (e) {
+          _log.warning('读取视频缩略图尺寸失败: $e');
+        }
+      }
+    }
+
+    return _createMessage(
+      contentType: MessageType.video,
+      videoElem: VideoElem(
+        videoPath: videoPath,
+        videoType: videoType,
+        duration: duration,
+        videoSize: videoSize,
+        snapshotPath: snapshotPath,
+        snapshotWidth: snapWidth,
+        snapshotHeight: snapHeight,
+        snapshotSize: snapSize,
+      ),
     );
   }
 
   /// 创建文件消息（通过完整文件路径）
   /// [filePath] 文件的完整路径
   /// [fileName] 文件名
+  /// 对应 Go SDK CreateFileMessageFromFullPath：获取 FileSize
   Message createFileMessageFromFullPath({
     required String filePath,
     required String fileName,
     String? operationID,
   }) {
     _log.info('createFileMessageFromFullPath: filePath=$filePath, fileName=$fileName');
-    return createFileMessage(filePath: filePath, fileName: fileName);
+    final file = File(filePath);
+    final fileSize = file.existsSync() ? file.lengthSync() : 0;
+
+    return _createMessage(
+      contentType: MessageType.file,
+      fileElem: FileElem(filePath: filePath, fileName: fileName, fileSize: fileSize),
+    );
   }
 
   /// 处理收到的新消息
@@ -1225,5 +1502,111 @@ class MessageManager {
       iOSPushSound: push.iOSPushSound ?? '',
       iOSBadgeCount: push.iOSBadgeCount ?? false,
     );
+  }
+
+  /// 根据文件扩展名获取 MIME 类型
+  String _getMimeType(String filePath, {String fallback = 'application/octet-stream'}) {
+    final ext = filePath.split('.').last.toLowerCase();
+    const mimeMap = <String, String>{
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'gif': 'image/gif',
+      'bmp': 'image/bmp',
+      'webp': 'image/webp',
+      'svg': 'image/svg+xml',
+      'mp4': 'video/mp4',
+      'avi': 'video/x-msvideo',
+      'mov': 'video/quicktime',
+      'mkv': 'video/x-matroska',
+      'mp3': 'audio/mpeg',
+      'wav': 'audio/wav',
+      'aac': 'audio/aac',
+      'ogg': 'audio/ogg',
+      'm4a': 'audio/mp4',
+      'pdf': 'application/pdf',
+      'doc': 'application/msword',
+      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'xls': 'application/vnd.ms-excel',
+      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'zip': 'application/zip',
+      'rar': 'application/x-rar-compressed',
+      'txt': 'text/plain',
+    };
+    return mimeMap[ext] ?? fallback;
+  }
+
+  /// 解码图片尺寸（对应 Go SDK 的 image.Decode → Bounds）
+  /// 支持 PNG / JPEG / GIF / BMP / WEBP 头部快速解析
+  ({int width, int height})? _decodeImageDimensions(Uint8List bytes) {
+    if (bytes.length < 24) return null;
+
+    // PNG: 前 8 字节为签名，IHDR chunk 在 offset 16-23 包含 width/height (4 bytes each, big-endian)
+    if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+      final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+      final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+      return (width: width, height: height);
+    }
+
+    // JPEG: 扫描 SOF 标记（0xFFC0 ~ 0xFFC3）
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8) {
+      int offset = 2;
+      while (offset + 9 < bytes.length) {
+        if (bytes[offset] != 0xFF) break;
+        final marker = bytes[offset + 1];
+        if (marker >= 0xC0 && marker <= 0xC3) {
+          final height = (bytes[offset + 5] << 8) | bytes[offset + 6];
+          final width = (bytes[offset + 7] << 8) | bytes[offset + 8];
+          return (width: width, height: height);
+        }
+        final segLen = (bytes[offset + 2] << 8) | bytes[offset + 3];
+        offset += 2 + segLen;
+      }
+    }
+
+    // GIF: 'GIF' 签名, width at offset 6-7, height at offset 8-9 (little-endian)
+    if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes.length >= 10) {
+      final width = bytes[6] | (bytes[7] << 8);
+      final height = bytes[8] | (bytes[9] << 8);
+      return (width: width, height: height);
+    }
+
+    // BMP: 'BM' 签名, width at offset 18-21, height at offset 22-25 (little-endian)
+    if (bytes[0] == 0x42 && bytes[1] == 0x4D && bytes.length >= 26) {
+      final width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
+      final height = (bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24)).abs();
+      return (width: width, height: height);
+    }
+
+    // WEBP: 'RIFF' + size + 'WEBP'
+    if (bytes[0] == 0x52 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x46 &&
+        bytes[8] == 0x57 &&
+        bytes[9] == 0x45 &&
+        bytes[10] == 0x42 &&
+        bytes[11] == 0x50 &&
+        bytes.length >= 30) {
+      // VP8 lossy
+      if (bytes[12] == 0x56 && bytes[13] == 0x50 && bytes[14] == 0x38 && bytes[15] == 0x20) {
+        if (bytes.length >= 30) {
+          final width = (bytes[26] | (bytes[27] << 8)) & 0x3FFF;
+          final height = (bytes[28] | (bytes[29] << 8)) & 0x3FFF;
+          return (width: width, height: height);
+        }
+      }
+      // VP8L lossless
+      if (bytes[12] == 0x56 && bytes[13] == 0x50 && bytes[14] == 0x38 && bytes[15] == 0x4C) {
+        if (bytes.length >= 25) {
+          final bits = bytes[21] | (bytes[22] << 8) | (bytes[23] << 16) | (bytes[24] << 24);
+          final width = (bits & 0x3FFF) + 1;
+          final height = ((bits >> 14) & 0x3FFF) + 1;
+          return (width: width, height: height);
+        }
+      }
+    }
+
+    return null;
   }
 }

@@ -399,6 +399,9 @@ class IMManager {
 
     msgSyncer.doConnectedSync();
 
+    // 恢复发送中的消息（App 重启后重新登录时调用）
+    messageManager.recoverSendingMessages();
+
     _log.info('用户已登录: $userID');
     return _userInfo!;
   }
@@ -568,14 +571,29 @@ class IMManager {
     final fileSize = await file.length();
     _uploadFileListener?.open(id, fileSize);
 
-    // 计算文件 MD5
-    final fileBytes = await file.readAsBytes();
-    final hash = md5.convert(fileBytes).toString();
-
-    // 分片大小: 2MB
-    const partSize = 2 * 1024 * 1024;
+    // 分片大小: 5MB (S3/MinIO 的严格最小分片为 5MB)
+    const partSize = 5 * 1024 * 1024;
     final partNum = (fileSize / partSize).ceil().clamp(1, 10000);
     _uploadFileListener?.partSize(id, partSize, partNum);
+
+    // 计算分片 MD5 和文件总 MD5
+    final fileBytes = await file.readAsBytes();
+    final partMd5s = <String>[];
+    // 存储从 S3 获取的 ETag
+    final partEtags = <String?>[];
+    for (int i = 0; i < partNum; i++) {
+      final start = i * partSize;
+      final end = (start + partSize).clamp(0, fileSize);
+      final partBytes = fileBytes.sublist(start, end);
+      final partHash = md5.convert(partBytes).toString();
+      partMd5s.add(partHash);
+      partEtags.add(null); // 初始化为 null，稍后填充
+    }
+
+    // server 期望的 hash 是所有分片 MD5 用逗号拼接后的字符串的 MD5
+    // 对应 Go SDK 的 partMD5: md5.Sum([]byte(strings.Join(parts, ",")))
+    final combinedHashStr = partMd5s.join(',');
+    final hash = md5.convert(utf8.encode(combinedHashStr)).toString();
 
     final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
@@ -609,61 +627,192 @@ class IMManager {
     _uploadFileListener?.uploadID(id, uploadID);
 
     final sign = upload['sign'] as Map<String, dynamic>? ?? {};
-    final parts = sign['parts'] as List? ?? [];
+    // AWS S3 签名：sign 包含 url 和 parts
+    final signUrl = sign['url'] as String? ?? '';
+    // 从 sign.query 中获取 uploadId
+    String? uploadIdParam;
+    final signQuery = sign['query'] as List?;
+    if (signQuery != null && signQuery.isNotEmpty) {
+      for (final q in signQuery) {
+        if (q is Map && q['key'] == 'uploadId') {
+          final values = q['values'] as List?;
+          if (values != null && values.isNotEmpty) {
+            uploadIdParam = values.first.toString();
+          }
+          break;
+        }
+      }
+    }
+    var currentSignParts = (sign['parts'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+    _log.info('Sign url: $signUrl, uploadId: $uploadIdParam, partNum: $partNum');
 
     // 2. 逐片上传
-    final partMd5s = <String>[];
     for (int i = 0; i < partNum; i++) {
+      final partNumber = i + 1;
       final start = i * partSize;
       final end = (start + partSize).clamp(0, fileSize);
       final partBytes = fileBytes.sublist(start, end);
-      final partHash = md5.convert(partBytes).toString();
+      final partHash = partMd5s[i];
 
       _uploadFileListener?.hashPartProgress(id, i, partBytes.length, partHash);
 
-      if (i < parts.length) {
-        final partInfo = parts[i] as Map<String, dynamic>;
-        final putUrl = partInfo['url'] as String? ?? '';
-        final headers = (partInfo['header'] as Map<String, dynamic>?)?.map(
-          (k, v) => MapEntry(k, v?.toString() ?? ''),
+      // 从当前缓存中寻找对应 partNumber 的签名
+      var partInfo = currentSignParts.firstWhere(
+        (p) => p['partNumber'] == partNumber,
+        orElse: () => <String, dynamic>{},
+      );
+
+      // 如果未找到（例如超过了 maxParts = 20），请求新的一批签名
+      if (partInfo.isEmpty) {
+        final nextBatch = <int>[];
+        for (int j = 0; j < 20 && (partNumber + j) <= partNum; j++) {
+          nextBatch.add(partNumber + j);
+        }
+        final authResp = await imApiService.authSign(uploadID: uploadID, partNumbers: nextBatch);
+        if (authResp.errCode != 0) {
+          throw Exception('authSign failed: ${authResp.errMsg}');
+        }
+        final newSign = authResp.data as Map<String, dynamic>? ?? {};
+        currentSignParts = (newSign['parts'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+        partInfo = currentSignParts.firstWhere(
+          (p) => p['partNumber'] == partNumber,
+          orElse: () => <String, dynamic>{},
+        );
+      }
+
+      // 解析 header：可能是 List 或 Map
+      final rawHeaders = partInfo['header'];
+      final Map<String, String>? headers;
+      if (rawHeaders is List) {
+        // 服务器返回的是 [{key: "X-Amz-Content-Sha256", values: ["UNSIGNED-PAYLOAD"]}, ...]
+        headers = {};
+        for (final h in rawHeaders) {
+          if (h is Map) {
+            final key = h['key']?.toString();
+            final values = h['values'] as List?;
+            if (key != null && values != null && values.isNotEmpty) {
+              headers[key] = values.first.toString();
+            }
+          }
+        }
+        _log.info('Part $partNumber headers (from list): $headers');
+      } else if (rawHeaders is Map) {
+        headers = (rawHeaders).map((k, v) {
+          final String val;
+          if (v is List && v.isNotEmpty) {
+            val = v.first.toString();
+          } else {
+            val = v?.toString() ?? '';
+          }
+          return MapEntry(k.toString(), val);
+        });
+        _log.info('Part $partNumber headers (from map): $headers');
+      } else {
+        headers = null;
+        _log.info('Part $partNumber headers: null (rawHeaders type: ${rawHeaders?.runtimeType})');
+      }
+
+      // 构建上传 URL：优先使用预签名 URL，否则使用 signUrl + query 参数
+      String putUrl = partInfo['url'] as String? ?? '';
+      if (putUrl.isEmpty && signUrl.isNotEmpty) {
+        // AWS S3 签名方式：需要从 query 参数构建完整 URL
+        final queryParts = <String>[];
+
+        // 首先添加 uploadId 参数（从 sign.query 中获取）
+        if (uploadIdParam != null) {
+          queryParts.add('uploadId=$uploadIdParam');
+        }
+
+        // 然后添加分片特定的 query 参数
+        final rawQuery = partInfo['query'] as List?;
+        if (rawQuery != null && rawQuery.isNotEmpty) {
+          for (final q in rawQuery) {
+            if (q is Map) {
+              final key = q['key']?.toString() ?? '';
+              final values = q['values'] as List?;
+              if (values != null && values.isNotEmpty && key != 'uploadId') {
+                final value = values.first.toString();
+                queryParts.add('$key=$value');
+              }
+            }
+          }
+        }
+
+        if (queryParts.isNotEmpty) {
+          putUrl = '$signUrl?${queryParts.join('&')}';
+        } else {
+          putUrl = signUrl;
+        }
+      }
+      _log.info('Part $partNumber: putUrl=${putUrl.isNotEmpty ? putUrl : "empty"}');
+
+      String? etag;
+      if (putUrl.isNotEmpty) {
+        _log.info('Uploading part $partNumber to: $putUrl, size: ${partBytes.length}');
+
+        final putResp = await HttpClient().dio.put(
+          putUrl,
+          data: partBytes,
+          options: Options(
+            headers: {...?headers, Headers.contentLengthHeader: partBytes.length},
+            contentType: contentType ?? 'application/octet-stream',
+          ),
+          onSendProgress: (sent, total) {
+            _log.info('Upload progress: sent=$sent, total=$total');
+            _uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
+          },
         );
 
-        if (putUrl.isNotEmpty) {
-          await HttpClient().put(
-            putUrl,
-            data: Stream.fromIterable([partBytes]),
-            options: Options(
-              headers: {...?headers, Headers.contentLengthHeader: partBytes.length},
-              contentType: contentType ?? 'application/octet-stream',
-            ),
-            onSendProgress: (sent, total) {
-              _uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
-            },
+        // 从响应头获取 S3 返回的 ETag，用于完成分片上传
+        etag = putResp.headers.value('etag');
+        _log.info(
+          'Part $partNumber upload response: status=${putResp.statusCode}, etag=$etag, data=${putResp.data}',
+        );
+
+        if (putResp.statusCode != null &&
+            (putResp.statusCode! < 200 || putResp.statusCode! >= 300)) {
+          throw Exception(
+            'Part upload HTTP failed (status: ${putResp.statusCode}): ${putResp.data}',
           );
         }
       }
 
-      partMd5s.add(partHash);
-      _uploadFileListener?.uploadPartComplete(id, i, partBytes.length, partHash);
+      // 存储 S3 返回的 ETag（如果存在），否则使用本地计算的 MD5
+      // ETag 带有双引号，需要去掉
+      final cleanEtag = etag?.replaceAll('"', '') ?? partHash;
+      partEtags[i] = cleanEtag;
     }
 
     _uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
 
     // 3. 完成分片上传
-    final completeResp = await imApiService.completeMultipartUpload(
-      uploadID: uploadID,
-      parts: partMd5s,
-      name: '$_userID/$fileName',
-      contentType: contentType ?? 'application/octet-stream',
-      cause: cause ?? '',
-    );
-    if (completeResp.errCode != 0) {
-      throw Exception('Complete upload failed: ${completeResp.errMsg}');
-    }
+    try {
+      _log.info(
+        '--> completeMultipartUpload request: uploadID=$uploadID, parts=$partEtags, name=$_userID/$fileName, contentType=$contentType, cause=$cause',
+      );
+      final completeResp = await imApiService.completeMultipartUpload(
+        uploadID: uploadID,
+        parts: partEtags.cast<String>(),
+        name: '$_userID/$fileName',
+        contentType: contentType ?? 'application/octet-stream',
+        cause: cause ?? '',
+      );
+      _log.info(
+        '<-- completeMultipartUpload response: errCode=${completeResp.errCode}, errMsg=${completeResp.errMsg}, data=${completeResp.data}',
+      );
+      if (completeResp.errCode != 0) {
+        throw Exception('Complete upload failed: ${completeResp.errMsg}');
+      }
 
-    final resultUrl = (completeResp.data?['url'] as String?) ?? '';
-    _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
-    return resultUrl;
+      final resultUrl = (completeResp.data?['url'] as String?) ?? '';
+      _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
+      return resultUrl;
+    } catch (e, s) {
+      _log.info('Exception during completeMultipartUpload: $e, \n$s');
+      rethrow;
+    }
   }
 
   /// 获取当前登录用户ID

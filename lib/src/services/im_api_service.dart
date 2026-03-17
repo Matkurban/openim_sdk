@@ -1,3 +1,4 @@
+import 'package:logging/logging.dart';
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
@@ -9,6 +10,7 @@ import 'package:openim_sdk/src/utils/platform_utils.dart';
 /// 所有方法返回 [ApiResponse]，调用方根据 errCode 判断成功与否。
 /// token 由 [HttpClient] 统一在请求头中携带。
 class ImApiService {
+  final Logger _log = Logger('ImApiService');
   // ---------------------------------------------------------------------------
   // Auth
   // ---------------------------------------------------------------------------
@@ -785,6 +787,14 @@ class ImApiService {
     );
   }
 
+  /// 获取额外的分片上传签名
+  Future<ApiResponse> authSign({required String uploadID, required List<int> partNumbers}) async {
+    return HttpClient().post(
+      ImApiUrl.objectAuthSign,
+      data: {'uploadID': uploadID, 'partNumbers': partNumbers},
+    );
+  }
+
   /// 完成分片上传
   Future<ApiResponse> completeMultipartUpload({
     required String uploadID,
@@ -793,7 +803,10 @@ class ImApiService {
     required String contentType,
     required String cause,
   }) async {
-    return HttpClient().post(
+    _log.info(
+      'completeMultipartUpload request: uploadID=$uploadID, parts=$parts, name=$name, contentType=$contentType, cause=$cause',
+    );
+    final result = await HttpClient().post(
       ImApiUrl.objectCompleteUpload,
       data: {
         'uploadID': uploadID,
@@ -803,5 +816,9 @@ class ImApiService {
         'cause': cause,
       },
     );
+    _log.info(
+      'completeMultipartUpload response: errCode=${result.errCode}, errMsg=${result.errMsg}, data=${result.data}',
+    );
+    return result;
   }
 }

@@ -804,6 +804,12 @@ class DatabaseService {
     return result.data;
   }
 
+  /// 获取所有发送中消息列表（用于 App 启动后恢复）
+  Future<List<Map<String, dynamic>>> getAllSendingMessages() async {
+    final result = await toStore.query(DbTableName.localSendingMessage);
+    return result.data;
+  }
+
   // ---------------------------------------------------------------------------
   // 序列化辅助方法
   // ---------------------------------------------------------------------------

@@ -162,58 +162,63 @@ class MsgSyncer {
   /// 同步会话列表 + seq + 未读计数 + showName/faceURL
   ///
   /// 对应 Go SDK 的 SyncAllConversationHashReadSeqs + batchAddFaceURLAndName
+  /// 优化：先获取服务端 seqs，比较本地会话，只获取/更新有变化的会话
   Future<void> _syncConversationsAndSeqs() async {
     try {
-      // 1. 从服务端获取所有会话
-      final resp = await api.getAllConversations(ownerUserID: _userID);
-      if (resp.errCode != 0) {
-        _log.warning('同步会话失败: ${resp.errMsg}');
-        return;
-      }
-      final conversations = resp.data?['conversations'] as List? ?? [];
-      if (conversations.isEmpty) return;
+      // 1. 先获取本地所有会话 ID（用于比较哪些是新增的）
+      final localConvs = await database.getAllConversations();
+      final localConvIDs = localConvs.map((c) => c.conversationID).toSet();
+      _log.info('本地会话数: ${localConvIDs.length}');
 
-      final convMaps = <Map<String, dynamic>>[];
-      final conversationIDs = <String>[];
-      for (final conv in conversations) {
-        if (conv is Map<String, dynamic>) {
-          // 跳过自己和自己的单聊会话
-          final convType = conv['conversationType'] as int?;
-          final uid = conv['userID'] as String?;
-          if (convType == 1 && uid == _userID) continue;
-
-          final map = Map<String, dynamic>.from(conv);
-          if (map['latestMsg'] is Map) {
-            map['latestMsg'] = jsonEncode(map['latestMsg']);
-          }
-          convMaps.add(map);
-          final cid = conv['conversationID'] as String?;
-          if (cid != null) conversationIDs.add(cid);
-        }
-      }
-
-      // 2. 获取所有会话的 seq 信息
-      Map<String, dynamic> seqs = {};
-      if (conversationIDs.isNotEmpty) {
+      // 2. 获取服务端所有会话的 seq 信息（不获取完整会话列表，效率更高）
+      // 对应 Go SDK: GetConvMaxReadSeq
+      Map<String, dynamic> serverSeqs = {};
+      if (localConvIDs.isNotEmpty) {
         final seqResp = await api.getConversationsHasReadAndMaxSeq(
           userID: _userID,
-          conversationIDs: conversationIDs,
+          conversationIDs: localConvIDs.toList(),
         );
         if (seqResp.errCode == 0) {
-          seqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
+          serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
+        }
+      }
+      _log.info('服务端 seq 数: ${serverSeqs.length}');
+
+      // 3. 找出需要同步的会话 ID（服务端有但本地没有的会话）
+      final newConvIDs = serverSeqs.keys.where((id) => !localConvIDs.contains(id)).toList();
+      _log.info('新增会话数: ${newConvIDs.length}');
+
+      // 4. 只获取新增会话的完整信息（按需获取，效率更高）
+      // 对应 Go SDK: getConversationsByIDsFromServer
+      final convMaps = <Map<String, dynamic>>[];
+      if (newConvIDs.isNotEmpty) {
+        final resp = await api.getConversations(ownerUserID: _userID, conversationIDs: newConvIDs);
+        if (resp.errCode == 0) {
+          final conversations = resp.data?['conversations'] as List? ?? [];
+          for (final conv in conversations) {
+            if (conv is Map<String, dynamic>) {
+              final map = Map<String, dynamic>.from(conv);
+              if (map['latestMsg'] is Map) {
+                map['latestMsg'] = jsonEncode(map['latestMsg']);
+              }
+              convMaps.add(map);
+            }
+          }
         }
       }
 
-      // 3. 补充 showName/faceURL（从本地好友/用户/群组信息）
+      // 5. 补充 showName/faceURL（从本地好友/用户/群组信息）
       await _batchAddFaceURLAndName(convMaps);
 
-      // 4. 计算未读数并更新 seq 跟踪
+      // 6. 计算未读数并更新 seq 跟踪
       final changedConvIDs = <String>[];
+
+      // 更新新增会话
       for (final conv in convMaps) {
         final convID = conv['conversationID'] as String?;
         if (convID == null) continue;
 
-        final rawSeqInfo = seqs[convID];
+        final rawSeqInfo = serverSeqs[convID];
         if (rawSeqInfo is Map<String, dynamic>) {
           final maxSeq = (rawSeqInfo['maxSeq'] as num?)?.toInt() ?? 0;
           final hasReadSeq = (rawSeqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
@@ -222,17 +227,40 @@ class MsgSyncer {
           conv['maxSeq'] = maxSeq;
           conv['hasReadSeq'] = hasReadSeq;
           _syncedMaxSeqs[convID] = maxSeq;
-          if (unread > 0) changedConvIDs.add(convID);
+          changedConvIDs.add(convID);
         }
       }
 
-      // 5. 批量写入本地数据库
+      // 7. 更新已存在会话的 seq 和未读数（不需要重新获取）
+      final existingConvIDs = serverSeqs.keys.where((id) => localConvIDs.contains(id)).toList();
+      for (final convID in existingConvIDs) {
+        final rawSeqInfo = serverSeqs[convID];
+        if (rawSeqInfo is Map<String, dynamic>) {
+          final maxSeq = (rawSeqInfo['maxSeq'] as num?)?.toInt() ?? 0;
+          final hasReadSeq = (rawSeqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
+          final localMaxSeq = _syncedMaxSeqs[convID] ?? 0;
+
+          // 如果 seq 有变化，需要更新
+          if (maxSeq != localMaxSeq) {
+            final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+            await database.updateConversation(convID, {
+              'maxSeq': maxSeq,
+              'hasReadSeq': hasReadSeq,
+              'unreadCount': unread,
+            });
+            _syncedMaxSeqs[convID] = maxSeq;
+            if (unread > 0) changedConvIDs.add(convID);
+          }
+        }
+      }
+
+      // 8. 批量写入新增会话到本地数据库
       if (convMaps.isNotEmpty) {
         await database.batchUpsertConversations(convMaps);
       }
-      _log.info('已同步 ${convMaps.length} 个会话, ${changedConvIDs.length} 个有未读');
+      _log.info('会话同步完成，新增: ${convMaps.length}, 有变化: ${changedConvIDs.length}');
 
-      // 6. 通知 UI 未读数变更（对应 Go SDK doUpdateConversation）
+      // 9. 通知 UI 未读数变更
       if (changedConvIDs.isNotEmpty) {
         _fireConversationChanged(changedConvIDs.toSet());
         _fireTotalUnreadCountChanged();
