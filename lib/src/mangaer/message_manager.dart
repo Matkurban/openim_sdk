@@ -80,6 +80,7 @@ class MessageManager {
 
       for (final msg in allSendingMessages) {
         final clientMsgID = msg['clientMsgID'] as String?;
+        final conversationID = msg['conversationID'] as String?;
         if (clientMsgID == null) continue;
 
         final message = await _database.getMessage(clientMsgID);
@@ -104,9 +105,34 @@ class MessageManager {
         // 如果状态仍然是 sending，标记为失败（与 Go SDK 一致）
         // 这意味着 App 重启前消息正在发送但未完成，现在标记为失败
         if (status == MessageStatus.sending.value) {
+          final failedMsg = message.copyWith(status: MessageStatus.failed);
+
+          // 更新消息状态为失败
           await _database.updateMessage(clientMsgID, {'status': MessageStatus.failed.value});
           await _database.deleteSendingMessage(clientMsgID);
           _log.info('Marked message as failed: $clientMsgID');
+
+          // 与 Go SDK 一致：更新会话的 latestMsg 状态
+          // Go SDK 参考：handlerSendingMsg 中对 latestMsg 的处理
+          if (conversationID != null) {
+            try {
+              final conv = await _database.getConversation(conversationID);
+              if (conv != null && conv.latestMsg != null) {
+                if (conv.latestMsg!.clientMsgID == clientMsgID) {
+                  // latestMsg 就是这条消息，更新其状态
+                  await _database.updateConversation(conversationID, {
+                    'latestMsg': jsonEncode(failedMsg.toJson()),
+                  });
+                  _log.info('Updated conversation latestMsg status to failed: $conversationID');
+                }
+              }
+            } catch (e) {
+              _log.warning('Failed to update conversation latestMsg: $e');
+            }
+          }
+
+          // 通知 UI 消息状态变更
+          msgListener?.messageStatusChanged(failedMsg);
         }
       }
 
@@ -793,6 +819,10 @@ class MessageManager {
         // 更新会话最新消息为失败状态
         await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
       }
+      // 通知 UI 消息状态变更（发送失败）
+      msgListener?.messageStatusChanged(failedMsg);
+      // 通知 UI 进度监听器发送失败
+      msgSendProgressListener?.fail(sendMsg.clientMsgID ?? '', e.toString());
     }
   }
 
@@ -885,6 +915,10 @@ class MessageManager {
         // 更新会话最新消息为失败状态
         await _updateConversationLatestMsg(conversationID, failedMsg, sessionType);
       }
+      // 通知 UI 消息状态变更（发送失败）
+      msgListener?.messageStatusChanged(failedMsg);
+      // 通知 UI 进度监听器发送失败
+      msgSendProgressListener?.fail(failedMsg.clientMsgID!, e.toString());
       rethrow;
     }
   }

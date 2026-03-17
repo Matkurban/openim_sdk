@@ -4,7 +4,10 @@
 
 ### 修复
 
-- **修复文件上传进度回调不生效**：`uploadFile()` 新增 `onProgress` 参数，`_handleMediaUploadIfNeeded()` 在上传文件时传入进度回调，将上传进度通过 `OnMsgSendProgressListener.progress()` 通知给调用方，与 Go SDK 行为一致
+- **修复消息发送失败后再次进入会话消息消失**：更新 `recoverSendingMessages()` 方法，与 Go SDK `handlerSendingMsg` 行为一致：
+  - 将发送中的消息标记为失败状态
+  - 如果该消息是会话的 `latestMsg`，同时更新会话的 `latestMsg` 状态为失败
+  - 调用 `onMessageStatusChanged` 回调通知 UI 更新消息显示
 
 - **修复切换会话时发送中的消息消失**：`getHistoryMessages()` 的过滤逻辑在 `startSeq=0` 时错误地排除了其他发送中的消息（seq=0）。修改过滤条件为：当 startSeq=0 时，包含所有 seq<=0 的消息，只排除与 startMsgID 相同的消息本身，确保切换回原会话时能看到之前正在发送的消息
 

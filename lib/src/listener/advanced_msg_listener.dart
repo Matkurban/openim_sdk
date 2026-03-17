@@ -8,6 +8,7 @@ class OnAdvancedMsgListener {
   void Function(Message msg)? onRecvNewMessage;
   void Function(Message msg)? onRecvOfflineNewMessage;
   void Function(Message msg)? onRecvOnlineOnlyMessage;
+  void Function(Message msg)? onMessageStatusChanged;
 
   /// Uniquely identifies
   String id;
@@ -19,6 +20,7 @@ class OnAdvancedMsgListener {
     this.onRecvNewMessage,
     this.onRecvOfflineNewMessage,
     this.onRecvOnlineOnlyMessage,
+    this.onMessageStatusChanged,
   }) : id = "id_${DateTime.now().microsecondsSinceEpoch}";
 
   void msgDeleted(Message msg) {
@@ -46,5 +48,10 @@ class OnAdvancedMsgListener {
 
   void recvOnlineOnlyMessage(Message msg) {
     onRecvOnlineOnlyMessage?.call(msg);
+  }
+
+  /// Message status changed (e.g., sending -> failed)
+  void messageStatusChanged(Message msg) {
+    onMessageStatusChanged?.call(msg);
   }
 }
