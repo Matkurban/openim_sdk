@@ -113,7 +113,6 @@ class PublicUserInfo extends Equatable {
 @JsonSerializable()
 class FriendInfo extends Equatable {
   final String? ownerUserID;
-  final String? userID;
   final String? nickname;
   final String? faceURL;
   final String? friendUserID;
@@ -125,7 +124,6 @@ class FriendInfo extends Equatable {
 
   const FriendInfo({
     this.ownerUserID,
-    this.userID,
     this.nickname,
     this.faceURL,
     this.friendUserID,
@@ -140,7 +138,7 @@ class FriendInfo extends Equatable {
 
   Map<String, dynamic> toJson() => _$FriendInfoToJson(this);
 
-  String getShowName() => _isNull(remark) ?? _isNull(nickname) ?? userID!;
+  String getShowName() => _isNull(remark) ?? _isNull(nickname) ?? friendUserID!;
 
   static String? _isNull(String? value) {
     if (value == null || value.trim().isEmpty) return null;
@@ -149,7 +147,6 @@ class FriendInfo extends Equatable {
 
   FriendInfo copyWith({
     String? ownerUserID,
-    String? userID,
     String? nickname,
     String? faceURL,
     String? friendUserID,
@@ -161,7 +158,6 @@ class FriendInfo extends Equatable {
   }) {
     return FriendInfo(
       ownerUserID: ownerUserID ?? this.ownerUserID,
-      userID: userID ?? this.userID,
       nickname: nickname ?? this.nickname,
       faceURL: faceURL ?? this.faceURL,
       friendUserID: friendUserID ?? this.friendUserID,
@@ -176,7 +172,6 @@ class FriendInfo extends Equatable {
   @override
   List<Object?> get props => [
     ownerUserID,
-    userID,
     nickname,
     faceURL,
     friendUserID,
@@ -190,7 +185,6 @@ class FriendInfo extends Equatable {
 
 @JsonSerializable()
 class BlacklistInfo extends Equatable {
-  final String? userID;
   final String? nickname;
   final String? ownerUserID;
   final String? blockUserID;
@@ -202,7 +196,6 @@ class BlacklistInfo extends Equatable {
   final String? ex;
 
   const BlacklistInfo({
-    this.userID,
     this.nickname,
     this.ownerUserID,
     this.blockUserID,
@@ -231,7 +224,6 @@ class BlacklistInfo extends Equatable {
     String? ex,
   }) {
     return BlacklistInfo(
-      userID: userID ?? this.userID,
       nickname: nickname ?? this.nickname,
       ownerUserID: ownerUserID ?? this.ownerUserID,
       blockUserID: blockUserID ?? this.blockUserID,
@@ -246,7 +238,6 @@ class BlacklistInfo extends Equatable {
 
   @override
   List<Object?> get props => [
-    userID,
     nickname,
     ownerUserID,
     blockUserID,

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+### 修复
+
+- **修复黑名单列表显示错误**：`getBlacklist()` 返回的 `BlacklistInfo` 中 `userID` 字段为 `null`，导致 UI 无法正确显示被拉黑用户。修改 `BlacklistInfo` 模型，移除 `userID` 字段，使用 `blockUserID` 替代，并在 `BlacklistInfo.fromJson()` 中正确映射字段
+
 ## 1.3.0
 
 ### 修复

@@ -116,7 +116,6 @@ class SearchFriendsInfo extends FriendInfo {
   const SearchFriendsInfo({
     required this.relationship,
     super.ownerUserID,
-    super.userID,
     super.nickname,
     super.faceURL,
     super.friendUserID,
@@ -137,7 +136,6 @@ class SearchFriendsInfo extends FriendInfo {
   SearchFriendsInfo copyWith({
     int? relationship,
     String? ownerUserID,
-    String? userID,
     String? nickname,
     String? faceURL,
     String? friendUserID,
@@ -150,7 +148,6 @@ class SearchFriendsInfo extends FriendInfo {
     return SearchFriendsInfo(
       relationship: relationship ?? this.relationship,
       ownerUserID: ownerUserID ?? this.ownerUserID,
-      userID: userID ?? this.userID,
       nickname: nickname ?? this.nickname,
       faceURL: faceURL ?? this.faceURL,
       friendUserID: friendUserID ?? this.friendUserID,

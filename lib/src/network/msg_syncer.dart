@@ -749,7 +749,9 @@ class MsgSyncer {
 
             // 通知消息（contentType >= 1000）：路由到通知分发器
             // 对应 Go SDK doMsgNew 中的 doNotification 分支
-            if (contentType >= 1000) {
+            // 重装时跳过：好友/群组等已通过 _syncFriends/_syncJoinedGroups 全量同步
+            // 避免数百条 1201 等通知逐条触发回调（对应 Go SDK doMsgSyncByReinstalled 行为）
+            if (contentType >= 1000 && !_reinstalled) {
               final content = msg['content'] as String? ?? '';
               notificationDispatcher.dispatch(contentType, content);
             }

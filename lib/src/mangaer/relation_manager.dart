@@ -392,7 +392,6 @@ class FriendshipManager {
         return SearchFriendsInfo(
           relationship: Relationship.friend.value,
           ownerUserID: friend.ownerUserID,
-          userID: friend.userID,
           nickname: friend.nickname,
           faceURL: friend.faceURL,
           friendUserID: friend.friendUserID,

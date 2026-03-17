@@ -66,7 +66,6 @@ Map<String, dynamic> _$SearchParamsToJson(SearchParams instance) => <String, dyn
 SearchFriendsInfo _$SearchFriendsInfoFromJson(Map<String, dynamic> json) => SearchFriendsInfo(
   relationship: (json['relationship'] as num).toInt(),
   ownerUserID: json['ownerUserID'] as String?,
-  userID: json['userID'] as String?,
   nickname: json['nickname'] as String?,
   faceURL: json['faceURL'] as String?,
   friendUserID: json['friendUserID'] as String?,
@@ -79,7 +78,6 @@ SearchFriendsInfo _$SearchFriendsInfoFromJson(Map<String, dynamic> json) => Sear
 
 Map<String, dynamic> _$SearchFriendsInfoToJson(SearchFriendsInfo instance) => <String, dynamic>{
   'ownerUserID': instance.ownerUserID,
-  'userID': instance.userID,
   'nickname': instance.nickname,
   'faceURL': instance.faceURL,
   'friendUserID': instance.friendUserID,

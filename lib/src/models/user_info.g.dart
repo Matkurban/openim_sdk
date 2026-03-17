@@ -56,7 +56,6 @@ Map<String, dynamic> _$PublicUserInfoToJson(PublicUserInfo instance) => <String,
 
 FriendInfo _$FriendInfoFromJson(Map<String, dynamic> json) => FriendInfo(
   ownerUserID: json['ownerUserID'] as String?,
-  userID: json['userID'] as String?,
   nickname: json['nickname'] as String?,
   faceURL: json['faceURL'] as String?,
   friendUserID: json['friendUserID'] as String?,
@@ -69,7 +68,6 @@ FriendInfo _$FriendInfoFromJson(Map<String, dynamic> json) => FriendInfo(
 
 Map<String, dynamic> _$FriendInfoToJson(FriendInfo instance) => <String, dynamic>{
   'ownerUserID': instance.ownerUserID,
-  'userID': instance.userID,
   'nickname': instance.nickname,
   'faceURL': instance.faceURL,
   'friendUserID': instance.friendUserID,
@@ -81,7 +79,6 @@ Map<String, dynamic> _$FriendInfoToJson(FriendInfo instance) => <String, dynamic
 };
 
 BlacklistInfo _$BlacklistInfoFromJson(Map<String, dynamic> json) => BlacklistInfo(
-  userID: json['userID'] as String?,
   nickname: json['nickname'] as String?,
   ownerUserID: json['ownerUserID'] as String?,
   blockUserID: json['blockUserID'] as String?,
@@ -94,7 +91,6 @@ BlacklistInfo _$BlacklistInfoFromJson(Map<String, dynamic> json) => BlacklistInf
 );
 
 Map<String, dynamic> _$BlacklistInfoToJson(BlacklistInfo instance) => <String, dynamic>{
-  'userID': instance.userID,
   'nickname': instance.nickname,
   'ownerUserID': instance.ownerUserID,
   'blockUserID': instance.blockUserID,
