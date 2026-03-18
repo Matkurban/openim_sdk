@@ -1114,12 +1114,7 @@ class NotificationDispatcher {
         }
       }
     } catch (e, s) {
-      _log.error(
-        e.toString(),
-        error: e,
-        stackTrace: s,
-        methodName: '_batchFillShowNameAndFaceURL',
-      );
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_batchFillShowNameAndFaceURL');
     }
   }
 
