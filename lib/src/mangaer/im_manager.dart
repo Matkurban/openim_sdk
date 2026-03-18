@@ -23,28 +23,31 @@ import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 
 class IMManager {
+  IMManager._internal();
+  static final IMManager _instance = IMManager._internal();
+  factory IMManager() => _instance;
   static final Logger _log = Logger('IMManager');
 
   /// 会话管理
-  late ConversationManager conversationManager;
+  final ConversationManager conversationManager = ConversationManager();
 
   /// 好友管理
-  late FriendshipManager friendshipManager;
+  final FriendshipManager friendshipManager = FriendshipManager();
 
   /// 消息管理
-  late MessageManager messageManager;
+  final MessageManager messageManager = MessageManager();
 
   /// 群组管理
-  late GroupManager groupManager;
+  final GroupManager groupManager = GroupManager();
 
   /// 用户管理
-  late UserManager userManager;
+  final UserManager userManager = UserManager();
 
   /// 朋友圈管理
-  late MomentsManager momentsManager;
+  final MomentsManager momentsManager = MomentsManager();
 
   /// 收藏夹管理
-  late FavoriteManager favoriteManager;
+  final FavoriteManager favoriteManager = FavoriteManager();
 
   /// 服务监听（可选）
   OnListenerForService? _listenerForService;
@@ -71,16 +74,6 @@ class IMManager {
 
   /// 当前登录状态
   LoginStatus _loginStatus = LoginStatus.logout;
-
-  IMManager() {
-    conversationManager = ConversationManager();
-    friendshipManager = FriendshipManager();
-    messageManager = MessageManager();
-    groupManager = GroupManager();
-    userManager = UserManager();
-    momentsManager = MomentsManager();
-    favoriteManager = FavoriteManager();
-  }
 
   final GetIt _getIt = GetIt.instance;
 
@@ -587,32 +580,43 @@ class IMManager {
 
   /// 上传文件
   /// [id] 文件标识，用于回调区分
-  /// [filePath] 本地文件路径
+  /// [filePath] 本地文件路径（native 平台）
+  /// [fileBytes] 文件字节数据（web 平台，与 filePath 二选一）
   /// [fileName] 上传后的文件名
   /// [contentType] MIME 类型（可选，自动检测）
   /// [cause] 上传原因/用途
   /// [onProgress] 上传进度回调 (sent, total)
   Future<String> uploadFile({
     required String id,
-    required String filePath,
+    String? filePath,
+    Uint8List? fileBytes,
     required String fileName,
     String? contentType,
     String? cause,
     void Function(int sent, int total)? onProgress,
   }) async {
+    assert(filePath != null || fileBytes != null, 'filePath 和 fileBytes 必须提供其中一个');
     _log.info(
-      'id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause',
+      'id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause, hasBytes=${fileBytes != null}',
       methodName: 'uploadFile',
     );
-    final file = File(filePath);
-    if (!await file.exists()) {
-      throw OpenIMException(
-        code: SDKErrorCode.uploadFileNotExist.code,
-        message: SDKErrorCode.uploadFileNotExist.message,
-      );
+
+    // 获取文件字节数据：优先使用传入的 bytes，否则从文件路径读取
+    final Uint8List bytes;
+    if (fileBytes != null) {
+      bytes = fileBytes;
+    } else {
+      final file = File(filePath!);
+      if (!await file.exists()) {
+        throw OpenIMException(
+          code: SDKErrorCode.uploadFileNotExist.code,
+          message: SDKErrorCode.uploadFileNotExist.message,
+        );
+      }
+      bytes = await file.readAsBytes();
     }
 
-    final int fileSize = await file.length();
+    final int fileSize = bytes.length;
     _uploadFileListener?.open(id, fileSize);
 
     // 分片大小: 5MB (S3/MinIO 的严格最小分片为 5MB)
@@ -621,14 +625,13 @@ class IMManager {
     _uploadFileListener?.partSize(id, partSize, partNum);
 
     // 计算分片 MD5 和文件总 MD5
-    final fileBytes = await file.readAsBytes();
     final partMd5s = <String>[];
     // 存储从 S3 获取的 ETag
     final partEtags = <String?>[];
     for (int i = 0; i < partNum; i++) {
       final start = i * partSize;
       final end = (start + partSize).clamp(0, fileSize);
-      final partBytes = fileBytes.sublist(start, end);
+      final partBytes = bytes.sublist(start, end);
       final partHash = md5.convert(partBytes).toString();
       partMd5s.add(partHash);
       partEtags.add(null); // 初始化为 null，稍后填充
@@ -699,7 +702,7 @@ class IMManager {
       final partNumber = i + 1;
       final start = i * partSize;
       final end = (start + partSize).clamp(0, fileSize);
-      final partBytes = fileBytes.sublist(start, end);
+      final partBytes = bytes.sublist(start, end);
       final partHash = partMd5s[i];
 
       _uploadFileListener?.hashPartProgress(id, i, partBytes.length, partHash);

@@ -1,7 +1,9 @@
+import 'package:equatable/equatable.dart';
+
 import 'moment_user_info.dart';
 
 /// 朋友圈点赞记录
-class MomentLikeWithUser {
+class MomentLikeWithUser extends Equatable {
   const MomentLikeWithUser({
     required this.momentID,
     required this.userID,
@@ -33,4 +35,7 @@ class MomentLikeWithUser {
       if (userInfo != null) 'userInfo': userInfo!.toJson(),
     };
   }
+
+  @override
+  List<Object?> get props => [momentID, userID, createTime, userInfo];
 }

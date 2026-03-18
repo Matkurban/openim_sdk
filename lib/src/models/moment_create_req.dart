@@ -1,9 +1,11 @@
+import 'package:equatable/equatable.dart';
+
 import '../enums/visible_type.dart';
 import 'moment_media.dart';
 
 /// 发布朋友圈请求
-class MomentCreateReq {
-  MomentCreateReq({
+class MomentCreateReq extends Equatable {
+  const MomentCreateReq({
     required this.content,
     this.media = const <MomentMedia>[],
     required this.visibleType,
@@ -26,4 +28,7 @@ class MomentCreateReq {
       'extra': extra,
     };
   }
+
+  @override
+  List<Object?> get props => [content, media, visibleType, visibleGroupIDs, extra];
 }

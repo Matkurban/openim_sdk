@@ -42,6 +42,14 @@ class MessageManager {
 
   late String _currentUserID;
 
+  /// Web 平台文件上传的 bytes 暂存区
+  /// key = clientMsgID, value = 文件字节数据
+  /// 由 createXxxFromBytes 写入，_handleMediaUploadIfNeeded 消费并清理
+  final Map<String, Uint8List> _pendingUploadBytes = {};
+
+  /// Web 平台视频缩略图 bytes 暂存
+  final Map<String, Uint8List> _pendingSnapshotBytes = {};
+
   void setMsgSendProgressListener(OnMsgSendProgressListener listener) {
     msgSendProgressListener = listener;
   }
@@ -547,6 +555,9 @@ class MessageManager {
   /// 对应 Go SDK sendMessage 中的 media file handle（Picture/Sound/Video/File 分支）
   Future<Message> _handleMediaUploadIfNeeded(Message msg) async {
     final clientMsgID = msg.clientMsgID ?? '';
+    // 从暂存区取出 bytes（Web 平台由 createXxxFromBytes 存入）
+    final pendingBytes = _pendingUploadBytes.remove(clientMsgID);
+    final pendingSnapshotBytes = _pendingSnapshotBytes.remove(clientMsgID);
 
     int lastProgress = -1;
 
@@ -563,35 +574,46 @@ class MessageManager {
 
     if (msg.contentType == MessageType.picture && msg.pictureElem != null) {
       final elem = msg.pictureElem!;
-      if (elem.sourcePath != null &&
-          elem.sourcePath!.isNotEmpty &&
-          (elem.sourcePicture?.url == null || elem.sourcePicture!.url!.isEmpty)) {
-        final file = File(elem.sourcePath!);
-        if (file.existsSync()) {
-          final fileSize = file.lengthSync();
-          final ext = elem.sourcePath!.split('.').last.toLowerCase();
-          // Go SDK: c.fileName("picture", s.ClientMsgID) + filepathExt
-          final uploadName = 'picture_$clientMsgID.$ext';
-          final contentType = elem.sourcePicture?.type ?? 'image/$ext';
+      if (elem.sourcePicture?.url == null || elem.sourcePicture!.url!.isEmpty) {
+        final ext = (elem.sourcePath ?? 'image').split('.').last.toLowerCase();
+        final uploadName = 'picture_$clientMsgID.$ext';
+        final contentType = elem.sourcePicture?.type ?? 'image/$ext';
+        String? url;
+        int fileSize = 0;
 
-          final url = await OpenIM.iMManager.uploadFile(
+        if (pendingBytes != null) {
+          // Web 平台：使用 bytes 上传
+          fileSize = pendingBytes.length;
+          url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
-            filePath: elem.sourcePath!,
+            fileBytes: pendingBytes,
             fileName: uploadName,
             contentType: contentType,
             cause: 'msg-picture',
             onProgress: reportProgress,
           );
+        } else if (elem.sourcePath != null && elem.sourcePath!.isNotEmpty) {
+          // Native 平台：使用文件路径上传
+          final file = File(elem.sourcePath!);
+          if (file.existsSync()) {
+            fileSize = file.lengthSync();
+            url = await OpenIM.iMManager.uploadFile(
+              id: clientMsgID,
+              filePath: elem.sourcePath!,
+              fileName: uploadName,
+              contentType: contentType,
+              cause: 'msg-picture',
+              onProgress: reportProgress,
+            );
+          }
+        }
 
-          // Go SDK: s.PictureElem.SourcePicture.Url = res.URL
-          //         s.PictureElem.BigPicture = s.PictureElem.SourcePicture
-          //         s.PictureElem.SnapshotPicture = 640x640 thumbnail URL
+        if (url != null) {
           final sourcePic = (elem.sourcePicture ?? const PictureInfo()).copyWith(
             url: url,
             size: fileSize,
           );
           final snapshotPic = PictureInfo(width: 640, height: 640, url: url);
-
           return msg.copyWith(
             pictureElem: elem.copyWith(
               sourcePicture: sourcePic,
@@ -631,74 +653,109 @@ class MessageManager {
       var newElem = elem;
 
       // 上传视频文件
-      if (elem.videoPath != null &&
-          elem.videoPath!.isNotEmpty &&
-          (elem.videoUrl == null || elem.videoUrl!.isEmpty)) {
-        final file = File(elem.videoPath!);
-        if (file.existsSync()) {
-          final fileSize = file.lengthSync();
-          final ext = elem.videoPath!.split('.').last.toLowerCase();
-          final uploadName = 'video_$clientMsgID.$ext';
-          final contentType = _getMimeType(
-            elem.videoPath!,
-            fallback: elem.videoType ?? 'video/mp4',
-          );
+      if (elem.videoUrl == null || elem.videoUrl!.isEmpty) {
+        final ext = (elem.videoPath ?? 'video').split('.').last.toLowerCase();
+        final uploadName = 'video_$clientMsgID.$ext';
+        final videoContentType = elem.videoType ?? 'video/$ext';
 
+        if (pendingBytes != null) {
           final url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
-            filePath: elem.videoPath!,
+            fileBytes: pendingBytes,
             fileName: uploadName,
-            contentType: contentType,
+            contentType: videoContentType,
             cause: 'msg-video',
             onProgress: reportProgress,
           );
-          newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
+          newElem = newElem.copyWith(videoUrl: url, videoSize: pendingBytes.length);
+        } else if (elem.videoPath != null && elem.videoPath!.isNotEmpty) {
+          final file = File(elem.videoPath!);
+          if (file.existsSync()) {
+            final fileSize = file.lengthSync();
+            final contentType = _getMimeType(
+              elem.videoPath!,
+              fallback: videoContentType,
+            );
+            final url = await OpenIM.iMManager.uploadFile(
+              id: clientMsgID,
+              filePath: elem.videoPath!,
+              fileName: uploadName,
+              contentType: contentType,
+              cause: 'msg-video',
+              onProgress: reportProgress,
+            );
+            newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
+          }
         }
       }
 
       // 上传视频缩略图
-      if (elem.snapshotPath != null &&
-          elem.snapshotPath!.isNotEmpty &&
-          (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty)) {
-        final file = File(elem.snapshotPath!);
-        if (file.existsSync()) {
-          final fileSize = file.lengthSync();
-          final ext = elem.snapshotPath!.split('.').last.toLowerCase();
-          final uploadName = 'videoSnapshot_$clientMsgID.$ext';
+      if (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty) {
+        final snapExt = (elem.snapshotPath ?? 'snapshot.jpg').split('.').last.toLowerCase();
+        final uploadName = 'videoSnapshot_$clientMsgID.$snapExt';
 
+        if (pendingSnapshotBytes != null) {
           final url = await OpenIM.iMManager.uploadFile(
             id: '${clientMsgID}_snapshot',
-            filePath: elem.snapshotPath!,
+            fileBytes: pendingSnapshotBytes,
             fileName: uploadName,
-            contentType: 'image/$ext',
+            contentType: 'image/$snapExt',
             cause: 'msg-video-snapshot',
             onProgress: reportProgress,
           );
-          newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
+          newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: pendingSnapshotBytes.length);
+        } else if (elem.snapshotPath != null && elem.snapshotPath!.isNotEmpty) {
+          final file = File(elem.snapshotPath!);
+          if (file.existsSync()) {
+            final fileSize = file.lengthSync();
+            final url = await OpenIM.iMManager.uploadFile(
+              id: '${clientMsgID}_snapshot',
+              filePath: elem.snapshotPath!,
+              fileName: uploadName,
+              contentType: 'image/$snapExt',
+              cause: 'msg-video-snapshot',
+              onProgress: reportProgress,
+            );
+            newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
+          }
         }
       }
       return msg.copyWith(videoElem: newElem);
     } else if (msg.contentType == MessageType.file && msg.fileElem != null) {
       final elem = msg.fileElem!;
-      if (elem.filePath != null &&
-          elem.filePath!.isNotEmpty &&
-          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty)) {
-        final file = File(elem.filePath!);
-        if (file.existsSync()) {
-          final fileSize = file.lengthSync();
-          final baseName = elem.fileName ?? elem.filePath!.split(Platform.pathSeparator).last;
-          // Go SDK: c.fileName("file", s.ClientMsgID) + "/" + filepath.Base(name)
-          final uploadName = 'file_$clientMsgID/$baseName';
-          final contentType = _getMimeType(elem.filePath!);
+      if (elem.sourceUrl == null || elem.sourceUrl!.isEmpty) {
+        final baseName = elem.fileName ?? (elem.filePath ?? 'file').split('/').last;
+        final uploadName = 'file_$clientMsgID/$baseName';
+        String? url;
+        int fileSize = 0;
 
-          final url = await OpenIM.iMManager.uploadFile(
+        if (pendingBytes != null) {
+          fileSize = pendingBytes.length;
+          url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
-            filePath: elem.filePath!,
+            fileBytes: pendingBytes,
             fileName: uploadName,
-            contentType: contentType,
+            contentType: 'application/octet-stream',
             cause: 'msg-file',
             onProgress: reportProgress,
           );
+        } else if (elem.filePath != null && elem.filePath!.isNotEmpty) {
+          final file = File(elem.filePath!);
+          if (file.existsSync()) {
+            fileSize = file.lengthSync();
+            final contentType = _getMimeType(elem.filePath!);
+            url = await OpenIM.iMManager.uploadFile(
+              id: clientMsgID,
+              filePath: elem.filePath!,
+              fileName: uploadName,
+              contentType: contentType,
+              cause: 'msg-file',
+              onProgress: reportProgress,
+            );
+          }
+        }
+
+        if (url != null) {
           return msg.copyWith(
             fileElem: elem.copyWith(sourceUrl: url, fileSize: fileSize, fileName: baseName),
           );
@@ -1588,6 +1645,126 @@ class MessageManager {
         stackTrace: s,
         methodName: 'createFileMessageFromFullPath',
       );
+      rethrow;
+    }
+  }
+
+  /// 创建图片消息（通过字节数据，Web 平台使用）
+  /// [bytes] 图片文件的字节数据
+  /// [fileName] 文件名（如 "photo.jpg"）
+  Message createImageMessageFromBytes({
+    required Uint8List bytes,
+    required String fileName,
+  }) {
+    _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createImageMessageFromBytes');
+    try {
+      final ext = fileName.split('.').last.toLowerCase();
+      final imageType = 'image/$ext';
+
+      // 尝试读取图片宽高
+      int width = 0;
+      int height = 0;
+      try {
+        final decoded = _decodeImageDimensions(bytes);
+        if (decoded != null) {
+          width = decoded.width;
+          height = decoded.height;
+        }
+      } catch (e, s) {
+        _log.warning('读取图片尺寸失败: $e', error: e, stackTrace: s, methodName: 'createImageMessageFromBytes');
+      }
+
+      final message = _createMessage(
+        contentType: MessageType.picture,
+        pictureElem: PictureElem(
+          sourcePath: fileName, // web 无真实路径，使用文件名作标识
+          sourcePicture: PictureInfo(width: width, height: height, type: imageType, size: bytes.length),
+        ),
+      );
+      // 暂存 bytes 供 sendMessage 时上传
+      _pendingUploadBytes[message.clientMsgID!] = bytes;
+      return message;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createImageMessageFromBytes');
+      rethrow;
+    }
+  }
+
+  /// 创建视频消息（通过字节数据，Web 平台使用）
+  /// [bytes] 视频文件的字节数据
+  /// [fileName] 文件名（如 "video.mp4"）
+  /// [duration] 时长（秒）
+  /// [videoType] 视频 MIME 类型
+  /// [snapshotBytes] 缩略图字节数据（可选）
+  Message createVideoMessageFromBytes({
+    required Uint8List bytes,
+    required String fileName,
+    required int duration,
+    String? videoType,
+    Uint8List? snapshotBytes,
+  }) {
+    _log.info(
+      'fileName=$fileName, size=${bytes.length}, duration=$duration',
+      methodName: 'createVideoMessageFromBytes',
+    );
+    try {
+      final ext = fileName.split('.').last.toLowerCase();
+
+      int snapWidth = 0;
+      int snapHeight = 0;
+      int snapSize = 0;
+      if (snapshotBytes != null) {
+        snapSize = snapshotBytes.length;
+        try {
+          final decoded = _decodeImageDimensions(snapshotBytes);
+          if (decoded != null) {
+            snapWidth = decoded.width;
+            snapHeight = decoded.height;
+          }
+        } catch (_) {}
+      }
+
+      final message = _createMessage(
+        contentType: MessageType.video,
+        videoElem: VideoElem(
+          videoPath: fileName,
+          videoType: videoType ?? 'video/$ext',
+          duration: duration,
+          videoSize: bytes.length,
+          snapshotPath: snapshotBytes != null ? 'snapshot_$fileName.jpg' : null,
+          snapshotWidth: snapWidth,
+          snapshotHeight: snapHeight,
+          snapshotSize: snapSize,
+        ),
+      );
+      _pendingUploadBytes[message.clientMsgID!] = bytes;
+      if (snapshotBytes != null) {
+        _pendingSnapshotBytes[message.clientMsgID!] = snapshotBytes;
+      }
+      return message;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createVideoMessageFromBytes');
+      rethrow;
+    }
+  }
+
+  /// 创建文件消息（通过字节数据，Web 平台使用）
+  /// [bytes] 文件的字节数据
+  /// [fileName] 文件名
+  Message createFileMessageFromBytes({
+    required Uint8List bytes,
+    required String fileName,
+  }) {
+    _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createFileMessageFromBytes');
+    try {
+      final message = _createMessage(
+        contentType: MessageType.file,
+        fileElem: FileElem(filePath: fileName, fileName: fileName, fileSize: bytes.length),
+      );
+      _pendingUploadBytes[message.clientMsgID!] = bytes;
+      return message;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createFileMessageFromBytes');
       rethrow;
     }
   }

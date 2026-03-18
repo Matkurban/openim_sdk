@@ -1,3 +1,4 @@
+import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'full_user_info.g.dart';
@@ -6,7 +7,7 @@ part 'full_user_info.g.dart';
 ///
 /// 相比 [UserInfo]，包含手机号、邮箱、账号等注册信息字段。
 @JsonSerializable()
-class FullUserInfo {
+class FullUserInfo extends Equatable {
   final String userID;
 
   @JsonKey(defaultValue: '')
@@ -74,4 +75,24 @@ class FullUserInfo {
   factory FullUserInfo.fromJson(Map<String, dynamic> json) => _$FullUserInfoFromJson(json);
 
   Map<String, dynamic> toJson() => _$FullUserInfoToJson(this);
+
+  @override
+  List<Object?> get props => [
+        userID,
+        password,
+        account,
+        phoneNumber,
+        areaCode,
+        nickname,
+        faceURL,
+        gender,
+        level,
+        birth,
+        email,
+        allowAddFriend,
+        allowBeep,
+        allowVibration,
+        globalRecvMsgOpt,
+        registerType,
+      ];
 }

@@ -1,5 +1,7 @@
+import 'package:equatable/equatable.dart';
+
 /// 朋友圈媒体（图片/视频）
-class MomentMedia {
+class MomentMedia extends Equatable {
   const MomentMedia({
     required this.type,
     required this.url,
@@ -67,6 +69,9 @@ class MomentMedia {
       extra: extra ?? this.extra,
     );
   }
+
+  @override
+  List<Object?> get props => [type, url, localPath, localCoverPath, coverUrl, duration, extra];
 }
 
 int? _toInt(dynamic value) {

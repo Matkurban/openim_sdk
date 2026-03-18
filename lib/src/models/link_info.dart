@@ -1,5 +1,7 @@
+import 'package:equatable/equatable.dart';
+
 /// 链接信息
-class LinkInfo {
+class LinkInfo extends Equatable {
   const LinkInfo({required this.url, required this.title, this.description, this.imageUrl});
 
   /// 链接地址
@@ -26,4 +28,7 @@ class LinkInfo {
   Map<String, dynamic> toJson() {
     return {'url': url, 'title': title, 'description': description, 'imageUrl': imageUrl};
   }
+
+  @override
+  List<Object?> get props => [url, title, description, imageUrl];
 }

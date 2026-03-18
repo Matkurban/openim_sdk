@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:equatable/equatable.dart';
+
 import 'favorite_type.dart';
 import 'link_info.dart';
 import 'message.dart';
@@ -8,7 +10,7 @@ import 'moment_comment.dart';
 import 'note_info.dart';
 
 /// 收藏项
-class FavoriteItem {
+class FavoriteItem extends Equatable {
   const FavoriteItem({
     required this.favoriteID,
     required this.userID,
@@ -247,4 +249,19 @@ class FavoriteItem {
       'createTime': createTime,
     };
   }
+
+  @override
+  List<Object?> get props => [
+        favoriteID,
+        userID,
+        favoriteType,
+        targetID,
+        data,
+        createTime,
+        message,
+        momentInfo,
+        momentComment,
+        linkInfo,
+        noteInfo,
+      ];
 }

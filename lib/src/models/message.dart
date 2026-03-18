@@ -272,7 +272,48 @@ class Message extends Equatable {
   }
 
   @override
-  List<Object?> get props => [clientMsgID];
+  List<Object?> get props => [
+        clientMsgID,
+        serverMsgID,
+        createTime,
+        sendTime,
+        sessionType,
+        sendID,
+        recvID,
+        msgFrom,
+        contentType,
+        senderPlatformID,
+        senderNickname,
+        senderFaceUrl,
+        groupID,
+        localEx,
+        seq,
+        isRead,
+        hasReadTime,
+        status,
+        isReact,
+        isExternalExtensions,
+        offlinePush,
+        attachedInfo,
+        ex,
+        exMap,
+        pictureElem,
+        soundElem,
+        videoElem,
+        fileElem,
+        atTextElem,
+        locationElem,
+        customElem,
+        quoteElem,
+        mergeElem,
+        notificationElem,
+        faceElem,
+        attachedInfoElem,
+        textElem,
+        cardElem,
+        advancedTextElem,
+        typingElem,
+      ];
 }
 
 /// Image message content

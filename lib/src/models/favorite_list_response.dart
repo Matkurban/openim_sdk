@@ -1,7 +1,9 @@
+import 'package:equatable/equatable.dart';
+
 import 'favorite_item.dart';
 
 /// 收藏列表分页响应
-class FavoriteListResponse {
+class FavoriteListResponse extends Equatable {
   const FavoriteListResponse({required this.total, required this.favorites});
 
   final int total;
@@ -21,6 +23,9 @@ class FavoriteListResponse {
   Map<String, dynamic> toJson() {
     return {'total': total, 'favorites': favorites.map((item) => item.toJson()).toList()};
   }
+
+  @override
+  List<Object?> get props => [total, favorites];
 }
 
 List<FavoriteItem> _parseFavorites(dynamic value) {

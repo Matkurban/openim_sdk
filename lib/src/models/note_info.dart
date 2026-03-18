@@ -1,5 +1,7 @@
+import 'package:equatable/equatable.dart';
+
 /// 笔记信息
-class NoteInfo {
+class NoteInfo extends Equatable {
   const NoteInfo({
     required this.noteID,
     required this.summary,
@@ -24,4 +26,7 @@ class NoteInfo {
   Map<String, dynamic> toJson() {
     return {'noteID': noteID, 'summary': summary, 'content': content, 'createdAt': createdAt};
   }
+
+  @override
+  List<Object?> get props => [noteID, summary, content, createdAt];
 }

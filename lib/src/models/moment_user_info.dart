@@ -1,5 +1,7 @@
+import 'package:equatable/equatable.dart';
+
 /// 朋友圈交互中的用户信息
-class MomentUserInfo {
+class MomentUserInfo extends Equatable {
   const MomentUserInfo({required this.userID, required this.nickname, required this.faceURL});
 
   final String userID;
@@ -17,4 +19,7 @@ class MomentUserInfo {
   Map<String, dynamic> toJson() {
     return {'userID': userID, 'nickname': nickname, 'faceURL': faceURL};
   }
+
+  @override
+  List<Object?> get props => [userID, nickname, faceURL];
 }

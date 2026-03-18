@@ -1,7 +1,9 @@
+import 'package:equatable/equatable.dart';
+
 import 'moment_user_info.dart';
 
 /// 朋友圈评论记录
-class MomentCommentWithUser {
+class MomentCommentWithUser extends Equatable {
   const MomentCommentWithUser({
     required this.commentID,
     required this.momentID,
@@ -59,6 +61,20 @@ class MomentCommentWithUser {
       if (replyToUser != null) 'replyToUser': replyToUser!.toJson(),
     };
   }
+
+  @override
+  List<Object?> get props => [
+        commentID,
+        momentID,
+        userID,
+        replyToUserID,
+        content,
+        status,
+        createTime,
+        updateTime,
+        userInfo,
+        replyToUser,
+      ];
 }
 
 int? _toInt(dynamic value) {

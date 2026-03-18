@@ -1,10 +1,12 @@
+import 'package:equatable/equatable.dart';
+
 import '../enums/visible_type.dart';
 import 'moment_comment.dart';
 import 'moment_like.dart';
 import 'moment_media.dart';
 
 /// 朋友圈动态（含互动信息）
-class MomentInfo {
+class MomentInfo extends Equatable {
   const MomentInfo({
     required this.momentID,
     required this.userID,
@@ -98,6 +100,24 @@ class MomentInfo {
       'comments': comments.map((item) => item.toJson()).toList(),
     };
   }
+
+  @override
+  List<Object?> get props => [
+        momentID,
+        userID,
+        content,
+        media,
+        visibleType,
+        visibleGroupIDs,
+        status,
+        createTime,
+        updateTime,
+        likeCount,
+        commentCount,
+        extra,
+        likes,
+        comments,
+      ];
 }
 
 VisibleType _parseVisibleType(dynamic value) {

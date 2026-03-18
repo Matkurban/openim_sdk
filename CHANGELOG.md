@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.3
+
+### 新增
+
+- **Web 平台文件/图片/视频上传支持**：Web 端无法使用 `dart:io File` 读取文件路径，新增基于字节流的上传方式：
+  - `MessageManager.createImageMessageFromBytes()` — 通过 `Uint8List` 字节创建图片消息
+  - `MessageManager.createVideoMessageFromBytes()` — 通过 `Uint8List` 字节创建视频消息
+  - `MessageManager.createFileMessageFromBytes()` — 通过 `Uint8List` 字节创建文件消息
+  - `IMManager.uploadFile()` 新增可选 `fileBytes` 参数，支持直接传入字节流上传（跳过 `dart:io File` 读取）
+  - `_handleMediaUploadIfNeeded()` 优先使用内存中的 `_pendingUploadBytes` 上传，Web 端无需依赖文件系统路径
+
+### 优化
+
+- **`IMManager` 改为单例模式**：使用 `factory` + `_internal` 构造函数，避免重复创建实例导致状态丢失
+
+- **全部数据模型统一使用 `Equatable`**：审计并修复所有模型类，确保 `props` 包含全部属性，修复 `didUpdateWidget` 等依赖对象相等性判断的场景：
+  - `Message.props` 从 `[clientMsgID]` 扩展为全部 41 个属性（**关键修复**：此前发送图片消息后 UI 无法检测到 URL 变化）
+  - 新增 `Equatable`：`FullUserInfo`、`AuthCacheData`、`LinkInfo`、`NoteInfo`、`MomentInfo`、`MomentCommentWithUser`、`MomentLikeWithUser`、`MomentMedia`、`MomentUserInfo`、`MomentCreateReq`、`MomentListResponse`、`FavoriteItem`、`FavoriteListResponse`
+
 ## 1.3.2
 
 ### 修复
