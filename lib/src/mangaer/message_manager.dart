@@ -1706,11 +1706,15 @@ class MessageManager {
       final conv = await _database.getConversation(conversationID);
       final listener = _conversationManager?.listener;
       if (conv != null) {
-        // 仅当新消息时间 >= 现有最新消息时间时才更新（对应 Go SDK 判断）
         final existingTime = conv.latestMsgSendTime ?? 0;
-        if ((message.sendTime ?? 0) >= existingTime) {
+        final newMsgTime = message.sendTime ?? 0;
+        final existingClientMsgID = _getConversationLatestMsgClientID(conv);
+        final isSameMessage =
+            message.clientMsgID != null && message.clientMsgID == existingClientMsgID;
+
+        if (newMsgTime >= existingTime || isSameMessage) {
           await _database.updateConversation(conversationID, {
-            'latestMsg': jsonEncode(message.toJson()),
+            'latestMsg': jsonEncode(DatabaseService.messageToDbMap(message)),
             'latestMsgSendTime': message.sendTime,
           });
           // 触发 OnConversationChanged
@@ -1726,7 +1730,7 @@ class MessageManager {
           'conversationType': sessionType.value,
           'userID': message.recvID,
           'groupID': message.groupID,
-          'latestMsg': jsonEncode(message.toJson()),
+          'latestMsg': jsonEncode(DatabaseService.messageToDbMap(message)),
           'latestMsgSendTime': message.sendTime,
           'unreadCount': 0,
         });
@@ -1740,6 +1744,12 @@ class MessageManager {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_updateConversationLatestMsg');
       rethrow;
     }
+  }
+
+  /// 获取会话最新消息的 clientMsgID
+  /// 对应 Go SDK getConversationLatestMsgClientID (notification.go:177-183)
+  String? _getConversationLatestMsgClientID(ConversationInfo conv) {
+    return conv.latestMsg?.clientMsgID;
   }
 
   /// 如果被删除/撤回的消息是会话的 latestMsg，则更新 latestMsg 为次新消息

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.2
+
+### 修复
+
+- **修复切换会话后消息状态变为失败**：`getAdvancedHistoryMessageList` 从云端拉取消息后执行 `batchInsertMessages`（upsert），云端消息的 protobuf `status` 字段默认为 `0`，而 `MessageStatus.fromValue(0)` 的 `orElse` 默认返回 `failed`，导致已发送成功的消息被覆盖为失败状态。修复：云端拉取和推送的消息在插入前默认设置 `status = MessageStatus.succeeded`（对齐 Go SDK 行为，服务端消息必然已发送成功）
+
+- **修复发送消息后会话列表不显示最新消息内容**：`_updateConversationLatestMsg` 使用 `message.toJson()`（json_serializable 格式）序列化 latestMsg，生成 `{textElem: {content: "..."}}` 格式，但 `convertMessage()` 读取时期望 DB 格式 `{content: '{"content":"..."}'}` 的扁平 `content` 字段，导致反序列化后所有元素字段（textElem、pictureElem 等）为 null，会话列表副标题为空。修复：改用 `DatabaseService.messageToDbMap()` 序列化，确保与 `convertMessage()` 格式兼容
+
+- **修复发送消息时 latestMsg 未更新**：`_updateConversationLatestMsg` 仅比较 `sendTime >= existingTime`，新创建的消息 `sendTime=0`（尚未发送到服务器），当已有 latestMsg 的 `sendTime > 0` 时条件不成立，导致会话 latestMsg 不更新。修复：对齐 Go SDK `doUpdateConversation > AddConOrUpLatMsg`（notification.go:198）的逻辑，增加 `clientMsgID` 匹配回退条件 — 同一条消息的状态更新（sending→succeeded）始终允许更新 latestMsg
+
+- **优化初次安装同步性能**：初次安装时 `_processPulledMsgs` 对每条通知消息（contentType >= 1000）逐条调用 `notificationDispatcher.dispatch()`，大量好友/群组通知（如 500+ 条 contentType=1201）导致重复触发 `_debounceSyncFriends`。修复：重装同步时跳过通知分发（对齐 Go SDK `doMsgSyncByReinstalled` 行为，此时好友/群组已通过 `_syncFriends`/`_syncJoinedGroups` 全量同步）
+
 ## 1.3.1
 
 ### 修复
