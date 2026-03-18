@@ -64,17 +64,17 @@ class MomentCommentWithUser extends Equatable {
 
   @override
   List<Object?> get props => [
-        commentID,
-        momentID,
-        userID,
-        replyToUserID,
-        content,
-        status,
-        createTime,
-        updateTime,
-        userInfo,
-        replyToUser,
-      ];
+    commentID,
+    momentID,
+    userID,
+    replyToUserID,
+    content,
+    status,
+    createTime,
+    updateTime,
+    userInfo,
+    replyToUser,
+  ];
 }
 
 int? _toInt(dynamic value) {

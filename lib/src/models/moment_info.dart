@@ -103,21 +103,21 @@ class MomentInfo extends Equatable {
 
   @override
   List<Object?> get props => [
-        momentID,
-        userID,
-        content,
-        media,
-        visibleType,
-        visibleGroupIDs,
-        status,
-        createTime,
-        updateTime,
-        likeCount,
-        commentCount,
-        extra,
-        likes,
-        comments,
-      ];
+    momentID,
+    userID,
+    content,
+    media,
+    visibleType,
+    visibleGroupIDs,
+    status,
+    createTime,
+    updateTime,
+    likeCount,
+    commentCount,
+    extra,
+    likes,
+    comments,
+  ];
 }
 
 VisibleType _parseVisibleType(dynamic value) {

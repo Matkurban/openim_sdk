@@ -672,10 +672,7 @@ class MessageManager {
           final file = File(elem.videoPath!);
           if (file.existsSync()) {
             final fileSize = file.lengthSync();
-            final contentType = _getMimeType(
-              elem.videoPath!,
-              fallback: videoContentType,
-            );
+            final contentType = _getMimeType(elem.videoPath!, fallback: videoContentType);
             final url = await OpenIM.iMManager.uploadFile(
               id: clientMsgID,
               filePath: elem.videoPath!,
@@ -1652,11 +1649,11 @@ class MessageManager {
   /// 创建图片消息（通过字节数据，Web 平台使用）
   /// [bytes] 图片文件的字节数据
   /// [fileName] 文件名（如 "photo.jpg"）
-  Message createImageMessageFromBytes({
-    required Uint8List bytes,
-    required String fileName,
-  }) {
-    _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createImageMessageFromBytes');
+  Message createImageMessageFromBytes({required Uint8List bytes, required String fileName}) {
+    _log.info(
+      'fileName=$fileName, size=${bytes.length}',
+      methodName: 'createImageMessageFromBytes',
+    );
     try {
       final ext = fileName.split('.').last.toLowerCase();
       final imageType = 'image/$ext';
@@ -1671,14 +1668,24 @@ class MessageManager {
           height = decoded.height;
         }
       } catch (e, s) {
-        _log.warning('读取图片尺寸失败: $e', error: e, stackTrace: s, methodName: 'createImageMessageFromBytes');
+        _log.warning(
+          '读取图片尺寸失败: $e',
+          error: e,
+          stackTrace: s,
+          methodName: 'createImageMessageFromBytes',
+        );
       }
 
       final message = _createMessage(
         contentType: MessageType.picture,
         pictureElem: PictureElem(
           sourcePath: fileName, // web 无真实路径，使用文件名作标识
-          sourcePicture: PictureInfo(width: width, height: height, type: imageType, size: bytes.length),
+          sourcePicture: PictureInfo(
+            width: width,
+            height: height,
+            type: imageType,
+            size: bytes.length,
+          ),
         ),
       );
       // 暂存 bytes 供 sendMessage 时上传
@@ -1751,10 +1758,7 @@ class MessageManager {
   /// 创建文件消息（通过字节数据，Web 平台使用）
   /// [bytes] 文件的字节数据
   /// [fileName] 文件名
-  Message createFileMessageFromBytes({
-    required Uint8List bytes,
-    required String fileName,
-  }) {
+  Message createFileMessageFromBytes({required Uint8List bytes, required String fileName}) {
     _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createFileMessageFromBytes');
     try {
       final message = _createMessage(

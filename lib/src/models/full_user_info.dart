@@ -78,21 +78,21 @@ class FullUserInfo extends Equatable {
 
   @override
   List<Object?> get props => [
-        userID,
-        password,
-        account,
-        phoneNumber,
-        areaCode,
-        nickname,
-        faceURL,
-        gender,
-        level,
-        birth,
-        email,
-        allowAddFriend,
-        allowBeep,
-        allowVibration,
-        globalRecvMsgOpt,
-        registerType,
-      ];
+    userID,
+    password,
+    account,
+    phoneNumber,
+    areaCode,
+    nickname,
+    faceURL,
+    gender,
+    level,
+    birth,
+    email,
+    allowAddFriend,
+    allowBeep,
+    allowVibration,
+    globalRecvMsgOpt,
+    registerType,
+  ];
 }

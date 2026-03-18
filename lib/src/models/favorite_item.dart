@@ -252,16 +252,16 @@ class FavoriteItem extends Equatable {
 
   @override
   List<Object?> get props => [
-        favoriteID,
-        userID,
-        favoriteType,
-        targetID,
-        data,
-        createTime,
-        message,
-        momentInfo,
-        momentComment,
-        linkInfo,
-        noteInfo,
-      ];
+    favoriteID,
+    userID,
+    favoriteType,
+    targetID,
+    data,
+    createTime,
+    message,
+    momentInfo,
+    momentComment,
+    linkInfo,
+    noteInfo,
+  ];
 }
