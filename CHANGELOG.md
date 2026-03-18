@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.4
+
+### 修复
+
+- **修复同步会话时群聊名称缺失**：
+  - `NotificationDispatcher._syncConversations()`：服务端 `getAllConversations` 不返回 `showName`/`faceURL`，需客户端填充。新增 `_batchFillShowNameAndFaceURL()` 方法，在写入本地数据库前批量填充（本地 DB → 网络 API 兜底），对齐 Go SDK 的 `batchAddFaceURLAndName`
+  - `MsgSyncer._enrichNewConversation()`：收到推送消息自动创建新会话时，仅从本地数据库查询群组/用户名称。若群组尚未同步到本地（如刚被邀请入群），名称会保持为发送者昵称。新增网络 API 兜底，查不到时自动从服务端拉取并缓存
+
+- **修复 Web 端刷新后 `userInfo` 为 null**：浏览器刷新后所有 Dart 内存状态丢失（`_userInfo`、`_loginStatus` 等），但浏览器保留当前 URL（如 `/main`）跳过 splash 页的 `loadLoginConfig()` 自动登录流程。在 `IMManager` 中支持 `loadLoginConfig()` 在 `runApp` 之前调用，从 IndexedDB 恢复登录态
+
 ## 1.3.3
 
 ### 新增

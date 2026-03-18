@@ -977,6 +977,9 @@ class NotificationDispatcher {
           }
         }
 
+        // 补充 showName/faceURL（服务端不返回这些字段，需客户端填充）
+        await _batchFillShowNameAndFaceURL(convMaps);
+
         await database.batchUpsertConversations(convMaps);
         // 通知 UI 刷新（批量读取代替逐个查询）
         final ids = convMaps
@@ -993,6 +996,130 @@ class NotificationDispatcher {
       }
     } catch (e, s) {
       _log.error('同步会话异常: $e', error: e, stackTrace: s, methodName: '_syncConversations');
+    }
+  }
+
+  /// 批量为会话填充 showName 和 faceURL
+  ///
+  /// 服务端 getAllConversations 不返回 showName/faceURL，需客户端填充。
+  /// 对齐 Go SDK 的 batchAddFaceURLAndName：
+  /// - 单聊/通知 (type=1/4): 优先好友备注 → 好友昵称 → 用户表 → 网络
+  /// - 群聊 (type=3): 本地群组表 → 网络
+  Future<void> _batchFillShowNameAndFaceURL(List<Map<String, dynamic>> conversations) async {
+    try {
+      final userIDs = <String>{};
+      final groupIDs = <String>{};
+
+      for (final conv in conversations) {
+        final type = conv['conversationType'] as int?;
+        if (type == 1 || type == 4) {
+          final uid = conv['userID'] as String?;
+          if (uid != null && uid.isNotEmpty) userIDs.add(uid);
+        } else if (type == 3) {
+          final gid = conv['groupID'] as String?;
+          if (gid != null && gid.isNotEmpty) groupIDs.add(gid);
+        }
+      }
+
+      // 批量查好友信息（优先使用备注）
+      final friendMap = <String, FriendInfo>{};
+      if (userIDs.isNotEmpty) {
+        final friends = await database.getFriendsByUserIDs(userIDs.toList());
+        for (final f in friends) {
+          final fid = f.friendUserID;
+          if (fid != null) friendMap[fid] = f;
+        }
+      }
+
+      // 不在好友中的 userID，从用户表查 → 网络兜底
+      final userMap = <String, UserInfo>{};
+      final notInFriendIDs = userIDs.where((id) => !friendMap.containsKey(id)).toList();
+      if (notInFriendIDs.isNotEmpty) {
+        final users = await database.getUsersByIDs(notInFriendIDs);
+        for (final u in users) {
+          final uid = u.userID;
+          if (uid != null) userMap[uid] = u;
+        }
+        final missing = notInFriendIDs.where((id) => !userMap.containsKey(id)).toList();
+        if (missing.isNotEmpty) {
+          try {
+            final resp = await api.getUsersInfo(userIDs: missing);
+            if (resp.errCode == 0) {
+              final netUsers = resp.data?['usersInfo'] as List? ?? [];
+              for (final u in netUsers) {
+                if (u is Map<String, dynamic>) {
+                  final uid = u['userID'] as String?;
+                  if (uid != null) {
+                    userMap[uid] = UserInfo.fromJson(u);
+                    await database.upsertUser(u);
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 批量查群组信息 → 网络兜底
+      final groupMap = <String, GroupInfo>{};
+      if (groupIDs.isNotEmpty) {
+        final groups = await database.getGroupsByIDs(groupIDs.toList());
+        for (final g in groups) {
+          groupMap[g.groupID] = g;
+        }
+        final missing = groupIDs.where((id) => !groupMap.containsKey(id)).toList();
+        if (missing.isNotEmpty) {
+          try {
+            final resp = await api.getGroupsInfo(groupIDs: missing.toList());
+            if (resp.errCode == 0) {
+              final netGroups = resp.data?['groupInfoList'] as List? ?? [];
+              for (final g in netGroups) {
+                if (g is Map<String, dynamic>) {
+                  final gid = g['groupID'] as String?;
+                  if (gid != null) {
+                    groupMap[gid] = GroupInfo.fromJson(g);
+                    await database.upsertGroup(g);
+                  }
+                }
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      // 填充
+      for (final conv in conversations) {
+        final type = conv['conversationType'] as int?;
+        if (type == 1 || type == 4) {
+          final uid = conv['userID'] as String? ?? '';
+          final friend = friendMap[uid];
+          if (friend != null) {
+            final remark = friend.remark ?? '';
+            conv['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+            conv['faceURL'] = friend.faceURL ?? '';
+          } else {
+            final user = userMap[uid];
+            if (user != null) {
+              conv['showName'] = user.nickname ?? '';
+              conv['faceURL'] = user.faceURL ?? '';
+            }
+          }
+        } else if (type == 3) {
+          final gid = conv['groupID'] as String? ?? '';
+          final group = groupMap[gid];
+          if (group != null) {
+            conv['showName'] = group.groupName ?? '';
+            conv['faceURL'] = group.faceURL ?? '';
+          }
+        }
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_batchFillShowNameAndFaceURL',
+      );
     }
   }
 

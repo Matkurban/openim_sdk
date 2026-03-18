@@ -1189,6 +1189,20 @@ class MsgSyncer {
           if (users.isNotEmpty) {
             updates['showName'] = users.first.nickname ?? '';
             updates['faceURL'] = users.first.faceURL ?? '';
+          } else {
+            // 网络兜底
+            try {
+              final resp = await api.getUsersInfo(userIDs: [userID]);
+              if (resp.errCode == 0) {
+                final netUsers = resp.data?['usersInfo'] as List? ?? [];
+                if (netUsers.isNotEmpty && netUsers.first is Map<String, dynamic>) {
+                  final u = netUsers.first as Map<String, dynamic>;
+                  updates['showName'] = u['nickname'] as String? ?? '';
+                  updates['faceURL'] = u['faceURL'] as String? ?? '';
+                  await database.upsertUser(u);
+                }
+              }
+            } catch (_) {}
           }
         }
       } else if (sessionType == 3 && groupID != null && groupID.isNotEmpty) {
@@ -1197,6 +1211,20 @@ class MsgSyncer {
         if (group != null) {
           updates['showName'] = group.groupName ?? '';
           updates['faceURL'] = group.faceURL ?? '';
+        } else {
+          // 网络兜底
+          try {
+            final resp = await api.getGroupsInfo(groupIDs: [groupID]);
+            if (resp.errCode == 0) {
+              final netGroups = resp.data?['groupInfoList'] as List? ?? [];
+              if (netGroups.isNotEmpty && netGroups.first is Map<String, dynamic>) {
+                final g = netGroups.first as Map<String, dynamic>;
+                updates['showName'] = g['groupName'] as String? ?? '';
+                updates['faceURL'] = g['faceURL'] as String? ?? '';
+                await database.upsertGroup(g);
+              }
+            }
+          } catch (_) {}
         }
       }
 
