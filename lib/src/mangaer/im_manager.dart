@@ -58,16 +58,6 @@ class IMManager {
   /// 通知分发器（登录时创建，登出时清理）
   NotificationDispatcher? _notificationDispatcher;
 
-  /// 当前登录用户 ID
-  String? _userID;
-
-  String get userID => _userID!;
-
-  /// 当前登录用户信息
-  UserInfo? _userInfo;
-
-  UserInfo get userInfo => _userInfo!;
-
   AuthCacheData? _authData;
 
   AuthCacheData get authData => _authData!;
@@ -76,6 +66,16 @@ class IMManager {
   LoginStatus _loginStatus = LoginStatus.logout;
 
   final GetIt _getIt = GetIt.instance;
+
+  /// 设置服务监听（用于后台推送等场景）
+  void setListenerForService(OnListenerForService listener) {
+    _listenerForService = listener;
+  }
+
+  /// 设置文件上传进度监听
+  void setUploadFileListener(OnUploadFileListener listener) {
+    _uploadFileListener = listener;
+  }
 
   /// 初始化 SDK
   /// [platformID] 平台ID
@@ -106,10 +106,7 @@ class IMManager {
     try {
       ImLogConfig logConfig = ImLogConfig();
       logConfig.setLevel(logLevel);
-      _log.info(
-        'platformID=$platformID, apiAddr=$apiAddr, wsAddr=$wsAddr, chatAddr=$authAddr, dataDir=$dataDir, logLevel=$logLevel',
-        methodName: 'initSDK',
-      );
+      _log.info(config.toString(), methodName: 'initSDK');
       // 注册配置
       _getIt.registerSingleton<InitConfig>(config, instanceName: InstanceName.initConfig);
 
@@ -191,7 +188,7 @@ class IMManager {
   ///此方法建议在启动页（splash）页中调用，因为涉及网络请求，可能会有一定延迟
   Future<LoginStatus> loadLoginConfig() async {
     try {
-      String? value = await getDatabaseInstance().getValue(CacheKey.loginUserData, isGlobal: true);
+      String? value = await getDatabaseInstance().getValue(CacheKey.loginAuthData, isGlobal: true);
       if (value != null) {
         try {
           AuthCacheData authCacheData = AuthCacheData.fromJson(jsonDecode(value));
@@ -249,8 +246,6 @@ class IMManager {
   /// 反初始化 SDK
   Future<void> unInitSDK() async {
     _log.info('unInitSDK');
-    _userID = null;
-    _userInfo = null;
     _loginStatus = .logout;
     if (_getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
       await _getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
@@ -265,6 +260,9 @@ class IMManager {
 
     if (_getIt.isRegistered<WebSocketService>(instanceName: InstanceName.webSocketService)) {
       await _getIt.unregister<WebSocketService>(instanceName: InstanceName.webSocketService);
+    }
+    if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+      await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
     }
   }
 
@@ -340,19 +338,13 @@ class IMManager {
     _log.info('userID=$userID ,token=$token', methodName: 'login');
     try {
       _loginStatus = LoginStatus.logging;
-
-      // 设置 HTTP token
       HttpClient().setToken(token);
-
       final DatabaseService databaseService = _getIt.get<DatabaseService>(
         instanceName: InstanceName.databaseService,
       );
-
       final ImApiService imApiService = _getIt.get<ImApiService>(
         instanceName: InstanceName.imApiService,
       );
-
-      // 从服务端获取当前用户信息并存入本地
       final ApiResponse response = await imApiService.getUsersInfo(userIDs: [userID]);
       if (response.isSuccess) {
         final dataMap = response.data as Map<String, dynamic>;
@@ -360,17 +352,17 @@ class IMManager {
         if (users != null && users.isNotEmpty) {
           final userData = Map<String, dynamic>.from(users.first as Map);
           await databaseService.upsertUser(userData);
-          _userInfo = UserInfo.fromJson(userData);
+          UserInfo user = UserInfo.fromJson(userData);
+          _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
         }
       }
-      if (_userInfo == null) {
+      if (!_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
         _loginStatus = LoginStatus.logout;
         throw OpenIMException(
           code: response.errCode,
           message: '${response.errMsg} : ${response.errDlt}',
         );
       }
-      _userID = userID;
       conversationManager.setCurrentUserID(userID);
       groupManager.setCurrentUserID(userID);
       messageManager.setCurrentUserID(userID);
@@ -423,7 +415,7 @@ class IMManager {
       messageManager.recoverSendingMessages();
 
       _log.info('用户已登录: $userID');
-      return _userInfo!;
+      return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'login');
       throw OpenIMException(code: SDKErrorCode.loginError.code, message: '登录失败');
@@ -455,7 +447,7 @@ class IMManager {
       final DatabaseService db = _getIt.get<DatabaseService>(
         instanceName: InstanceName.databaseService,
       );
-      await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+      await db.toStore.setValue(CacheKey.loginAuthData, loginData.toString(), isGlobal: true);
       return userInfo;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'loginByEmail');
@@ -493,7 +485,7 @@ class IMManager {
       final DatabaseService db = _getIt.get<DatabaseService>(
         instanceName: InstanceName.databaseService,
       );
-      await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+      await db.toStore.setValue(CacheKey.loginAuthData, loginData.toString(), isGlobal: true);
       return userInfo;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'loginByPhone');
@@ -521,7 +513,7 @@ class IMManager {
     final DatabaseService db = _getIt.get<DatabaseService>(
       instanceName: InstanceName.databaseService,
     );
-    await db.toStore.setValue(CacheKey.loginUserData, loginData.toString(), isGlobal: true);
+    await db.toStore.setValue(CacheKey.loginAuthData, loginData.toString(), isGlobal: true);
     return userInfo;
   }
 
@@ -548,23 +540,13 @@ class IMManager {
         instanceName: InstanceName.databaseService,
       );
       // 清除登录缓存，但不关闭数据库（避免 Web 上重新登录时操作已关闭的 IndexedDB 挂起）
-      await databaseService.toStore.setValue(CacheKey.loginUserData, null, isGlobal: true);
+      await databaseService.toStore.setValue(CacheKey.loginAuthData, null, isGlobal: true);
 
       _log.info('用户已登出');
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'logout');
       throw OpenIMException(code: SDKErrorCode.loginError.code, message: '退出登录失败');
     }
-  }
-
-  /// 设置服务监听（用于后台推送等场景）
-  void setListenerForService(OnListenerForService listener) {
-    _listenerForService = listener;
-  }
-
-  /// 设置文件上传进度监听
-  void setUploadFileListener(OnUploadFileListener listener) {
-    _uploadFileListener = listener;
   }
 
   /// 是否已初始化
@@ -576,6 +558,24 @@ class IMManager {
   /// 1: logout  2: logging  3: logged
   LoginStatus get getLoginStatus {
     return _loginStatus;
+  }
+
+  /// 获取当前登录用户ID
+  String getLoginUserID() {
+    return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser).userID;
+  }
+
+  String get userID {
+    return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser).userID;
+  }
+
+  /// 获取当前登录用户信息
+  UserInfo getLoginUserInfo() {
+    return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser);
+  }
+
+  UserInfo get userInfo {
+    return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser);
   }
 
   /// 上传文件
@@ -653,7 +653,7 @@ class IMManager {
       partSize: partSize,
       maxParts: partNum.clamp(1, 20),
       cause: cause ?? '',
-      name: '$_userID/$fileName',
+      name: '$userID/$fileName',
       contentType: contentType ?? 'application/octet-stream',
     );
     if (initResp.errCode != 0) {
@@ -691,11 +691,6 @@ class IMManager {
       }
     }
     var currentSignParts = (sign['parts'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-
-    _log.info(
-      'Sign url: $signUrl, uploadId: $uploadIdParam, partNum: $partNum',
-      methodName: 'uploadFile',
-    );
 
     // 2. 逐片上传
     for (int i = 0; i < partNum; i++) {
@@ -747,7 +742,6 @@ class IMManager {
             }
           }
         }
-        _log.info('Part $partNumber headers (from list): $headers', methodName: 'uploadFile');
       } else if (rawHeaders is Map) {
         headers = (rawHeaders).map((k, v) {
           final String val;
@@ -758,13 +752,8 @@ class IMManager {
           }
           return MapEntry(k.toString(), val);
         });
-        _log.info('Part $partNumber headers (from map): $headers', methodName: 'uploadFile');
       } else {
         headers = null;
-        _log.info(
-          'Part $partNumber headers: null (rawHeaders type: ${rawHeaders?.runtimeType})',
-          methodName: 'uploadFile',
-        );
       }
 
       // 构建上传 URL：优先使用预签名 URL，否则使用 signUrl + query 参数
@@ -799,18 +788,9 @@ class IMManager {
           putUrl = signUrl;
         }
       }
-      _log.info(
-        'Part $partNumber: putUrl=${putUrl.isNotEmpty ? putUrl : "empty"}',
-        methodName: 'uploadFile',
-      );
 
       String? etag;
       if (putUrl.isNotEmpty) {
-        _log.info(
-          'Uploading part $partNumber to: $putUrl, size: ${partBytes.length}',
-          methodName: 'uploadFile',
-        );
-
         final putResp = await HttpClient().dio.put(
           putUrl,
           data: partBytes,
@@ -826,10 +806,6 @@ class IMManager {
 
         // 从响应头获取 S3 返回的 ETag，用于完成分片上传
         etag = putResp.headers.value('etag');
-        _log.info(
-          'Part $partNumber upload response: status=${putResp.statusCode}, etag=$etag, data=${putResp.data}',
-          methodName: 'uploadFile',
-        );
 
         if (putResp.statusCode != null &&
             (putResp.statusCode! < 200 || putResp.statusCode! >= 300)) {
@@ -848,54 +824,20 @@ class IMManager {
     _uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
 
     // 3. 完成分片上传
-    try {
-      _log.info(
-        '--> completeMultipartUpload request: uploadID=$uploadID, parts=$partEtags, name=$_userID/$fileName, contentType=$contentType, cause=$cause',
-        methodName: 'uploadFile',
-      );
-      final completeResp = await imApiService.completeMultipartUpload(
-        uploadID: uploadID,
-        parts: partEtags.cast<String>(),
-        name: '$_userID/$fileName',
-        contentType: contentType ?? 'application/octet-stream',
-        cause: cause ?? '',
-      );
-      _log.info(
-        '<-- completeMultipartUpload response: errCode=${completeResp.errCode}, errMsg=${completeResp.errMsg}, data=${completeResp.data}',
-        methodName: 'uploadFile',
-      );
-      if (completeResp.errCode != 0) {
-        throw Exception('Complete upload failed: ${completeResp.errMsg}');
-      }
-
-      final resultUrl = (completeResp.data?['url'] as String?) ?? '';
-      _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
-      return resultUrl;
-    } catch (e, s) {
-      _log.error(
-        'Exception during completeMultipartUpload',
-        error: e,
-        stackTrace: s,
-        methodName: 'uploadFile',
-      );
-      rethrow;
+    final completeResp = await imApiService.completeMultipartUpload(
+      uploadID: uploadID,
+      parts: partEtags.cast<String>(),
+      name: '$userID/$fileName',
+      contentType: contentType ?? 'application/octet-stream',
+      cause: cause ?? '',
+    );
+    if (completeResp.errCode != 0) {
+      throw Exception('Complete upload failed: ${completeResp.errMsg}');
     }
-  }
 
-  /// 获取当前登录用户ID
-  String getLoginUserID() {
-    return _userID!;
-  }
-
-  /// 获取当前登录用户信息
-  UserInfo getLoginUserInfo() {
-    return _userInfo!;
-  }
-
-  /// 获取 SDK 版本号
-  /// 对应 Go SDK GetSdkVersion
-  String getSdkVersion() {
-    return '1.0.0';
+    final resultUrl = (completeResp.data?['url'] as String?) ?? '';
+    _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
+    return resultUrl;
   }
 
   /// 设置 App 前后台状态
@@ -919,7 +861,7 @@ class IMManager {
 
   Uint8List _encodeBackgroundStatusReq(bool isBackground) {
     final req = sdkws.SetAppBackgroundStatusReq()
-      ..userID = _userID!
+      ..userID = userID
       ..isBackground = isBackground;
     return req.writeToBuffer();
   }
@@ -951,7 +893,7 @@ class IMManager {
       final resp = await imApiService.fcmUpdateToken(
         platformID: PlatformUtils.platformID.toString(),
         fcmToken: fcmToken,
-        account: _userID!,
+        account: userID,
         expireTime: expireTime,
       );
       if (resp.errCode != 0) {
@@ -971,7 +913,7 @@ class IMManager {
       final ImApiService imApiService = _getIt.get<ImApiService>(
         instanceName: InstanceName.imApiService,
       );
-      final resp = await imApiService.setAppBadge(userID: _userID!, appUnreadCount: appUnreadCount);
+      final resp = await imApiService.setAppBadge(userID: userID, appUnreadCount: appUnreadCount);
       if (resp.errCode != 0) {
         _log.warning('设置 App 角标失败: ${resp.errMsg}');
       }

@@ -385,7 +385,7 @@ class MsgSyncer {
         final users = await database.getUsersByIDs(notInFriendIDs);
         for (final u in users) {
           final uid = u.userID;
-          if (uid != null) userMap[uid] = u;
+          userMap[uid] = u;
         }
 
         // Fallback: Fetch missing users from network

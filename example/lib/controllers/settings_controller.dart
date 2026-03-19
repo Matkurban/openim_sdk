@@ -22,7 +22,6 @@ class SettingsController extends GetxController {
   void onInit() {
     super.onInit();
     _loadUserInfo();
-    _loadSdkInfo();
     _setupListener();
   }
 
@@ -52,10 +51,6 @@ class SettingsController extends GetxController {
       nicknameCtrl.text = info.nickname ?? '';
       faceURLCtrl.text = info.faceURL ?? '';
     } catch (_) {}
-  }
-
-  void _loadSdkInfo() {
-    sdkVersion.value = OpenIM.iMManager.getSdkVersion();
   }
 
   /// 更新个人资料

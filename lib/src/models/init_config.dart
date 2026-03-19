@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:equatable/equatable.dart';
 import 'package:tostore/tostore.dart';
 
@@ -32,4 +34,9 @@ class InitConfig extends Equatable {
     'dbName': dbName,
     'schemas': schemas,
   };
+
+  @override
+  String toString() {
+    return jsonEncode(toJson());
+  }
 }

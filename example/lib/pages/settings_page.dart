@@ -35,7 +35,7 @@ class SettingsPage extends GetView<SettingsController> {
                             : null,
                         child: user.faceURL == null || user.faceURL!.isEmpty
                             ? Text(
-                                (user.nickname ?? user.userID ?? '?')[0].toUpperCase(),
+                                (user.nickname ?? user.userID)[0].toUpperCase(),
                                 style: const TextStyle(fontSize: 32),
                               )
                             : null,

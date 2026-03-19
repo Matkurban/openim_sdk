@@ -18,4 +18,7 @@ sealed class InstanceName {
 
   ///日志类
   static const String logger = '${_baseName}logger';
+
+  ///登录的用户
+  static const String loginUser = '${_baseName}login_user';
 }

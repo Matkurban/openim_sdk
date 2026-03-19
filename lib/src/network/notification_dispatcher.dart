@@ -1038,7 +1038,7 @@ class NotificationDispatcher {
         final users = await database.getUsersByIDs(notInFriendIDs);
         for (final u in users) {
           final uid = u.userID;
-          if (uid != null) userMap[uid] = u;
+          userMap[uid] = u;
         }
         final missing = notInFriendIDs.where((id) => !userMap.containsKey(id)).toList();
         if (missing.isNotEmpty) {

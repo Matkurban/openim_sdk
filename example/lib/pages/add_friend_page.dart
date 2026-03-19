@@ -116,13 +116,13 @@ class _AddFriendPageState extends State<AddFriendPage> {
                                   ? NetworkImage(user.faceURL!)
                                   : null,
                               child: user.faceURL == null || user.faceURL!.isEmpty
-                                  ? Text((user.nickname ?? user.userID ?? '?')[0].toUpperCase())
+                                  ? Text((user.nickname ?? user.userID)[0].toUpperCase())
                                   : null,
                             ),
-                            title: Text(user.nickname ?? user.userID ?? ''),
+                            title: Text(user.nickname ?? user.userID),
                             subtitle: Text('ID: ${user.userID}'),
                             trailing: FilledButton(
-                              onPressed: _isSending ? null : () => _addFriend(user.userID!),
+                              onPressed: _isSending ? null : () => _addFriend(user.userID),
                               child: _isSending
                                   ? const SizedBox(
                                       width: 16,

@@ -53,7 +53,7 @@ class _UserProfilePageState extends State<UserProfilePage> {
                         : null,
                     child: _user!.faceURL == null || _user!.faceURL!.isEmpty
                         ? Text(
-                            (_user!.nickname ?? _user!.userID ?? '?')[0].toUpperCase(),
+                            (_user!.nickname ?? _user!.userID)[0].toUpperCase(),
                             style: const TextStyle(fontSize: 36),
                           )
                         : null,

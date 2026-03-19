@@ -6,7 +6,7 @@ part 'user_info.g.dart';
 
 @JsonSerializable()
 class UserInfo extends Equatable {
-  final String? userID;
+  final String userID;
   final String? nickname;
   final String? faceURL;
   final String? ex;
@@ -20,7 +20,7 @@ class UserInfo extends Equatable {
   final int? appMangerLevel;
 
   const UserInfo({
-    this.userID,
+    required this.userID,
     this.nickname,
     this.faceURL,
     this.ex,
@@ -34,7 +34,7 @@ class UserInfo extends Equatable {
 
   Map<String, dynamic> toJson() => _$UserInfoToJson(this);
 
-  String getShowName() => _isNull(remark) ?? _isNull(nickname) ?? userID!;
+  String getShowName() => _isNull(remark) ?? _isNull(nickname) ?? userID;
 
   static String? _isNull(String? value) {
     if (value == null || value.trim().isEmpty) return null;
