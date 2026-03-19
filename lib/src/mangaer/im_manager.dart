@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
-import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -333,7 +332,6 @@ class IMManager {
   /// 登录
   /// [userID] 用户ID
   /// [token] 用户 token
-  @internal
   Future<UserInfo> login({required String userID, required String token}) async {
     _log.info('userID=$userID ,token=$token', methodName: 'login');
     try {
@@ -354,14 +352,16 @@ class IMManager {
           await databaseService.upsertUser(userData);
           UserInfo user = UserInfo.fromJson(userData);
           _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
+        } else {
+          _loginStatus = LoginStatus.logout;
+          throw OpenIMException(
+            code: SDKErrorCode.loginError.code,
+            message: '登录失败，获取登录用户 $userID 信息失败。',
+          );
         }
-      }
-      if (!_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+      } else {
         _loginStatus = LoginStatus.logout;
-        throw OpenIMException(
-          code: response.errCode,
-          message: '${response.errMsg} : ${response.errDlt}',
-        );
+        throw OpenIMException(code: SDKErrorCode.loginError.code, message: '登录失败，获取登录用户信息失败。');
       }
       conversationManager.setCurrentUserID(userID);
       groupManager.setCurrentUserID(userID);
@@ -374,7 +374,6 @@ class IMManager {
       // 初始化数据库（以用户维度）
       await databaseService.switchSpace(userID: userID);
       _loginStatus = LoginStatus.logged;
-
       final dispatcher = NotificationDispatcher(
         database: databaseService,
         api: imApiService,
@@ -389,7 +388,6 @@ class IMManager {
       dispatcher.setLoginUserID(userID);
       dispatcher.listenerForService = _listenerForService;
       _notificationDispatcher = dispatcher;
-
       final msgSyncer = MsgSyncer(
         database: databaseService,
         api: imApiService,
@@ -401,19 +399,14 @@ class IMManager {
       );
       msgSyncer.setLoginUserID(userID);
       msgSyncer.listenerForService = _listenerForService;
-
       final WebSocketService webSocketService = _getIt.get<WebSocketService>(
         instanceName: InstanceName.webSocketService,
       );
       webSocketService.connect(userID: userID, token: token);
-
       webSocketService.onPushMsg = msgSyncer.handlePushMsg;
-
       msgSyncer.doConnectedSync();
-
       // 恢复发送中的消息（App 重启后重新登录时调用）
       messageManager.recoverSendingMessages();
-
       _log.info('用户已登录: $userID');
       return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser);
     } catch (e, s) {

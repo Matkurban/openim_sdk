@@ -1267,10 +1267,6 @@ class ImApiService {
     required String name,
     required String contentType,
   }) async {
-    _log.info(
-      'hash=$hash, size=$size, partSize=$partSize, maxParts=$maxParts, cause=$cause, name=$name, contentType=$contentType',
-      methodName: 'initiateMultipartUpload',
-    );
     try {
       return await HttpClient().post(
         ImApiUrl.objectInitiateUpload,
@@ -1292,7 +1288,6 @@ class ImApiService {
 
   /// 获取额外的分片上传签名
   Future<ApiResponse> authSign({required String uploadID, required List<int> partNumbers}) async {
-    _log.info('uploadID=$uploadID, partNumbers=$partNumbers', methodName: 'authSign');
     try {
       return await HttpClient().post(
         ImApiUrl.objectAuthSign,
@@ -1312,10 +1307,6 @@ class ImApiService {
     required String contentType,
     required String cause,
   }) async {
-    _log.info(
-      'uploadID=$uploadID, parts=$parts, name=$name, contentType=$contentType, cause=$cause',
-      methodName: 'completeMultipartUpload',
-    );
     try {
       final result = await HttpClient().post(
         ImApiUrl.objectCompleteUpload,
@@ -1326,10 +1317,6 @@ class ImApiService {
           'contentType': contentType,
           'cause': cause,
         },
-      );
-      _log.info(
-        'response errCode=${result.errCode}, errMsg=${result.errMsg}, data=${result.data}',
-        methodName: 'completeMultipartUpload',
       );
       return result;
     } catch (e, s) {

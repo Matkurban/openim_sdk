@@ -29,7 +29,6 @@ class HttpClient {
       BaseOptions(
         connectTimeout: const Duration(seconds: 30),
         receiveTimeout: const Duration(seconds: 30),
-        sendTimeout: const Duration(seconds: 30),
         contentType: Headers.jsonContentType,
         responseType: ResponseType.json,
       ),
@@ -42,7 +41,6 @@ class HttpClient {
     required String baseUrl,
     Duration? connectTimeout,
     Duration? receiveTimeout,
-    Duration? sendTimeout,
     Map<String, dynamic>? headers,
   }) {
     _log.info('baseUrl=$baseUrl', methodName: 'init');
@@ -50,7 +48,6 @@ class HttpClient {
       _dio.options.baseUrl = baseUrl;
       if (connectTimeout != null) _dio.options.connectTimeout = connectTimeout;
       if (receiveTimeout != null) _dio.options.receiveTimeout = receiveTimeout;
-      if (sendTimeout != null) _dio.options.sendTimeout = sendTimeout;
       if (headers != null) _dio.options.headers.addAll(headers);
       // 每次请求动态生成 operationID，便于服务端日志追踪
       _dio.interceptors.add(
