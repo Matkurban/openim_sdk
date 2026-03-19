@@ -165,20 +165,14 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    _log.info('path=$path', methodName: 'get');
-    try {
-      return _request(
-        () => _dio.get(
-          path,
-          queryParameters: queryParameters,
-          options: options,
-          cancelToken: cancelToken,
-        ),
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'get');
-      rethrow;
-    }
+    return _request(
+      () => _dio.get(
+        path,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   /// POST 请求
@@ -189,21 +183,15 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    _log.info('path=$path', methodName: 'post');
-    try {
-      return _request(
-        () => _dio.post(
-          path,
-          data: data,
-          queryParameters: queryParameters,
-          options: options,
-          cancelToken: cancelToken,
-        ),
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'post');
-      rethrow;
-    }
+    return _request(
+      () => _dio.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   /// PUT 请求
@@ -215,22 +203,16 @@ class HttpClient {
     CancelToken? cancelToken,
     void Function(int, int)? onSendProgress,
   }) async {
-    _log.info('path=$path', methodName: 'put');
-    try {
-      return _request(
-        () => _dio.put(
-          path,
-          data: data,
-          queryParameters: queryParameters,
-          options: options,
-          onSendProgress: onSendProgress,
-          cancelToken: cancelToken,
-        ),
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'put');
-      rethrow;
-    }
+    return _request(
+      () => _dio.put(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        onSendProgress: onSendProgress,
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   /// DELETE 请求
@@ -241,21 +223,15 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    _log.info('path=$path', methodName: 'delete');
-    try {
-      return _request(
-        () => _dio.delete(
-          path,
-          data: data,
-          queryParameters: queryParameters,
-          options: options,
-          cancelToken: cancelToken,
-        ),
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'delete');
-      rethrow;
-    }
+    return _request(
+      () => _dio.delete(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   /// 上传文件
@@ -266,21 +242,15 @@ class HttpClient {
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
   }) async {
-    _log.info('path=$path', methodName: 'upload');
-    try {
-      return _request(
-        () => _dio.post(
-          path,
-          data: formData,
-          options: options,
-          cancelToken: cancelToken,
-          onSendProgress: onSendProgress,
-        ),
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'upload');
-      rethrow;
-    }
+    return _request(
+      () => _dio.post(
+        path,
+        data: formData,
+        options: options,
+        cancelToken: cancelToken,
+        onSendProgress: onSendProgress,
+      ),
+    );
   }
 
   /// 下载文件
@@ -291,19 +261,13 @@ class HttpClient {
     CancelToken? cancelToken,
     ProgressCallback? onReceiveProgress,
   }) {
-    _log.info('urlPath=$urlPath, savePath=$savePath', methodName: 'download');
-    try {
-      return _dio.download(
-        urlPath,
-        savePath,
-        queryParameters: queryParameters,
-        cancelToken: cancelToken,
-        onReceiveProgress: onReceiveProgress,
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'download');
-      rethrow;
-    }
+    return _dio.download(
+      urlPath,
+      savePath,
+      queryParameters: queryParameters,
+      cancelToken: cancelToken,
+      onReceiveProgress: onReceiveProgress,
+    );
   }
 
   /// Chat 服务端 POST 请求
@@ -314,24 +278,15 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
-    _log.info('path=$path', methodName: 'chatPost');
-    try {
-      if (_chatDio == null) {
-        throw StateError('Chat client not initialized. Call initChat() first.');
-      }
-      return await _request(
-        () => _chatDio!.post(
-          path,
-          data: data,
-          queryParameters: queryParameters,
-          options: options,
-          cancelToken: cancelToken,
-        ),
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'chatPost');
-      rethrow;
-    }
+    return await _request(
+      () => _chatDio!.post(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -340,7 +295,6 @@ class HttpClient {
 
   /// 统一请求处理 & 异常捕获
   Future<ApiResponse> _request(Future<Response> Function() request) async {
-    _log.info('called', methodName: '_request');
     try {
       final response = await request();
       return _handleResponse(response);
@@ -354,56 +308,43 @@ class HttpClient {
 
   /// 解析响应数据为 [ApiResponse]
   ApiResponse _handleResponse(Response response) {
-    _log.info('called', methodName: '_handleResponse');
-    try {
-      final data = response.data;
-      if (data is Map<String, dynamic>) {
-        final resp = ApiResponse.fromJson(data);
-        if (resp.errCode != 0) {
-          onApiError?.call(resp.errCode, resp.errMsg);
-        }
-        return resp;
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      final resp = ApiResponse.fromJson(data);
+      if (resp.errCode != 0) {
+        onApiError?.call(resp.errCode, resp.errMsg);
       }
-      return ApiResponse(errCode: 0, errMsg: '', errDlt: '', data: data);
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleResponse');
-      rethrow;
+      return resp;
     }
+    return ApiResponse(errCode: 0, errMsg: '', errDlt: '', data: data);
   }
 
   /// 处理 Dio 异常
   ApiResponse _handleDioException(DioException e) {
-    _log.info('called', methodName: '_handleDioException');
-    try {
-      final String message;
-      switch (e.type) {
-        case DioExceptionType.connectionTimeout:
-          message = '连接超时';
-        case DioExceptionType.sendTimeout:
-          message = '请求发送超时';
-        case DioExceptionType.receiveTimeout:
-          message = '响应接收超时';
-        case DioExceptionType.badCertificate:
-          message = '证书验证失败';
-        case DioExceptionType.badResponse:
-          message = '服务器响应异常 (${e.response?.statusCode})';
-        case DioExceptionType.cancel:
-          message = '请求已取消';
-        case DioExceptionType.connectionError:
-          message = '网络连接异常，请检查网络';
-        case DioExceptionType.unknown:
-          message = '未知网络错误: ${e.message}';
-      }
-      _log.warning('DioException [${e.type}]: $message', methodName: '_handleDioException');
-      return ApiResponse(
-        errCode: e.response?.statusCode ?? -1,
-        errMsg: message,
-        errDlt: e.message ?? '',
-        data: null,
-      );
-    } catch (err, s) {
-      _log.error(err.toString(), error: err, stackTrace: s, methodName: '_handleDioException');
-      rethrow;
+    final String message;
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+        message = '连接超时';
+      case DioExceptionType.sendTimeout:
+        message = '请求发送超时';
+      case DioExceptionType.receiveTimeout:
+        message = '响应接收超时';
+      case DioExceptionType.badCertificate:
+        message = '证书验证失败';
+      case DioExceptionType.badResponse:
+        message = '服务器响应异常 (${e.response?.statusCode})';
+      case DioExceptionType.cancel:
+        message = '请求已取消';
+      case DioExceptionType.connectionError:
+        message = '网络连接异常，请检查网络';
+      case DioExceptionType.unknown:
+        message = '未知网络错误: ${e.message}';
     }
+    return ApiResponse(
+      errCode: e.response?.statusCode ?? -1,
+      errMsg: message,
+      errDlt: e.message ?? '',
+      data: null,
+    );
   }
 }
