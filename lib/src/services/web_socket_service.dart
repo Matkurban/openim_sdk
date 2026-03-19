@@ -228,14 +228,12 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   Future<void> _doConnect() async {
-    _log.info('called', methodName: '_doConnect');
     try {
       if (_connStatus == WebSocketStatus.connecting) return;
       _setStatus(WebSocketStatus.connecting);
       connectListener.onConnecting?.call();
 
       final url = _buildWsUrl();
-      _log.info('正在连接 WebSocket: $url', methodName: '_doConnect');
 
       try {
         _channel = WebSocketChannel.connect(Uri.parse(url));
@@ -250,9 +248,7 @@ class WebSocketService {
         _startHeartbeat();
 
         connectListener.onConnectSuccess?.call();
-        _log.info('WebSocket 连接成功', methodName: '_doConnect');
       } catch (e) {
-        _log.warning('WebSocket 连接失败: $e', methodName: '_doConnect');
         _setStatus(WebSocketStatus.closed);
         _stopHeartbeat();
         connectListener.onConnectFailed?.call(-1, e.toString());
@@ -265,7 +261,6 @@ class WebSocketService {
   }
 
   String _buildWsUrl() {
-    _log.info('called', methodName: '_buildWsUrl');
     try {
       final sb = StringBuffer(wsUrl);
       sb.write('?sendID=$_userID');
@@ -286,7 +281,6 @@ class WebSocketService {
   }
 
   void _startListening() {
-    _log.info('called', methodName: '_startListening');
     try {
       _subscription?.cancel();
       _subscription = _channel?.stream.listen(_onMessage, onError: _onError, onDone: _onDone);
@@ -297,10 +291,6 @@ class WebSocketService {
   }
 
   void _onMessage(dynamic message) {
-    _log.info(
-      'message=${message.toString().length > 100 ? "..." : message}',
-      methodName: '_onMessage',
-    );
     try {
       if (message is List<int>) {
         _handleBinaryMessage(Uint8List.fromList(message));
@@ -315,7 +305,6 @@ class WebSocketService {
 
   /// 处理文本消息（ping/pong，对应 ws_js.go handlerText）
   void _handleTextMessage(String text) {
-    _log.info('text=${text.length > 50 ? "..." : text}', methodName: '_handleTextMessage');
     try {
       try {
         final msg = jsonDecode(text) as Map<String, dynamic>;
@@ -340,7 +329,6 @@ class WebSocketService {
   }
 
   void _onError(dynamic error) {
-    _log.warning('WebSocket 错误: $error', methodName: '_onError');
     try {
       _handleDisconnect();
     } catch (e, s) {
@@ -350,7 +338,6 @@ class WebSocketService {
   }
 
   void _onDone() {
-    _log.info('WebSocket 连接已关闭', methodName: '_onDone');
     try {
       _handleDisconnect();
     } catch (e, s) {
@@ -360,7 +347,6 @@ class WebSocketService {
   }
 
   void _handleDisconnect() {
-    _log.info('called', methodName: '_handleDisconnect');
     try {
       _setStatus(WebSocketStatus.closed);
       _stopHeartbeat();
@@ -379,7 +365,6 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _startHeartbeat() {
-    _log.info('called', methodName: '_startHeartbeat');
     try {
       _stopHeartbeat();
       _lastPong = DateTime.now();
@@ -391,7 +376,6 @@ class WebSocketService {
   }
 
   void _stopHeartbeat() {
-    _log.info('called', methodName: '_stopHeartbeat');
     try {
       _heartbeatTimer?.cancel();
       _heartbeatTimer = null;
@@ -403,7 +387,6 @@ class WebSocketService {
 
   /// 发送 ping 文本消息（对应 ws_js.go WriteMessage(PingMessage, ...)）
   void _sendPing() {
-    _log.info('called', methodName: '_sendPing');
     try {
       if (_channel == null || !isConnected) return;
       // 检测连接健康：如果超过 2 个心跳周期未收到 pong，视为连接断开
@@ -428,7 +411,6 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _handleBinaryMessage(Uint8List raw) {
-    _log.info('called', methodName: '_handleBinaryMessage');
     try {
       // gzip 解压 + JSON 解码（sdkType=js 协议，data 字段为 base64 编码的 protobuf）
       WebSocketResponse resp;
@@ -438,12 +420,6 @@ class WebSocketService {
         _log.warning('消息解码失败: $e', methodName: '_handleBinaryMessage');
         return;
       }
-
-      _log.info(
-        '收到消息: reqIdentifier=${resp.reqIdentifier}, '
-        'errCode=${resp.errCode}, msgIncr=${resp.msgIncr}',
-        methodName: '_handleBinaryMessage',
-      );
 
       switch (resp.reqIdentifier) {
         case WebSocketIdentifier.pushMsg:
@@ -488,7 +464,6 @@ class WebSocketService {
 
   /// 将服务端响应路由到等待中的请求 Completer
   void _notifyResponse(WebSocketResponse resp) {
-    _log.info('msgIncr=${resp.msgIncr}', methodName: '_notifyResponse');
     try {
       final completer = _pendingRequests.remove(resp.msgIncr);
       if (completer != null && !completer.isCompleted) {
@@ -503,7 +478,6 @@ class WebSocketService {
   }
 
   void _sendBinary(WebSocketRequest req) {
-    _log.info('reqIdentifier=${req.reqIdentifier}', methodName: '_sendBinary');
     try {
       if (_channel == null) return;
       // JSON 编码 + gzip 压缩（sdkType=js 协议）
@@ -520,7 +494,6 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _scheduleReconnect() {
-    _log.info('called', methodName: '_scheduleReconnect');
     try {
       if (_userDisconnected || _isReconnecting) return;
       if (_reconnectAttempts >= _maxReconnectAttempts) {
@@ -552,7 +525,6 @@ class WebSocketService {
   // ---------------------------------------------------------------------------
 
   void _setStatus(WebSocketStatus status) {
-    _log.info('status=$status', methodName: '_setStatus');
     try {
       _connStatus = status;
     } catch (e, s) {
@@ -562,18 +534,11 @@ class WebSocketService {
   }
 
   String _generateMsgIncr() {
-    _log.info('called', methodName: '_generateMsgIncr');
-    try {
-      _msgIncrCounter++;
-      return '${_userID}_${DateTime.now().millisecondsSinceEpoch}_$_msgIncrCounter';
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_generateMsgIncr');
-      rethrow;
-    }
+    _msgIncrCounter++;
+    return '${_userID}_${DateTime.now().millisecondsSinceEpoch}_$_msgIncrCounter';
   }
 
   void _cancelAllPendingRequests(String reason) {
-    _log.info('reason=$reason', methodName: '_cancelAllPendingRequests');
     try {
       for (final entry in _pendingRequests.entries) {
         if (!entry.value.isCompleted) {
