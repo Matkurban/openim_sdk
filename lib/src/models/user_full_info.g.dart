@@ -25,22 +25,21 @@ UserFullInfo _$UserFullInfoFromJson(Map<String, dynamic> json) => UserFullInfo(
   registerType: (json['registerType'] as num?)?.toInt() ?? 0,
 );
 
-Map<String, dynamic> _$UserFullInfoToJson(UserFullInfo instance) =>
-    <String, dynamic>{
-      'userID': instance.userID,
-      'password': instance.password,
-      'account': instance.account,
-      'phoneNumber': instance.phoneNumber,
-      'areaCode': instance.areaCode,
-      'nickname': instance.nickname,
-      'faceURL': instance.faceURL,
-      'gender': instance.gender,
-      'level': instance.level,
-      'birth': instance.birth,
-      'email': instance.email,
-      'allowAddFriend': instance.allowAddFriend,
-      'allowBeep': instance.allowBeep,
-      'allowVibration': instance.allowVibration,
-      'globalRecvMsgOpt': instance.globalRecvMsgOpt,
-      'registerType': instance.registerType,
-    };
+Map<String, dynamic> _$UserFullInfoToJson(UserFullInfo instance) => <String, dynamic>{
+  'userID': instance.userID,
+  'password': instance.password,
+  'account': instance.account,
+  'phoneNumber': instance.phoneNumber,
+  'areaCode': instance.areaCode,
+  'nickname': instance.nickname,
+  'faceURL': instance.faceURL,
+  'gender': instance.gender,
+  'level': instance.level,
+  'birth': instance.birth,
+  'email': instance.email,
+  'allowAddFriend': instance.allowAddFriend,
+  'allowBeep': instance.allowBeep,
+  'allowVibration': instance.allowVibration,
+  'globalRecvMsgOpt': instance.globalRecvMsgOpt,
+  'registerType': instance.registerType,
+};
