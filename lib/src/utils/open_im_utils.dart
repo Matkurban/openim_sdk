@@ -3,8 +3,8 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:universal_platform/universal_platform.dart';
 
 sealed class OpenImUtils {
   ///生成唯一的操作ID
@@ -26,9 +26,7 @@ sealed class OpenImUtils {
   }
 
   static Future<String?> defaultDbPath() async {
-    if (UniversalPlatform.isWeb) {
-      return null;
-    }
+    if (kIsWeb) return null;
     Directory directory = await getApplicationSupportDirectory();
     return '${directory.path}/kurban_open_im_sdk';
   }

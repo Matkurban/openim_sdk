@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/enums/web_socket_status.dart';
-import 'package:universal_platform/universal_platform.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/web_socket_codec.dart';
@@ -99,7 +98,7 @@ class WebSocketService {
       _userID = userID;
       _token = token;
       // dart:io 的 gzip 在 Web 平台不可用，自动禁用压缩
-      _compression = UniversalPlatform.isWeb ? false : compression;
+      _compression = kIsWeb ? false : compression;
       _codec = WebSocketCodecs(enableCompression: _compression);
       _userDisconnected = false;
       _isReconnecting = false;

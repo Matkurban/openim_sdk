@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1
+
+- 修复启动时的 getApplicationSupportDirectory 的警告
+
 ## 1.4.0
 
 ### 修复

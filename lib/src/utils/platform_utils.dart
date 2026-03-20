@@ -1,10 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:universal_platform/universal_platform.dart';
 
 sealed class PlatformUtils {
   ///获取当前默认的平台 id
   static IMPlatform get currentPlatform {
-    if (UniversalPlatform.isWeb) {
+    if (kIsWeb) {
       return IMPlatform.web;
     } else if (UniversalPlatform.isAndroid) {
       return IMPlatform.android;
