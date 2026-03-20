@@ -91,7 +91,7 @@ class ConversationManager {
   Future<List<ConversationInfo>> getAllConversationList() async {
     _log.info('called', methodName: 'getAllConversationList');
     try {
-      return await _database.getAllConversations();
+      return await _database.getVisibleConversations();
     } catch (e, s) {
       _log.error(
         '获取所有会话方法发生了异常，返回了空列表。',
@@ -142,8 +142,49 @@ class ConversationManager {
         'unreadCount': 0,
       };
       await _database.upsertConversation(newConv);
-      return (await _database.getConversation(conversationID)) ??
+      final created =
+          (await _database.getConversation(conversationID)) ??
           ConversationInfo(conversationID: conversationID);
+
+      // 创建会话时也要立刻补齐 showName/faceURL（否则 UI 可能先展示空昵称，重启才刷新）
+      final updates = <String, dynamic>{};
+      try {
+        if (sessionType == ConversationType.superGroup.value ||
+            sessionType == ConversationType.group.value) {
+          final group = await _database.getGroupByID(sourceID);
+          if (group != null) {
+            updates['showName'] = group.groupName ?? '';
+            updates['faceURL'] = group.faceURL ?? '';
+          }
+        } else if (sessionType == ConversationType.single.value ||
+            sessionType == ConversationType.notification.value) {
+          final friend = await _database.getFriendByUserID(sourceID);
+          if (friend != null) {
+            final remark = friend.remark ?? '';
+            updates['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+            updates['faceURL'] = friend.faceURL ?? '';
+          } else {
+            final users = await _database.getUsersByIDs([sourceID]);
+            if (users.isNotEmpty) {
+              updates['showName'] = users.first.nickname ?? '';
+              updates['faceURL'] = users.first.faceURL ?? '';
+            }
+          }
+        }
+      } catch (_) {
+        // 填充失败不影响创建会话
+      }
+
+      if (updates.isNotEmpty) {
+        await _database.updateConversation(conversationID, updates);
+      }
+
+      final finalCreated = (await _database.getConversation(conversationID)) ?? created;
+
+      // 通知上层：新会话立刻进入列表
+      listener?.newConversation([finalCreated]);
+
+      return finalCreated;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getOneConversation');
       rethrow;
@@ -252,12 +293,12 @@ class ConversationManager {
     }
   }
 
-  /// 隐藏会话
+  /// 隐藏会话（对齐 Go SDK HideConversation：仅本地隐藏，不操作服务端）
   /// [conversationID] 会话ID
   Future<void> hideConversation({required String conversationID}) async {
     _log.info('conversationID=$conversationID', methodName: 'hideConversation');
     try {
-      await _database.deleteConversation(conversationID);
+      await _database.resetConversation(conversationID);
       _log.info('会话已隐藏: $conversationID', methodName: 'hideConversation');
       await _notifyConversationChanged([conversationID]);
     } catch (e, s) {
@@ -266,16 +307,14 @@ class ConversationManager {
     }
   }
 
-  /// 隐藏所有会话
+  /// 隐藏所有会话（对齐 Go SDK HideAllConversations）
   Future<void> hideAllConversations() async {
     _log.info('called', methodName: 'hideAllConversations');
     try {
-      final allConvs = await _database.getAllConversations();
-      await _database.deleteAllConversations();
+      await _database.resetAllConversations();
       _log.info('所有会话已隐藏', methodName: 'hideAllConversations');
-      if (allConvs.isNotEmpty) {
-        listener?.conversationChanged(allConvs);
-      }
+      final allConvs = await _database.getVisibleConversations();
+      listener?.conversationChanged(allConvs);
       final total = await getTotalUnreadMsgCount();
       listener?.totalUnreadMessageCountChanged(total);
     } catch (e, s) {
@@ -341,26 +380,35 @@ class ConversationManager {
 
       _markingAsRead.add(conversationID);
       _log.info('conversationID=$conversationID', methodName: 'markConversationMessageAsRead');
-      // 获取当前会话的 maxSeq 用于服务端标记已读
-      final hasReadSeq = await _database.getConversationMaxSeq(conversationID);
 
-      await _database.clearConversationUnreadCount(conversationID);
-      _log.info('会话已标记已读: $conversationID', methodName: 'markConversationMessageAsRead');
+      // 优先从消息表取最大 seq（对齐 Go SDK GetConversationNormalMsgSeq），
+      // 回退到会话表 maxSeq
+      var hasReadSeq = await _database.getConversationNormalMsgMaxSeq(conversationID);
+      if (hasReadSeq <= 0) {
+        hasReadSeq = await _database.getConversationMaxSeq(conversationID);
+      }
+
+      await _database.updateConversation(conversationID, {
+        'unreadCount': 0,
+        if (hasReadSeq > 0) 'hasReadSeq': hasReadSeq,
+      });
+      _log.info(
+        '会话已标记已读: $conversationID, hasReadSeq=$hasReadSeq',
+        methodName: 'markConversationMessageAsRead',
+      );
 
       final total = await getTotalUnreadMsgCount();
       listener?.totalUnreadMessageCountChanged(total);
       await _notifyConversationChanged([conversationID]);
 
-      // 同步到服务器
-      if (hasReadSeq > 0) {
-        final resp = await _api.markConversationAsRead(
-          userID: _currentUserID,
-          conversationID: conversationID,
-          hasReadSeq: hasReadSeq,
-        );
-        if (resp.errCode != 0) {
-          _log.warning('标记会话已读同步服务器失败: ${resp.errMsg}');
-        }
+      // 同步到服务器（即使 hasReadSeq 为 0 也要调用，确保服务端清零未读数）
+      final resp = await _api.markConversationAsRead(
+        userID: _currentUserID,
+        conversationID: conversationID,
+        hasReadSeq: hasReadSeq,
+      );
+      if (resp.errCode != 0) {
+        _log.warning('标记会话已读同步服务器失败: ${resp.errMsg}');
       }
     } catch (e, s) {
       _log.error(
@@ -380,16 +428,23 @@ class ConversationManager {
     _log.info('called', methodName: 'markAllConversationMessageAsRead');
     try {
       final allConversations = await _database.getAllConversations();
-      final affectedIDs = allConversations
-          .where((c) => c.unreadCount > 0)
-          .map((c) => c.conversationID)
-          .toList();
-      await _database.clearAllUnreadCounts();
-      _log.info('所有会话已标记已读', methodName: 'markAllConversationMessageAsRead');
-      listener?.totalUnreadMessageCountChanged(0);
-      if (affectedIDs.isNotEmpty) {
-        await _notifyConversationChanged(affectedIDs);
+      final unreadConvs = allConversations.where((c) => c.unreadCount > 0).toList();
+
+      for (final conv in unreadConvs) {
+        try {
+          await markConversationMessageAsRead(conversationID: conv.conversationID);
+        } catch (e) {
+          _log.warning(
+            '标记 ${conv.conversationID} 已读失败: $e',
+            methodName: 'markAllConversationMessageAsRead',
+          );
+        }
       }
+
+      _log.info(
+        '所有会话已标记已读, count=${unreadConvs.length}',
+        methodName: 'markAllConversationMessageAsRead',
+      );
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -474,25 +529,38 @@ class ConversationManager {
     }
   }
 
-  /// 删除会话及其所有消息（本地和服务器）
-  /// [conversationID] 会话ID
+  /// 删除会话及其所有消息（对齐 Go SDK DeleteConversationAndDeleteAllMsg）
+  ///
+  /// API-first：先清空服务端消息，再本地重置。
+  /// 使用 ResetConversation（latestMsgSendTime=0）使会话从列表消失，
+  /// 但保留会话记录供增量同步使用。
   Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
     _log.info('conversationID=$conversationID', methodName: 'deleteConversationAndDeleteAllMsg');
     try {
-      await _clearConversationMessages(conversationID);
-      await _database.deleteConversation(conversationID);
-      _log.info('会话及消息已删除: $conversationID', methodName: 'deleteConversationAndDeleteAllMsg');
-      await _notifyConversationChanged([conversationID]);
-      final total = await getTotalUnreadMsgCount();
-      listener?.totalUnreadMessageCountChanged(total);
+      final conv = await _database.getConversation(conversationID);
+      if (conv == null) {
+        throw OpenIMException(code: 0, message: 'conversation not found: $conversationID');
+      }
 
+      // API-first：先通知服务端清空消息
       final resp = await _api.clearConversationMsg(
         userID: _currentUserID,
         conversationIDs: [conversationID],
       );
       if (resp.errCode != 0) {
-        _log.warning('删除会话及消息失败: ${resp.errMsg}');
+        _log.warning('服务端清空消息失败: ${resp.errMsg}', methodName: 'deleteConversationAndDeleteAllMsg');
       }
+
+      // 标记已读到最新 seq
+      await _getConversationMaxSeqAndSetHasRead(conversationID);
+      // 删除本地消息
+      await _clearConversationMessages(conversationID);
+      // 重置会话（对齐 Go SDK ResetConversation）
+      await _database.resetConversation(conversationID);
+
+      await _notifyConversationChanged([conversationID]);
+      final total = await getTotalUnreadMsgCount();
+      listener?.totalUnreadMessageCountChanged(total);
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -504,25 +572,35 @@ class ConversationManager {
     }
   }
 
-  /// 清空会话消息
-  /// [conversationID] 会话ID
+  /// 清空会话消息但保留会话在列表中（对齐 Go SDK ClearConversationAndDeleteAllMsg）
+  ///
+  /// 与 deleteConversationAndDeleteAllMsg 的区别：
+  /// - 使用 ClearConversation（不重置 latestMsgSendTime），会话仍显示在列表中
   Future<void> clearConversationAndDeleteAllMsg({required String conversationID}) async {
     _log.info('conversationID=$conversationID', methodName: 'clearConversationAndDeleteAllMsg');
     try {
-      await _clearConversationMessages(conversationID);
-      await _database.deleteConversation(conversationID);
-      _log.info('会话及消息已清空: $conversationID', methodName: 'clearConversationAndDeleteAllMsg');
-      await _notifyConversationChanged([conversationID]);
-      final total = await getTotalUnreadMsgCount();
-      listener?.totalUnreadMessageCountChanged(total);
+      final conv = await _database.getConversation(conversationID);
+      if (conv == null) {
+        throw OpenIMException(code: 0, message: 'conversation not found: $conversationID');
+      }
 
+      // API-first
       final resp = await _api.clearConversationMsg(
         userID: _currentUserID,
         conversationIDs: [conversationID],
       );
       if (resp.errCode != 0) {
-        _log.warning('清空会话消息失败: ${resp.errMsg}');
+        _log.warning('服务端清空消息失败: ${resp.errMsg}', methodName: 'clearConversationAndDeleteAllMsg');
       }
+
+      await _getConversationMaxSeqAndSetHasRead(conversationID);
+      await _clearConversationMessages(conversationID);
+      // 清空会话（对齐 Go SDK ClearConversation：保留 latestMsgSendTime）
+      await _database.clearConversation(conversationID);
+
+      await _notifyConversationChanged([conversationID]);
+      final total = await getTotalUnreadMsgCount();
+      listener?.totalUnreadMessageCountChanged(total);
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -609,6 +687,24 @@ class ConversationManager {
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_clearConversationMessages');
       rethrow;
+    }
+  }
+
+  /// 对齐 Go SDK getConversationMaxSeqAndSetHasRead：
+  /// 查询会话最大 seq 并设置 hasReadSeq，用于删除/清空前标记已读
+  Future<void> _getConversationMaxSeqAndSetHasRead(String conversationID) async {
+    try {
+      final maxSeq = await _database.getConversationNormalMsgMaxSeq(conversationID);
+      if (maxSeq > 0) {
+        await _database.updateConversation(conversationID, {'hasReadSeq': maxSeq});
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_getConversationMaxSeqAndSetHasRead',
+      );
     }
   }
 

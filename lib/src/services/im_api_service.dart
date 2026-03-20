@@ -751,6 +751,28 @@ class ImApiService {
     }
   }
 
+  /// 增量同步已加入群组
+  Future<ApiResponse> getIncrementalJoinGroup({required Map<String, dynamic> req}) async {
+    _log.info('req=$req', methodName: 'getIncrementalJoinGroup');
+    try {
+      return await HttpClient().post(ImApiUrl.getIncrementalJoinGroup, data: req);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getIncrementalJoinGroup');
+      rethrow;
+    }
+  }
+
+  /// 获取完整已加入群组 ID 列表
+  Future<ApiResponse> getFullJoinGroupIDs({required String userID}) async {
+    _log.info('userID=$userID', methodName: 'getFullJoinGroupIDs');
+    try {
+      return await HttpClient().post(ImApiUrl.getFullJoinGroupIDs, data: {'userID': userID});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getFullJoinGroupIDs');
+      rethrow;
+    }
+  }
+
   /// 踢出群成员
   Future<ApiResponse> kickGroupMember({
     required String groupID,

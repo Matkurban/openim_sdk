@@ -74,7 +74,7 @@ class MessageManager {
 
   /// 恢复发送中的消息
   /// App 启动或重新登录后调用，检查本地存储的发送中消息
-  /// 与 Go SDK 行为一致：将所有发送中的消息标记为失败
+  /// 与 Go SDK 行为一致：将发送中消息直接标记为失败（不自动重发）
   /// Go SDK 参考：open_im_sdk/userRelated.go handlerSendingMsg
   Future<void> recoverSendingMessages() async {
     _log.info('Recovering sending messages...', methodName: 'recoverSendingMessages');
@@ -91,6 +91,7 @@ class MessageManager {
 
       for (final msg in allSendingMessages) {
         final clientMsgID = msg['clientMsgID'] as String?;
+        final conversationID = msg['conversationID'] as String?;
         if (clientMsgID == null) continue;
 
         final message = await _database.getMessage(clientMsgID);
@@ -116,23 +117,22 @@ class MessageManager {
           continue;
         }
 
-        // 如果状态仍然是 sending，我们尝试恢复发送（例如继续上传图片）
+        // 如果状态仍然是 sending，按 Go SDK 策略直接置为失败
         if (status == MessageStatus.sending.value) {
-          _log.info('Resuming sending message: $clientMsgID', methodName: 'recoverSendingMessages');
+          await _database.updateMessageStatus(clientMsgID, MessageStatus.failed.value);
 
-          // 在后台重新触发发送流程
-          sendMessage(
-            message: message,
-            offlinePushInfo: message.offlinePush ?? OfflinePushInfo(),
-            userID: message.recvID,
-            groupID: message.groupID,
-          ).catchError((e) {
-            _log.warning(
-              'Recovered message send failed: $clientMsgID, error: $e',
-              methodName: 'recoverSendingMessages',
-            );
-            return message;
-          });
+          if (conversationID != null && conversationID.isNotEmpty) {
+            final conversation = await _database.getConversation(conversationID);
+            if (conversation?.latestMsg?.clientMsgID == clientMsgID) {
+              await _database.updateConversation(conversationID, {
+                'latestMsg': jsonEncode(
+                  DatabaseService.messageToDbMap(message.copyWith(status: MessageStatus.failed)),
+                ),
+              });
+            }
+          }
+          await _database.deleteSendingMessage(clientMsgID);
+          msgListener?.messageStatusChanged(message.copyWith(status: MessageStatus.failed));
         }
       }
 

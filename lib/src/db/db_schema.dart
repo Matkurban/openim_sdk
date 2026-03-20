@@ -38,6 +38,15 @@ sealed class DbTableName {
 
   /// 本地收藏夹表
   static const String localFavorite = 'local_favorites';
+
+  /// 本地上传任务表
+  static const String localUpload = 'local_uploads';
+
+  /// 本地版本同步表
+  static const String localVersionSync = 'local_version_sync';
+
+  /// 本地通知seq表
+  static const String localNotificationSeq = 'local_notification_seqs';
 }
 
 /// 数据库表结构定义
@@ -169,7 +178,8 @@ sealed class DbSchema {
       const FieldSchema(name: 'inviterUserID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['groupID', 'userID', 'roleLevel']),
+      const IndexSchema(fields: ['groupID', 'userID'], unique: true),
+      const IndexSchema(fields: ['groupID', 'roleLevel']),
     ],
   );
 
@@ -376,6 +386,51 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地上传任务表结构
+  static final localUpload = TableSchema(
+    name: DbTableName.localUpload,
+    primaryKeyConfig: const PrimaryKeyConfig(name: 'uploadID', type: PrimaryKeyType.none),
+    fields: [
+      const FieldSchema(name: 'hash', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'name', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'fileSize', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'partSize', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'partNum', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'uploadedParts', type: DataType.array, nullable: true),
+      const FieldSchema(name: 'updateTime', type: DataType.integer, nullable: true),
+    ],
+    indexes: [
+      const IndexSchema(fields: ['hash', 'name']),
+    ],
+  );
+
+  /// 本地版本同步表结构
+  static final localVersionSync = TableSchema(
+    name: DbTableName.localVersionSync,
+    primaryKeyConfig: const PrimaryKeyConfig(name: 'id', type: PrimaryKeyType.timestampBased),
+    fields: [
+      const FieldSchema(name: 'tableName', type: DataType.text, nullable: false),
+      const FieldSchema(name: 'entityID', type: DataType.text, nullable: false),
+      const FieldSchema(name: 'versionID', type: DataType.text, nullable: true),
+      const FieldSchema(name: 'version', type: DataType.integer, nullable: true),
+      const FieldSchema(name: 'uidList', type: DataType.array, nullable: true),
+      const FieldSchema(name: 'updateTime', type: DataType.integer, nullable: true),
+    ],
+    indexes: [
+      const IndexSchema(fields: ['tableName', 'entityID'], unique: true),
+    ],
+  );
+
+  /// 本地通知seq表结构
+  static final localNotificationSeq = TableSchema(
+    name: DbTableName.localNotificationSeq,
+    primaryKeyConfig: const PrimaryKeyConfig(name: 'conversationID', type: PrimaryKeyType.none),
+    fields: [
+      const FieldSchema(name: 'seq', type: DataType.integer, nullable: false, defaultValue: 0),
+      const FieldSchema(name: 'updateTime', type: DataType.integer, nullable: true),
+    ],
+  );
+
   /// 获取所有表结构定义列表，用于数据库初始化
   static List<TableSchema> get allSchemas => [
     localUser,
@@ -390,5 +445,8 @@ sealed class DbSchema {
     localSendingMessage,
     localMoment,
     localFavorite,
+    localUpload,
+    localVersionSync,
+    localNotificationSeq,
   ];
 }

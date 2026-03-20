@@ -13,6 +13,9 @@ class DatabaseService {
 
   String? _currentUserID;
 
+  // 防止同一 (tableName, entityID) 的 version_sync 写入并发导致唯一约束冲突
+  final Map<String, Future<DbResult>> _versionSyncInFlight = {};
+
   Future<bool> switchSpace({required String userID}) async {
     _currentUserID = userID;
     SpaceInfo spaceInfo = await toStore.getSpaceInfo();
@@ -104,6 +107,7 @@ class DatabaseService {
   Future<FriendInfo?> getFriendByUserID(String friendUserID) async {
     final data = await toStore
         .query(DbTableName.localFriend)
+        .whereEqual('ownerUserID', _currentUserID)
         .whereEqual('friendUserID', friendUserID)
         .first();
     return data != null ? _convertFriendInfo(data) : null;
@@ -112,13 +116,19 @@ class DatabaseService {
   /// 批量根据好友用户ID获取好友信息
   Future<List<FriendInfo>> getFriendsByUserIDs(List<String> userIDs) async {
     if (userIDs.isEmpty) return [];
-    final result = await toStore.query(DbTableName.localFriend).whereIn('friendUserID', userIDs);
+    final result = await toStore
+        .query(DbTableName.localFriend)
+        .whereEqual('ownerUserID', _currentUserID)
+        .whereIn('friendUserID', userIDs);
     return result.data.map(_convertFriendInfo).toList();
   }
 
   /// 删除好友
   Future<DbResult> deleteFriend(String friendUserID) async {
-    return toStore.delete(DbTableName.localFriend).whereEqual('friendUserID', friendUserID);
+    return toStore
+        .delete(DbTableName.localFriend)
+        .whereEqual('ownerUserID', _currentUserID)
+        .whereEqual('friendUserID', friendUserID);
   }
 
   /// 批量插入或更新好友
@@ -482,15 +492,27 @@ class DatabaseService {
     return toStore.delete(DbTableName.localConversation).allowDeleteAll();
   }
 
-  /// 获取所有会话列表
+  /// 获取所有会话列表（包含隐藏会话，用于内部同步）
   Future<List<ConversationInfo>> getAllConversations() async {
     final result = await toStore.query(DbTableName.localConversation);
     return result.data.map(_convertConversation).toList();
   }
 
-  /// 分页获取会话列表
+  /// 获取可见会话列表（对齐 Go SDK GetAllConversationListDB：latestMsgSendTime > 0）
+  Future<List<ConversationInfo>> getVisibleConversations() async {
+    final result = await toStore
+        .query(DbTableName.localConversation)
+        .whereGreaterThan('latestMsgSendTime', 0);
+    return result.data.map(_convertConversation).toList();
+  }
+
+  /// 分页获取可见会话列表（对齐 Go SDK GetConversationListSplitDB）
   Future<List<ConversationInfo>> getConversationsPage(int offset, int count) async {
-    final result = await toStore.query(DbTableName.localConversation).limit(count).offset(offset);
+    final result = await toStore
+        .query(DbTableName.localConversation)
+        .whereGreaterThan('latestMsgSendTime', 0)
+        .limit(count)
+        .offset(offset);
     return result.data.map(_convertConversation).toList();
   }
 
@@ -512,11 +534,49 @@ class DatabaseService {
     return result.data.map(_convertConversation).toList();
   }
 
-  /// 删除会话
+  /// 物理删除会话（仅用于同步器删除服务端已移除的会话）
   Future<DbResult> deleteConversation(String conversationID) async {
     return toStore
         .delete(DbTableName.localConversation)
         .whereEqual('conversationID', conversationID);
+  }
+
+  /// 重置会话（对齐 Go SDK ResetConversation）
+  /// 等效于隐藏：latestMsgSendTime=0 使 getVisibleConversations 过滤掉
+  Future<DbResult> resetConversation(String conversationID) async {
+    return toStore
+        .update(DbTableName.localConversation, {
+          'unreadCount': 0,
+          'latestMsg': '',
+          'latestMsgSendTime': 0,
+          'draftText': '',
+          'draftTextTime': 0,
+        })
+        .whereEqual('conversationID', conversationID);
+  }
+
+  /// 清空会话消息但保留会话（对齐 Go SDK ClearConversation）
+  /// 会话仍显示在列表中，但没有最新消息
+  Future<DbResult> clearConversation(String conversationID) async {
+    return toStore
+        .update(DbTableName.localConversation, {
+          'unreadCount': 0,
+          'latestMsg': '',
+          'draftText': '',
+          'draftTextTime': 0,
+        })
+        .whereEqual('conversationID', conversationID);
+  }
+
+  /// 重置所有会话（对齐 Go SDK ResetAllConversation）
+  Future<DbResult> resetAllConversations() async {
+    return toStore.update(DbTableName.localConversation, {
+      'unreadCount': 0,
+      'latestMsg': '',
+      'latestMsgSendTime': 0,
+      'draftText': '',
+      'draftTextTime': 0,
+    }).allowUpdateAll();
   }
 
   /// 更新会话属性
@@ -747,8 +807,8 @@ class DatabaseService {
   }
 
   /// 搜索本地消息
-  /// 始终以 conversationID 作为首要过滤条件（单索引），其余条件在 Dart 层过滤，
-  /// 避免 Tostore 多索引优化器 bug。
+  /// 只用 conversationID 作为 ToStore 索引条件，其余条件在 Dart 层过滤，
+  /// 避免 ToStore 多索引优化器 bug 导致 conversationID 过滤失效。
   Future<List<Message>> searchMessages({
     String? conversationID,
     String? keyword,
@@ -768,24 +828,41 @@ class DatabaseService {
       }
     }
 
-    if (keyword != null && keyword.isNotEmpty) {
-      query = query.whereLike('content', '%$keyword%');
+    // 只用 conversationID 做 DB 查询，多取数据后在 Dart 层做二次过滤
+    final batchSize = (count + offset) * 3 + 200;
+    final result = await query.orderByDesc('sendTime').limit(batchSize);
+
+    var filtered = result.data.where((msg) {
+      if (keyword != null && keyword.isNotEmpty) {
+        final content = msg['content'] as String? ?? '';
+        if (!content.toLowerCase().contains(keyword.toLowerCase())) return false;
+      }
+      if (messageTypes != null && messageTypes.isNotEmpty) {
+        final ct = (msg['contentType'] as num?)?.toInt() ?? 0;
+        if (!messageTypes.contains(ct)) return false;
+      }
+      if (startTime != null && startTime > 0) {
+        final st = (msg['sendTime'] as num?)?.toInt() ?? 0;
+        if (st < startTime) return false;
+      }
+      if (endTime != null && endTime > 0) {
+        final st = (msg['sendTime'] as num?)?.toInt() ?? 0;
+        if (st > endTime) return false;
+      }
+      return true;
+    }).toList();
+
+    // 分页
+    if (offset > 0 && offset < filtered.length) {
+      filtered = filtered.sublist(offset);
+    } else if (offset >= filtered.length) {
+      return [];
+    }
+    if (filtered.length > count) {
+      filtered = filtered.sublist(0, count);
     }
 
-    if (messageTypes != null && messageTypes.isNotEmpty) {
-      query = query.whereIn('contentType', messageTypes);
-    }
-
-    if (startTime != null && startTime > 0) {
-      query = query.whereGreaterThanOrEqualTo('sendTime', startTime);
-    }
-
-    if (endTime != null && endTime > 0) {
-      query = query.whereLessThanOrEqualTo('sendTime', endTime);
-    }
-
-    final result = await query.orderByDesc('sendTime').offset(offset).limit(count);
-    return result.data.map(convertMessage).toList();
+    return filtered.map(convertMessage).toList();
   }
 
   /// 标记消息已读
@@ -884,7 +961,40 @@ class DatabaseService {
 
   /// 更新好友部分字段
   Future<DbResult> updateFriend(String friendUserID, Map<String, dynamic> data) async {
-    return toStore.update(DbTableName.localFriend, data).whereEqual('friendUserID', friendUserID);
+    return toStore
+        .update(DbTableName.localFriend, data)
+        .whereEqual('ownerUserID', _currentUserID)
+        .whereEqual('friendUserID', friendUserID);
+  }
+
+  /// 根据会话ID + seq列表获取消息（按 sendTime 倒序）
+  Future<List<Message>> getMessagesBySeqs(String conversationID, List<int> seqs) async {
+    if (seqs.isEmpty) return [];
+    final result = await toStore
+        .query(DbTableName.localChatLog)
+        .whereEqual('conversationID', conversationID)
+        .whereIn('seq', seqs)
+        .orderByDesc('sendTime');
+    return result.data.map(convertMessage).toList();
+  }
+
+  /// 按 seq 批量标记会话消息已读
+  Future<DbResult> markMessagesAsReadBySeqs(String conversationID, List<int> seqs) async {
+    if (seqs.isEmpty) return DbResult.success();
+    final now = DateTime.now().millisecondsSinceEpoch;
+    return toStore
+        .update(DbTableName.localChatLog, {'isRead': true, 'hasReadTime': now})
+        .whereEqual('conversationID', conversationID)
+        .whereIn('seq', seqs);
+  }
+
+  /// 按 seq 批量标记会话消息已删除
+  Future<DbResult> markMessagesDeletedBySeqs(String conversationID, List<int> seqs) async {
+    if (seqs.isEmpty) return DbResult.success();
+    return toStore
+        .update(DbTableName.localChatLog, {'status': MessageStatus.deleted.value})
+        .whereEqual('conversationID', conversationID)
+        .whereIn('seq', seqs);
   }
 
   /// 获取会话的 maxSeq（不在 ConversationInfo 模型中的 DB 字段）
@@ -894,6 +1004,17 @@ class DatabaseService {
         .whereEqual('conversationID', conversationID)
         .first();
     return (data?['maxSeq'] as num?)?.toInt() ?? 0;
+  }
+
+  /// 从消息表查询会话的最大 seq（对齐 Go SDK GetConversationNormalMsgSeq）
+  Future<int> getConversationNormalMsgMaxSeq(String conversationID) async {
+    final result = await toStore
+        .query(DbTableName.localChatLog)
+        .whereEqual('conversationID', conversationID)
+        .orderByDesc('seq')
+        .limit(1);
+    if (result.data.isEmpty) return 0;
+    return (result.data.first['seq'] as num?)?.toInt() ?? 0;
   }
 
   /// 批量获取所有会话的 maxSeq（单次查询）
@@ -1191,5 +1312,124 @@ class DatabaseService {
         .whereEqual('userID', _currentUserID)
         .whereEqual('targetType', targetType)
         .whereEqual('targetID', targetID);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Upload 任务操作 - 对齐 Go SDK upload_model 语义
+  // ---------------------------------------------------------------------------
+
+  Future<DbResult> upsertUploadTask(Map<String, dynamic> data) async {
+    return toStore.upsert(DbTableName.localUpload, data);
+  }
+
+  Future<Map<String, dynamic>?> getUploadTask(String uploadID) async {
+    return toStore.query(DbTableName.localUpload).whereEqual('uploadID', uploadID).first();
+  }
+
+  Future<Map<String, dynamic>?> getUploadTaskByHashAndName(String hash, String name) async {
+    return toStore
+        .query(DbTableName.localUpload)
+        .whereEqual('hash', hash)
+        .whereEqual('name', name)
+        .first();
+  }
+
+  Future<DbResult> deleteUploadTask(String uploadID) async {
+    return toStore.delete(DbTableName.localUpload).whereEqual('uploadID', uploadID);
+  }
+
+  // ---------------------------------------------------------------------------
+  // VersionSync 操作 - 对齐 Go SDK version_sync 语义
+  // ---------------------------------------------------------------------------
+
+  Future<Map<String, dynamic>?> getVersionSync(String tableName, String entityID) async {
+    return toStore
+        .query(DbTableName.localVersionSync)
+        .whereEqual('tableName', tableName)
+        .whereEqual('entityID', entityID)
+        .first();
+  }
+
+  Future<DbResult> setVersionSync({
+    required String tableName,
+    required String entityID,
+    String? versionID,
+    int? version,
+    List<String>? uidList,
+  }) async {
+    final lockKey = '$tableName|$entityID';
+    final prev = _versionSyncInFlight[lockKey];
+    if (prev != null) {
+      await prev;
+    }
+
+    Future<DbResult> run() async {
+      final data = {
+        'tableName': tableName,
+        'entityID': entityID,
+        'versionID': versionID,
+        'version': version,
+        'uidList': uidList,
+        'updateTime': DateTime.now().millisecondsSinceEpoch,
+      };
+
+      // 由于 localVersionSync 使用 timestampBased 的主键（id），toStore.upsert 不能可靠地按唯一索引
+      // (tableName, entityID) 合并。为避免反复触发 unique constraint（且确保版本能正确推进），
+      // 这里显式做存在性判断：存在则 update，不存在才 upsert。
+      final existing = await toStore
+          .query(DbTableName.localVersionSync)
+          .whereEqual('tableName', tableName)
+          .whereEqual('entityID', entityID)
+          .first();
+
+      if (existing != null) {
+        return toStore
+            .update(DbTableName.localVersionSync, data)
+            .whereEqual('tableName', tableName)
+            .whereEqual('entityID', entityID);
+      }
+
+      return toStore.upsert(DbTableName.localVersionSync, data);
+    }
+
+    final future = run();
+    _versionSyncInFlight[lockKey] = future;
+    try {
+      return await future;
+    } finally {
+      if (_versionSyncInFlight[lockKey] == future) {
+        _versionSyncInFlight.remove(lockKey);
+      }
+    }
+  }
+
+  Future<DbResult> deleteVersionSync(String tableName, String entityID) async {
+    return toStore
+        .delete(DbTableName.localVersionSync)
+        .whereEqual('tableName', tableName)
+        .whereEqual('entityID', entityID);
+  }
+
+  // ---------------------------------------------------------------------------
+  // NotificationSeq 操作 - 对齐 Go SDK notification seq 语义
+  // ---------------------------------------------------------------------------
+
+  Future<DbResult> upsertNotificationSeq(String conversationID, int seq) async {
+    return toStore.upsert(DbTableName.localNotificationSeq, {
+      'conversationID': conversationID,
+      'seq': seq,
+      'updateTime': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  Future<Map<String, int>> getAllNotificationSeqs() async {
+    final result = await toStore.query(DbTableName.localNotificationSeq);
+    final map = <String, int>{};
+    for (final row in result.data) {
+      final conversationID = row['conversationID'] as String?;
+      if (conversationID == null) continue;
+      map[conversationID] = (row['seq'] as num?)?.toInt() ?? 0;
+    }
+    return map;
   }
 }

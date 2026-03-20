@@ -1,5 +1,62 @@
 # Changelog
 
+## 1.4.0
+
+### 修复
+
+- **对齐 Go SDK 消息/会话同步逻辑**：
+  - `MsgSyncer._syncConversationsAndSeqs()`：非首次安装时获取服务端全量会话 `seq`，避免仅用本地会话 ID 请求导致漏同步服务端新增会话
+  - `MsgSyncer._syncMessages()`：修复非重装场景错误跳过 `n_` 通知会话的问题；分批策略改为按预计消息数累计到 `SplitPullMsgNum(100)` 再拉取，对齐 Go `syncAndTriggerMsgs`
+  - `MsgSyncer._syncMissingMessages()`：缺口补拉改为先取服务端 `maxSeq` 再按真实区间 `[local+1, serverMax]` 拉取，移除固定窗口补拉
+  - `MsgSyncer.handlePushMsg()`：推送连续性校验改为与 Go `pushTriggerAndSync` 一致（`seq=0` 不参与连续性；按 `lastSeq == local + count` 判定），有缺口时先补拉后入库，避免乱序/断档误处理
+  - `MsgSyncer._syncHistoryByQueue()`：新增历史同步队列，按区间持续拉取并推进 `seq`，修复仅同步 latestMsg 的问题
+
+- **修复重复登录失败（GetIt 重复注册）**：
+  - `IMManager.login()`：注册 `loginUser` 前先判断并反注册旧实例
+  - `IMManager.logout()`：补充反注册 `loginUser`，修复“退出后再次登录”触发 `UserInfo already registered` 异常
+
+- **对齐 Go SDK 重启恢复策略（sending -> failed）**：
+  - `MessageManager.recoverSendingMessages()`：重启后不再自动重发 sending 消息，改为直接置失败并更新会话 latestMsg 状态，行为与 Go `handlerSendingMsg` 一致
+
+- **对齐连接后同步触发时机**：
+  - `WebSocketService` 新增连接成功统一回调（含重连成功）
+  - `IMManager` 在每次连接成功后触发 `MsgSyncer.doConnectedSync()`，并在前台唤醒后补触发同步
+
+- **补齐通知语义与已读回执处理**：
+  - `NotificationDispatcher` 新增 `2102`（删除消息）和 `1703`（清空会话）处理，刷新会话 latestMsg/未读
+  - `2200` 已读回执改为按 `seq` 回查 `clientMsgID` 后回调 `recvC2CReadReceipt`，并按 `maxSeq - hasReadSeq` 计算未读，避免错误清零
+
+- **补齐增量同步与存储能力（对齐 Go 结构）**：
+  - `ImApiService` 新增 `getIncrementalJoinGroup()`、`getFullJoinGroupIDs()`
+  - `DbSchema` 新增 `local_uploads`、`local_version_sync`，并将群成员唯一键对齐为 `(groupID, userID)`
+  - `DatabaseService` 新增 `VersionSync`、上传任务、按 `seq` 查询/已读/删除等接口能力
+
+- **修复好友/群组全量 ID 同步的一致性缺口**：
+  - `NotificationDispatcher._syncFriends()`：新增本地差集清理（删除 `local - server` 好友）
+  - `NotificationDispatcher._syncJoinedGroups()`：新增本地差集清理（删除 `local - server` 群组与成员，并标记会话 `isNotInGroup=true`）
+  - 处理服务端空集合场景：不再直接返回，先完成本地清理并更新版本同步记录，避免残留脏数据
+- **对齐关系/群组/会话通知的增量同步入口（版本感知）**：
+  - `NotificationDispatcher._syncFriends()`：从全量拉取改为使用 `getIncrementalFriends`，按 `local_version_sync` 推进版本（同时处理 delete/insert/update）
+  - `NotificationDispatcher._syncJoinedGroups()`：从全量拉取改为使用 `getIncrementalJoinGroup`，对 delete/insert/update 做增量收敛，并仅对变更群拉取成员列表
+  - `NotificationDispatcher._syncConversations()`：从全量 `getAllConversations` 改为 `getIncrementalConversation`，按 insert/update/delete 增量更新会话
+  - `NotificationDispatcher` 中 `memberQuit/memberKicked`：非自身的群成员删除不再直接 `deleteGroupMember`，交由增量同步收敛减少本地补丁冲突
+- **回归验证要点（对齐 Go SDK 行为）**：
+  - 重连后需触发 post-connect 同步：确认 `reconnect` 成功后会话/消息缺口被补齐
+  - 已读回执映射：确认 `recvC2CReadReceipt` 的 `msgIDList` 填充为 `clientMsgID`（而非 `seq` 字符串）
+  - 删除/清空会话通知：确认本地 DB 删除/清空先完成，再刷新 conversation latestMsg/未读（避免时序竞争）
+
+- **补齐上传断点续传闭环（对齐 Go upload_model 语义）**：
+  - `DatabaseService` 新增 `getUploadTaskByHashAndName()`，上传前按 `hash + name` 查询历史任务
+  - `IMManager.uploadFile()` 支持恢复同 `uploadID` 的已上传分片（跳过已完成分片），持续更新 `uploadedParts`
+  - 上传完成后删除本地上传任务记录，避免脏状态残留
+
+- **补齐通知 seq 独立持久化（对齐 Go notification_seqs 语义）**：
+  - `DbSchema` 新增 `local_notification_seqs`
+  - `DatabaseService` 新增 `upsertNotificationSeq()`、`getAllNotificationSeqs()`
+  - `MsgSyncer._loadSeqs()` 启动时恢复通知 seq 到内存
+  - 通知消息处理路径（push/pull）在推进 seq 时同步写入通知 seq
+  - 重装场景对 `n_` 通知会话改为“只推进 seq 不拉通知内容”，与 Go 分支语义一致
+
 ## 1.3.4
 
 ### 修复

@@ -75,8 +75,14 @@ class NotificationDispatcher {
   Timer? _groupSyncTimer;
   Timer? _conversationSyncTimer;
   bool _friendSyncPending = false;
-  bool _groupSyncPending = false;
+  // _groupSyncPending removed (no longer using debounce for group sync)
   bool _conversationSyncPending = false;
+
+  // 防止并发同步导致 version_sync 写入竞争（从而触发 unique constraint）。
+  bool _joinedGroupsSyncInFlight = false;
+  bool _joinedGroupsSyncAgain = false;
+  bool _conversationsSyncInFlight = false;
+  bool _conversationsSyncAgain = false;
 
   static const _syncDebounce = Duration(milliseconds: 200);
 
@@ -98,23 +104,9 @@ class NotificationDispatcher {
     }
   }
 
-  /// 防抖触发群组同步
-  void _debounceSyncJoinedGroups() {
-    _log.info('called', methodName: '_debounceSyncJoinedGroups');
-    try {
-      _groupSyncPending = true;
-      _groupSyncTimer?.cancel();
-      _groupSyncTimer = Timer(_syncDebounce, () {
-        if (_groupSyncPending) {
-          _groupSyncPending = false;
-          _syncJoinedGroups();
-        }
-      });
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_debounceSyncJoinedGroups');
-      rethrow;
-    }
-  }
+  // _debounceSyncJoinedGroups removed: all group notifications now use
+  // targeted _syncGroupInfoAndMembers(groupID) or _syncJoinedGroupsSerial()
+  // to match Go SDK's onlineSyncGroupAndMember / IncrSyncJoinGroup pattern.
 
   /// 防抖触发会话同步
   void _debounceSyncConversations() {
@@ -125,12 +117,44 @@ class NotificationDispatcher {
       _conversationSyncTimer = Timer(_syncDebounce, () {
         if (_conversationSyncPending) {
           _conversationSyncPending = false;
-          _syncConversations();
+          unawaited(_syncConversationsSerial());
         }
       });
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_debounceSyncConversations');
       rethrow;
+    }
+  }
+
+  Future<void> _syncJoinedGroupsSerial() async {
+    if (_joinedGroupsSyncInFlight) {
+      _joinedGroupsSyncAgain = true;
+      return;
+    }
+    _joinedGroupsSyncInFlight = true;
+    try {
+      do {
+        _joinedGroupsSyncAgain = false;
+        await _syncJoinedGroups();
+      } while (_joinedGroupsSyncAgain);
+    } finally {
+      _joinedGroupsSyncInFlight = false;
+    }
+  }
+
+  Future<void> _syncConversationsSerial() async {
+    if (_conversationsSyncInFlight) {
+      _conversationsSyncAgain = true;
+      return;
+    }
+    _conversationsSyncInFlight = true;
+    try {
+      do {
+        _conversationsSyncAgain = false;
+        await _syncConversations();
+      } while (_conversationsSyncAgain);
+    } finally {
+      _conversationsSyncInFlight = false;
     }
   }
 
@@ -228,8 +252,12 @@ class NotificationDispatcher {
           _onBusinessNotification(detail);
         case 2101: // revokeNotification
           _onRevokeMsg(detail);
+        case 2102: // deleteMsgsNotification
+          unawaited(_onDeleteMsgs(detail));
+        case 1703: // clearConversationNotification
+          unawaited(_onClearConversationMsgs(detail));
         case 2200: // hasReadReceipt
-          _onReadReceipt(detail);
+          unawaited(_onReadReceipt(detail));
         default:
           _log.info('未处理的通知类型: $ct', methodName: '_route');
       }
@@ -352,148 +380,182 @@ class NotificationDispatcher {
   // Group notifications
   // ---------------------------------------------------------------------------
 
+  /// 从 notification detail 中提取 groupID
+  String? _extractGroupID(Map<String, dynamic> detail) {
+    final group = detail['group'];
+    if (group is Map<String, dynamic>) {
+      return group['groupID'] as String?;
+    }
+    return null;
+  }
+
+  /// 群组通知处理（对齐 Go SDK group/notification.go doNotification）
+  ///
+  /// Go SDK 模式:
+  /// - 申请类 (1503/1505/1506): 仅回调
+  /// - 群列表变更 (self join/leave): IncrSyncJoinGroup
+  /// - 群内变更 (info/member): onlineSyncGroupAndMember(groupID)
   void _onGroupNotification(int ct, Map<String, dynamic> detail) {
     _log.info('ct=$ct', methodName: '_onGroupNotification');
     try {
       switch (ct) {
+        // Go: IncrSyncJoinGroup + IncrSyncGroupAndMember(groupID)
         case 1501: // groupCreated
           _syncJoinedGroupsAndNotifyAdded();
 
+        // Go: onlineSyncGroupAndMember(groupID)
         case 1502: // groupInfoSet
-          _debounceSyncJoinedGroups();
+          final gid = _extractGroupID(detail);
+          if (gid != null) {
+            _syncGroupInfoAndMembers(gid);
+          }
           if (detail['group'] != null) {
             groupListener?.groupInfoChanged(
               GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
             );
           }
 
+        // Go: callback only
         case 1503: // joinGroupApplication
           final info = GroupApplicationInfo.fromJson(detail);
           groupListener?.groupApplicationAdded(info);
           listenerForService?.groupApplicationAdded(info);
 
+        // Go: self → IncrSyncJoinGroup; others → onlineSyncGroupAndMember(groupID)
         case 1504: // memberQuit
           final quitUser = detail['quitUser'] as Map<String, dynamic>?;
           final quitUserID = quitUser?['userID'] as String?;
           if (quitUserID == _userID) {
             _syncJoinedGroupsAndNotifyDeleted(detail);
+          } else {
+            final gid = _extractGroupID(detail);
+            if (gid != null) _syncGroupInfoAndMembers(gid);
           }
           if (quitUser != null) {
-            final gid = detail['group'] is Map
-                ? (detail['group'] as Map)['groupID'] as String?
-                : null;
-            if (gid != null && quitUserID != null) {
-              database.deleteGroupMember(gid, quitUserID);
-            }
             groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(quitUser));
           }
 
+        // Go: callback only (no sync)
         case 1505: // groupApplicationAccepted
-          _syncJoinedGroupsAndNotifyAdded();
           final info = GroupApplicationInfo.fromJson(detail);
           groupListener?.groupApplicationAccepted(info);
           listenerForService?.groupApplicationAccepted(info);
 
+        // Go: callback only
         case 1506: // groupApplicationRejected
           final info = GroupApplicationInfo.fromJson(detail);
           groupListener?.groupApplicationRejected(info);
 
+        // Go: onlineSyncGroupAndMember(groupID)
         case 1507: // groupOwnerTransferred
-          _debounceSyncJoinedGroups();
+          final gid = _extractGroupID(detail);
+          if (gid != null) _syncGroupInfoAndMembers(gid);
           if (detail['group'] != null) {
             groupListener?.groupInfoChanged(
               GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
             );
           }
 
+        // Go: self → IncrSyncJoinGroup; others → onlineSyncGroupAndMember(groupID)
         case 1508: // memberKicked
           final kickedList = detail['kickedUserList'] as List?;
           final isSelf =
               kickedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
           if (isSelf) {
             _syncJoinedGroupsAndNotifyDeleted(detail);
+          } else {
+            final gid = _extractGroupID(detail);
+            if (gid != null) _syncGroupInfoAndMembers(gid);
           }
           if (kickedList != null) {
-            final gid = detail['group'] is Map
-                ? (detail['group'] as Map)['groupID'] as String?
-                : null;
             for (final u in kickedList) {
               if (u is Map<String, dynamic>) {
-                if (gid != null && u['userID'] != null) {
-                  database.deleteGroupMember(gid, u['userID'] as String);
-                }
                 groupListener?.groupMemberDeleted(GroupMembersInfo.fromJson(u));
               }
             }
           }
 
+        // Go: self → IncrSyncJoinGroup + IncrSyncGroupAndMember; others → onlineSyncGroupAndMember(groupID)
         case 1509: // memberInvited
           final invitedList = detail['invitedUserList'] as List?;
           final isSelf =
               invitedList?.any((u) => (u as Map<String, dynamic>)['userID'] == _userID) ?? false;
           if (isSelf) {
             _syncJoinedGroupsAndNotifyAdded();
+          } else {
+            final gid = _extractGroupID(detail);
+            if (gid != null) _syncGroupInfoAndMembers(gid);
           }
           if (invitedList != null) {
             for (final u in invitedList) {
               if (u is Map<String, dynamic>) {
-                database.upsertGroupMember(u);
                 groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(u));
               }
             }
           }
 
+        // Go: self → IncrSyncJoinGroup + IncrSyncGroupAndMember; others → onlineSyncGroupAndMember(groupID)
         case 1510: // memberEnter
           final entrantUser = detail['entrantUser'] as Map<String, dynamic>?;
           final entrantUserID = entrantUser?['userID'] as String?;
           if (entrantUserID == _userID) {
             _syncJoinedGroupsAndNotifyAdded();
+          } else {
+            final gid = _extractGroupID(detail);
+            if (gid != null) _syncGroupInfoAndMembers(gid);
           }
           if (entrantUser != null) {
-            database.upsertGroupMember(entrantUser);
             groupListener?.groupMemberAdded(GroupMembersInfo.fromJson(entrantUser));
           }
 
+        // Go: callback + IncrSyncJoinGroup
         case 1511: // groupDismissed
           if (detail['group'] != null) {
-            final groupMap = detail['group'] as Map<String, dynamic>;
-            final gid = groupMap['groupID'] as String?;
-            if (gid != null) {
-              database.deleteGroupAllMembers(gid);
-              database.deleteGroup(gid);
-              final convID = OpenImUtils.genGroupConversationID(gid);
-              database.updateConversation(convID, {'isNotInGroup': true});
-            }
-            groupListener?.groupDismissed(GroupInfo.fromJson(groupMap));
+            groupListener?.groupDismissed(
+              GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
+            );
           }
+          _syncJoinedGroupsSerial();
 
+        // Go: onlineSyncGroupAndMember(groupID)
         case 1512: // groupMemberMuted
         case 1513: // groupMemberCancelMuted
+          final gid = _extractGroupID(detail);
+          if (gid != null) _syncGroupInfoAndMembers(gid);
+          if (detail['mutedUser'] != null) {
+            groupListener?.groupMemberInfoChanged(
+              GroupMembersInfo.fromJson(detail['mutedUser'] as Map<String, dynamic>),
+            );
+          }
+
+        // Go: onlineSyncGroupAndMember(groupID)
         case 1514: // groupMuted
         case 1515: // groupCancelMuted
-        case 1516: // groupMemberInfoSet
-        case 1517: // groupMemberSetToAdmin
-        case 1518: // groupMemberSetToOrdinaryUser
-          _debounceSyncJoinedGroups();
+          final gid = _extractGroupID(detail);
+          if (gid != null) _syncGroupInfoAndMembers(gid);
           if (detail['group'] != null) {
             groupListener?.groupInfoChanged(
               GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
             );
           }
+
+        // Go: onlineSyncGroupAndMember(groupID)
+        case 1516: // groupMemberInfoSet
+        case 1517: // groupMemberSetToAdmin
+        case 1518: // groupMemberSetToOrdinaryUser
+          final gid = _extractGroupID(detail);
+          if (gid != null) _syncGroupInfoAndMembers(gid);
           if (detail['changedUser'] != null) {
-            final changedUser = detail['changedUser'] as Map<String, dynamic>;
-            database.upsertGroupMember(changedUser);
-            groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(changedUser));
-          }
-          if (detail['mutedUser'] != null) {
-            final mutedUser = detail['mutedUser'] as Map<String, dynamic>;
-            database.upsertGroupMember(mutedUser);
-            groupListener?.groupMemberInfoChanged(GroupMembersInfo.fromJson(mutedUser));
+            groupListener?.groupMemberInfoChanged(
+              GroupMembersInfo.fromJson(detail['changedUser'] as Map<String, dynamic>),
+            );
           }
 
+        // Go: onlineSyncGroupAndMember(groupID)
         case 1519: // groupInfoSetAnnouncement
         case 1520: // groupInfoSetName
-          _debounceSyncJoinedGroups();
+          final gid = _extractGroupID(detail);
+          if (gid != null) _syncGroupInfoAndMembers(gid);
           if (detail['group'] != null) {
             groupListener?.groupInfoChanged(
               GroupInfo.fromJson(detail['group'] as Map<String, dynamic>),
@@ -669,7 +731,7 @@ class NotificationDispatcher {
     }
   }
 
-  void _onReadReceipt(Map<String, dynamic> detail) {
+  Future<void> _onReadReceipt(Map<String, dynamic> detail) async {
     _log.info('called', methodName: '_onReadReceipt');
     try {
       final conversationID = detail['conversationID'] as String?;
@@ -683,14 +745,21 @@ class NotificationDispatcher {
 
       if (markAsReadUserID != _userID) {
         // 对方已读：触发 OnRecvC2CReadReceipt + 更新 latestMsg 已读状态
+        final msgList = conversationID != null
+            ? await database.getMessagesBySeqs(conversationID, seqs)
+            : const <Message>[];
+        final msgIDs = msgList.map((e) => e.clientMsgID).whereType<String>().toList();
         final receipts = <ReadReceiptInfo>[
           ReadReceiptInfo(
             userID: markAsReadUserID,
-            msgIDList: seqs.map((e) => e.toString()).toList(),
+            msgIDList: msgIDs,
             readTime: detail['readTime'] as int?,
           ),
         ];
         msgListener?.recvC2CReadReceipt(receipts);
+        if (conversationID != null) {
+          await database.markMessagesAsReadBySeqs(conversationID, seqs);
+        }
         // 更新会话（对应 Go SDK doReadDrawing 的 latestMsg IsRead 更新）
         if (conversationID != null) {
           _updateConversationAfterReadReceipt(conversationID);
@@ -745,9 +814,10 @@ class NotificationDispatcher {
       try {
         final conv = await database.getConversation(conversationID);
         if (conv == null) return;
-        if (conv.unreadCount > 0) {
-          await database.clearConversationUnreadCount(conversationID);
-        }
+        await database.markMessagesAsReadBySeqs(conversationID, seqs);
+        final maxSeq = await database.getConversationMaxSeq(conversationID);
+        final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+        await database.updateConversation(conversationID, {'unreadCount': unread});
         conversationListener?.conversationChanged([
           await database.getConversation(conversationID) ?? conv,
         ]);
@@ -759,6 +829,65 @@ class NotificationDispatcher {
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleSelfReadReceipt');
       rethrow;
+    }
+  }
+
+  Future<void> _onDeleteMsgs(Map<String, dynamic> detail) async {
+    _log.info('called', methodName: '_onDeleteMsgs');
+    try {
+      final conversationID = detail['conversationID'] as String?;
+      final seqs = (detail['seqs'] as List?)?.map((e) => e as int).toList() ?? [];
+      if (conversationID == null || conversationID.isEmpty || seqs.isEmpty) return;
+      await database.markMessagesDeletedBySeqs(conversationID, seqs);
+      await _refreshConversationAfterMessageMutation(conversationID);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onDeleteMsgs');
+    }
+  }
+
+  Future<void> _onClearConversationMsgs(Map<String, dynamic> detail) async {
+    _log.info('called', methodName: '_onClearConversationMsgs');
+    try {
+      final ids =
+          (detail['conversationIDs'] as List?)?.map((e) => e.toString()).toList() ??
+          (detail['conversationID'] != null ? [detail['conversationID'].toString()] : <String>[]);
+      for (final conversationID in ids) {
+        await database.deleteConversationAllMessages(conversationID);
+        await _refreshConversationAfterMessageMutation(conversationID);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onClearConversationMsgs');
+    }
+  }
+
+  Future<void> _refreshConversationAfterMessageMutation(String conversationID) async {
+    try {
+      final latest = await database.getHistoryMessages(conversationID: conversationID, count: 1);
+      if (latest.isNotEmpty) {
+        await database.updateConversation(conversationID, {
+          'latestMsg': jsonEncode(DatabaseService.messageToDbMap(latest.first)),
+          'latestMsgSendTime': latest.first.sendTime ?? 0,
+        });
+      } else {
+        await database.updateConversation(conversationID, {
+          'latestMsg': '',
+          'latestMsgSendTime': 0,
+          'unreadCount': 0,
+        });
+      }
+      final conv = await database.getConversation(conversationID);
+      if (conv != null) {
+        conversationListener?.conversationChanged([conv]);
+        final total = await database.getTotalUnreadCount();
+        conversationListener?.totalUnreadMessageCountChanged(total);
+      }
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: '_refreshConversationAfterMessageMutation',
+      );
     }
   }
 
@@ -795,39 +924,87 @@ class NotificationDispatcher {
   Future<void> _syncFriends() async {
     _log.info('called', methodName: '_syncFriends');
     try {
-      int pageNumber = 1;
-      const pageSize = 100;
-      final allFriends = <Map<String, dynamic>>[];
-      while (true) {
-        final resp = await api.getFriendList(
-          userID: _userID,
-          offset: (pageNumber - 1) * pageSize,
-          count: pageSize,
-        );
-        if (resp.errCode != 0) break;
-        final friends = resp.data?['friendsInfo'] as List? ?? [];
-        if (friends.isEmpty) break;
-        for (final f in friends) {
+      // 版本感知增量同步（对齐 Go get_incremental_friends）
+      final versionInfo = await database.getVersionSync('friend', _userID);
+      final versionID = versionInfo?['versionID'] as String? ?? '';
+      final version = (versionInfo?['version'] as num?)?.toInt() ?? 0;
+
+      final resp = await api.getIncrementalFriends(
+        req: {'userID': _userID, 'versionID': versionID, 'version': version},
+      );
+      if (resp.errCode != 0) return;
+
+      final data = resp.data as Map<String, dynamic>? ?? {};
+      final bool full = data['full'] as bool? ?? false;
+
+      final deleteIDs =
+          (data['delete'] as List?)?.map((e) => e.toString()).whereType<String>().toList() ??
+          const <String>[];
+
+      final insertList = (data['insert'] as List?) ?? const <dynamic>[];
+      final updateList = (data['update'] as List?) ?? const <dynamic>[];
+
+      // 满量兜底：如果服务端标记 full，则删除本地“多余好友”
+      // （增量接口理论上会提供 delete 列表，但 full 场景下做兜底更稳）
+      if (full) {
+        final serverFriendIDs = <String>{};
+        for (final f in [...insertList, ...updateList]) {
           if (f is Map<String, dynamic>) {
-            final friendUser = f['friendUser'] as Map<String, dynamic>? ?? {};
-            allFriends.add({
-              'friendUserID': friendUser['userID'] ?? f['userID'],
-              'ownerUserID': f['ownerUserID'],
-              'nickname': friendUser['nickname'],
-              'faceURL': friendUser['faceURL'],
-              'remark': f['remark'],
-              'createTime': f['createTime'],
-              'addSource': f['addSource'],
-              'operatorUserID': f['operatorUserID'],
-              'ex': f['ex'],
-              'isPinned': f['isPinned'],
-            });
+            final friendUser = f['friendUser'] as Map<String, dynamic>? ?? const {};
+            final id = friendUser['userID']?.toString();
+            if (id != null && id.isNotEmpty) serverFriendIDs.add(id);
           }
         }
-        if (friends.length < pageSize) break;
-        pageNumber++;
+        if (serverFriendIDs.isNotEmpty) {
+          final localIDs = (await database.getAllFriends())
+              .map((e) => e.friendUserID)
+              .whereType<String>()
+              .toSet();
+          final toDeleteLocal = localIDs.difference(serverFriendIDs);
+          for (final userID in toDeleteLocal) {
+            await database.deleteFriend(userID);
+          }
+        }
       }
-      if (allFriends.isNotEmpty) await database.batchUpsertFriends(allFriends);
+
+      for (final userID in deleteIDs) {
+        await database.deleteFriend(userID);
+      }
+
+      // insert/update 统一 upsert
+      final allFriends = <Map<String, dynamic>>[];
+      for (final f in [...insertList, ...updateList]) {
+        if (f is! Map<String, dynamic>) continue;
+        final friendUser = f['friendUser'] as Map<String, dynamic>? ?? const {};
+        final friendUserID = (friendUser['userID'] ?? f['friendUserID'] ?? f['userID'])?.toString();
+        if (friendUserID == null || friendUserID.isEmpty) continue;
+        allFriends.add({
+          'friendUserID': friendUserID,
+          'ownerUserID': f['ownerUserID'] ?? _userID,
+          'nickname': friendUser['nickname'],
+          'faceURL': friendUser['faceURL'],
+          'remark': f['remark'],
+          'createTime': (f['createTime'] as num?)?.toInt(),
+          'addSource': (f['addSource'] as num?)?.toInt(),
+          'operatorUserID': f['operatorUserID'],
+          'ex': f['ex'],
+          'isPinned': f['isPinned'],
+        });
+      }
+
+      if (allFriends.isNotEmpty) {
+        await database.batchUpsertFriends(allFriends);
+      }
+
+      final newVersion = (data['version'] as num?)?.toInt() ?? version;
+      final newVersionID = data['versionID'] as String? ?? versionID;
+      await database.setVersionSync(
+        tableName: 'friend',
+        entityID: _userID,
+        versionID: newVersionID,
+        version: newVersion,
+        uidList: const [],
+      );
     } catch (e, s) {
       _log.error('同步好友异常: $e', error: e, stackTrace: s, methodName: '_syncFriends');
     }
@@ -835,16 +1012,27 @@ class NotificationDispatcher {
 
   Future<void> _syncBlackList() async {
     _log.info('called', methodName: '_syncBlackList');
-    // 黑名单量一般较少，全量拉取
     try {
       final resp = await api.getBlackList(userID: _userID);
       if (resp.errCode != 0) return;
       final blacks = resp.data?['blacks'] as List? ?? [];
       final batch = <Map<String, dynamic>>[];
       for (final b in blacks) {
-        if (b is Map<String, dynamic>) {
-          batch.add(b);
-        }
+        if (b is! Map<String, dynamic>) continue;
+        // 对齐 Go SDK ServerBlackToLocalBlack：展平嵌套的 blackUserInfo
+        final blackUserInfo = b['blackUserInfo'] as Map<String, dynamic>? ?? const {};
+        final blockUserID = (blackUserInfo['userID'] ?? b['blockUserID'])?.toString();
+        if (blockUserID == null || blockUserID.isEmpty) continue;
+        batch.add({
+          'ownerUserID': b['ownerUserID'] ?? _userID,
+          'blockUserID': blockUserID,
+          'nickname': blackUserInfo['nickname'],
+          'faceURL': blackUserInfo['faceURL'],
+          'createTime': (b['createTime'] as num?)?.toInt(),
+          'addSource': (b['addSource'] as num?)?.toInt(),
+          'operatorUserID': b['operatorUserID'],
+          'ex': b['ex'],
+        });
       }
       if (batch.isNotEmpty) {
         await database.batchUpsertBlacks(batch);
@@ -857,32 +1045,85 @@ class NotificationDispatcher {
   Future<void> _syncJoinedGroups() async {
     _log.info('called', methodName: '_syncJoinedGroups');
     try {
-      int pageNumber = 1;
-      const pageSize = 100;
-      final allGroups = <Map<String, dynamic>>[];
-      while (true) {
-        final resp = await api.getJoinedGroupList(
-          fromUserID: _userID,
-          offset: (pageNumber - 1) * pageSize,
-          count: pageSize,
-        );
-        if (resp.errCode != 0) break;
-        final groups = resp.data?['groups'] as List? ?? [];
-        if (groups.isEmpty) break;
-        for (final g in groups) {
-          if (g is Map<String, dynamic>) allGroups.add(g);
-        }
-        if (groups.length < pageSize) break;
-        pageNumber++;
-      }
-      if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
+      // 版本感知增量同步（对齐 Go get_incremental_join_groups）
+      final versionInfo = await database.getVersionSync('group', _userID);
+      final versionID = versionInfo?['versionID'] as String? ?? '';
+      final version = (versionInfo?['version'] as num?)?.toInt() ?? 0;
 
-      // 同步每个群的成员列表
-      for (final group in allGroups) {
-        final groupID = group['groupID'] as String?;
-        if (groupID == null || groupID.isEmpty) continue;
+      final resp = await api.getIncrementalJoinGroup(
+        req: {'userID': _userID, 'versionID': versionID, 'version': version},
+      );
+      if (resp.errCode != 0) return;
+
+      final data = resp.data as Map<String, dynamic>? ?? {};
+      final bool full = data['full'] as bool? ?? false;
+
+      final deleteIDs =
+          (data['delete'] as List?)?.map((e) => e.toString()).whereType<String>().toList() ??
+          const <String>[];
+
+      final insertList = (data['insert'] as List?) ?? const <dynamic>[];
+      final updateList = (data['update'] as List?) ?? const <dynamic>[];
+
+      // 满量兜底：full=true 时删除本地多余群
+      if (full) {
+        final serverGroupIDs = <String>{};
+        for (final g in [...insertList, ...updateList]) {
+          if (g is Map<String, dynamic>) {
+            final id = g['groupID']?.toString();
+            if (id != null && id.isNotEmpty) serverGroupIDs.add(id);
+          }
+        }
+        if (serverGroupIDs.isNotEmpty) {
+          final localGroupIDs = (await database.getJoinedGroupList()).map((e) => e.groupID).toSet();
+          final toDeleteLocalGroups = localGroupIDs.difference(serverGroupIDs);
+          for (final groupID in toDeleteLocalGroups) {
+            await database.deleteGroupAllMembers(groupID);
+            await database.deleteGroup(groupID);
+            final convID = OpenImUtils.genGroupConversationID(groupID);
+            await database.updateConversation(convID, {'isNotInGroup': true});
+          }
+        }
+      }
+
+      // 删除
+      for (final groupID in deleteIDs) {
+        await database.deleteGroupAllMembers(groupID);
+        await database.deleteGroup(groupID);
+        final convID = OpenImUtils.genGroupConversationID(groupID);
+        await database.updateConversation(convID, {'isNotInGroup': true});
+      }
+
+      // insert/update 合并 upsert
+      final allGroups = <Map<String, dynamic>>[];
+      final affectedGroupIDs = <String>{};
+      for (final g in [...insertList, ...updateList]) {
+        if (g is Map<String, dynamic>) {
+          allGroups.add(g);
+          final gid = g['groupID']?.toString();
+          if (gid != null && gid.isNotEmpty) affectedGroupIDs.add(gid);
+        }
+      }
+
+      if (allGroups.isNotEmpty) {
+        await database.batchUpsertGroups(allGroups);
+      }
+
+      // 为了尽量减少“本地补丁”，对增量里出现变化的群拉取成员列表收敛
+      for (final groupID in affectedGroupIDs) {
+        if (groupID.isEmpty) continue;
         await _syncGroupMembersForGroup(groupID);
       }
+
+      final newVersion = (data['version'] as num?)?.toInt() ?? version;
+      final newVersionID = data['versionID'] as String? ?? versionID;
+      await database.setVersionSync(
+        tableName: 'group',
+        entityID: _userID,
+        versionID: newVersionID,
+        version: newVersion,
+        uidList: const [],
+      );
     } catch (e, s) {
       _log.error('同步群组异常: $e', error: e, stackTrace: s, methodName: '_syncJoinedGroups');
     }
@@ -923,6 +1164,35 @@ class NotificationDispatcher {
     }
   }
 
+  /// 同步指定群组的群信息 + 全部成员（对齐 Go SDK 的 onlineSyncGroupAndMember）
+  ///
+  /// 当收到特定群的变更通知（成员变动、群信息修改等）时使用，
+  /// 而不是全量同步所有群组。
+  Future<void> _syncGroupInfoAndMembers(String groupID) async {
+    _log.info('groupID=$groupID', methodName: '_syncGroupInfoAndMembers');
+    try {
+      final groupResp = await api.getGroupsInfo(groupIDs: [groupID]);
+      if (groupResp.errCode == 0) {
+        final groups = groupResp.data?['groupInfos'] as List? ?? [];
+        final groupMaps = <Map<String, dynamic>>[];
+        for (final g in groups) {
+          if (g is Map<String, dynamic>) groupMaps.add(g);
+        }
+        if (groupMaps.isNotEmpty) {
+          await database.batchUpsertGroups(groupMaps);
+        }
+      }
+      await _syncGroupMembersForGroup(groupID);
+    } catch (e, s) {
+      _log.error(
+        '同步群[$groupID]信息+成员异常: $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_syncGroupInfoAndMembers',
+      );
+    }
+  }
+
   Future<void> _syncSelfUserInfo() async {
     _log.info('called', methodName: '_syncSelfUserInfo');
     try {
@@ -944,36 +1214,63 @@ class NotificationDispatcher {
   Future<void> _syncConversations() async {
     _log.info('called', methodName: '_syncConversations');
     try {
-      final resp = await api.getAllConversations(ownerUserID: _userID);
-      if (resp.errCode != 0) return;
-      final conversations = resp.data?['conversations'] as List? ?? [];
-      final convMaps = <Map<String, dynamic>>[];
-      for (final conv in conversations) {
-        if (conv is Map<String, dynamic>) {
-          // 跳过自己和自己的单聊会话
-          final convType = conv['conversationType'] as int?;
-          final uid = conv['userID'] as String?;
-          if (convType == 1 && uid == _userID) continue;
+      // 版本感知增量同步（对齐 Go get_incremental_conversations）
+      final versionInfo = await database.getVersionSync('conversation', _userID);
+      final versionID = versionInfo?['versionID'] as String? ?? '';
+      final version = (versionInfo?['version'] as num?)?.toInt() ?? 0;
 
-          final map = Map<String, dynamic>.from(conv);
-          if (map['latestMsg'] is Map) {
-            map['latestMsg'] = jsonEncode(map['latestMsg']);
-          }
-          convMaps.add(map);
-        }
+      final resp = await api.getIncrementalConversation(
+        req: {'userID': _userID, 'versionID': versionID, 'version': version},
+      );
+      if (resp.errCode != 0) return;
+
+      final data = resp.data as Map<String, dynamic>? ?? {};
+      final deleteIDs =
+          (data['delete'] as List?)?.map((e) => e.toString()).whereType<String>().toList() ??
+          const <String>[];
+
+      final insertList = (data['insert'] as List?) ?? const <dynamic>[];
+      final updateList = (data['update'] as List?) ?? const <dynamic>[];
+
+      for (final conversationID in deleteIDs) {
+        await database.deleteConversation(conversationID);
       }
+
+      final full = data['full'] as bool? ?? false;
+      if (full && insertList.isEmpty && updateList.isEmpty) {
+        await database.setVersionSync(
+          tableName: 'conversation',
+          entityID: _userID,
+          versionID: data['versionID'] as String? ?? versionID,
+          version: (data['version'] as num?)?.toInt() ?? version,
+          uidList: const [],
+        );
+        return;
+      }
+
+      final convMaps = <Map<String, dynamic>>[];
+      for (final conv in [...insertList, ...updateList]) {
+        if (conv is! Map<String, dynamic>) continue;
+        // 跳过自己和自己的单聊会话
+        final convType = conv['conversationType'] as int?;
+        final uid = conv['userID'] as String?;
+        if (convType == 1 && uid == _userID) continue;
+
+        final map = Map<String, dynamic>.from(conv);
+        if (map['latestMsg'] is Map) {
+          map['latestMsg'] = jsonEncode(map['latestMsg']);
+        }
+        convMaps.add(map);
+      }
+
       if (convMaps.isNotEmpty) {
         // 对已存在的会话，保留本地 unreadCount，防止服务端过时数据覆盖
-        // 导致 markAsRead → syncConversations → unread>0 → markAsRead 死循环
-        final existingIds = <String>{};
         for (final map in convMaps) {
           final id = map['conversationID'] as String?;
-          if (id != null) {
-            final local = await database.getConversation(id);
-            if (local != null) {
-              existingIds.add(id);
-              map.remove('unreadCount');
-            }
+          if (id == null) continue;
+          final local = await database.getConversation(id);
+          if (local != null) {
+            map.remove('unreadCount');
           }
         }
 
@@ -981,7 +1278,7 @@ class NotificationDispatcher {
         await _batchFillShowNameAndFaceURL(convMaps);
 
         await database.batchUpsertConversations(convMaps);
-        // 通知 UI 刷新（批量读取代替逐个查询）
+
         final ids = convMaps
             .map((c) => c['conversationID'] as String?)
             .where((id) => id != null)
@@ -994,6 +1291,14 @@ class NotificationDispatcher {
           }
         }
       }
+
+      await database.setVersionSync(
+        tableName: 'conversation',
+        entityID: _userID,
+        versionID: data['versionID'] as String? ?? versionID,
+        version: (data['version'] as num?)?.toInt() ?? version,
+        uidList: const [],
+      );
     } catch (e, s) {
       _log.error('同步会话异常: $e', error: e, stackTrace: s, methodName: '_syncConversations');
     }
@@ -1015,7 +1320,7 @@ class NotificationDispatcher {
         if (type == 1 || type == 4) {
           final uid = conv['userID'] as String?;
           if (uid != null && uid.isNotEmpty) userIDs.add(uid);
-        } else if (type == 3) {
+        } else if (type == 2 || type == 3) {
           final gid = conv['groupID'] as String?;
           if (gid != null && gid.isNotEmpty) groupIDs.add(gid);
         }
@@ -1072,7 +1377,7 @@ class NotificationDispatcher {
           try {
             final resp = await api.getGroupsInfo(groupIDs: missing.toList());
             if (resp.errCode == 0) {
-              final netGroups = resp.data?['groupInfoList'] as List? ?? [];
+              final netGroups = resp.data?['groupInfos'] as List? ?? [];
               for (final g in netGroups) {
                 if (g is Map<String, dynamic>) {
                   final gid = g['groupID'] as String?;
@@ -1104,7 +1409,7 @@ class NotificationDispatcher {
               conv['faceURL'] = user.faceURL ?? '';
             }
           }
-        } else if (type == 3) {
+        } else if (type == 2 || type == 3) {
           final gid = conv['groupID'] as String? ?? '';
           final group = groupMap[gid];
           if (group != null) {
@@ -1140,18 +1445,35 @@ class NotificationDispatcher {
   Future<void> _syncFriendsAndNotifyChanged(Map<String, dynamic> detail) async {
     _log.info('called', methodName: '_syncFriendsAndNotifyChanged');
     try {
-      // 提取变更用户 ID
       final fromTo = detail['fromToUserID'] as Map<String, dynamic>?;
       final userID = detail['userID'] as String?;
       final changedUserID = fromTo?['toUserID'] as String? ?? userID;
 
       await _syncFriends();
 
-      // 同步完成后用最新数据通知
       if (changedUserID != null && changedUserID.isNotEmpty) {
         final updated = await database.getFriendByUserID(changedUserID);
         if (updated != null) {
           friendshipListener?.friendInfoChanged(updated);
+
+          // 对齐 Go SDK：更新对应单聊会话的 showName / faceURL
+          final showName = (updated.remark != null && updated.remark!.isNotEmpty)
+              ? updated.remark!
+              : updated.nickname ?? '';
+          final convID = OpenImUtils.genSingleConversationID(_userID, changedUserID);
+          final conv = await database.getConversation(convID);
+          if (conv != null) {
+            final convUpdates = <String, dynamic>{};
+            if (showName.isNotEmpty) convUpdates['showName'] = showName;
+            if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
+            if (convUpdates.isNotEmpty) {
+              await database.updateConversation(convID, convUpdates);
+              final updatedConv = await database.getConversation(convID);
+              if (updatedConv != null) {
+                conversationListener?.conversationChanged([updatedConv]);
+              }
+            }
+          }
         }
       }
     } catch (e, s) {
@@ -1167,13 +1489,184 @@ class NotificationDispatcher {
     _log.info('called', methodName: '_syncJoinedGroupsAndNotifyAdded');
     try {
       final oldGroupIDs = (await database.getJoinedGroupList()).map((g) => g.groupID).toSet();
-      await _syncJoinedGroups();
+      await _syncJoinedGroupsSerial();
       final newGroups = await database.getJoinedGroupList();
+      final addedGroups = <GroupInfo>[];
+      final notifiedGroupIDs = <String>{};
       for (final g in newGroups) {
         if (!oldGroupIDs.contains(g.groupID)) {
           groupListener?.joinedGroupAdded(g);
+          addedGroups.add(g);
+          if (g.groupID.isNotEmpty) {
+            notifiedGroupIDs.add(g.groupID);
+          }
         }
       }
+
+      // 对齐 Go：加入新群后需要立即补齐 sg_$groupID 会话（含 showName/maxSeq/hasReadSeq/unreadCount）。
+      // 避免出现：会话缺失/昵称为空/maxSeq==0 导致已读回写不生效。
+      // 重要：当你是“本地先 createGroup 再收到 groupCreated push”时，addedGroups 可能为空；
+      // 但会话（sg_$groupID）仍可能缺失/昵称为空。这里用“会话是否齐全”作为兜底条件。
+      final targetGroupIDs = <String>{};
+      if (addedGroups.isNotEmpty) {
+        for (final g in addedGroups) {
+          if (g.groupID.isNotEmpty) targetGroupIDs.add(g.groupID);
+        }
+      } else {
+        final joinedGroups = await database.getJoinedGroupList();
+        final convIDs = joinedGroups
+            .map<String>((g) => OpenImUtils.genGroupConversationID(g.groupID))
+            .toList();
+        final existing = await database.getMultipleConversations(convIDs);
+        final existingMap = <String, ConversationInfo>{};
+        for (final c in existing) {
+          existingMap[c.conversationID] = c;
+        }
+        for (final g in joinedGroups) {
+          final cid = OpenImUtils.genGroupConversationID(g.groupID);
+          final conv = existingMap[cid];
+          final showNameEmpty = (conv?.showName ?? '').isEmpty;
+          final faceURLEmpty = (conv?.faceURL ?? '').isEmpty;
+          if (conv == null || showNameEmpty || faceURLEmpty) {
+            targetGroupIDs.add(g.groupID);
+          }
+        }
+      }
+
+      // 对齐 Go：当你在本地先 createGroup 写入过 group，导致 addedGroups 为空时，
+      // Go 仍会在增量同步 Insert 阶段触发 OnJoinedGroupAdded。
+      // Dart 这里用 “需要补齐的会话” 作为兜底条件，补触发 joinedGroupAdded 回调。
+      if (groupListener != null && targetGroupIDs.isNotEmpty) {
+        for (final gid in targetGroupIDs) {
+          if (notifiedGroupIDs.contains(gid)) continue;
+          final g = await database.getGroupByID(gid);
+          if (g != null) {
+            groupListener?.joinedGroupAdded(g);
+            notifiedGroupIDs.add(gid);
+          }
+        }
+      }
+
+      if (targetGroupIDs.isNotEmpty) {
+        final convIDs = targetGroupIDs.map(OpenImUtils.genGroupConversationID).toList();
+
+        // 服务器落库可能比 push 晚一点，短重试补齐 sg_$groupID 会话
+        final resultByCid = <String, Map<String, dynamic>>{};
+        final seqsByCid = <String, Map<String, dynamic>>{};
+        var pending = List<String>.from(convIDs);
+
+        for (int attempt = 0; attempt < 3 && pending.isNotEmpty; attempt++) {
+          final seqResp = await api.getConversationsHasReadAndMaxSeq(
+            userID: _userID,
+            conversationIDs: pending,
+          );
+          final seqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? <String, dynamic>{};
+          for (final entry in seqs.entries) {
+            final v = entry.value;
+            if (v is Map<String, dynamic>) seqsByCid[entry.key] = v;
+          }
+
+          final convResp = await api.getConversations(
+            ownerUserID: _userID,
+            conversationIDs: pending,
+          );
+          if (convResp.errCode != 0) break;
+
+          final conversations = convResp.data?['conversations'] as List? ?? [];
+          for (final conv in conversations) {
+            if (conv is! Map<String, dynamic>) continue;
+            final map = Map<String, dynamic>.from(conv);
+            final cid = map['conversationID'] as String?;
+            if (cid == null || cid.isEmpty) continue;
+            if (map['latestMsg'] is Map) {
+              map['latestMsg'] = jsonEncode(map['latestMsg']);
+            }
+            resultByCid[cid] = map;
+          }
+
+          final gotCids = resultByCid.keys.toSet();
+          pending = convIDs.where((id) => !gotCids.contains(id)).toList();
+
+          if (pending.isNotEmpty && attempt < 2) {
+            await Future.delayed(const Duration(milliseconds: 200));
+          }
+        }
+
+        if (convIDs.isNotEmpty) {
+          final gotCids = resultByCid.keys.toSet();
+          final missingCids = convIDs.where((cid) => !gotCids.contains(cid)).toList();
+
+          final convMaps = <Map<String, dynamic>>[];
+
+          // 1) 写入服务器返回的会话
+          for (final cid in resultByCid.keys) {
+            final map = resultByCid[cid]!;
+            // 强制对齐 Go：当 conversationID 是群会话 sg_$groupID 时，保证本地可见性。
+            if (cid.startsWith('sg_')) {
+              final gid = cid.substring(3);
+              map['conversationType'] = ConversationType.superGroup.value;
+              map['groupID'] = gid;
+              map['isNotInGroup'] = false;
+              map['userID'] = null;
+            }
+
+            final seqInfo = seqsByCid[cid];
+            if (seqInfo != null) {
+              final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
+              final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
+              final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+              map['unreadCount'] = unread;
+              map['maxSeq'] = maxSeq;
+              map['hasReadSeq'] = hasReadSeq;
+            }
+            convMaps.add(map);
+          }
+
+          // 2) 对“服务器没返回”的会话写入占位，确保 UI 立即可见
+          if (missingCids.isNotEmpty) {
+            for (final cid in missingCids) {
+              if (!cid.startsWith('sg_')) continue;
+              final gid = cid.substring(3);
+              final group = await database.getGroupByID(gid);
+              convMaps.add({
+                'conversationID': cid,
+                'conversationType': ConversationType.superGroup.value,
+                'userID': null,
+                'groupID': gid,
+                'showName': group?.groupName ?? '',
+                'faceURL': group?.faceURL ?? '',
+                'unreadCount': 0,
+                'latestMsg': '',
+                'latestMsgSendTime': group?.createTime ?? DateTime.now().millisecondsSinceEpoch,
+                'maxSeq': 0,
+                'hasReadSeq': 0,
+                'isNotInGroup': false,
+              });
+            }
+          }
+
+          await _batchFillShowNameAndFaceURL(convMaps);
+          await database.batchUpsertConversations(convMaps);
+
+          _log.info(
+            'sg 会话补齐: requested=${convIDs.length}, got=${resultByCid.length}, missing=${missingCids.length}, upserted=${convMaps.length}',
+            methodName: '_syncJoinedGroupsAndNotifyAdded',
+          );
+
+          final updated = await database.getMultipleConversations(convIDs);
+          _log.info(
+            'sg 会话补齐后读取: updated=${updated.length}, updatedCids=${updated.map((e) => e.conversationID).toList()}',
+            methodName: '_syncJoinedGroupsAndNotifyAdded',
+          );
+
+          if (updated.isNotEmpty) {
+            conversationListener?.conversationChanged(updated);
+          }
+        }
+      }
+
+      // 仍保留一次 debounce 的增量会话同步，用于处理非新增会话的其他变更。
+      _debounceSyncConversations();
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -1196,22 +1689,27 @@ class NotificationDispatcher {
       final groupID = groupMap?['groupID'] as String?;
       if (groupID == null || groupID.isEmpty) return;
 
-      // 获取群信息用于回调通知
-      final groupInfo = await database.getGroupByID(groupID);
+      // 删除通知使用“增量收敛 + 对比差异”
+      // - 避免直接从 detail 做本地 delete（Go 使用增量 pull 来收敛）
+      final oldGroupIDs = (await database.getJoinedGroupList()).map((e) => e.groupID).toSet();
+      final groupInfo = groupMap != null
+          ? GroupInfo.fromJson(groupMap)
+          : await database.getGroupByID(groupID);
 
-      // 本地删除群成员、群组
-      await database.deleteGroupAllMembers(groupID);
-      await database.deleteGroup(groupID);
+      await _syncJoinedGroupsSerial();
 
-      // 更新会话的 isNotInGroup 字段并通知 UI
-      final convID = OpenImUtils.genGroupConversationID(groupID);
-      await database.updateConversation(convID, {'isNotInGroup': true});
-      final conv = await database.getConversation(convID);
-      if (conv != null) {
-        conversationListener?.conversationChanged([conv]);
+      final newGroupIDs = (await database.getJoinedGroupList()).map((e) => e.groupID).toSet();
+      if (oldGroupIDs.contains(groupID) && !newGroupIDs.contains(groupID)) {
+        // 更新会话的 isNotInGroup 字段并通知 UI（由 _syncJoinedGroups 增量逻辑完成，但需要触发回调）
+        final convID = OpenImUtils.genGroupConversationID(groupID);
+        final conv = await database.getConversation(convID);
+        if (conv != null) {
+          conversationListener?.conversationChanged([conv]);
+        }
+
+        groupListener?.joinedGroupDeleted(groupInfo ?? GroupInfo(groupID: groupID));
       }
-
-      groupListener?.joinedGroupDeleted(groupInfo ?? GroupInfo(groupID: groupID));
+      _debounceSyncConversations();
     } catch (e, s) {
       _log.error(
         e.toString(),

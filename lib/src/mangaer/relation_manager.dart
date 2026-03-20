@@ -23,6 +23,8 @@ class FriendshipManager {
 
   late String _currentUserID;
 
+  ConversationManager? _conversationManager;
+
   void setFriendshipListener(OnFriendshipListener listener) {
     this.listener = listener;
   }
@@ -30,6 +32,11 @@ class FriendshipManager {
   @internal
   void setCurrentUserID(String userID) {
     _currentUserID = userID;
+  }
+
+  @internal
+  void setConversationManager(ConversationManager conversationManager) {
+    _conversationManager = conversationManager;
   }
 
   /// 查询好友信息
@@ -178,6 +185,12 @@ class FriendshipManager {
   Future<void> addBlacklist({required String userID, String? ex}) async {
     _log.info('userID=$userID, ex=$ex', methodName: 'addBlacklist');
     try {
+      // API-first
+      final resp = await _api.addBlack(ownerUserID: _currentUserID, blackUserID: userID, ex: ex);
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+
       final now = DateTime.now().millisecondsSinceEpoch;
       await _database.insertBlack({
         'ownerUserID': _currentUserID,
@@ -190,12 +203,6 @@ class FriendshipManager {
       listener?.blackAdded(
         BlacklistInfo(ownerUserID: _currentUserID, blockUserID: userID, createTime: now, ex: ex),
       );
-
-      // 同步到服务器
-      final resp = await _api.addBlack(ownerUserID: _currentUserID, blackUserID: userID, ex: ex);
-      if (resp.errCode != 0) {
-        _log.warning('添加黑名单同步服务器失败: ${resp.errMsg}');
-      }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addBlacklist');
       rethrow;
@@ -218,16 +225,16 @@ class FriendshipManager {
   Future<void> removeBlacklist({required String userID}) async {
     _log.info('userID=$userID', methodName: 'removeBlacklist');
     try {
+      // API-first
+      final resp = await _api.removeBlack(ownerUserID: _currentUserID, blackUserID: userID);
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+
       await _database.removeBlack(userID);
       _log.info('已移除黑名单: $userID', methodName: 'removeBlacklist');
 
       listener?.blackDeleted(BlacklistInfo(ownerUserID: _currentUserID, blockUserID: userID));
-
-      // 同步到服务器
-      final resp = await _api.removeBlack(ownerUserID: _currentUserID, blackUserID: userID);
-      if (resp.errCode != 0) {
-        _log.warning('移除黑名单同步服务器失败: ${resp.errMsg}');
-      }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'removeBlacklist');
       rethrow;
@@ -424,32 +431,53 @@ class FriendshipManager {
       if (updateFriendsReq.ex != null) updateData['ex'] = updateFriendsReq.ex;
       if (updateData.isEmpty) return;
 
-      // 批量更新：先统一更新，再批量查询结果
+      // API-first：先同步到服务器
+      final reqMap = <String, dynamic>{
+        'ownerUserID': _currentUserID,
+        'friendUserIDs': updateFriendsReq.friendUserIDs,
+      };
+      if (updateFriendsReq.remark != null) reqMap['remark'] = updateFriendsReq.remark;
+      if (updateFriendsReq.isPinned != null) reqMap['isPinned'] = updateFriendsReq.isPinned;
+      if (updateFriendsReq.ex != null) reqMap['ex'] = updateFriendsReq.ex;
+
+      final resp = await _api.updateFriends(req: reqMap);
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+
+      // 服务端成功后更新本地
       for (final friendUserID in updateFriendsReq.friendUserIDs!) {
         await _database.updateFriend(friendUserID, updateData);
       }
 
-      // 一次性获取所有更新后的好友信息
       final updatedFriends = await _database.getFriendsByUserIDs(updateFriendsReq.friendUserIDs!);
       for (final updated in updatedFriends) {
         listener?.friendInfoChanged(updated);
+
+        // 对齐 Go SDK UpdateConFaceUrlAndNickName：更新对应单聊会话的 showName/faceURL
+        final showName = (updated.remark != null && updated.remark!.isNotEmpty)
+            ? updated.remark!
+            : updated.nickname ?? '';
+        final convID = OpenImUtils.genSingleConversationID(
+          _currentUserID,
+          updated.friendUserID ?? '',
+        );
+        final conv = await _database.getConversation(convID);
+        if (conv != null) {
+          final convUpdates = <String, dynamic>{};
+          if (showName.isNotEmpty) convUpdates['showName'] = showName;
+          if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
+          if (convUpdates.isNotEmpty) {
+            await _database.updateConversation(convID, convUpdates);
+            final updatedConv = await _database.getConversation(convID);
+            if (updatedConv != null) {
+              _conversationManager?.listener?.conversationChanged([updatedConv]);
+            }
+          }
+        }
       }
 
       _log.info('好友信息已更新: ${updateFriendsReq.friendUserIDs}', methodName: 'updateFriends');
-
-      // 同步到服务器
-      final resp = await _api.updateFriends(
-        req: {
-          'ownerUserID': _currentUserID,
-          'friendUserIDs': updateFriendsReq.friendUserIDs,
-          'remark': ?updateFriendsReq.remark,
-          'isPinned': ?updateFriendsReq.isPinned,
-          'ex': ?updateFriendsReq.ex,
-        },
-      );
-      if (resp.errCode != 0) {
-        _log.warning('更新好友信息同步服务器失败: ${resp.errMsg}');
-      }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateFriends');
       rethrow;

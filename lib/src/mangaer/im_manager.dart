@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -56,6 +57,7 @@ class IMManager {
 
   /// 通知分发器（登录时创建，登出时清理）
   NotificationDispatcher? _notificationDispatcher;
+  MsgSyncer? _msgSyncer;
 
   AuthCacheData? _authData;
 
@@ -351,6 +353,9 @@ class IMManager {
           final userData = Map<String, dynamic>.from(users.first as Map);
           await databaseService.upsertUser(userData);
           UserInfo user = UserInfo.fromJson(userData);
+          if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+            await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+          }
           _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
         } else {
           _loginStatus = LoginStatus.logout;
@@ -368,6 +373,7 @@ class IMManager {
       messageManager.setCurrentUserID(userID);
       messageManager.setConversationManager(conversationManager);
       friendshipManager.setCurrentUserID(userID);
+      friendshipManager.setConversationManager(conversationManager);
       userManager.setCurrentUserID(userID);
       momentsManager.setCurrentUserID(userID);
       favoriteManager.setCurrentUserID(userID);
@@ -399,12 +405,15 @@ class IMManager {
       );
       msgSyncer.setLoginUserID(userID);
       msgSyncer.listenerForService = _listenerForService;
+      _msgSyncer = msgSyncer;
       final WebSocketService webSocketService = _getIt.get<WebSocketService>(
         instanceName: InstanceName.webSocketService,
       );
+      webSocketService.onConnected = () {
+        _msgSyncer?.doConnectedSync();
+      };
       webSocketService.connect(userID: userID, token: token);
       webSocketService.onPushMsg = msgSyncer.handlePushMsg;
-      msgSyncer.doConnectedSync();
       // 恢复发送中的消息（App 重启后重新登录时调用）
       messageManager.recoverSendingMessages();
       _log.info('用户已登录: $userID');
@@ -524,6 +533,7 @@ class IMManager {
       // 取消防抖 Timer
       _notificationDispatcher?.dispose();
       _notificationDispatcher = null;
+      _msgSyncer = null;
 
       // 清除 HTTP token
       HttpClient().setToken(null);
@@ -534,6 +544,9 @@ class IMManager {
       );
       // 清除登录缓存，但不关闭数据库（避免 Web 上重新登录时操作已关闭的 IndexedDB 挂起）
       await databaseService.toStore.setValue(CacheKey.loginAuthData, null, isGlobal: true);
+      if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+        await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+      }
 
       _log.info('用户已登出');
     } catch (e, s) {
@@ -634,10 +647,21 @@ class IMManager {
     // 对应 Go SDK 的 partMD5: md5.Sum([]byte(strings.Join(parts, ",")))
     final String combinedHashStr = partMd5s.join(',');
     final String hash = md5.convert(utf8.encode(combinedHashStr)).toString();
+    final String objectName = '$userID/$fileName';
 
     final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
     );
+    final DatabaseService databaseService = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+
+    final cachedTask = await databaseService.getUploadTaskByHashAndName(hash, objectName);
+    final cachedUploadID = cachedTask?['uploadID'] as String?;
+    final cachedUploadedParts = ((cachedTask?['uploadedParts'] as List?) ?? const [])
+        .map((e) => (e as num?)?.toInt() ?? 0)
+        .where((e) => e > 0)
+        .toSet();
 
     // 1. 发起分片上传
     final initResp = await imApiService.initiateMultipartUpload(
@@ -646,7 +670,7 @@ class IMManager {
       partSize: partSize,
       maxParts: partNum.clamp(1, 20),
       cause: cause ?? '',
-      name: '$userID/$fileName',
+      name: objectName,
       contentType: contentType ?? 'application/octet-stream',
     );
     if (initResp.errCode != 0) {
@@ -665,6 +689,27 @@ class IMManager {
     final upload = respData['upload'] as Map<String, dynamic>? ?? {};
     final uploadID = upload['uploadID'] as String? ?? '';
     _uploadFileListener?.uploadID(id, uploadID);
+    final canResume = cachedUploadID != null && cachedUploadID == uploadID;
+    if (uploadID.isNotEmpty) {
+      await databaseService.upsertUploadTask({
+        'uploadID': uploadID,
+        'hash': hash,
+        'name': objectName,
+        'fileSize': fileSize,
+        'partSize': partSize,
+        'partNum': partNum,
+        'uploadedParts': canResume ? cachedUploadedParts.toList() : <int>[],
+        'updateTime': DateTime.now().millisecondsSinceEpoch,
+      });
+    }
+    if (canResume) {
+      for (final part in cachedUploadedParts) {
+        final idx = part - 1;
+        if (idx >= 0 && idx < partEtags.length) {
+          partEtags[idx] = partMd5s[idx];
+        }
+      }
+    }
 
     final sign = upload['sign'] as Map<String, dynamic>? ?? {};
     // AWS S3 签名：sign 包含 url 和 parts
@@ -687,6 +732,10 @@ class IMManager {
 
     // 2. 逐片上传
     for (int i = 0; i < partNum; i++) {
+      if (partEtags[i] != null) {
+        // 已上传分片（恢复场景）直接跳过
+        continue;
+      }
       final partNumber = i + 1;
       final start = i * partSize;
       final end = (start + partSize).clamp(0, fileSize);
@@ -812,6 +861,16 @@ class IMManager {
       // ETag 带有双引号，需要去掉
       final cleanEtag = etag?.replaceAll('"', '') ?? partHash;
       partEtags[i] = cleanEtag;
+      if (uploadID.isNotEmpty) {
+        await databaseService.upsertUploadTask({
+          'uploadID': uploadID,
+          'uploadedParts': [
+            for (int idx = 0; idx < partEtags.length; idx++)
+              if (partEtags[idx] != null) idx + 1,
+          ],
+          'updateTime': DateTime.now().millisecondsSinceEpoch,
+        });
+      }
     }
 
     _uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
@@ -820,7 +879,7 @@ class IMManager {
     final completeResp = await imApiService.completeMultipartUpload(
       uploadID: uploadID,
       parts: partEtags.cast<String>(),
-      name: '$userID/$fileName',
+      name: objectName,
       contentType: contentType ?? 'application/octet-stream',
       cause: cause ?? '',
     );
@@ -829,6 +888,9 @@ class IMManager {
     }
 
     final resultUrl = (completeResp.data?['url'] as String?) ?? '';
+    if (uploadID.isNotEmpty) {
+      await databaseService.deleteUploadTask(uploadID);
+    }
     _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
     return resultUrl;
   }
@@ -847,6 +909,9 @@ class IMManager {
         reqIdentifier: WebSocketIdentifier.setBackgroundStatus,
         data: _encodeBackgroundStatusReq(isBackground),
       );
+      if (!isBackground) {
+        unawaited(_msgSyncer?.doWakeupSync());
+      }
     } catch (e, s) {
       _log.error('设置失败', error: e, stackTrace: s, methodName: 'setAppBackgroundStatus');
     }
@@ -936,6 +1001,7 @@ class IMManager {
             tokenExpiredFired = true;
             _log.warning('Token 已过期');
             listener.userTokenExpired();
+            unawaited(logout());
           }
         case 1502: // TokenInvalidError
         case 1503: // TokenMalformedError
@@ -946,12 +1012,14 @@ class IMManager {
             tokenInvalidFired = true;
             _log.warning('Token 无效: $errMsg');
             listener.userTokenInvalid();
+            unawaited(logout());
           }
         case 1506: // TokenKickedError
           if (!kickedOfflineFired) {
             kickedOfflineFired = true;
             _log.warning('被踢下线 (Token Kicked)');
             listener.kickedOffline();
+            unawaited(logout());
           }
       }
     };

@@ -27,6 +27,7 @@ class WebSocketService {
   late String _userID;
   late String _token;
   late bool _compression;
+  bool _isBackground = false;
 
   // ---- 编解码 ----
   late WebSocketCodecs _codec;
@@ -61,6 +62,9 @@ class WebSocketService {
 
   /// 收到推送消息（原始 JSON data）
   void Function(WebSocketResponse response)? onPushMsg;
+
+  /// 连接成功（含重连成功）后的统一回调
+  void Function()? onConnected;
 
   /// 用户在线状态变更
   void Function(WebSocketResponse response)? onUserOnlineStatusChanged;
@@ -133,7 +137,7 @@ class WebSocketService {
   void setBackground(bool isBackground) {
     _log.info('isBackground: $isBackground', methodName: 'setBackground');
     try {
-      // implementation omitted in original
+      _isBackground = isBackground;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setBackground');
       rethrow;
@@ -227,6 +231,47 @@ class WebSocketService {
   // 内部连接逻辑
   // ---------------------------------------------------------------------------
 
+  /// 处理握手阶段鉴权类错误（token 过期/无效/被踢）
+  /// 返回值用于决定是否允许继续重连。
+  bool _handleAuthHandshakeError(int? errCode, String? errMsg) {
+    if (errCode == null) return false;
+
+    // 这些错误属于鉴权失败：停止自动重连，并交由上层清理登录态
+    if (errCode == 1501) {
+      connectListener.userTokenExpired();
+    } else if (errCode == 1506) {
+      connectListener.kickedOffline();
+    } else if (errCode == 1502 ||
+        errCode == 1503 ||
+        errCode == 1504 ||
+        errCode == 1505 ||
+        errCode == 1507) {
+      connectListener.userTokenInvalid();
+    } else {
+      return false;
+    }
+
+    _userDisconnected = true;
+    _log.warning(
+      'auth handshake error(errCode=$errCode): $errMsg, stop reconnect',
+      methodName: '_handleAuthHandshakeError',
+    );
+    return true;
+  }
+
+  int? _tryParseErrCodeFromText(String text) {
+    // 优先匹配 4~5 位 errCode/codes，后续再粗匹配已知鉴权码
+    final match = RegExp(r'(?:errCode|code)\s*[:=]\s*(\d{4,5})').firstMatch(text);
+    if (match != null) {
+      return int.tryParse(match.group(1) ?? '');
+    }
+    final known = RegExp(r'\b(1501|1502|1503|1504|1505|1506|1507)\b').firstMatch(text);
+    if (known != null) {
+      return int.tryParse(known.group(1) ?? '');
+    }
+    return null;
+  }
+
   Future<void> _doConnect() async {
     try {
       if (_connStatus == WebSocketStatus.connecting) return;
@@ -248,11 +293,18 @@ class WebSocketService {
         _startHeartbeat();
 
         connectListener.onConnectSuccess?.call();
+        onConnected?.call();
       } catch (e) {
         _setStatus(WebSocketStatus.closed);
         _stopHeartbeat();
-        connectListener.onConnectFailed?.call(-1, e.toString());
-        _scheduleReconnect();
+        final errText = e.toString();
+        final errCode = _tryParseErrCodeFromText(errText);
+        // 鉴权类错误不允许重连（避免循环无效 token）
+        final handledAuthError = _handleAuthHandshakeError(errCode, errText);
+        connectListener.onConnectFailed?.call(errCode ?? -1, errText);
+        if (!handledAuthError) {
+          _scheduleReconnect();
+        }
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_doConnect');
@@ -267,7 +319,7 @@ class WebSocketService {
       sb.write('&token=$_token');
       sb.write('&platformID=$platformID');
       sb.write('&operationID=${OpenImUtils.generateOperationID()}');
-      sb.write('&isBackground=false');
+      sb.write('&isBackground=$_isBackground');
       sb.write('&sdkType=js');
       sb.write('&isMsgResp=true');
       if (_compression) {
@@ -314,7 +366,11 @@ class WebSocketService {
             _lastPong = DateTime.now();
             _log.info('收到 pong', methodName: '_handleTextMessage');
           case '':
-            // 服务端连接成功响应 {errCode, errMsg, errDlt}，无 type 字段
+            // 服务端连接/握手响应 {errCode, errMsg, errDlt}，无 type 字段
+            final errCodeNum = (msg['errCode'] as num?)?.toInt() ?? (msg['code'] as num?)?.toInt();
+            if (errCodeNum != null && errCodeNum != 0) {
+              _handleAuthHandshakeError(errCodeNum, msg['errMsg'] as String? ?? text);
+            }
             break;
           default:
             _log.warning('未知文本消息类型: $type', methodName: '_handleTextMessage');

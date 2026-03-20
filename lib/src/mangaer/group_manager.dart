@@ -32,6 +32,114 @@ class GroupManager {
     _currentUserID = userID;
   }
 
+  // ---------------------------------------------------------------------------
+  // Incremental sync helpers (mirrors Go SDK's IncrSyncJoinGroup / IncrSyncGroupAndMember)
+  // ---------------------------------------------------------------------------
+
+  /// Incremental sync of joined groups list from server.
+  Future<void> _incrSyncJoinGroup() async {
+    final versionInfo = await _database.getVersionSync('group', _currentUserID);
+    final versionID = versionInfo?['versionID'] as String? ?? '';
+    final version = (versionInfo?['version'] as num?)?.toInt() ?? 0;
+
+    final resp = await _api.getIncrementalJoinGroup(
+      req: {'userID': _currentUserID, 'versionID': versionID, 'version': version},
+    );
+    if (resp.errCode != 0) return;
+
+    final data = resp.data as Map<String, dynamic>? ?? {};
+    final bool full = data['full'] as bool? ?? false;
+
+    final deleteIDs =
+        (data['delete'] as List?)?.map((e) => e.toString()).whereType<String>().toList() ??
+        const <String>[];
+    final insertList = (data['insert'] as List?) ?? const <dynamic>[];
+    final updateList = (data['update'] as List?) ?? const <dynamic>[];
+
+    if (full) {
+      final serverGroupIDs = <String>{};
+      for (final g in [...insertList, ...updateList]) {
+        if (g is Map<String, dynamic>) {
+          final id = g['groupID']?.toString();
+          if (id != null && id.isNotEmpty) serverGroupIDs.add(id);
+        }
+      }
+      if (serverGroupIDs.isNotEmpty) {
+        final localGroupIDs = (await _database.getJoinedGroupList()).map((e) => e.groupID).toSet();
+        final toDelete = localGroupIDs.difference(serverGroupIDs);
+        for (final groupID in toDelete) {
+          await _database.deleteGroupAllMembers(groupID);
+          await _database.deleteGroup(groupID);
+          final convID = OpenImUtils.genGroupConversationID(groupID);
+          await _database.updateConversation(convID, {'isNotInGroup': true});
+        }
+      }
+    }
+
+    for (final groupID in deleteIDs) {
+      await _database.deleteGroupAllMembers(groupID);
+      await _database.deleteGroup(groupID);
+      final convID = OpenImUtils.genGroupConversationID(groupID);
+      await _database.updateConversation(convID, {'isNotInGroup': true});
+    }
+
+    final allGroups = <Map<String, dynamic>>[];
+    for (final g in [...insertList, ...updateList]) {
+      if (g is Map<String, dynamic>) allGroups.add(g);
+    }
+    if (allGroups.isNotEmpty) {
+      await _database.batchUpsertGroups(allGroups);
+    }
+
+    final newVersion = (data['version'] as num?)?.toInt() ?? version;
+    final newVersionID = data['versionID'] as String? ?? versionID;
+    await _database.setVersionSync(
+      tableName: 'group',
+      entityID: _currentUserID,
+      versionID: newVersionID,
+      version: newVersion,
+      uidList: const [],
+    );
+  }
+
+  /// Sync group info AND all members for a specific group from server.
+  /// Mirrors Go SDK's IncrSyncGroupAndMember which syncs both.
+  Future<void> _incrSyncGroupAndMember(String groupID) async {
+    final groupResp = await _api.getGroupsInfo(groupIDs: [groupID]);
+    if (groupResp.errCode == 0) {
+      final groups = groupResp.data?['groupInfos'] as List? ?? [];
+      final groupMaps = <Map<String, dynamic>>[];
+      for (final g in groups) {
+        if (g is Map<String, dynamic>) groupMaps.add(g);
+      }
+      if (groupMaps.isNotEmpty) {
+        await _database.batchUpsertGroups(groupMaps);
+      }
+    }
+
+    int offset = 0;
+    const pageSize = 100;
+    final allMembers = <Map<String, dynamic>>[];
+    while (true) {
+      final resp = await _api.getGroupMemberList(groupID: groupID, offset: offset, count: pageSize);
+      if (resp.errCode != 0) break;
+      final members = resp.data?['members'] as List? ?? [];
+      if (members.isEmpty) break;
+      for (final m in members) {
+        if (m is Map<String, dynamic>) allMembers.add(m);
+      }
+      if (members.length < pageSize) break;
+      offset += pageSize;
+    }
+    if (allMembers.isNotEmpty) {
+      await _database.batchUpsertGroupMembers(allMembers);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Public API
+  // ---------------------------------------------------------------------------
+
   /// 查询群组信息
   /// [groupIDList] 群组ID列表
   Future<List<GroupInfo>> getGroupsInfo({required List<String> groupIDList}) async {
@@ -82,7 +190,7 @@ class GroupManager {
     }
   }
 
-  /// 创建群组
+  /// 创建群组（对齐 Go SDK: API → IncrSyncJoinGroup → IncrSyncGroupAndMember → return）
   /// [groupInfo] 群组基本信息
   /// [memberUserIDs] 初始成员用户ID列表
   /// [adminUserIDs] 管理员用户ID列表
@@ -94,76 +202,60 @@ class GroupManager {
     String? ownerUserID,
   }) async {
     _log.info(
-      'groupID=${groupInfo.groupID}, groupName=${groupInfo.groupName}, memberCount=${memberUserIDs.length}, adminCount=${adminUserIDs.length}, ownerUserID=$ownerUserID',
+      'groupName=${groupInfo.groupName}, memberCount=${memberUserIDs.length}, adminCount=${adminUserIDs.length}, ownerUserID=$ownerUserID',
       methodName: 'createGroup',
     );
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final gid = groupInfo.groupID.isNotEmpty ? groupInfo.groupID : 'g_${now}_$_currentUserID';
+      final String finalOwnerUserID = ownerUserID ?? _currentUserID;
 
-      final data = {
-        'groupID': gid,
-        'groupName': groupInfo.groupName,
-        'notification': groupInfo.notification,
-        'introduction': groupInfo.introduction,
-        'faceURL': groupInfo.faceURL,
-        'ownerUserID': ownerUserID ?? _currentUserID,
-        'createTime': now,
-        'memberCount': memberUserIDs.length + adminUserIDs.length + 1,
-        'status': GroupStatus.normal.value,
-        'creatorUserID': _currentUserID,
-        'groupType': groupInfo.groupType?.value ?? GroupType.work.value,
-        'ex': groupInfo.ex,
-        'needVerification': groupInfo.needVerification,
-        'lookMemberInfo': groupInfo.lookMemberInfo,
-        'applyMemberFriend': groupInfo.applyMemberFriend,
-        'notificationUpdateTime': now,
-        'notificationUserID': _currentUserID,
+      if (groupInfo.groupType != null && groupInfo.groupType != GroupType.work) {
+        throw OpenIMException(code: 10007, message: 'GroupType must be WorkingGroup');
+      }
+
+      final groupInfoMap = Map<String, dynamic>.from(groupInfo.toJson())
+        ..remove('groupID')
+        ..removeWhere((_, v) => v == null);
+      groupInfoMap['creatorUserID'] = _currentUserID;
+
+      final req = <String, dynamic>{
+        'memberUserIDs': memberUserIDs,
+        'adminUserIDs': adminUserIDs,
+        'ownerUserID': finalOwnerUserID,
+        'groupInfo': groupInfoMap,
       };
-      await _database.upsertGroup(data);
 
-      // 批量添加群成员（群主 + 管理员 + 普通成员）
-      final memberBatch = <Map<String, dynamic>>[];
-      memberBatch.add({
-        'groupID': gid,
-        'userID': ownerUserID ?? _currentUserID,
-        'roleLevel': GroupRoleLevel.owner.value,
-        'joinTime': now,
-        'joinSource': JoinSource.invited.value,
-      });
-      for (final uid in adminUserIDs) {
-        memberBatch.add({
-          'groupID': gid,
-          'userID': uid,
-          'roleLevel': GroupRoleLevel.admin.value,
-          'joinTime': now,
-          'joinSource': JoinSource.invited.value,
-        });
+      final resp = await _api.createGroup(req: req);
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
-      for (final uid in memberUserIDs) {
-        memberBatch.add({
-          'groupID': gid,
-          'userID': uid,
-          'roleLevel': GroupRoleLevel.member.value,
-          'joinTime': now,
-          'joinSource': JoinSource.invited.value,
-        });
+
+      final serverGroupInfo =
+          (resp.data as Map<String, dynamic>?)?['groupInfo'] as Map<String, dynamic>? ?? {};
+      final gid = serverGroupInfo['groupID']?.toString() ?? '';
+
+      if (gid.isEmpty) {
+        throw OpenIMException(code: 0, message: 'createGroup: missing groupID in response');
       }
-      await _database.batchUpsertGroupMembers(memberBatch);
 
-      _log.info('群组已创建: $gid', methodName: 'createGroup');
+      // 立即写入群信息，避免竞态：WebSocket 推送可能在增量同步的 HTTP 等待期间到达，
+      // MsgSyncer._enrichNewConversation 需要从本地 DB 查群名来填充会话 showName。
+      await _database.upsertGroup(serverGroupInfo);
 
-      final createdData = await _database.getGroupByID(gid);
-      final result = createdData ?? GroupInfo(groupID: gid);
-      listener?.joinedGroupAdded(result);
-      return result;
+      await _incrSyncJoinGroup();
+      await _incrSyncGroupAndMember(gid);
+
+      final result = await _database.getGroupByID(gid);
+      final groupResult = result ?? GroupInfo.fromJson(serverGroupInfo);
+
+      listener?.joinedGroupAdded(groupResult);
+      return groupResult;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createGroup');
       rethrow;
     }
   }
 
-  /// 修改群组信息
+  /// 修改群组信息（对齐 Go SDK: API → IncrSyncJoinGroup）
   /// [groupInfo] 群组信息（只更新非null字段）
   Future<void> setGroupInfo({required GroupInfo groupInfo}) async {
     _log.info(
@@ -171,18 +263,16 @@ class GroupManager {
       methodName: 'setGroupInfo',
     );
     try {
-      final updateData = groupInfo.toJson()..removeWhere((_, v) => v == null);
-      final existing = await _database.getGroupByID(groupInfo.groupID);
-      if (existing != null) {
-        await _database.updateGroup(groupInfo.groupID, updateData);
-      }
-      _log.info('群组信息已更新: ${groupInfo.groupID}', methodName: 'setGroupInfo');
-
-      listener?.groupInfoChanged(groupInfo);
-      // 5. 同步到服务器
       final resp = await _api.setGroupInfoEx(req: groupInfo.toJson());
       if (resp.errCode != 0) {
-        _log.warning('同步群组信息失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+
+      await _incrSyncJoinGroup();
+
+      final updated = await _database.getGroupByID(groupInfo.groupID);
+      if (updated != null) {
+        listener?.groupInfoChanged(updated);
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setGroupInfo');
@@ -190,7 +280,7 @@ class GroupManager {
     }
   }
 
-  /// 邀请用户入群（无需审批直接加入）
+  /// 邀请用户入群（对齐 Go SDK: API → IncrSyncGroupAndMember）
   /// [groupID] 群组ID
   /// [userIDList] 用户ID列表
   /// [reason] 邀请原因
@@ -204,45 +294,23 @@ class GroupManager {
       methodName: 'inviteUserToGroup',
     );
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      final memberBatch = <Map<String, dynamic>>[];
-      for (final uid in userIDList) {
-        memberBatch.add({
-          'groupID': groupID,
-          'userID': uid,
-          'roleLevel': GroupRoleLevel.member.value,
-          'joinTime': now,
-          'joinSource': JoinSource.invited.value,
-        });
-      }
-      await _database.batchUpsertGroupMembers(memberBatch);
-      for (final uid in userIDList) {
-        listener?.groupMemberAdded(
-          GroupMembersInfo(
-            groupID: groupID,
-            userID: uid,
-            joinTime: now,
-            roleLevel: GroupRoleLevel.member,
-          ),
-        );
-      }
-      _log.info('已邀请 ${userIDList.length} 个用户加入群 $groupID', methodName: 'inviteUserToGroup');
-
       final resp = await _api.inviteUserToGroup(
         groupID: groupID,
         invitedUserIDs: userIDList,
         reason: reason,
       );
       if (resp.errCode != 0) {
-        _log.warning('邀请用户入群失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
+
+      await _incrSyncGroupAndMember(groupID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'inviteUserToGroup');
       rethrow;
     }
   }
 
-  /// 踢出群成员
+  /// 踢出群成员（对齐 Go SDK: API → IncrSyncGroupAndMember）
   /// [groupID] 群组ID
   /// [userIDList] 用户ID列表
   /// [reason] 踢出原因
@@ -256,20 +324,16 @@ class GroupManager {
       methodName: 'kickGroupMember',
     );
     try {
-      for (final uid in userIDList) {
-        await _database.deleteGroupMember(groupID, uid);
-        listener?.groupMemberDeleted(GroupMembersInfo(groupID: groupID, userID: uid));
-      }
-      _log.info('已从群 $groupID 踢出 ${userIDList.length} 个成员', methodName: 'kickGroupMember');
-
       final resp = await _api.kickGroupMember(
         groupID: groupID,
         kickedUserIDs: userIDList,
         reason: reason,
       );
       if (resp.errCode != 0) {
-        _log.warning('踢出群成员失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
+
+      await _incrSyncGroupAndMember(groupID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'kickGroupMember');
       rethrow;
@@ -370,7 +434,7 @@ class GroupManager {
     }
   }
 
-  /// 修改群成员信息
+  /// 修改群成员信息（对齐 Go SDK: API → IncrSyncGroupAndMember）
   /// [groupMembersInfo] 群成员信息
   Future<void> setGroupMemberInfo({required SetGroupMemberInfo groupMembersInfo}) async {
     _log.info(
@@ -379,92 +443,43 @@ class GroupManager {
     );
     try {
       final gid = groupMembersInfo.groupID;
-      final uid = groupMembersInfo.userID;
-      if (gid.isEmpty || uid.isEmpty) return;
-
-      final updateData = <String, dynamic>{};
-      if (groupMembersInfo.nickname != null) updateData['nickname'] = groupMembersInfo.nickname;
-      if (groupMembersInfo.faceURL != null) updateData['faceURL'] = groupMembersInfo.faceURL;
-      if (groupMembersInfo.roleLevel != null) updateData['roleLevel'] = groupMembersInfo.roleLevel;
-      if (groupMembersInfo.ex != null) updateData['ex'] = groupMembersInfo.ex;
-
-      if (updateData.isNotEmpty) {
-        await _database.updateGroupMember(gid, uid, updateData);
-      }
-      _log.info('群成员信息已更新: group=$gid, user=$uid', methodName: 'setGroupMemberInfo');
-
-      final updatedMemberInfo = await _database.getGroupMember(gid, uid);
-      if (updatedMemberInfo != null) {
-        listener?.groupMemberInfoChanged(updatedMemberInfo);
-      }
+      if (gid.isEmpty || groupMembersInfo.userID.isEmpty) return;
 
       final resp = await _api.setGroupMemberInfo(req: groupMembersInfo.toJson());
       if (resp.errCode != 0) {
-        _log.warning('同步群成员信息失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
+
+      await _incrSyncGroupAndMember(gid);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setGroupMemberInfo');
       rethrow;
     }
   }
 
-  /// 转让群主
+  /// 转让群主（对齐 Go SDK: API → IncrSyncGroupAndMember）
   /// [groupID] 群组ID
   /// [userID] 新群主用户ID
   Future<void> transferGroupOwner({required String groupID, required String userID}) async {
     _log.info('groupID=$groupID, userID=$userID', methodName: 'transferGroupOwner');
     try {
-      // 获取当前群主
-      String? oldOwnerID;
-      final ownerList = await _database.getGroupOwnerAndAdmin(groupID);
-      for (final member in ownerList) {
-        if (member.roleLevel == GroupRoleLevel.owner) {
-          oldOwnerID = member.userID;
-          break;
-        }
-      }
-
-      // 批量更新角色：旧群主降级 + 新群主升级
-      if (oldOwnerID != null) {
-        await _database.updateGroupMember(groupID, oldOwnerID, {
-          'roleLevel': GroupRoleLevel.member.value,
-        });
-      }
-      await _database.updateGroupMember(groupID, userID, {'roleLevel': GroupRoleLevel.owner.value});
-
-      _log.info(
-        '群主已转让: group=$groupID, newOwner=$userID, oldOwner=$oldOwnerID',
-        methodName: 'transferGroupOwner',
+      final resp = await _api.transferGroup(
+        groupID: groupID,
+        oldOwnerUserID: _currentUserID,
+        newOwnerUserID: userID,
       );
-
-      // 批量获取更新后的信息并触发回调
-      final updatedGroupInfo = await _database.getGroupByID(groupID);
-      if (updatedGroupInfo != null) {
-        listener?.groupInfoChanged(updatedGroupInfo);
-      }
-      final memberIDs = [?oldOwnerID, userID];
-      final updatedMembers = await _database.getGroupMembersByUserIDs(groupID, memberIDs);
-      for (final m in updatedMembers) {
-        listener?.groupMemberInfoChanged(m);
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
 
-      if (oldOwnerID != null) {
-        final resp = await _api.transferGroup(
-          groupID: groupID,
-          oldOwnerUserID: oldOwnerID,
-          newOwnerUserID: userID,
-        );
-        if (resp.errCode != 0) {
-          _log.warning('转让群主失败: ${resp.errMsg}');
-        }
-      }
+      await _incrSyncGroupAndMember(groupID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'transferGroupOwner');
       rethrow;
     }
   }
 
-  /// 申请加入群组
+  /// 申请加入群组（对齐 Go SDK: API only, sync via notification）
   /// [groupID] 群组ID
   /// [reason] 加入原因
   /// [joinSource] 加入来源 2:邀请，3:搜索，4:二维码
@@ -477,25 +492,13 @@ class GroupManager {
   }) async {
     _log.info('groupID=$groupID, reason=$reason, joinSource=$joinSource', methodName: 'joinGroup');
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await _database.upsertGroupRequest({
-        'groupID': groupID,
-        'userID': _currentUserID,
-        'reqMsg': reason ?? '',
-        'reqTime': now,
-        'handleResult': 0,
-        'joinSource': joinSource,
-        'ex': ex,
-      });
-      _log.info('已申请加入群: $groupID', methodName: 'joinGroup');
-
       final resp = await _api.joinGroup(
         groupID: groupID,
         reqMessage: reason,
         joinSource: joinSource,
       );
       if (resp.errCode != 0) {
-        _log.warning('申请加入群失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'joinGroup');
@@ -503,88 +506,71 @@ class GroupManager {
     }
   }
 
-  /// 退出群组
+  /// 退出群组（对齐 Go SDK: API → IncrSyncJoinGroup）
   /// [groupID] 群组ID
   Future<void> quitGroup({required String groupID}) async {
     _log.info('groupID=$groupID', methodName: 'quitGroup');
     try {
-      final quitGroupInfo = await _database.getGroupByID(groupID);
-      await _database.deleteGroupAllMembers(groupID);
-      await _database.deleteGroup(groupID);
+      final resp = await _api.quitGroup(userID: _currentUserID, groupID: groupID);
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
 
-      // 立即更新会话的 isNotInGroup 标志，使 UI 即时响应
+      await _incrSyncJoinGroup();
+
       final convID = OpenImUtils.genGroupConversationID(groupID);
       await _database.updateConversation(convID, {'isNotInGroup': true});
 
-      _log.info('已退出群: $groupID', methodName: 'quitGroup');
-      listener?.joinedGroupDeleted(quitGroupInfo ?? GroupInfo(groupID: groupID));
-
-      final resp = await _api.quitGroup(userID: _currentUserID, groupID: groupID);
-      if (resp.errCode != 0) {
-        _log.warning('退出群失败: ${resp.errMsg}');
-      }
+      listener?.joinedGroupDeleted(GroupInfo(groupID: groupID));
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'quitGroup');
       rethrow;
     }
   }
 
-  /// 解散群组
+  /// 解散群组（对齐 Go SDK: API → IncrSyncJoinGroup）
   /// [groupID] 群组ID
   Future<void> dismissGroup({required String groupID}) async {
     _log.info('groupID=$groupID', methodName: 'dismissGroup');
     try {
-      await _database.deleteGroupAllMembers(groupID);
-      await _database.deleteGroup(groupID);
+      final resp = await _api.dismissGroup(groupID: groupID);
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+
+      await _incrSyncJoinGroup();
 
       final convID = OpenImUtils.genGroupConversationID(groupID);
       await _database.updateConversation(convID, {'isNotInGroup': true});
 
-      _log.info('群组已解散: $groupID', methodName: 'dismissGroup');
       listener?.groupDismissed(GroupInfo(groupID: groupID));
-
-      final resp = await _api.dismissGroup(groupID: groupID);
-      if (resp.errCode != 0) {
-        _log.warning('解散群组失败: ${resp.errMsg}');
-      }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'dismissGroup');
       rethrow;
     }
   }
 
-  /// 群组全员禁言/解除禁言
+  /// 群组全员禁言/解除禁言（对齐 Go SDK: API → IncrSyncGroupAndMember）
   /// [groupID] 群组ID
   /// [mute] true:禁言, false:解除禁言
   Future<void> changeGroupMute({required String groupID, required bool mute}) async {
     _log.info('groupID=$groupID, mute=$mute', methodName: 'changeGroupMute');
     try {
-      final existing = await _database.getGroupByID(groupID);
-      if (existing != null) {
-        await _database.updateGroup(groupID, {
-          'status': mute ? GroupStatus.muted.value : GroupStatus.normal.value,
-        });
-      }
-      _log.info('群组禁言状态变更: $groupID, mute=$mute', methodName: 'changeGroupMute');
-
-      final updatedGroup = await _database.getGroupByID(groupID);
-      if (updatedGroup != null) {
-        listener?.groupInfoChanged(updatedGroup);
-      }
-
       final resp = mute
           ? await _api.muteGroup(groupID: groupID)
           : await _api.cancelMuteGroup(groupID: groupID);
       if (resp.errCode != 0) {
-        _log.warning('设置群组禁言状态失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
+
+      await _incrSyncGroupAndMember(groupID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'changeGroupMute');
       rethrow;
     }
   }
 
-  /// 群成员禁言
+  /// 群成员禁言（对齐 Go SDK: API only）
   /// [groupID] 群组ID
   /// [userID] 被禁言的成员ID
   /// [seconds] 禁言秒数（0为解除禁言）
@@ -598,28 +584,11 @@ class GroupManager {
       methodName: 'changeGroupMemberMute',
     );
     try {
-      final member = await _database.getGroupMember(groupID, userID);
-      if (member != null) {
-        final muteEndTime = seconds > 0
-            ? DateTime.now().millisecondsSinceEpoch + seconds * 1000
-            : 0;
-        await _database.updateGroupMember(groupID, userID, {'muteEndTime': muteEndTime});
-      }
-      _log.info(
-        '群成员禁言: group=$groupID, user=$userID, seconds=$seconds',
-        methodName: 'changeGroupMemberMute',
-      );
-
-      final updatedMember = await _database.getGroupMember(groupID, userID);
-      if (updatedMember != null) {
-        listener?.groupMemberInfoChanged(updatedMember);
-      }
-
       final resp = seconds > 0
           ? await _api.muteGroupMember(groupID: groupID, userID: userID, mutedSeconds: seconds)
           : await _api.cancelMuteGroupMember(groupID: groupID, userID: userID);
       if (resp.errCode != 0) {
-        _log.warning('设置群成员禁言失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'changeGroupMemberMute');
@@ -677,7 +646,7 @@ class GroupManager {
     }
   }
 
-  /// 接受入群申请
+  /// 接受入群申请（对齐 Go SDK: API only）
   /// [groupID] 群组ID
   /// [userID] 申请者用户ID
   /// [handleMsg] 处理消息
@@ -691,51 +660,14 @@ class GroupManager {
       methodName: 'acceptGroupApplication',
     );
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await _database.upsertGroupRequest({
-        'groupID': groupID,
-        'userID': userID,
-        'handleResult': 1,
-        'handleMsg': handleMsg ?? '',
-        'handledTime': now,
-      });
-
-      // 将申请者添加为群成员
-      await _database.upsertGroupMember({
-        'groupID': groupID,
-        'userID': userID,
-        'roleLevel': GroupRoleLevel.member.value,
-        'joinTime': now,
-        'joinSource': JoinSource.search.value,
-      });
-
-      _log.info('入群申请已接受: group=$groupID, user=$userID', methodName: 'acceptGroupApplication');
-
-      listener?.groupApplicationAccepted(
-        GroupApplicationInfo(
-          groupID: groupID,
-          userID: userID,
-          handleResult: 1,
-          handledMsg: handleMsg,
-        ),
-      );
-      listener?.groupMemberAdded(
-        GroupMembersInfo(
-          groupID: groupID,
-          userID: userID,
-          joinTime: now,
-          roleLevel: GroupRoleLevel.member,
-        ),
-      );
-
       final resp = await _api.groupApplicationResponse(
         groupID: groupID,
         fromUserID: userID,
         handledMsg: handleMsg ?? '',
-        handleResult: 1, // 1 for accept
+        handleResult: 1,
       );
       if (resp.errCode != 0) {
-        _log.warning('处理入群申请失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'acceptGroupApplication');
@@ -743,7 +675,7 @@ class GroupManager {
     }
   }
 
-  /// 拒绝入群申请
+  /// 拒绝入群申请（对齐 Go SDK: API only）
   /// [groupID] 群组ID
   /// [userID] 申请者用户ID
   /// [handleMsg] 拒绝原因
@@ -757,34 +689,14 @@ class GroupManager {
       methodName: 'refuseGroupApplication',
     );
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await _database.upsertGroupRequest({
-        'groupID': groupID,
-        'userID': userID,
-        'handleResult': -1,
-        'handleMsg': handleMsg ?? '',
-        'handledTime': now,
-      });
-
-      _log.info('入群申请已拒绝: group=$groupID, user=$userID', methodName: 'refuseGroupApplication');
-
-      listener?.groupApplicationRejected(
-        GroupApplicationInfo(
-          groupID: groupID,
-          userID: userID,
-          handleResult: -1,
-          handledMsg: handleMsg,
-        ),
-      );
-
       final resp = await _api.groupApplicationResponse(
         groupID: groupID,
         fromUserID: userID,
         handledMsg: handleMsg ?? '',
-        handleResult: -1, // -1 for refuse
+        handleResult: -1,
       );
       if (resp.errCode != 0) {
-        _log.warning('处理入群申请失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'refuseGroupApplication');
