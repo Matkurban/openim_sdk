@@ -1,12 +1,12 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'full_user_info.dart';
+part of 'user_full_info.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
-FullUserInfo _$FullUserInfoFromJson(Map<String, dynamic> json) => FullUserInfo(
+UserFullInfo _$FullUserInfoFromJson(Map<String, dynamic> json) => UserFullInfo(
   userID: json['userID'] as String,
   password: json['password'] as String? ?? '',
   account: json['account'] as String?,
@@ -25,7 +25,7 @@ FullUserInfo _$FullUserInfoFromJson(Map<String, dynamic> json) => FullUserInfo(
   registerType: json['registerType'] as int? ?? 0,
 );
 
-Map<String, dynamic> _$FullUserInfoToJson(FullUserInfo instance) => <String, dynamic>{
+Map<String, dynamic> _$FullUserInfoToJson(UserFullInfo instance) => <String, dynamic>{
   'userID': instance.userID,
   'password': instance.password,
   'account': instance.account,

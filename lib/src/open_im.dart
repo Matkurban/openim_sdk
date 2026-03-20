@@ -4,4 +4,7 @@ class OpenIM {
   OpenIM._();
 
   static final IMManager iMManager = IMManager();
+
+  /// @所有人 标识
+  static const String atAllTag = 'AtAllTag';
 }

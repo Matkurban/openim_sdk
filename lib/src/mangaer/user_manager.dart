@@ -290,7 +290,7 @@ class UserManager {
   /// [keyword] 搜索关键字
   /// [pageNumber] 页码，从 1 开始
   /// [showNumber] 每页条数
-  Future<List<FullUserInfo>> searchUserFullInfo(
+  Future<List<UserFullInfo>> searchUserFullInfo(
     String keyword, {
     int pageNumber = 1,
     int showNumber = 10,
@@ -305,7 +305,7 @@ class UserManager {
       if (resp.isSuccess && resp.data is Map) {
         final users = (resp.data as Map)['users'];
         if (users is List) {
-          return users.map((e) => FullUserInfo.fromJson(e as Map<String, dynamic>)).toList();
+          return users.map((e) => UserFullInfo.fromJson(e as Map<String, dynamic>)).toList();
         }
       }
       return [];
@@ -317,7 +317,7 @@ class UserManager {
 
   /// 获取用户完整信息（chat 服务端）
   /// [userID] 用户ID
-  Future<FullUserInfo?> getUserFullInfo({required String userID}) async {
+  Future<UserFullInfo?> getUserFullInfo({required String userID}) async {
     _log.info('userID=$userID', methodName: 'getUserFullInfo');
     try {
       final resp = await _api.getUserFullInfo(userIDs: [userID]);
@@ -327,7 +327,7 @@ class UserManager {
         if (users is List && users.isNotEmpty) {
           final first = users.first;
           if (first is Map<String, dynamic>) {
-            return FullUserInfo.fromJson(first);
+            return UserFullInfo.fromJson(first);
           }
         }
       }

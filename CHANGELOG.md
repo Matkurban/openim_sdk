@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.2
+
+### 修复
+
+- **修复 Flutter Web 平台 `MissingPluginException(getApplicationSupportDirectory)` 崩溃**：
+  - `OpenImUtils.defaultDbPath()` 改用 `kIsWeb` 判断 Web，避免在 Web 环境调用 `path_provider.getApplicationSupportDirectory`
+  - 同步修复平台判断链路中的 Web 识别（避免 `UniversalPlatform.isWeb` 在 Web 下误判）：
+    - `PlatformUtils.currentPlatform` 使用 `kIsWeb`
+    - `WebSocketService` 在 Web 下强制关闭压缩使用 `kIsWeb` 判断
+
 ## 1.4.1
 
 - 修复启动时的 getApplicationSupportDirectory 的警告
