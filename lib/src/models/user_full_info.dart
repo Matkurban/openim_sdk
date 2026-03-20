@@ -131,9 +131,9 @@ class UserFullInfo extends Equatable {
     );
   }
 
-  factory UserFullInfo.fromJson(Map<String, dynamic> json) => _$FullUserInfoFromJson(json);
+  factory UserFullInfo.fromJson(Map<String, dynamic> json) => _$UserFullInfoFromJson(json);
 
-  Map<String, dynamic> toJson() => _$FullUserInfoToJson(this);
+  Map<String, dynamic> toJson() => _$UserFullInfoToJson(this);
 
   @override
   List<Object?> get props => [

@@ -1279,6 +1279,17 @@ class ImApiService {
     }
   }
 
+  /// 获取分片上传限制参数
+  /// 对应 Go SDK /object/part_limit
+  Future<ApiResponse> getPartLimit() async {
+    try {
+      return await HttpClient().post(ImApiUrl.objectPartLimit, data: {});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getPartLimit');
+      rethrow;
+    }
+  }
+
   /// 发起分片上传
   Future<ApiResponse> initiateMultipartUpload({
     required String hash,

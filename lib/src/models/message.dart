@@ -394,8 +394,16 @@ class SoundElem extends Equatable {
   final String? sourceUrl;
   final int? dataSize;
   final int? duration;
+  final String? soundType;
 
-  const SoundElem({this.uuid, this.soundPath, this.sourceUrl, this.dataSize, this.duration});
+  const SoundElem({
+    this.uuid,
+    this.soundPath,
+    this.sourceUrl,
+    this.dataSize,
+    this.duration,
+    this.soundType,
+  });
 
   factory SoundElem.fromJson(Map<String, dynamic> json) => _$SoundElemFromJson(json);
 
@@ -407,6 +415,7 @@ class SoundElem extends Equatable {
     String? sourceUrl,
     int? dataSize,
     int? duration,
+    String? soundType,
   }) {
     return SoundElem(
       uuid: uuid ?? this.uuid,
@@ -414,11 +423,12 @@ class SoundElem extends Equatable {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       dataSize: dataSize ?? this.dataSize,
       duration: duration ?? this.duration,
+      soundType: soundType ?? this.soundType,
     );
   }
 
   @override
-  List<Object?> get props => [uuid, soundPath, sourceUrl, dataSize, duration];
+  List<Object?> get props => [uuid, soundPath, sourceUrl, dataSize, duration, soundType];
 }
 
 /// Video message content
@@ -436,6 +446,7 @@ class VideoElem extends Equatable {
   final String? snapshotUrl;
   final int? snapshotWidth;
   final int? snapshotHeight;
+  final String? snapshotType;
 
   const VideoElem({
     this.videoPath,
@@ -450,6 +461,7 @@ class VideoElem extends Equatable {
     this.snapshotUrl,
     this.snapshotWidth,
     this.snapshotHeight,
+    this.snapshotType,
   });
 
   factory VideoElem.fromJson(Map<String, dynamic> json) => _$VideoElemFromJson(json);
@@ -469,6 +481,7 @@ class VideoElem extends Equatable {
     String? snapshotUrl,
     int? snapshotWidth,
     int? snapshotHeight,
+    String? snapshotType,
   }) {
     return VideoElem(
       videoPath: videoPath ?? this.videoPath,
@@ -483,6 +496,7 @@ class VideoElem extends Equatable {
       snapshotUrl: snapshotUrl ?? this.snapshotUrl,
       snapshotWidth: snapshotWidth ?? this.snapshotWidth,
       snapshotHeight: snapshotHeight ?? this.snapshotHeight,
+      snapshotType: snapshotType ?? this.snapshotType,
     );
   }
 
@@ -500,6 +514,7 @@ class VideoElem extends Equatable {
     snapshotUrl,
     snapshotWidth,
     snapshotHeight,
+    snapshotType,
   ];
 }
 
@@ -511,8 +526,16 @@ class FileElem extends Equatable {
   final String? sourceUrl;
   final String? fileName;
   final int? fileSize;
+  final String? fileType;
 
-  const FileElem({this.filePath, this.uuid, this.sourceUrl, this.fileName, this.fileSize});
+  const FileElem({
+    this.filePath,
+    this.uuid,
+    this.sourceUrl,
+    this.fileName,
+    this.fileSize,
+    this.fileType,
+  });
 
   factory FileElem.fromJson(Map<String, dynamic> json) => _$FileElemFromJson(json);
 
@@ -524,6 +547,7 @@ class FileElem extends Equatable {
     String? sourceUrl,
     String? fileName,
     int? fileSize,
+    String? fileType,
   }) {
     return FileElem(
       filePath: filePath ?? this.filePath,
@@ -531,11 +555,12 @@ class FileElem extends Equatable {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       fileName: fileName ?? this.fileName,
       fileSize: fileSize ?? this.fileSize,
+      fileType: fileType ?? this.fileType,
     );
   }
 
   @override
-  List<Object?> get props => [filePath, uuid, sourceUrl, fileName, fileSize];
+  List<Object?> get props => [filePath, uuid, sourceUrl, fileName, fileSize, fileType];
 }
 
 /// @ Message Content

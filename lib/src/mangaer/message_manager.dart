@@ -211,9 +211,12 @@ class MessageManager {
   Message createSoundMessage({required String soundPath, required int duration}) {
     _log.info('soundPath=$soundPath, duration=$duration', methodName: 'createSoundMessage');
     try {
+      final ext = soundPath.split('.').last.toLowerCase();
+      // 对应 Go SDK CreateSoundMessage: SoundType = "audio/" + strings.ToLower(typ)
+      final soundType = ext.isNotEmpty ? 'audio/$ext' : null;
       return _createMessage(
         contentType: MessageType.voice,
-        soundElem: SoundElem(soundPath: soundPath, duration: duration),
+        soundElem: SoundElem(soundPath: soundPath, duration: duration, soundType: soundType),
       );
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createSoundMessage');
@@ -562,6 +565,7 @@ class MessageManager {
     int lastProgress = -1;
 
     // 辅助方法：调用消息发送进度回调
+    // 对应 Go SDK NewUploadFileCallback.UploadComplete → progress(value)
     void reportProgress(int sent, int total) {
       if (total > 0) {
         final progress = ((sent / total) * 100).round();
@@ -572,73 +576,114 @@ class MessageManager {
       }
     }
 
+    // 辅助方法：获取文件扩展名（对应 Go SDK filepathExt）
+    String filepathExt(String? path1, [String? path2]) {
+      for (final p in [path1, path2]) {
+        if (p != null && p.isNotEmpty) {
+          final dotIndex = p.lastIndexOf('.');
+          if (dotIndex >= 0 && dotIndex < p.length - 1) {
+            return p.substring(dotIndex);
+          }
+        }
+      }
+      return '';
+    }
+
+    // 辅助方法：生成上传文件名（对应 Go SDK c.fileName(ftype, id)）
+    String uploadFileName(String ftype, String id) => 'msg_${ftype}_$id';
+
     if (msg.contentType == MessageType.picture && msg.pictureElem != null) {
       final elem = msg.pictureElem!;
-      if (elem.sourcePicture?.url == null || elem.sourcePicture!.url!.isEmpty) {
-        final ext = (elem.sourcePath ?? 'image').split('.').last.toLowerCase();
-        final uploadName = 'picture_$clientMsgID.$ext';
-        final contentType = elem.sourcePicture?.type ?? 'image/$ext';
-        String? url;
-        int fileSize = 0;
+      // 对应 Go SDK: if s.Status == constant.MsgStatusSendSuccess → skip
+      if (elem.sourcePicture?.url != null && elem.sourcePicture!.url!.isNotEmpty) {
+        return msg;
+      }
 
-        if (pendingBytes != null) {
-          // Web 平台：使用 bytes 上传
-          fileSize = pendingBytes.length;
+      final sourcePath = elem.sourcePath;
+      final ext = filepathExt(elem.sourcePicture?.uuid, sourcePath);
+      // 对应 Go SDK: c.fileName("picture", s.ClientMsgID) + filepathExt(...)
+      final name = '${uploadFileName("picture", clientMsgID)}$ext';
+      // 对应 Go SDK: ContentType: s.PictureElem.SourcePicture.Type
+      final contentType = elem.sourcePicture?.type ?? _getContentType(ext);
+      String? url;
+      int fileSize = 0;
+
+      if (pendingBytes != null) {
+        fileSize = pendingBytes.length;
+        url = await OpenIM.iMManager.uploadFile(
+          id: clientMsgID,
+          fileBytes: pendingBytes,
+          fileName: name,
+          contentType: contentType,
+          cause: 'msg-picture',
+          onProgress: reportProgress,
+        );
+      } else if (sourcePath != null && sourcePath.isNotEmpty) {
+        final file = File(sourcePath);
+        if (file.existsSync()) {
+          fileSize = file.lengthSync();
           url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
-            fileBytes: pendingBytes,
-            fileName: uploadName,
+            filePath: sourcePath,
+            fileName: name,
             contentType: contentType,
             cause: 'msg-picture',
             onProgress: reportProgress,
           );
-        } else if (elem.sourcePath != null && elem.sourcePath!.isNotEmpty) {
-          // Native 平台：使用文件路径上传
-          final file = File(elem.sourcePath!);
-          if (file.existsSync()) {
-            fileSize = file.lengthSync();
-            url = await OpenIM.iMManager.uploadFile(
-              id: clientMsgID,
-              filePath: elem.sourcePath!,
-              fileName: uploadName,
-              contentType: contentType,
-              cause: 'msg-picture',
-              onProgress: reportProgress,
-            );
-          }
         }
+      }
 
-        if (url != null) {
-          final sourcePic = (elem.sourcePicture ?? const PictureInfo()).copyWith(
-            url: url,
-            size: fileSize,
-          );
-          final snapshotPic = PictureInfo(width: 640, height: 640, url: url);
-          return msg.copyWith(
-            pictureElem: elem.copyWith(
-              sourcePicture: sourcePic,
-              bigPicture: sourcePic,
-              snapshotPicture: snapshotPic,
-            ),
-          );
+      if (url != null) {
+        final sourcePic = (elem.sourcePicture ?? const PictureInfo()).copyWith(
+          url: url,
+          size: fileSize,
+        );
+        // 对应 Go SDK: s.PictureElem.BigPicture = s.PictureElem.SourcePicture
+        final bigPic = sourcePic;
+        // 对应 Go SDK: 解析 URL 添加 type=image&width=640&height=640 查询参数
+        PictureInfo snapshotPic;
+        try {
+          final u = Uri.parse(url);
+          final snapshotQuery = Map<String, String>.from(u.queryParameters);
+          snapshotQuery['type'] = 'image';
+          snapshotQuery['width'] = '640';
+          snapshotQuery['height'] = '640';
+          final snapshotUrl = u.replace(queryParameters: snapshotQuery).toString();
+          snapshotPic = PictureInfo(width: 640, height: 640, url: snapshotUrl);
+        } catch (_) {
+          // 解析失败时回退到原始 URL（对应 Go SDK parse url failed 分支）
+          snapshotPic = sourcePic;
         }
+        return msg.copyWith(
+          pictureElem: elem.copyWith(
+            sourcePicture: sourcePic,
+            bigPicture: bigPic,
+            snapshotPicture: snapshotPic,
+          ),
+        );
       }
     } else if (msg.contentType == MessageType.voice && msg.soundElem != null) {
       final elem = msg.soundElem!;
-      if (elem.soundPath != null &&
-          elem.soundPath!.isNotEmpty &&
-          (elem.sourceUrl == null || elem.sourceUrl!.isEmpty)) {
-        final file = File(elem.soundPath!);
+      if (elem.sourceUrl != null && elem.sourceUrl!.isNotEmpty) {
+        return msg;
+      }
+
+      final soundPath = elem.soundPath;
+      if (soundPath != null && soundPath.isNotEmpty) {
+        final file = File(soundPath);
         if (file.existsSync()) {
           final fileSize = file.lengthSync();
-          final ext = elem.soundPath!.split('.').last.toLowerCase();
-          final uploadName = 'voice_$clientMsgID.$ext';
+          final ext = filepathExt(elem.uuid, soundPath);
+          // 对应 Go SDK: c.fileName("voice", s.ClientMsgID) + filepathExt(...)
+          final name = '${uploadFileName("voice", clientMsgID)}$ext';
+          // 对应 Go SDK: ContentType: s.SoundElem.SoundType
+          final contentType = elem.soundType ?? _getContentType(ext);
 
           final url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
-            filePath: elem.soundPath!,
-            fileName: uploadName,
-            contentType: 'audio/$ext',
+            filePath: soundPath,
+            fileName: name,
+            contentType: contentType,
             cause: 'msg-voice',
             onProgress: reportProgress,
           );
@@ -652,111 +697,147 @@ class MessageManager {
       final elem = msg.videoElem!;
       var newElem = elem;
 
-      // 上传视频文件
-      if (elem.videoUrl == null || elem.videoUrl!.isEmpty) {
-        final ext = (elem.videoPath ?? 'video').split('.').last.toLowerCase();
-        final uploadName = 'video_$clientMsgID.$ext';
-        final videoContentType = elem.videoType ?? 'video/$ext';
+      // 对应 Go SDK: 视频和缩略图并行上传（sync.WaitGroup + 两个 goroutine）
+      final futures = <Future>[];
 
-        if (pendingBytes != null) {
-          final url = await OpenIM.iMManager.uploadFile(
-            id: clientMsgID,
-            fileBytes: pendingBytes,
-            fileName: uploadName,
-            contentType: videoContentType,
-            cause: 'msg-video',
-            onProgress: reportProgress,
-          );
-          newElem = newElem.copyWith(videoUrl: url, videoSize: pendingBytes.length);
-        } else if (elem.videoPath != null && elem.videoPath!.isNotEmpty) {
-          final file = File(elem.videoPath!);
-          if (file.existsSync()) {
-            final fileSize = file.lengthSync();
-            final contentType = _getMimeType(elem.videoPath!, fallback: videoContentType);
-            final url = await OpenIM.iMManager.uploadFile(
-              id: clientMsgID,
-              filePath: elem.videoPath!,
-              fileName: uploadName,
-              contentType: contentType,
-              cause: 'msg-video',
-              onProgress: reportProgress,
-            );
-            newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
-          }
-        }
+      // 上传视频缩略图（对应 Go SDK 的第一个 goroutine）
+      if (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty) {
+        futures.add(
+          Future(() async {
+            try {
+              final snapExt = filepathExt(elem.snapshotUUID, elem.snapshotPath);
+              // 对应 Go SDK: c.fileName("videoSnapshot", s.ClientMsgID) + filepathExt(...)
+              final snapName = '${uploadFileName("videoSnapshot", clientMsgID)}$snapExt';
+              // 对应 Go SDK: ContentType: s.VideoElem.SnapshotType
+              final snapContentType = elem.snapshotType ?? _getContentType(snapExt);
+
+              if (pendingSnapshotBytes != null) {
+                final url = await OpenIM.iMManager.uploadFile(
+                  id: '${clientMsgID}_snapshot',
+                  fileBytes: pendingSnapshotBytes,
+                  fileName: snapName,
+                  contentType: snapContentType,
+                  cause: 'msg-video-snapshot',
+                );
+                newElem = newElem.copyWith(
+                  snapshotUrl: url,
+                  snapshotSize: pendingSnapshotBytes.length,
+                );
+              } else if (elem.snapshotPath != null && elem.snapshotPath!.isNotEmpty) {
+                final file = File(elem.snapshotPath!);
+                if (file.existsSync()) {
+                  final fileSize = file.lengthSync();
+                  final url = await OpenIM.iMManager.uploadFile(
+                    id: '${clientMsgID}_snapshot',
+                    filePath: elem.snapshotPath!,
+                    fileName: snapName,
+                    contentType: snapContentType,
+                    cause: 'msg-video-snapshot',
+                  );
+                  newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
+                }
+              }
+            } catch (e) {
+              // 对应 Go SDK: 缩略图上传失败只 warn 不 return error
+              _log.warning('upload video snapshot failed: $e');
+            }
+          }),
+        );
       }
 
-      // 上传视频缩略图
-      if (elem.snapshotUrl == null || elem.snapshotUrl!.isEmpty) {
-        final snapExt = (elem.snapshotPath ?? 'snapshot.jpg').split('.').last.toLowerCase();
-        final uploadName = 'videoSnapshot_$clientMsgID.$snapExt';
+      // 上传视频文件（对应 Go SDK 的第二个 goroutine）
+      if (elem.videoUrl == null || elem.videoUrl!.isEmpty) {
+        futures.add(
+          Future(() async {
+            final videoExt = filepathExt(elem.videoUUID, elem.videoPath);
+            // 对应 Go SDK: c.fileName("video", s.ClientMsgID) + filepathExt(...)
+            final videoName = '${uploadFileName("video", clientMsgID)}$videoExt';
+            // 对应 Go SDK: ContentType: content_type.GetType(s.VideoElem.VideoType, filepath.Ext(...))
+            final videoContentType = _getContentType(elem.videoType, videoExt);
 
-        if (pendingSnapshotBytes != null) {
-          final url = await OpenIM.iMManager.uploadFile(
-            id: '${clientMsgID}_snapshot',
-            fileBytes: pendingSnapshotBytes,
-            fileName: uploadName,
-            contentType: 'image/$snapExt',
-            cause: 'msg-video-snapshot',
-            onProgress: reportProgress,
-          );
-          newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: pendingSnapshotBytes.length);
-        } else if (elem.snapshotPath != null && elem.snapshotPath!.isNotEmpty) {
-          final file = File(elem.snapshotPath!);
-          if (file.existsSync()) {
-            final fileSize = file.lengthSync();
-            final url = await OpenIM.iMManager.uploadFile(
-              id: '${clientMsgID}_snapshot',
-              filePath: elem.snapshotPath!,
-              fileName: uploadName,
-              contentType: 'image/$snapExt',
-              cause: 'msg-video-snapshot',
-              onProgress: reportProgress,
-            );
-            newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
-          }
-        }
+            if (pendingBytes != null) {
+              final url = await OpenIM.iMManager.uploadFile(
+                id: clientMsgID,
+                fileBytes: pendingBytes,
+                fileName: videoName,
+                contentType: videoContentType,
+                cause: 'msg-video',
+                onProgress: reportProgress,
+              );
+              newElem = newElem.copyWith(videoUrl: url, videoSize: pendingBytes.length);
+            } else if (elem.videoPath != null && elem.videoPath!.isNotEmpty) {
+              final file = File(elem.videoPath!);
+              if (file.existsSync()) {
+                final fileSize = file.lengthSync();
+                final url = await OpenIM.iMManager.uploadFile(
+                  id: clientMsgID,
+                  filePath: elem.videoPath!,
+                  fileName: videoName,
+                  contentType: videoContentType,
+                  cause: 'msg-video',
+                  onProgress: reportProgress,
+                );
+                newElem = newElem.copyWith(videoUrl: url, videoSize: fileSize);
+              }
+            }
+          }),
+        );
+      }
+
+      // 并行等待所有上传完成（对应 Go SDK wg.Wait()）
+      if (futures.isNotEmpty) {
+        await Future.wait(futures);
       }
       return msg.copyWith(videoElem: newElem);
     } else if (msg.contentType == MessageType.file && msg.fileElem != null) {
       final elem = msg.fileElem!;
-      if (elem.sourceUrl == null || elem.sourceUrl!.isEmpty) {
-        final baseName = elem.fileName ?? (elem.filePath ?? 'file').split('/').last;
-        final uploadName = 'file_$clientMsgID/$baseName';
-        String? url;
-        int fileSize = 0;
+      if (elem.sourceUrl != null && elem.sourceUrl!.isNotEmpty) {
+        return msg;
+      }
 
-        if (pendingBytes != null) {
-          fileSize = pendingBytes.length;
+      // 对应 Go SDK: name 为 FileName 或 FilePath，fallback 为默认
+      final baseName = elem.fileName ?? (elem.filePath ?? 'file').split('/').last;
+      // 对应 Go SDK: c.fileName("file", s.ClientMsgID) + "/" + filepath.Base(name)
+      final name =
+          '${uploadFileName("file", clientMsgID)}/${baseName.isNotEmpty ? baseName : "file"}';
+      // 对应 Go SDK: ContentType: content_type.GetType(s.FileElem.FileType, filepath.Ext(FilePath), filepath.Ext(FileName))
+      final contentType = _getContentType(
+        elem.fileType,
+        filepathExt(elem.filePath),
+        filepathExt(elem.fileName),
+      );
+      String? url;
+      int fileSize = 0;
+
+      if (pendingBytes != null) {
+        fileSize = pendingBytes.length;
+        url = await OpenIM.iMManager.uploadFile(
+          id: clientMsgID,
+          fileBytes: pendingBytes,
+          fileName: name,
+          contentType: contentType,
+          cause: 'msg-file',
+          onProgress: reportProgress,
+        );
+      } else if (elem.filePath != null && elem.filePath!.isNotEmpty) {
+        final file = File(elem.filePath!);
+        if (file.existsSync()) {
+          fileSize = file.lengthSync();
           url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
-            fileBytes: pendingBytes,
-            fileName: uploadName,
-            contentType: 'application/octet-stream',
+            filePath: elem.filePath!,
+            fileName: name,
+            contentType: contentType,
             cause: 'msg-file',
             onProgress: reportProgress,
           );
-        } else if (elem.filePath != null && elem.filePath!.isNotEmpty) {
-          final file = File(elem.filePath!);
-          if (file.existsSync()) {
-            fileSize = file.lengthSync();
-            final contentType = _getMimeType(elem.filePath!);
-            url = await OpenIM.iMManager.uploadFile(
-              id: clientMsgID,
-              filePath: elem.filePath!,
-              fileName: uploadName,
-              contentType: contentType,
-              cause: 'msg-file',
-              onProgress: reportProgress,
-            );
-          }
         }
+      }
 
-        if (url != null) {
-          return msg.copyWith(
-            fileElem: elem.copyWith(sourceUrl: url, fileSize: fileSize, fileName: baseName),
-          );
-        }
+      if (url != null) {
+        return msg.copyWith(
+          fileElem: elem.copyWith(sourceUrl: url, fileSize: fileSize, fileName: baseName),
+        );
       }
     }
 
@@ -1528,10 +1609,18 @@ class MessageManager {
     try {
       final file = File(soundPath);
       final fileSize = file.existsSync() ? file.lengthSync() : 0;
+      // 对应 Go SDK CreateSoundMessageFromFullPath: SoundType = ext (不带点)
+      final ext = soundPath.split('.').last.toLowerCase();
+      final soundType = ext.isNotEmpty ? 'audio/$ext' : null;
 
       return _createMessage(
         contentType: MessageType.voice,
-        soundElem: SoundElem(soundPath: soundPath, duration: duration, dataSize: fileSize),
+        soundElem: SoundElem(
+          soundPath: soundPath,
+          duration: duration,
+          dataSize: fileSize,
+          soundType: soundType,
+        ),
       );
     } catch (e, s) {
       _log.error(
@@ -2117,36 +2206,87 @@ class MessageManager {
     );
   }
 
-  /// 根据文件扩展名获取 MIME 类型
-  String _getMimeType(String filePath, {String fallback = 'application/octet-stream'}) {
-    final ext = filePath.split('.').last.toLowerCase();
-    const mimeMap = <String, String>{
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'gif': 'image/gif',
-      'bmp': 'image/bmp',
-      'webp': 'image/webp',
-      'svg': 'image/svg+xml',
-      'mp4': 'video/mp4',
-      'avi': 'video/x-msvideo',
-      'mov': 'video/quicktime',
-      'mkv': 'video/x-matroska',
-      'mp3': 'audio/mpeg',
-      'wav': 'audio/wav',
-      'aac': 'audio/aac',
-      'ogg': 'audio/ogg',
-      'm4a': 'audio/mp4',
-      'pdf': 'application/pdf',
-      'doc': 'application/msword',
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'xls': 'application/vnd.ms-excel',
-      'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'zip': 'application/zip',
-      'rar': 'application/x-rar-compressed',
-      'txt': 'text/plain',
-    };
-    return mimeMap[ext] ?? fallback;
+  /// 对应 Go SDK content_type.GetType(val ...string) string
+  /// 逻辑：遍历每个参数，若含 "/" 则视为已有 MIME 直接返回；
+  /// 否则去掉前导 "."，按扩展名查表；全部查不到返回 application/octet-stream
+  static const _extMimeMap = <String, String>{
+    'html': 'text/html',
+    'htm': 'text/html',
+    'css': 'text/css',
+    'js': 'application/javascript',
+    'json': 'application/json',
+    'xml': 'application/xml',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'bmp': 'image/bmp',
+    'tif': 'image/tiff',
+    'tiff': 'image/tiff',
+    'ico': 'image/x-icon',
+    'svg': 'image/svg+xml',
+    'webp': 'image/webp',
+    'mp4': 'video/mp4',
+    'avi': 'video/x-msvideo',
+    'mkv': 'video/x-matroska',
+    'mov': 'video/quicktime',
+    'wmv': 'video/x-ms-wmv',
+    'flv': 'video/x-flv',
+    'webm': 'video/webm',
+    '3gp': 'video/3gpp',
+    'm4a': 'audio/mp4',
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'ogg': 'audio/ogg',
+    'aac': 'audio/aac',
+    'wma': 'audio/x-ms-wma',
+    'flac': 'audio/flac',
+    'mid': 'audio/midi',
+    'midi': 'audio/midi',
+    'weba': 'audio/webm',
+    'pdf': 'application/pdf',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'txt': 'text/plain',
+    'csv': 'text/csv',
+    'zip': 'application/zip',
+    'rar': 'application/x-rar-compressed',
+    'tar': 'application/x-tar',
+    'gz': 'application/gzip',
+    'exe': 'application/x-msdownload',
+    'msi': 'application/x-msi',
+    'deb': 'application/x-debian-package',
+    'rpm': 'application/x-redhat-package-manager',
+    'sh': 'application/x-sh',
+    'bat': 'application/bat',
+    'py': 'application/x-python',
+    'java': 'text/x-java-source',
+    'c': 'text/x-csrc',
+    'cpp': 'text/x-c++src',
+    'h': 'text/x-chdr',
+    'hpp': 'text/x-c++hdr',
+    'php': 'application/x-php',
+    'asp': 'application/x-asp',
+    'jsp': 'application/x-jsp',
+    'dll': 'application/x-msdownload',
+    'jar': 'application/java-archive',
+    'war': 'application/java-archive',
+    'ear': 'application/java-archive',
+  };
+
+  String _getContentType([String? val1, String? val2, String? val3]) {
+    for (final s in [val1, val2, val3]) {
+      if (s == null || s.length <= 1) continue;
+      if (s.contains('/')) return s;
+      final key = s.startsWith('.') ? s.substring(1) : s;
+      final mime = _extMimeMap[key] ?? _extMimeMap[key.toLowerCase()];
+      if (mime != null) return mime;
+    }
+    return 'application/octet-stream';
   }
 
   /// 解码图片尺寸（对应 Go SDK 的 image.Decode → Bounds）

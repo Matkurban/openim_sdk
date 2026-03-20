@@ -584,6 +584,9 @@ class IMManager {
     return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser);
   }
 
+  /// 分片上传限制参数缓存（对应 Go SDK File.partLimit）
+  Map<String, dynamic>? _partLimitCache;
+
   /// 上传文件
   /// [id] 文件标识，用于回调区分
   /// [filePath] 本地文件路径（native 平台）
@@ -607,10 +610,17 @@ class IMManager {
       methodName: 'uploadFile',
     );
 
-    // 获取文件字节数据：优先使用传入的 bytes，否则从文件路径读取
-    final Uint8List bytes;
+    final ImApiService imApiService = _getIt.get<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    );
+    final DatabaseService databaseService = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+
+    // 获取文件大小
+    final int fileSize;
     if (fileBytes != null) {
-      bytes = fileBytes;
+      fileSize = fileBytes.length;
     } else {
       final file = File(filePath!);
       if (!await file.exists()) {
@@ -619,43 +629,61 @@ class IMManager {
           message: SDKErrorCode.uploadFileNotExist.message,
         );
       }
-      bytes = await file.readAsBytes();
+      fileSize = await file.length();
     }
 
-    final int fileSize = bytes.length;
     _uploadFileListener?.open(id, fileSize);
 
-    // 分片大小: 5MB (S3/MinIO 的严格最小分片为 5MB)
-    const int partSize = 5 * 1024 * 1024;
+    // 从服务端获取分片大小限制（对应 Go SDK partSize 函数）
+    final int partSize = await _getPartSize(imApiService, fileSize);
     final int partNum = (fileSize / partSize).ceil().clamp(1, 10000);
     _uploadFileListener?.partSize(id, partSize, partNum);
 
+    // 计算每个分片的实际大小
+    final partSizes = List<int>.generate(partNum, (i) {
+      if (i < partNum - 1) return partSize;
+      return fileSize - partSize * (partNum - 1);
+    });
+
     // 计算分片 MD5 和文件总 MD5
     final partMd5s = <String>[];
-    // 存储从 S3 获取的 ETag
     final partEtags = <String?>[];
+
     for (int i = 0; i < partNum; i++) {
       final start = i * partSize;
-      final end = (start + partSize).clamp(0, fileSize);
-      final partBytes = bytes.sublist(start, end);
+      final end = (start + partSizes[i]).clamp(0, fileSize);
+      final Uint8List partBytes;
+      if (fileBytes != null) {
+        partBytes = fileBytes.sublist(start, end);
+      } else {
+        final raf = await File(filePath!).open();
+        await raf.setPosition(start);
+        partBytes = await raf.read(end - start);
+        await raf.close();
+      }
       final partHash = md5.convert(partBytes).toString();
       partMd5s.add(partHash);
-      partEtags.add(null); // 初始化为 null，稍后填充
+      partEtags.add(null);
+      _uploadFileListener?.hashPartProgress(id, i, partSizes[i], partHash);
     }
 
     // server 期望的 hash 是所有分片 MD5 用逗号拼接后的字符串的 MD5
-    // 对应 Go SDK 的 partMD5: md5.Sum([]byte(strings.Join(parts, ",")))
+    // 对应 Go SDK: partMD5: md5.Sum([]byte(strings.Join(parts, ",")))
     final String combinedHashStr = partMd5s.join(',');
     final String hash = md5.convert(utf8.encode(combinedHashStr)).toString();
-    final String objectName = '$userID/$fileName';
+    _uploadFileListener?.hashPartComplete(id, combinedHashStr, hash);
 
-    final ImApiService imApiService = _getIt.get<ImApiService>(
-      instanceName: InstanceName.imApiService,
-    );
-    final DatabaseService databaseService = _getIt.get<DatabaseService>(
-      instanceName: InstanceName.databaseService,
-    );
+    // 对应 Go SDK: name 前缀为 loginUserID + "/"
+    String objectName = fileName;
+    final prefix = '$userID/';
+    if (!objectName.startsWith(prefix)) {
+      objectName = '$prefix$objectName';
+    }
+    if (objectName.startsWith('/')) {
+      objectName = objectName.substring(1);
+    }
 
+    // 获取本地缓存的续传任务（对应 Go SDK getLocalUploadInfo）
     final cachedTask = await databaseService.getUploadTaskByHashAndName(hash, objectName);
     final cachedUploadID = cachedTask?['uploadID'] as String?;
     final cachedUploadedParts = ((cachedTask?['uploadedParts'] as List?) ?? const [])
@@ -664,11 +692,12 @@ class IMManager {
         .toSet();
 
     // 1. 发起分片上传
+    final int maxParts = partNum.clamp(1, 20);
     final initResp = await imApiService.initiateMultipartUpload(
       hash: hash,
       size: fileSize,
       partSize: partSize,
-      maxParts: partNum.clamp(1, 20),
+      maxParts: maxParts,
       cause: cause ?? '',
       name: objectName,
       contentType: contentType ?? 'application/octet-stream',
@@ -688,7 +717,17 @@ class IMManager {
 
     final upload = respData['upload'] as Map<String, dynamic>? ?? {};
     final uploadID = upload['uploadID'] as String? ?? '';
+
+    // 对应 Go SDK: 验证服务端返回的 partSize 是否一致
+    final serverPartSize = upload['partSize'] as int?;
+    if (serverPartSize != null && serverPartSize != partSize) {
+      _partLimitCache = null; // 清除缓存，下次重新获取
+      throw Exception('part size not match, expect $partSize, got $serverPartSize');
+    }
+
     _uploadFileListener?.uploadID(id, uploadID);
+
+    // 判断是否可续传（对应 Go SDK bitmap 机制）
     final canResume = cachedUploadID != null && cachedUploadID == uploadID;
     if (uploadID.isNotEmpty) {
       await databaseService.upsertUploadTask({
@@ -702,14 +741,19 @@ class IMManager {
         'updateTime': DateTime.now().millisecondsSinceEpoch,
       });
     }
+
+    // 恢复已上传分片（对应 Go SDK bitmap.Get(i)）
+    int uploadedSize = 0;
     if (canResume) {
       for (final part in cachedUploadedParts) {
         final idx = part - 1;
         if (idx >= 0 && idx < partEtags.length) {
           partEtags[idx] = partMd5s[idx];
+          uploadedSize += partSizes[idx];
         }
       }
     }
+    final bool continueUpload = uploadedSize > 0;
 
     final sign = upload['sign'] as Map<String, dynamic>? ?? {};
     // AWS S3 签名：sign 包含 url 和 parts
@@ -728,21 +772,33 @@ class IMManager {
         }
       }
     }
+    // 全局 header（sign.header）
+    final signHeader = sign['header'] as List?;
     var currentSignParts = (sign['parts'] as List?)?.cast<Map<String, dynamic>>() ?? [];
 
     // 2. 逐片上传
     for (int i = 0; i < partNum; i++) {
+      final currentPartSize = partSizes[i];
+      final partNumber = i + 1;
+
       if (partEtags[i] != null) {
-        // 已上传分片（恢复场景）直接跳过
+        // 已上传分片（恢复场景）直接跳过，但仍需验证 MD5
+        _uploadFileListener?.uploadPartComplete(id, i, currentPartSize, partMd5s[i]);
         continue;
       }
-      final partNumber = i + 1;
-      final start = i * partSize;
-      final end = (start + partSize).clamp(0, fileSize);
-      final partBytes = bytes.sublist(start, end);
-      final partHash = partMd5s[i];
 
-      _uploadFileListener?.hashPartProgress(id, i, partBytes.length, partHash);
+      final start = i * partSize;
+      final end = (start + currentPartSize).clamp(0, fileSize);
+      // 按需读取分片数据，避免将整个文件加载到内存（对应 Go SDK io.LimitReader）
+      final Uint8List partBytes;
+      if (fileBytes != null) {
+        partBytes = fileBytes.sublist(start, end);
+      } else {
+        final raf = await File(filePath!).open();
+        await raf.setPosition(start);
+        partBytes = await raf.read(end - start);
+        await raf.close();
+      }
 
       // 从当前缓存中寻找对应 partNumber 的签名
       var partInfo = currentSignParts.firstWhere(
@@ -750,7 +806,8 @@ class IMManager {
         orElse: () => <String, dynamic>{},
       );
 
-      // 如果未找到（例如超过了 maxParts = 20），请求新的一批签名
+      // 如果未找到（例如超过了 maxParts），请求新的一批签名
+      // 对应 Go SDK GetPartSign → authSign
       if (partInfo.isEmpty) {
         final nextBatch = <int>[];
         for (int j = 0; j < 20 && (partNumber + j) <= partNum; j++) {
@@ -769,85 +826,24 @@ class IMManager {
         );
       }
 
-      // 解析 header：可能是 List 或 Map
-      final rawHeaders = partInfo['header'];
-      final Map<String, String>? headers;
-      if (rawHeaders is List) {
-        // 服务器返回的是 [{key: "X-Amz-Content-Sha256", values: ["UNSIGNED-PAYLOAD"]}, ...]
-        headers = {};
-        for (final h in rawHeaders) {
-          if (h is Map) {
-            final key = h['key']?.toString();
-            final values = h['values'] as List?;
-            if (key != null && values != null && values.isNotEmpty) {
-              headers[key] = values.first.toString();
-            }
-          }
-        }
-      } else if (rawHeaders is Map) {
-        headers = (rawHeaders).map((k, v) {
-          final String val;
-          if (v is List && v.isNotEmpty) {
-            val = v.first.toString();
-          } else {
-            val = v?.toString() ?? '';
-          }
-          return MapEntry(k.toString(), val);
-        });
-      } else {
-        headers = null;
-      }
+      // 构建上传 URL 和 Header（对应 Go SDK UploadInfo.buildRequest）
+      final putUrl = _buildPartPutUrl(signUrl, uploadIdParam, signHeader, partInfo);
+      final headers = _buildPartHeaders(signHeader, partInfo);
 
-      // 构建上传 URL：优先使用预签名 URL，否则使用 signUrl + query 参数
-      String putUrl = partInfo['url'] as String? ?? '';
-      if (putUrl.isEmpty && signUrl.isNotEmpty) {
-        // AWS S3 签名方式：需要从 query 参数构建完整 URL
-        final queryParts = <String>[];
-
-        // 首先添加 uploadId 参数（从 sign.query 中获取）
-        if (uploadIdParam != null) {
-          queryParts.add('uploadId=$uploadIdParam');
-        }
-
-        // 然后添加分片特定的 query 参数
-        final rawQuery = partInfo['query'] as List?;
-        if (rawQuery != null && rawQuery.isNotEmpty) {
-          for (final q in rawQuery) {
-            if (q is Map) {
-              final key = q['key']?.toString() ?? '';
-              final values = q['values'] as List?;
-              if (values != null && values.isNotEmpty && key != 'uploadId') {
-                final value = values.first.toString();
-                queryParts.add('$key=$value');
-              }
-            }
-          }
-        }
-
-        if (queryParts.isNotEmpty) {
-          putUrl = '$signUrl?${queryParts.join('&')}';
-        } else {
-          putUrl = signUrl;
-        }
-      }
-
-      String? etag;
       if (putUrl.isNotEmpty) {
         final putResp = await HttpClient().dio.put(
           putUrl,
           data: partBytes,
           options: Options(
-            headers: {...?headers, Headers.contentLengthHeader: partBytes.length},
+            headers: {...headers, Headers.contentLengthHeader: partBytes.length},
             contentType: contentType ?? 'application/octet-stream',
           ),
           onSendProgress: (sent, total) {
-            _uploadFileListener?.uploadProgress(id, fileSize, start + sent, start);
-            onProgress?.call(start + sent, fileSize);
+            // 对应 Go SDK UploadComplete(fileSize, uploadedSize+current, uploadedSize)
+            _uploadFileListener?.uploadProgress(id, fileSize, uploadedSize + sent, uploadedSize);
+            onProgress?.call(uploadedSize + sent, fileSize);
           },
         );
-
-        // 从响应头获取 S3 返回的 ETag，用于完成分片上传
-        etag = putResp.headers.value('etag');
 
         if (putResp.statusCode != null &&
             (putResp.statusCode! < 200 || putResp.statusCode! >= 300)) {
@@ -857,10 +853,19 @@ class IMManager {
         }
       }
 
-      // 存储 S3 返回的 ETag（如果存在），否则使用本地计算的 MD5
-      // ETag 带有双引号，需要去掉
-      final cleanEtag = etag?.replaceAll('"', '') ?? partHash;
-      partEtags[i] = cleanEtag;
+      // 验证 MD5（对应 Go SDK md5Reader.Md5() 校验）
+      final localMd5 = md5.convert(partBytes).toString();
+      if (localMd5 != partMd5s[i]) {
+        throw Exception(
+          'upload part $i failed, md5 not match, expect ${partMd5s[i]}, got $localMd5',
+        );
+      }
+
+      partEtags[i] = partMd5s[i];
+      uploadedSize += currentPartSize;
+      _uploadFileListener?.uploadPartComplete(id, i, currentPartSize, partMd5s[i]);
+
+      // 更新续传记录（对应 Go SDK bitmap.Set + UpdateUpload）
       if (uploadID.isNotEmpty) {
         await databaseService.upsertUploadTask({
           'uploadID': uploadID,
@@ -873,12 +878,10 @@ class IMManager {
       }
     }
 
-    _uploadFileListener?.hashPartComplete(id, partMd5s.join(','), hash);
-
-    // 3. 完成分片上传
+    // 3. 完成分片上传（对应 Go SDK completeMultipartUpload）
     final completeResp = await imApiService.completeMultipartUpload(
       uploadID: uploadID,
-      parts: partEtags.cast<String>(),
+      parts: partMd5s,
       name: objectName,
       contentType: contentType ?? 'application/octet-stream',
       cause: cause ?? '',
@@ -888,11 +891,129 @@ class IMManager {
     }
 
     final resultUrl = (completeResp.data?['url'] as String?) ?? '';
+
+    // 清理续传记录（对应 Go SDK DeleteUpload）
     if (uploadID.isNotEmpty) {
       await databaseService.deleteUploadTask(uploadID);
     }
-    _uploadFileListener?.complete(id, fileSize, resultUrl, 1);
+
+    // typ: 1=正常上传完成, 2=续传完成（对应 Go SDK）
+    final typ = continueUpload ? 2 : 1;
+    _uploadFileListener?.complete(id, fileSize, resultUrl, typ);
     return resultUrl;
+  }
+
+  /// 从服务端获取分片大小（对应 Go SDK File.partSize）
+  Future<int> _getPartSize(ImApiService api, int fileSize) async {
+    if (_partLimitCache == null) {
+      final resp = await api.getPartLimit();
+      if (resp.errCode == 0 && resp.data != null) {
+        _partLimitCache = resp.data as Map<String, dynamic>;
+      }
+    }
+
+    if (_partLimitCache != null) {
+      final minPartSize = (_partLimitCache!['minPartSize'] as num?)?.toInt() ?? (5 * 1024 * 1024);
+      final maxPartSize =
+          (_partLimitCache!['maxPartSize'] as num?)?.toInt() ?? (5 * 1024 * 1024 * 1024);
+      final maxNumSize = (_partLimitCache!['maxNumSize'] as num?)?.toInt() ?? 10000;
+
+      if (fileSize > maxPartSize * maxNumSize) {
+        throw Exception('file size $fileSize exceeds maximum ${maxPartSize * maxNumSize}');
+      }
+      if (fileSize <= minPartSize * maxNumSize) {
+        return minPartSize;
+      }
+      var ps = fileSize ~/ maxNumSize;
+      if (fileSize % maxNumSize != 0) {
+        ps++;
+      }
+      return ps;
+    }
+
+    // fallback：5MB
+    return 5 * 1024 * 1024;
+  }
+
+  /// 构建分片上传的完整 URL（对应 Go SDK UploadInfo.buildRequest）
+  String _buildPartPutUrl(
+    String signUrl,
+    String? uploadIdParam,
+    List? signHeader,
+    Map<String, dynamic> partInfo,
+  ) {
+    // 优先使用 part 自己的 url
+    String putUrl = partInfo['url'] as String? ?? '';
+    if (putUrl.isNotEmpty) return putUrl;
+    if (signUrl.isEmpty) return '';
+
+    // 合并 sign.query 和 part.query（对应 Go SDK buildRequest 的 query 合并逻辑）
+    final uri = Uri.parse(signUrl);
+    final queryParams = Map<String, String>.from(uri.queryParameters);
+
+    // 添加 sign 级别的 query（如 uploadId）
+    if (uploadIdParam != null) {
+      queryParams['uploadId'] = uploadIdParam;
+    }
+
+    // 添加 part 级别的 query
+    final rawQuery = partInfo['query'] as List?;
+    if (rawQuery != null) {
+      for (final q in rawQuery) {
+        if (q is Map) {
+          final key = q['key']?.toString() ?? '';
+          final values = q['values'] as List?;
+          if (values != null && values.isNotEmpty && key.isNotEmpty) {
+            queryParams[key] = values.first.toString();
+          }
+        }
+      }
+    }
+
+    return uri.replace(queryParameters: queryParams).toString();
+  }
+
+  /// 构建分片上传的 Header（对应 Go SDK buildRequest 的 header 合并逻辑）
+  Map<String, String> _buildPartHeaders(List? signHeader, Map<String, dynamic> partInfo) {
+    final headers = <String, String>{};
+
+    // sign 级别的 header
+    if (signHeader != null) {
+      for (final h in signHeader) {
+        if (h is Map) {
+          final key = h['key']?.toString();
+          final values = h['values'] as List?;
+          if (key != null && values != null && values.isNotEmpty) {
+            headers[key] = values.first.toString();
+          }
+        }
+      }
+    }
+
+    // part 级别的 header（覆盖 sign 级别）
+    final rawHeaders = partInfo['header'];
+    if (rawHeaders is List) {
+      for (final h in rawHeaders) {
+        if (h is Map) {
+          final key = h['key']?.toString();
+          final values = h['values'] as List?;
+          if (key != null && values != null && values.isNotEmpty) {
+            headers[key] = values.first.toString();
+          }
+        }
+      }
+    } else if (rawHeaders is Map) {
+      for (final entry in rawHeaders.entries) {
+        final val = entry.value;
+        if (val is List && val.isNotEmpty) {
+          headers[entry.key.toString()] = val.first.toString();
+        } else if (val != null) {
+          headers[entry.key.toString()] = val.toString();
+        }
+      }
+    }
+
+    return headers;
   }
 
   /// 设置 App 前后台状态
