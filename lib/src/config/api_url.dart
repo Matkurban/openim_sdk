@@ -12,6 +12,14 @@ sealed class ChatApiUrl {
 
   // ---- Friend ----
   static const String searchFriend = '/friend/search';
+
+  // ---- Meeting / Call ----
+  static const String createMeeting = '/meeting/create';
+  static const String joinMeeting = '/meeting/join';
+  static const String leaveMeeting = '/meeting/leave';
+  static const String endMeeting = '/meeting/end';
+  static const String getMeeting = '/meeting/get';
+  static const String getActiveMeeting = '/meeting/get_active';
 }
 
 /// OpenIM 核心服务端 API 路由（对应 openim-server）

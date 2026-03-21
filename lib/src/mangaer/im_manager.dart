@@ -49,6 +49,9 @@ class IMManager {
   /// 收藏夹管理
   final FavoriteManager favoriteManager = FavoriteManager();
 
+  /// 通话管理
+  final CallManager callManager = CallManager();
+
   /// 服务监听（可选）
   OnListenerForService? _listenerForService;
 
@@ -377,6 +380,10 @@ class IMManager {
       userManager.setCurrentUserID(userID);
       momentsManager.setCurrentUserID(userID);
       favoriteManager.setCurrentUserID(userID);
+      callManager.setCurrentUserID(userID);
+      callManager.setSendSignalingFn((toUserID, data) {
+        _sendCallSignaling(toUserID, data);
+      });
       // 初始化数据库（以用户维度）
       await databaseService.switchSpace(userID: userID);
       _loginStatus = LoginStatus.logged;
@@ -405,6 +412,7 @@ class IMManager {
       );
       msgSyncer.setLoginUserID(userID);
       msgSyncer.listenerForService = _listenerForService;
+      msgSyncer.callManager = callManager;
       _msgSyncer = msgSyncer;
       final WebSocketService webSocketService = _getIt.get<WebSocketService>(
         instanceName: InstanceName.webSocketService,
@@ -534,6 +542,9 @@ class IMManager {
       _notificationDispatcher?.dispose();
       _notificationDispatcher = null;
       _msgSyncer = null;
+
+      // 清理通话管理器
+      callManager.dispose();
 
       // 清除 HTTP token
       HttpClient().setToken(null);
@@ -1090,6 +1101,25 @@ class IMManager {
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setAppBadge');
+    }
+  }
+
+  /// 发送通话信令消息（通过 OpenIM 自定义在线消息）
+  void _sendCallSignaling(String toUserID, String data) {
+    try {
+      final message = messageManager.createCustomMessage(
+        data: data,
+        extension: '',
+        description: '',
+      );
+      messageManager.sendMessage(
+        message: message,
+        offlinePushInfo: OfflinePushInfo(title: '音视频通话', desc: '您有一个新的通话邀请'),
+        userID: toUserID,
+        isOnlineOnly: true,
+      );
+    } catch (e, s) {
+      _log.error('发送信令失败', error: e, stackTrace: s, methodName: '_sendCallSignaling');
     }
   }
 

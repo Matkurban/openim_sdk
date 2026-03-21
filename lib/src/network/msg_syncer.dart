@@ -62,6 +62,8 @@ class MsgSyncer {
 
   final FavoriteManager favoriteManager;
 
+  CallManager? callManager;
+
   OnListenerForService? listenerForService;
 
   OnAdvancedMsgListener? get msgListener => messageManager.msgListener;
@@ -1659,6 +1661,15 @@ class MsgSyncer {
   /// 仅在线消息：不存储到本地，仅触发 onRecvOnlineOnlyMessage
   void _fireOnlineOnlyMessage(Map<String, dynamic> msg) {
     final message = convertMessage(msg);
+    // 拦截通话信令消息
+    if (message.contentType == MessageType.custom ||
+        message.contentType == MessageType.customMsgOnlineOnly) {
+      final customData = message.customElem?.data;
+      if (customData != null && callManager != null) {
+        final handled = callManager!.handleSignalingMessage(message.sendID ?? '', customData);
+        if (handled) return; // 信令消息已处理，不传递给普通监听器
+      }
+    }
     msgListener?.recvOnlineOnlyMessage(message);
     listenerForService?.recvOnlineOnlyMessage(message);
   }
