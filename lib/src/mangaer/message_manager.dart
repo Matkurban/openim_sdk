@@ -12,6 +12,7 @@ import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
+import 'package:openim_sdk/src/utils/sdk_isolate.dart' as isolate_util;
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 
 class MessageManager {
@@ -1548,7 +1549,10 @@ class MessageManager {
   /// [imagePath] 图片的完整路径
   /// 对应 Go SDK CreateImageMessageFromFullPath：
   /// 通过 getImageInfo 获取 width / height / type，填充 SourcePicture
-  Message createImageMessageFromFullPath({required String imagePath, String? operationID}) {
+  Future<Message> createImageMessageFromFullPath({
+    required String imagePath,
+    String? operationID,
+  }) async {
     _log.info('imagePath=$imagePath', methodName: 'createImageMessageFromFullPath');
     try {
       final file = File(imagePath);
@@ -1556,15 +1560,14 @@ class MessageManager {
       final ext = imagePath.split('.').last.toLowerCase();
       final imageType = 'image/$ext';
 
-      // 尝试读取图片宽高（对应 Go SDK 的 getImageInfo）
+      // 在后台 Isolate 中读取图片宽高（对应 Go SDK 的 getImageInfo）
       int width = 0;
       int height = 0;
       try {
-        final bytes = file.readAsBytesSync();
-        final decoded = _decodeImageDimensions(bytes);
-        if (decoded != null) {
-          width = decoded.width;
-          height = decoded.height;
+        final dims = await isolate_util.computeImageDimensionsFromFile(imagePath);
+        if (dims != null) {
+          width = dims.width;
+          height = dims.height;
         }
       } catch (e, s) {
         _log.warning(
@@ -1639,13 +1642,13 @@ class MessageManager {
   /// [duration] 时长（秒）
   /// [snapshotPath] 缩略图完整路径
   /// 对应 Go SDK CreateVideoMessageFromFullPath：获取 VideoSize、SnapshotSize/Width/Height
-  Message createVideoMessageFromFullPath({
+  Future<Message> createVideoMessageFromFullPath({
     required String videoPath,
     required String videoType,
     required int duration,
     required String snapshotPath,
     String? operationID,
-  }) {
+  }) async {
     _log.info(
       'videoPath=$videoPath, videoType=$videoType, duration=$duration',
       methodName: 'createVideoMessageFromFullPath',
@@ -1661,12 +1664,12 @@ class MessageManager {
         final snapFile = File(snapshotPath);
         if (snapFile.existsSync()) {
           snapSize = snapFile.lengthSync();
+          // 在后台 Isolate 中解析缩略图尺寸
           try {
-            final bytes = snapFile.readAsBytesSync();
-            final decoded = _decodeImageDimensions(bytes);
-            if (decoded != null) {
-              snapWidth = decoded.width;
-              snapHeight = decoded.height;
+            final dims = await isolate_util.computeImageDimensionsFromFile(snapshotPath);
+            if (dims != null) {
+              snapWidth = dims.width;
+              snapHeight = dims.height;
             }
           } catch (e, s) {
             _log.warning(
@@ -1738,7 +1741,10 @@ class MessageManager {
   /// 创建图片消息（通过字节数据，Web 平台使用）
   /// [bytes] 图片文件的字节数据
   /// [fileName] 文件名（如 "photo.jpg"）
-  Message createImageMessageFromBytes({required Uint8List bytes, required String fileName}) {
+  Future<Message> createImageMessageFromBytes({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
     _log.info(
       'fileName=$fileName, size=${bytes.length}',
       methodName: 'createImageMessageFromBytes',
@@ -1747,14 +1753,14 @@ class MessageManager {
       final ext = fileName.split('.').last.toLowerCase();
       final imageType = 'image/$ext';
 
-      // 尝试读取图片宽高
+      // 在后台 Isolate 中解析图片宽高
       int width = 0;
       int height = 0;
       try {
-        final decoded = _decodeImageDimensions(bytes);
-        if (decoded != null) {
-          width = decoded.width;
-          height = decoded.height;
+        final dims = await isolate_util.computeImageDimensions(bytes);
+        if (dims != null) {
+          width = dims.width;
+          height = dims.height;
         }
       } catch (e, s) {
         _log.warning(
@@ -1792,13 +1798,13 @@ class MessageManager {
   /// [duration] 时长（秒）
   /// [videoType] 视频 MIME 类型
   /// [snapshotBytes] 缩略图字节数据（可选）
-  Message createVideoMessageFromBytes({
+  Future<Message> createVideoMessageFromBytes({
     required Uint8List bytes,
     required String fileName,
     required int duration,
     String? videoType,
     Uint8List? snapshotBytes,
-  }) {
+  }) async {
     _log.info(
       'fileName=$fileName, size=${bytes.length}, duration=$duration',
       methodName: 'createVideoMessageFromBytes',
@@ -1811,11 +1817,12 @@ class MessageManager {
       int snapSize = 0;
       if (snapshotBytes != null) {
         snapSize = snapshotBytes.length;
+        // 在后台 Isolate 中解析缩略图尺寸
         try {
-          final decoded = _decodeImageDimensions(snapshotBytes);
-          if (decoded != null) {
-            snapWidth = decoded.width;
-            snapHeight = decoded.height;
+          final dims = await isolate_util.computeImageDimensions(snapshotBytes);
+          if (dims != null) {
+            snapWidth = dims.width;
+            snapHeight = dims.height;
           }
         } catch (_) {}
       }
@@ -2287,79 +2294,5 @@ class MessageManager {
       if (mime != null) return mime;
     }
     return 'application/octet-stream';
-  }
-
-  /// 解码图片尺寸（对应 Go SDK 的 image.Decode → Bounds）
-  /// 支持 PNG / JPEG / GIF / BMP / WEBP 头部快速解析
-  ({int width, int height})? _decodeImageDimensions(Uint8List bytes) {
-    if (bytes.length < 24) return null;
-
-    // PNG: 前 8 字节为签名，IHDR chunk 在 offset 16-23 包含 width/height (4 bytes each, big-endian)
-    if (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
-      final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-      final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
-      return (width: width, height: height);
-    }
-
-    // JPEG: 扫描 SOF 标记（0xFFC0 ~ 0xFFC3）
-    if (bytes[0] == 0xFF && bytes[1] == 0xD8) {
-      int offset = 2;
-      while (offset + 9 < bytes.length) {
-        if (bytes[offset] != 0xFF) break;
-        final marker = bytes[offset + 1];
-        if (marker >= 0xC0 && marker <= 0xC3) {
-          final height = (bytes[offset + 5] << 8) | bytes[offset + 6];
-          final width = (bytes[offset + 7] << 8) | bytes[offset + 8];
-          return (width: width, height: height);
-        }
-        final segLen = (bytes[offset + 2] << 8) | bytes[offset + 3];
-        offset += 2 + segLen;
-      }
-    }
-
-    // GIF: 'GIF' 签名, width at offset 6-7, height at offset 8-9 (little-endian)
-    if (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes.length >= 10) {
-      final width = bytes[6] | (bytes[7] << 8);
-      final height = bytes[8] | (bytes[9] << 8);
-      return (width: width, height: height);
-    }
-
-    // BMP: 'BM' 签名, width at offset 18-21, height at offset 22-25 (little-endian)
-    if (bytes[0] == 0x42 && bytes[1] == 0x4D && bytes.length >= 26) {
-      final width = bytes[18] | (bytes[19] << 8) | (bytes[20] << 16) | (bytes[21] << 24);
-      final height = (bytes[22] | (bytes[23] << 8) | (bytes[24] << 16) | (bytes[25] << 24)).abs();
-      return (width: width, height: height);
-    }
-
-    // WEBP: 'RIFF' + size + 'WEBP'
-    if (bytes[0] == 0x52 &&
-        bytes[1] == 0x49 &&
-        bytes[2] == 0x46 &&
-        bytes[3] == 0x46 &&
-        bytes[8] == 0x57 &&
-        bytes[9] == 0x45 &&
-        bytes[10] == 0x42 &&
-        bytes[11] == 0x50 &&
-        bytes.length >= 30) {
-      // VP8 lossy
-      if (bytes[12] == 0x56 && bytes[13] == 0x50 && bytes[14] == 0x38 && bytes[15] == 0x20) {
-        if (bytes.length >= 30) {
-          final width = (bytes[26] | (bytes[27] << 8)) & 0x3FFF;
-          final height = (bytes[28] | (bytes[29] << 8)) & 0x3FFF;
-          return (width: width, height: height);
-        }
-      }
-      // VP8L lossless
-      if (bytes[12] == 0x56 && bytes[13] == 0x50 && bytes[14] == 0x38 && bytes[15] == 0x4C) {
-        if (bytes.length >= 25) {
-          final bits = bytes[21] | (bytes[22] << 8) | (bytes[23] << 16) | (bytes[24] << 24);
-          final width = (bits & 0x3FFF) + 1;
-          final height = ((bits >> 14) & 0x3FFF) + 1;
-          return (width: width, height: height);
-        }
-      }
-    }
-
-    return null;
   }
 }

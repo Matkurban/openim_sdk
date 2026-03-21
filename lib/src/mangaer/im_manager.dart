@@ -3,9 +3,9 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
+import 'package:openim_sdk/src/utils/sdk_isolate.dart' as isolate_util;
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -645,32 +645,25 @@ class IMManager {
       return fileSize - partSize * (partNum - 1);
     });
 
-    // 计算分片 MD5 和文件总 MD5
-    final partMd5s = <String>[];
-    final partEtags = <String?>[];
+    // 在后台 Isolate 中批量计算所有分片的 MD5（避免阻塞主线程）
+    final partMd5s = await isolate_util.computePartMd5s(
+      isolate_util.ComputePartMd5sParam(
+        filePath: filePath,
+        fileBytes: fileBytes,
+        partSize: partSize,
+        partNum: partNum,
+        fileSize: fileSize,
+      ),
+    );
+    final partEtags = List<String?>.filled(partNum, null);
 
     for (int i = 0; i < partNum; i++) {
-      final start = i * partSize;
-      final end = (start + partSizes[i]).clamp(0, fileSize);
-      final Uint8List partBytes;
-      if (fileBytes != null) {
-        partBytes = fileBytes.sublist(start, end);
-      } else {
-        final raf = await File(filePath!).open();
-        await raf.setPosition(start);
-        partBytes = await raf.read(end - start);
-        await raf.close();
-      }
-      final partHash = md5.convert(partBytes).toString();
-      partMd5s.add(partHash);
-      partEtags.add(null);
-      _uploadFileListener?.hashPartProgress(id, i, partSizes[i], partHash);
+      _uploadFileListener?.hashPartProgress(id, i, partSizes[i], partMd5s[i]);
     }
 
-    // server 期望的 hash 是所有分片 MD5 用逗号拼接后的字符串的 MD5
-    // 对应 Go SDK: partMD5: md5.Sum([]byte(strings.Join(parts, ",")))
+    // 在后台 Isolate 中计算组合 MD5
     final String combinedHashStr = partMd5s.join(',');
-    final String hash = md5.convert(utf8.encode(combinedHashStr)).toString();
+    final String hash = await isolate_util.computeCombinedMd5(partMd5s);
     _uploadFileListener?.hashPartComplete(id, combinedHashStr, hash);
 
     // 对应 Go SDK: name 前缀为 loginUserID + "/"
@@ -789,15 +782,14 @@ class IMManager {
 
       final start = i * partSize;
       final end = (start + currentPartSize).clamp(0, fileSize);
-      // 按需读取分片数据，避免将整个文件加载到内存（对应 Go SDK io.LimitReader）
+      // 在后台 Isolate 中读取分片数据，避免阻塞主线程
       final Uint8List partBytes;
       if (fileBytes != null) {
         partBytes = fileBytes.sublist(start, end);
       } else {
-        final raf = await File(filePath!).open();
-        await raf.setPosition(start);
-        partBytes = await raf.read(end - start);
-        await raf.close();
+        partBytes = await isolate_util.readFilePart(
+          isolate_util.ReadFilePartParam(filePath: filePath!, start: start, length: end - start),
+        );
       }
 
       // 从当前缓存中寻找对应 partNumber 的签名
@@ -854,7 +846,7 @@ class IMManager {
       }
 
       // 验证 MD5（对应 Go SDK md5Reader.Md5() 校验）
-      final localMd5 = md5.convert(partBytes).toString();
+      final localMd5 = await isolate_util.computeMd5(partBytes);
       if (localMd5 != partMd5s[i]) {
         throw Exception(
           'upload part $i failed, md5 not match, expect ${partMd5s[i]}, got $localMd5',

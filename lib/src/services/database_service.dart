@@ -4,6 +4,7 @@ import 'package:openim_sdk/openim_sdk.dart';
 
 import '../db/db_schema.dart';
 import '../utils/im_convert.dart';
+import '../utils/sdk_isolate.dart' as isolate_util;
 
 /// 数据库服务层
 class DatabaseService {
@@ -755,25 +756,18 @@ class DatabaseService {
       }
     }
 
-    // 根据 Go 客户端逻辑，严格在 Dart 端过滤掉包括 startMsg 及时间更新的消息：
-    // 条件：send_time < ? OR (send_time = ? AND (seq < ? OR (seq = 0 AND client_msg_id != ?)))
-    // 注意：当 startSeq = 0 时（发送中的消息），应该包含所有 seq <= 0 的消息，
-    // 只排除 startMsg 本身（通过 clientMsgID 排除）
+    // 根据 Go 客户端逻辑，严格在 Isolate 中过滤掉包括 startMsg 及时间更新的消息：
     if (startTime > 0 && dataList.isNotEmpty) {
-      dataList = dataList.where((record) {
-        final int sendTime = record['sendTime'] ?? 0;
-        final int seq = record['seq'] ?? 0;
-        final String clientMsgID = record['clientMsgID'] ?? '';
-
-        if (sendTime < startTime) return true;
-        if (sendTime == startTime) {
-          if (startSeq > 0) return seq < startSeq;
-          // startSeq == 0 时（发送中的消息），包含所有 seq <= 0 的消息，
-          // 只排除与 startMsgID 相同的消息本身
-          return seq <= startSeq && clientMsgID != startClientMsgID;
-        }
-        return false;
-      }).toList();
+      dataList = await isolate_util.computeHistoryFilter(
+        isolate_util.HistoryFilterParam(
+          data: dataList,
+          startTime: startTime,
+          startSeq: startSeq,
+          startClientMsgID: startClientMsgID,
+          count: count,
+        ),
+      );
+      return dataList.map(convertMessage).toList();
     }
 
     return dataList.take(count).map(convertMessage).toList();
@@ -832,37 +826,20 @@ class DatabaseService {
     final batchSize = (count + offset) * 3 + 200;
     final result = await query.orderByDesc('sendTime').limit(batchSize);
 
-    var filtered = result.data.where((msg) {
-      if (keyword != null && keyword.isNotEmpty) {
-        final content = msg['content'] as String? ?? '';
-        if (!content.toLowerCase().contains(keyword.toLowerCase())) return false;
-      }
-      if (messageTypes != null && messageTypes.isNotEmpty) {
-        final ct = (msg['contentType'] as num?)?.toInt() ?? 0;
-        if (!messageTypes.contains(ct)) return false;
-      }
-      if (startTime != null && startTime > 0) {
-        final st = (msg['sendTime'] as num?)?.toInt() ?? 0;
-        if (st < startTime) return false;
-      }
-      if (endTime != null && endTime > 0) {
-        final st = (msg['sendTime'] as num?)?.toInt() ?? 0;
-        if (st > endTime) return false;
-      }
-      return true;
-    }).toList();
+    // 在后台 Isolate 中执行消息搜索过滤（字符串匹配 + 类型/时间过滤）
+    final filterResult = await isolate_util.computeSearchFilter(
+      isolate_util.SearchFilterParam(
+        data: result.data,
+        keyword: keyword,
+        messageTypes: messageTypes,
+        startTime: startTime,
+        endTime: endTime,
+        offset: offset,
+        count: count,
+      ),
+    );
 
-    // 分页
-    if (offset > 0 && offset < filtered.length) {
-      filtered = filtered.sublist(offset);
-    } else if (offset >= filtered.length) {
-      return [];
-    }
-    if (filtered.length > count) {
-      filtered = filtered.sublist(0, count);
-    }
-
-    return filtered.map(convertMessage).toList();
+    return filterResult.filtered.map(convertMessage).toList();
   }
 
   /// 标记消息已读

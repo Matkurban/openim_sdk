@@ -92,6 +92,13 @@ class MsgSyncer {
   /// 是否为重新安装（本地无数据）
   bool _reinstalled = false;
 
+  // ---- 推送消息处理队列 ----
+  /// 推送消息队列：保证顺序处理，避免并发 DB 写入竞争
+  final Queue<WebSocketResponse> _pushMsgQueue = Queue<WebSocketResponse>();
+
+  /// 队列是否正在消费中
+  bool _isDrainingPushQueue = false;
+
   /// 设置当前用户 ID
   void setLoginUserID(String userID) {
     _log.info('userID=$userID', methodName: 'setLoginUserID');
@@ -1113,110 +1120,143 @@ class MsgSyncer {
   }
 
   // ---------------------------------------------------------------------------
-  // 推送消息处理
+  // 推送消息处理（队列模式，保证顺序处理）
   // ---------------------------------------------------------------------------
 
   /// 处理来自 WebSocket 的推送消息
+  ///
+  /// 将推送消息加入队列，由 [_drainPushMsgQueue] 按顺序消费。
+  /// 这样即使消息到达速度超过处理速度，也不会产生并发 DB 写入竞争，
+  /// 且高负载时自然聚合多条推送为一次批量 DB 更新。
+  void handlePushMsg(WebSocketResponse resp) {
+    if (resp.data.isEmpty) return;
+    _pushMsgQueue.add(resp);
+    if (!_isDrainingPushQueue) {
+      _isDrainingPushQueue = true;
+      unawaited(_drainPushMsgQueue());
+    }
+  }
+
+  /// 队列消费循环：取出所有已排队的推送消息，合并为一个批次处理
+  ///
+  /// 每轮循环处理当前队列中全部消息（自然批量）；
+  /// 处理完成后若有新消息入队，则继续下一轮。
+  Future<void> _drainPushMsgQueue() async {
+    try {
+      while (_pushMsgQueue.isNotEmpty) {
+        final gapConvIDs = <String>{};
+        final convUpdates = <String, ConvBatchUpdate>{};
+
+        // 取出当前队列中所有消息，合并解析
+        while (_pushMsgQueue.isNotEmpty) {
+          final resp = _pushMsgQueue.removeFirst();
+          try {
+            _parsePushMsg(resp, convUpdates, gapConvIDs);
+          } catch (e, s) {
+            _log.error('解析推送消息失败: $e', error: e, stackTrace: s, methodName: '_drainPushMsgQueue');
+          }
+        }
+
+        // 顺序执行批量 DB 更新（await 保证完成后才处理下一批）
+        if (convUpdates.isNotEmpty || gapConvIDs.isNotEmpty) {
+          await _applyBatchUpdatesAndNotify(convUpdates, gapConvIDs);
+        }
+      }
+    } catch (e, s) {
+      _log.error('推送队列消费异常: $e', error: e, stackTrace: s, methodName: '_drainPushMsgQueue');
+    } finally {
+      _isDrainingPushQueue = false;
+    }
+  }
+
+  /// 解析单条推送消息，将结果聚合到共享的 [convUpdates] 和 [gapConvIDs]
   ///
   /// 对应 Go SDK 的 doPushMsg：
   /// 1. 解析推送体中的 msgs 和 notificationMsgs（protobuf 解码）
   /// 2. 验证 SEQ 连续性，发现缺口时触发同步
   /// 3. 存储消息并更新会话（latestMsg, unreadCount, maxSeq）
   /// 4. 触发回调通知上层
-  void handlePushMsg(WebSocketResponse resp) {
-    _log.info('called', methodName: 'handlePushMsg');
-    if (resp.data.isEmpty) return;
+  void _parsePushMsg(
+    WebSocketResponse resp,
+    Map<String, ConvBatchUpdate> convUpdates,
+    Set<String> gapConvIDs,
+  ) {
+    final pushMessages = sdkws.PushMessages.fromBuffer(resp.data);
 
-    try {
-      // resp.data 是 base64 解码后的 protobuf 字节（PushMessages）
-      final pushMessages = sdkws.PushMessages.fromBuffer(resp.data);
+    // 处理普通消息（对齐 Go SDK pushTriggerAndSync）
+    for (final entry in pushMessages.msgs.entries) {
+      final convID = entry.key;
+      final pullMsgs = entry.value;
+      final msgList = pullMsgs.msgs;
+      if (msgList.isEmpty) continue;
 
-      // 收集需要检测 SEQ 缺口的会话
-      final gapConvIDs = <String>{};
+      final localMaxSeq = _syncedMaxSeqs[convID] ?? 0;
+      int lastSeq = 0;
+      final storageMsgs = <Map<String, dynamic>>[];
 
-      // 按 conversationID 聚合的会话更新信息
-      final convUpdates = <String, ConvBatchUpdate>{};
+      for (final msg in msgList) {
+        final msgMap = _msgDataToMap(msg);
+        final seq = (msgMap['seq'] as int?) ?? 0;
 
-      // 处理普通消息（对齐 Go SDK pushTriggerAndSync）
-      for (final entry in pushMessages.msgs.entries) {
-        final convID = entry.key;
-        final pullMsgs = entry.value;
-        final msgList = pullMsgs.msgs;
-        if (msgList.isEmpty) continue;
-
-        final localMaxSeq = _syncedMaxSeqs[convID] ?? 0;
-        int lastSeq = 0;
-        final storageMsgs = <Map<String, dynamic>>[];
-
-        for (final msg in msgList) {
-          final msgMap = _msgDataToMap(msg);
-          final seq = (msgMap['seq'] as int?) ?? 0;
-
-          // seq=0 消息不参与连续性计算，直接触发（Go 同步逻辑同样如此）
-          if (seq == 0) {
-            _collectMessageUpdate(msgMap, convID, convUpdates);
-            continue;
-          }
-
-          lastSeq = seq;
-          storageMsgs.add(msgMap);
+        // seq=0 消息不参与连续性计算，直接触发（Go 同步逻辑同样如此）
+        if (seq == 0) {
+          _collectMessageUpdate(msgMap, convID, convUpdates);
+          continue;
         }
 
-        if (storageMsgs.isEmpty) continue;
-
-        final expectedLast = localMaxSeq + storageMsgs.length;
-        if (lastSeq == expectedLast) {
-          for (final msgMap in storageMsgs) {
-            _collectMessageUpdate(msgMap, convID, convUpdates);
-          }
-        } else if (lastSeq > localMaxSeq) {
-          _log.warning(
-            '检测到 SEQ 缺口: conv=$convID, local=$localMaxSeq, lastSeq=$lastSeq, expectedLast=$expectedLast',
-            methodName: 'handlePushMsg',
-          );
-          gapConvIDs.add(convID);
-        }
+        lastSeq = seq;
+        storageMsgs.add(msgMap);
       }
 
-      // 处理通知消息（同样对齐 Go SDK pushTriggerAndSync）
-      for (final entry in pushMessages.notificationMsgs.entries) {
-        final convID = entry.key;
-        final pullMsgs = entry.value;
-        final localMaxSeq = _syncedMaxSeqs[convID] ?? 0;
-        int lastSeq = 0;
-        final storageMsgs = <Map<String, dynamic>>[];
+      if (storageMsgs.isEmpty) continue;
 
-        for (final msg in pullMsgs.msgs) {
-          final msgMap = _msgDataToMap(msg);
-          final seq = (msgMap['seq'] as int?) ?? 0;
-          if (seq == 0) {
-            unawaited(_processNotificationMessage(msgMap, convID));
-            continue;
-          }
-          lastSeq = seq;
-          storageMsgs.add(msgMap);
+      final expectedLast = localMaxSeq + storageMsgs.length;
+      if (lastSeq == expectedLast) {
+        for (final msgMap in storageMsgs) {
+          _collectMessageUpdate(msgMap, convID, convUpdates);
         }
+      } else if (lastSeq > localMaxSeq) {
+        _log.warning(
+          '检测到 SEQ 缺口: conv=$convID, local=$localMaxSeq, lastSeq=$lastSeq, expectedLast=$expectedLast',
+          methodName: '_parsePushMsg',
+        );
+        gapConvIDs.add(convID);
+      }
+    }
 
-        if (storageMsgs.isEmpty) continue;
+    // 处理通知消息（同样对齐 Go SDK pushTriggerAndSync）
+    for (final entry in pushMessages.notificationMsgs.entries) {
+      final convID = entry.key;
+      final pullMsgs = entry.value;
+      final localMaxSeq = _syncedMaxSeqs[convID] ?? 0;
+      int lastSeq = 0;
+      final storageMsgs = <Map<String, dynamic>>[];
 
-        final expectedLast = localMaxSeq + storageMsgs.length;
-        if (lastSeq == expectedLast) {
-          for (final msgMap in storageMsgs) {
-            unawaited(_processNotificationMessage(msgMap, convID));
-          }
-        } else if (lastSeq > localMaxSeq) {
-          _log.warning(
-            '检测到通知 SEQ 缺口: conv=$convID, local=$localMaxSeq, lastSeq=$lastSeq, expectedLast=$expectedLast',
-            methodName: 'handlePushMsg',
-          );
-          gapConvIDs.add(convID);
+      for (final msg in pullMsgs.msgs) {
+        final msgMap = _msgDataToMap(msg);
+        final seq = (msgMap['seq'] as int?) ?? 0;
+        if (seq == 0) {
+          unawaited(_processNotificationMessage(msgMap, convID));
+          continue;
         }
+        lastSeq = seq;
+        storageMsgs.add(msgMap);
       }
 
-      // 批量写入会话更新 + 触发缺口同步和 UI 通知
-      _applyBatchUpdatesAndNotify(convUpdates, gapConvIDs);
-    } catch (e, s) {
-      _log.error('处理推送消息失败: $e', error: e, stackTrace: s, methodName: 'handlePushMsg');
+      if (storageMsgs.isEmpty) continue;
+
+      final expectedLast = localMaxSeq + storageMsgs.length;
+      if (lastSeq == expectedLast) {
+        for (final msgMap in storageMsgs) {
+          unawaited(_processNotificationMessage(msgMap, convID));
+        }
+      } else if (lastSeq > localMaxSeq) {
+        _log.warning(
+          '检测到通知 SEQ 缺口: conv=$convID, local=$localMaxSeq, lastSeq=$lastSeq, expectedLast=$expectedLast',
+          methodName: '_parsePushMsg',
+        );
+        gapConvIDs.add(convID);
+      }
     }
   }
 

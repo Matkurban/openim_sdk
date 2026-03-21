@@ -11,3 +11,4 @@ kurban_open_im/
 build/
 .flutter-plugins-dependencies
 openim_sdk.iml
+devtools_options.yaml

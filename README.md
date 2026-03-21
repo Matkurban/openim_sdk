@@ -90,7 +90,7 @@ final userInfo = await OpenIM.iMManager.loginByAccount(
 );
 
 // ── 自动登录（使用缓存的 token）──
-final userInfo = await OpenIM.iMManager.loadLoginConfig();
+final loginStatus = await OpenIM.iMManager.loadLoginConfig();
 
 // ── 登出 ──
 await OpenIM.iMManager.logout();
@@ -293,7 +293,7 @@ final results = await OpenIM.iMManager.friendshipManager.searchFriends(
 
 ## 环境要求
 
-- Dart SDK: `^3.11.1`
+- Dart SDK: `^3.10.0`
 - Flutter: 3.x+（使用 Flutter 时）
 
 ## 许可证
