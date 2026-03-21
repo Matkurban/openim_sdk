@@ -864,8 +864,28 @@ class MessageManager {
     final isGroupMsg = groupID != null && groupID.isNotEmpty;
     final sessionType = isGroupMsg ? ConversationType.superGroup : ConversationType.single;
 
+    // 填充发送者信息（对应 Go SDK initBasicInfo + checkID）
+    String? senderNickname;
+    String? senderFaceUrl;
+    final loginUser = await _database.getLoginUser();
+    if (loginUser != null) {
+      senderNickname = loginUser.nickname;
+      senderFaceUrl = loginUser.faceURL;
+    }
+    // 群消息优先使用群成员昵称（对应 Go SDK checkID 中的 GetGroupMemberInfoByGroupIDUserID）
+    if (isGroupMsg) {
+      try {
+        final gm = await _database.getGroupMember(groupID, _currentUserID);
+        if (gm != null && gm.nickname != null && gm.nickname!.isNotEmpty) {
+          senderNickname = gm.nickname;
+        }
+      } catch (_) {}
+    }
+
     final sendMsg = message.copyWith(
       sendID: _currentUserID,
+      senderNickname: senderNickname,
+      senderFaceUrl: senderFaceUrl,
       recvID: userID,
       groupID: groupID,
       sessionType: sessionType,

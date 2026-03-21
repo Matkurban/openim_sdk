@@ -350,11 +350,9 @@ class DatabaseService {
 
   /// 获取指定群成员信息
   Future<GroupMembersInfo?> getGroupMember(String groupID, String userID) async {
-    final data = await toStore
-        .query(DbTableName.localGroupMember)
-        .whereEqual('groupID', groupID)
-        .whereEqual('userID', userID)
-        .first();
+    // ToStore 3.0.8 复合唯一索引 bug 绕过：只用首字段查询，Dart 层过滤第二字段
+    final result = await toStore.query(DbTableName.localGroupMember).whereEqual('groupID', groupID);
+    final data = result.data.where((r) => r['userID'] == userID).firstOrNull;
     return data != null ? _convertGroupMembersInfo(data) : null;
   }
 
@@ -373,10 +371,11 @@ class DatabaseService {
 
   /// 删除群成员
   Future<DbResult> deleteGroupMember(String groupID, String userID) async {
-    return toStore
-        .delete(DbTableName.localGroupMember)
-        .whereEqual('groupID', groupID)
-        .whereEqual('userID', userID);
+    // ToStore 3.0.8 复合唯一索引 bug 绕过：先查 PK 再按 PK 删除
+    final result = await toStore.query(DbTableName.localGroupMember).whereEqual('groupID', groupID);
+    final row = result.data.where((r) => r['userID'] == userID).firstOrNull;
+    if (row == null) return DbResult.success(message: 'Not found');
+    return toStore.delete(DbTableName.localGroupMember).whereEqual('id', row['id']);
   }
 
   /// 删除群组的所有成员
@@ -1350,11 +1349,11 @@ class DatabaseService {
   // ---------------------------------------------------------------------------
 
   Future<Map<String, dynamic>?> getVersionSync(String tableName, String entityID) async {
-    return toStore
+    // ToStore 3.0.8 复合唯一索引 bug 绕过
+    final result = await toStore
         .query(DbTableName.localVersionSync)
-        .whereEqual('tableName', tableName)
-        .whereEqual('entityID', entityID)
-        .first();
+        .whereEqual('tableName', tableName);
+    return result.data.where((r) => r['entityID'] == entityID).firstOrNull;
   }
 
   Future<DbResult> setVersionSync({
@@ -1383,17 +1382,14 @@ class DatabaseService {
       // 由于 localVersionSync 使用 timestampBased 的主键（id），toStore.upsert 不能可靠地按唯一索引
       // (tableName, entityID) 合并。为避免反复触发 unique constraint（且确保版本能正确推进），
       // 这里显式做存在性判断：存在则 update，不存在才 upsert。
-      final existing = await toStore
+      // ToStore 3.0.8 复合唯一索引 bug 绕过
+      final queryResult = await toStore
           .query(DbTableName.localVersionSync)
-          .whereEqual('tableName', tableName)
-          .whereEqual('entityID', entityID)
-          .first();
+          .whereEqual('tableName', tableName);
+      final existing = queryResult.data.where((r) => r['entityID'] == entityID).firstOrNull;
 
       if (existing != null) {
-        return toStore
-            .update(DbTableName.localVersionSync, data)
-            .whereEqual('tableName', tableName)
-            .whereEqual('entityID', entityID);
+        return toStore.update(DbTableName.localVersionSync, data).whereEqual('id', existing['id']);
       }
 
       return toStore.upsert(DbTableName.localVersionSync, data);
@@ -1411,10 +1407,13 @@ class DatabaseService {
   }
 
   Future<DbResult> deleteVersionSync(String tableName, String entityID) async {
-    return toStore
-        .delete(DbTableName.localVersionSync)
-        .whereEqual('tableName', tableName)
-        .whereEqual('entityID', entityID);
+    // ToStore 3.0.8 复合唯一索引 bug 绕过
+    final result = await toStore
+        .query(DbTableName.localVersionSync)
+        .whereEqual('tableName', tableName);
+    final row = result.data.where((r) => r['entityID'] == entityID).firstOrNull;
+    if (row == null) return DbResult.success(message: 'Not found');
+    return toStore.delete(DbTableName.localVersionSync).whereEqual('id', row['id']);
   }
 
   // ---------------------------------------------------------------------------
