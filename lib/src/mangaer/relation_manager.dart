@@ -232,8 +232,6 @@ class FriendshipManager {
       }
 
       await _database.removeBlack(userID);
-      _log.info('已移除黑名单: $userID', methodName: 'removeBlacklist');
-
       listener?.blackDeleted(BlacklistInfo(ownerUserID: _currentUserID, blockUserID: userID));
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'removeBlacklist');

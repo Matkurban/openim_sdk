@@ -80,11 +80,11 @@ class MsgSyncer {
 
   late String _userID;
 
-  /// 每个会话已同步的最大 seq
+  /// 每个会话已同步的最大 seq（从消息表加载，对齐 Go SDK syncedMaxSeqs）
   final Map<String, int> _syncedMaxSeqs = {};
 
-  /// 同步前本地已有的 maxSeq（用于计算消息缺口）
-  final Map<String, int> _localMaxSeqsBeforeSync = {};
+  /// 服务端各会话的最大 seq（由 _syncConversationsAndSeqs 填充，对齐 Go SDK GetMaxSeq 返回值）
+  final Map<String, int> _serverMaxSeqs = {};
 
   /// 是否正在同步
   bool _isSyncing = false;
@@ -211,11 +211,15 @@ class MsgSyncer {
   }
 
   /// 从本地数据库加载已同步的 seq
+  ///
+  /// 对齐 Go SDK LoadSeq：从消息表读取 MAX(seq) 作为 syncedMaxSeqs，
+  /// 而非会话表的 maxSeq。后者是服务端声明值，可能在消息拉取不完整时已提前推进，
+  /// 导致后续同步无法检测到缺口。
   Future<void> _loadSeqs() async {
     _log.info('called', methodName: '_loadSeqs');
     try {
       _syncedMaxSeqs.clear();
-      _localMaxSeqsBeforeSync.clear();
+      _serverMaxSeqs.clear();
 
       // 对齐 Go：使用持久化 Installed 标记判定重装
       final installedInfo = await database.getVersionSync('app_sdk_version', 'app');
@@ -224,14 +228,14 @@ class MsgSyncer {
 
       final conversations = await database.getAllConversations();
 
-      // 批量获取所有会话的 maxSeq（一次查询代替 N 次逐个查询）
+      // 对齐 Go SDK CheckConversationNormalMsgSeq：从消息表读取实际已存储的 MAX(seq)
       if (conversations.isNotEmpty) {
-        final allSeqs = await database.getAllConversationMaxSeqs();
+        final convIDs = conversations.map((c) => c.conversationID).toList();
+        final allSeqs = await database.getAllConversationNormalMsgMaxSeqs(convIDs);
         for (final conv in conversations) {
           final conversationID = conv.conversationID;
           final maxSeq = allSeqs[conversationID] ?? 0;
           _syncedMaxSeqs[conversationID] = maxSeq;
-          _localMaxSeqsBeforeSync[conversationID] = maxSeq;
         }
       }
 
@@ -239,7 +243,6 @@ class MsgSyncer {
       final notificationSeqs = await database.getAllNotificationSeqs();
       for (final entry in notificationSeqs.entries) {
         _syncedMaxSeqs[entry.key] = entry.value;
-        _localMaxSeqsBeforeSync[entry.key] = entry.value;
       }
       _log.info('已加载 ${_syncedMaxSeqs.length} 个会话的 seq', methodName: '_loadSeqs');
     } catch (e, s) {
@@ -263,9 +266,6 @@ class MsgSyncer {
       // 1. 先获取本地所有会话 ID（用于比较哪些是新增的）
       final localConvs = await database.getAllConversations();
       final localConvIDs = localConvs.map((c) => c.conversationID).toSet();
-      final localConvMap = <String, ConversationInfo>{
-        for (final c in localConvs) c.conversationID: c,
-      };
       _log.info(
         '本地会话数: ${localConvIDs.length}, reinstalled: $_reinstalled',
         methodName: '_syncConversationsAndSeqs',
@@ -330,7 +330,8 @@ class MsgSyncer {
                 conv['unreadCount'] = unread;
                 conv['maxSeq'] = maxSeq;
                 conv['hasReadSeq'] = hasReadSeq;
-                _syncedMaxSeqs[convID] = maxSeq;
+                // 记录服务端 maxSeq，不污染 _syncedMaxSeqs（后者仅在消息实际拉取后推进）
+                _serverMaxSeqs[convID] = maxSeq;
               }
             }
 
@@ -394,7 +395,8 @@ class MsgSyncer {
               conv['unreadCount'] = unread;
               conv['maxSeq'] = maxSeq;
               conv['hasReadSeq'] = hasReadSeq;
-              _syncedMaxSeqs[convID] = maxSeq;
+              // 记录服务端 maxSeq（新增会话本地消息为 0，后续 _syncMessages 会检测到缺口）
+              _serverMaxSeqs[convID] = maxSeq;
             }
           }
 
@@ -411,19 +413,16 @@ class MsgSyncer {
           if (seqInfo is Map<String, dynamic>) {
             final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
             final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
-            final localMaxSeq = _syncedMaxSeqs[convID] ?? 0;
-            final localUnreadCount = localConvMap[convID]?.unreadCount ?? 0;
 
             // Go 行为：如果 hasReadSeq 变化（即用户已读推进），也需要刷新 unreadCount。
             final serverUnreadCount = (maxSeq - hasReadSeq).clamp(0, maxSeq);
-            if (maxSeq != localMaxSeq || serverUnreadCount != localUnreadCount) {
-              await database.updateConversation(convID, {
-                'maxSeq': maxSeq,
-                'hasReadSeq': hasReadSeq,
-                'unreadCount': serverUnreadCount,
-              });
-              _syncedMaxSeqs[convID] = maxSeq;
-            }
+            await database.updateConversation(convID, {
+              'maxSeq': maxSeq,
+              'hasReadSeq': hasReadSeq,
+              'unreadCount': serverUnreadCount,
+            });
+            // 记录服务端 maxSeq，不更新 _syncedMaxSeqs（后者由 _loadSeqs 从消息表加载）
+            _serverMaxSeqs[convID] = maxSeq;
           }
         }
 
@@ -693,21 +692,22 @@ class MsgSyncer {
 
   /// 同步消息（拉取缺口）
   ///
-  /// 对应 Go SDK 的 compareSeqsAndBatchSync → syncAndTriggerMsgs / syncAndTriggerReinstallMsgs：
-  /// - connectPullNums = 1：每个会话拉最新 1 条（用于 latestMsg）
-  /// - SplitPullMsgNum = 100：累计超过 100 条时分批拉取
+  /// 对齐 Go SDK 的 compareSeqsAndBatchSync → syncAndTriggerMsgs / syncAndTriggerReinstallMsgs：
+  /// - _serverMaxSeqs 来自 _syncConversationsAndSeqs（对应 Go SDK GetMaxSeq 返回值）
+  /// - _syncedMaxSeqs 来自 _loadSeqs（从消息表读取，对应 Go SDK syncedMaxSeqs）
+  /// - 比较两者差异确定需要拉取的消息范围
   /// - 重装时跳过 n_ 通知会话(Go SDK: 直接记录 seq 不拉取)
   Future<void> _syncMessages() async {
     _log.info('called', methodName: '_syncMessages');
     try {
-      if (_syncedMaxSeqs.isEmpty) return;
+      if (_serverMaxSeqs.isEmpty) return;
 
       final needSyncSeqs = <String, List<int>>{};
 
-      for (final entry in _syncedMaxSeqs.entries) {
+      for (final entry in _serverMaxSeqs.entries) {
         final convID = entry.key;
         final serverMaxSeq = entry.value;
-        final localMaxSeq = _localMaxSeqsBeforeSync[convID] ?? 0;
+        final localMaxSeq = _syncedMaxSeqs[convID] ?? 0;
 
         if (_reinstalled) {
           if (convID.startsWith('n_')) {

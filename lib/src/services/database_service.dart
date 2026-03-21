@@ -217,11 +217,20 @@ class DatabaseService {
   }
 
   /// 移除黑名单
+  ///
+  /// ToStore 3.0.8 复合唯一索引 bug 绕过：
+  /// 多条件 query/delete 会触发 indexScan，_performIndexScan 仅取第一字段构建复合键，
+  /// 导致 normalizeValues(scalar, 2) 返回 null → 空结果。
+  /// 解决方法：只用单字段 ownerUserID 查询（走 table scan），在 Dart 层过滤 blockUserID，
+  /// 再按主键 id 删除（主键路径不经过 _performIndexScan）。
   Future<DbResult> removeBlack(String blockUserID) async {
-    return toStore
-        .delete(DbTableName.localBlack)
-        .whereEqual('ownerUserID', _currentUserID)
-        .whereEqual('blockUserID', blockUserID);
+    final result = await toStore
+        .query(DbTableName.localBlack)
+        .whereEqual('ownerUserID', _currentUserID);
+    final matching = result.data.where((r) => r['blockUserID'] == blockUserID);
+    if (matching.isEmpty) return DbResult.success(message: 'Not found');
+    final id = matching.first['id'];
+    return toStore.delete(DbTableName.localBlack).whereEqual('id', id);
   }
 
   /// 批量插入/更新黑名单
@@ -997,6 +1006,27 @@ class DatabaseService {
   /// 批量获取所有会话的 maxSeq（单次查询）
   Future<Map<String, int>> getAllConversationMaxSeqs() async {
     final result = await toStore.query(DbTableName.localConversation);
+    final seqs = <String, int>{};
+    for (final row in result.data) {
+      final convID = row['conversationID'] as String?;
+      if (convID != null) {
+        seqs[convID] = (row['maxSeq'] as num?)?.toInt() ?? 0;
+      }
+    }
+    return seqs;
+  }
+
+  /// 批量从消息表获取每个会话实际已存储的最大 seq
+  ///
+  /// 对齐 Go SDK CheckConversationNormalMsgSeq：从消息表读取 MAX(seq)，
+  /// 而非会话表的 maxSeq（后者可能在消息拉取失败时已提前推进）。
+  Future<Map<String, int>> getAllConversationNormalMsgMaxSeqs(List<String> conversationIDs) async {
+    if (conversationIDs.isEmpty) return {};
+    final result = await toStore
+        .query(DbTableName.localChatLog)
+        .whereIn('conversationID', conversationIDs)
+        .select(['conversationID', Agg.max('seq', alias: 'maxSeq')])
+        .groupBy(['conversationID']);
     final seqs = <String, int>{};
     for (final row in result.data) {
       final convID = row['conversationID'] as String?;

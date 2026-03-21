@@ -1010,6 +1010,7 @@ class NotificationDispatcher {
     }
   }
 
+  /// 全量同步黑名单（对齐 Go SDK SyncAllBlackList：三路 diff）
   Future<void> _syncBlackList() async {
     _log.info('called', methodName: '_syncBlackList');
     try {
@@ -1017,12 +1018,14 @@ class NotificationDispatcher {
       if (resp.errCode != 0) return;
       final blacks = resp.data?['blacks'] as List? ?? [];
       final batch = <Map<String, dynamic>>[];
+      final serverBlockIDs = <String>{};
       for (final b in blacks) {
         if (b is! Map<String, dynamic>) continue;
         // 对齐 Go SDK ServerBlackToLocalBlack：展平嵌套的 blackUserInfo
         final blackUserInfo = b['blackUserInfo'] as Map<String, dynamic>? ?? const {};
         final blockUserID = (blackUserInfo['userID'] ?? b['blockUserID'])?.toString();
         if (blockUserID == null || blockUserID.isEmpty) continue;
+        serverBlockIDs.add(blockUserID);
         batch.add({
           'ownerUserID': b['ownerUserID'] ?? _userID,
           'blockUserID': blockUserID,
@@ -1034,6 +1037,16 @@ class NotificationDispatcher {
           'ex': b['ex'],
         });
       }
+
+      // 删除本地多余条目（服务端已不存在的），对齐 Go SDK blackSyncer.Delete
+      final localBlacks = await database.getBlackList();
+      for (final local in localBlacks) {
+        final id = local.blockUserID;
+        if (id != null && !serverBlockIDs.contains(id)) {
+          await database.removeBlack(id);
+        }
+      }
+
       if (batch.isNotEmpty) {
         await database.batchUpsertBlacks(batch);
       }
