@@ -1122,6 +1122,20 @@ class NotificationDispatcher {
         await database.batchUpsertGroups(allGroups);
       }
 
+      // 对齐 Go SDK syncer WithNotice 回调：已解散群需清理成员 + 标记会话 + 触发回调
+      for (final g in allGroups) {
+        final gid = g['groupID']?.toString();
+        if (gid == null || gid.isEmpty) continue;
+        final status = (g['status'] as num?)?.toInt() ?? 0;
+        if (status == GroupStatus.dismissed.value) {
+          await database.deleteGroupAllMembers(gid);
+          final convID = OpenImUtils.genGroupConversationID(gid);
+          await database.updateConversation(convID, {'isNotInGroup': true});
+          groupListener?.groupDismissed(GroupInfo.fromJson(g));
+          affectedGroupIDs.remove(gid);
+        }
+      }
+
       // 为了尽量减少“本地补丁”，对增量里出现变化的群拉取成员列表收敛
       for (final groupID in affectedGroupIDs) {
         if (groupID.isEmpty) continue;
@@ -1193,6 +1207,16 @@ class NotificationDispatcher {
         }
         if (groupMaps.isNotEmpty) {
           await database.batchUpsertGroups(groupMaps);
+          // 对齐 Go SDK：如果群已解散，清理成员 + 标记会话 + 触发回调
+          final first = groupMaps.first;
+          final status = (first['status'] as num?)?.toInt() ?? 0;
+          if (status == GroupStatus.dismissed.value) {
+            await database.deleteGroupAllMembers(groupID);
+            final convID = OpenImUtils.genGroupConversationID(groupID);
+            await database.updateConversation(convID, {'isNotInGroup': true});
+            groupListener?.groupDismissed(GroupInfo.fromJson(first));
+            return;
+          }
         }
       }
       await _syncGroupMembersForGroup(groupID);
