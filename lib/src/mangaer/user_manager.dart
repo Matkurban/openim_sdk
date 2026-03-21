@@ -79,10 +79,13 @@ class UserManager {
     try {
       if (userIDList.isEmpty) return [];
       final resp = await _api.getUsersInfo(userIDs: userIDList);
-      if (resp.errCode == 0 && resp.data is List) {
-        return (resp.data as List).map((v) => UserInfo.fromJson(v)).toList();
+      if (resp.errCode != 0) {
+        throw Exception(
+          '从服务器获取用户信息失败: errCode=${resp.errCode}, errMsg=${resp.errMsg}, errDlt=${resp.errDlt}',
+        );
       }
-      throw Exception('从服务器获取用户信息失败: ${resp.errMsg}');
+      final users = resp.data?['usersInfo'] as List? ?? [];
+      return users.map((v) => UserInfo.fromJson(v as Map<String, dynamic>)).toList();
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getUsersInfoFromSrv');
       rethrow;
