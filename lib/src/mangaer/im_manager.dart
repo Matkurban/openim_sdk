@@ -381,8 +381,8 @@ class IMManager {
       momentsManager.setCurrentUserID(userID);
       favoriteManager.setCurrentUserID(userID);
       callManager.setCurrentUserID(userID);
-      callManager.setSendSignalingFn((toUserID, data) {
-        _sendCallSignaling(toUserID, data);
+      callManager.setSendSignalingFn((toUserID, data, {bool isInvite = false}) {
+        _sendCallSignaling(toUserID, data, isInvite: isInvite);
       });
       // 初始化数据库（以用户维度）
       await databaseService.switchSpace(userID: userID);
@@ -1104,8 +1104,11 @@ class IMManager {
     }
   }
 
-  /// 发送通话信令消息（通过 OpenIM 自定义在线消息）
-  void _sendCallSignaling(String toUserID, String data) {
+  /// 发送通话信令消息（通过 OpenIM 自定义消息）
+  ///
+  /// [isInvite] 为 true 时，启用服务端持久化 + 离线推送，
+  /// 确保被叫方即使不在线也能收到来电通知。
+  void _sendCallSignaling(String toUserID, String data, {bool isInvite = false}) {
     try {
       final message = messageManager.createCustomMessage(
         data: data,
@@ -1117,6 +1120,10 @@ class IMManager {
         offlinePushInfo: OfflinePushInfo(title: '音视频通话', desc: '您有一个新的通话邀请'),
         userID: toUserID,
         isOnlineOnly: true,
+        // 邀请信令需要服务端持久化 + 离线推送，
+        // 确保离线用户上线后能收到来电。
+        // 同时不更新会话列表、不计未读、不存历史。
+        messageOptions: isInvite ? const {'persistent': true, 'offlinePush': true} : null,
       );
     } catch (e, s) {
       _log.error('发送信令失败', error: e, stackTrace: s, methodName: '_sendCallSignaling');

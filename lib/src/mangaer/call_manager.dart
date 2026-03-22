@@ -52,6 +52,11 @@ class CallManager {
   /// 被呼叫超时定时器（收到来电后的超时）
   Timer? _incomingTimer;
 
+  /// 正在进行中的后端清理 Future，invite() 会先等待它完成，
+  /// 防止上次通话的 _endMeeting/_leaveMeeting 尚未执行完毕
+  /// 导致 CreateMeeting 返回 "user already in room" 错误。
+  Future<void>? _pendingCleanup;
+
   late String _currentUserID;
 
   /// 获取当前通话会话（只读）
@@ -93,6 +98,12 @@ class CallManager {
       'inviteeUserIDs=$inviteeUserIDs, callType=${callType.value}, timeout=$timeout',
       methodName: 'invite',
     );
+
+    // 等待上一次通话的后端清理完成
+    if (_pendingCleanup != null) {
+      await _pendingCleanup;
+      _pendingCleanup = null;
+    }
 
     if (_currentSession != null) {
       throw StateError('已在通话中，请先结束当前通话');
@@ -363,6 +374,17 @@ class CallManager {
   }
 
   void _handleInvite(String senderUserID, CallSignaling signaling) {
+    // 检查邀请是否已过期（离线用户上线后收到的持久化消息可能已超时）
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final elapsed = now - signaling.timestamp;
+    if (elapsed > signaling.timeout * 1000) {
+      _log.info(
+        '邀请已过期 (elapsed=${elapsed}ms, timeout=${signaling.timeout}s), 忽略',
+        methodName: '_handleInvite',
+      );
+      return;
+    }
+
     // 如果已经在通话中，回复忙线
     if (_currentSession != null) {
       final busySignaling = signaling.copyWith(
@@ -421,6 +443,7 @@ class CallManager {
     // 对于1对1通话，拒绝就结束
     if (!session.isGroupCall) {
       _cancelInviteTimer();
+      _pendingCleanup = _endMeeting(roomID: session.roomID, userID: _currentUserID);
       _cleanupSession();
       _callListener?.onCallEnded?.call(session);
     } else {
@@ -428,6 +451,7 @@ class CallManager {
       if (session.rejectedUserIDs.length >= session.inviteeUserIDs.length &&
           session.acceptedUserIDs.isEmpty) {
         _cancelInviteTimer();
+        _pendingCleanup = _endMeeting(roomID: session.roomID, userID: _currentUserID);
         _cleanupSession();
         _callListener?.onCallEnded?.call(session);
       }
@@ -439,6 +463,7 @@ class CallManager {
     if (session == null || session.roomID != signaling.roomID) return;
 
     _cancelIncomingTimer();
+    // 被叫收到取消信令；如果被叫此前已加入会议（不应该但防御性处理），也清理
     final cancelledSession = session;
     _cleanupSession();
     _callListener?.onCallCancelled?.call(cancelledSession);
@@ -454,6 +479,7 @@ class CallManager {
       if (senderUserID == session.inviterUserID) {
         _cancelInviteTimer();
         _cancelIncomingTimer();
+        _pendingCleanup = _leaveMeeting(roomID: session.roomID, userID: _currentUserID);
         _cleanupSession();
         _callListener?.onCallEnded?.call(session);
       }
@@ -462,6 +488,11 @@ class CallManager {
       // 1对1通话，任何一方挂断都结束
       _cancelInviteTimer();
       _cancelIncomingTimer();
+      if (session.inviterUserID == _currentUserID) {
+        _pendingCleanup = _endMeeting(roomID: session.roomID, userID: _currentUserID);
+      } else {
+        _pendingCleanup = _leaveMeeting(roomID: session.roomID, userID: _currentUserID);
+      }
       _cleanupSession();
       _callListener?.onCallEnded?.call(session);
     }
@@ -476,8 +507,7 @@ class CallManager {
     // 1对1通话中，对方忙线则结束
     if (!session.isGroupCall) {
       _cancelInviteTimer();
-      // 通知后端清理房间
-      _endMeeting(roomID: session.roomID, userID: _currentUserID).catchError((_) {});
+      _pendingCleanup = _endMeeting(roomID: session.roomID, userID: _currentUserID);
       _cleanupSession();
     }
   }
@@ -517,7 +547,7 @@ class CallManager {
       }
 
       // 通知后端结束
-      _endMeeting(roomID: session.roomID, userID: _currentUserID);
+      _pendingCleanup = _endMeeting(roomID: session.roomID, userID: _currentUserID);
 
       _cleanupSession();
       _callListener?.onCallTimeout?.call(session);
@@ -565,14 +595,14 @@ class CallManager {
 
     // 使用 MessageManager 发送自定义在线消息
     // 由 IMManager 注入的发送方法
-    _sendSignalingFn?.call(toUserID, payload);
+    _sendSignalingFn?.call(toUserID, payload, isInvite: signaling.action == SignalAction.invite);
   }
 
   /// 发送信令消息的回调，由 IMManager 注入
-  void Function(String toUserID, String data)? _sendSignalingFn;
+  void Function(String toUserID, String data, {bool isInvite})? _sendSignalingFn;
 
   /// 设置信令发送回调（内部使用）
-  void setSendSignalingFn(void Function(String toUserID, String data) fn) {
+  void setSendSignalingFn(void Function(String toUserID, String data, {bool isInvite}) fn) {
     _sendSignalingFn = fn;
   }
 
@@ -594,7 +624,7 @@ class CallManager {
       },
     );
     if (resp.errCode != 0) {
-      throw Exception('创建会议失败: ${resp.errMsg}');
+      throw Exception('创建会议失败: ${resp.errMsg}${resp.errDlt.isNotEmpty ? ' (${resp.errDlt})' : ''}');
     }
     return CreateMeetingResult.fromJson(resp.data as Map<String, dynamic>);
   }
@@ -636,6 +666,7 @@ class CallManager {
   void dispose() {
     _cancelInviteTimer();
     _cancelIncomingTimer();
+    _pendingCleanup = null;
     _currentSession = null;
     _callListener = null;
     _sendSignalingFn = null;

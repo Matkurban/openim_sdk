@@ -851,12 +851,14 @@ class MessageManager {
   /// [userID] 接收者用户ID
   /// [groupID] 接收群组ID
   /// [isOnlineOnly] 是否仅在线发送
+  /// [messageOptions] 自定义消息选项，会在 isOnlineOnly 之后应用，可覆盖单个标志
   Future<Message> sendMessage({
     required Message message,
     required OfflinePushInfo offlinePushInfo,
     String? userID,
     String? groupID,
     bool isOnlineOnly = false,
+    Map<String, bool>? messageOptions,
   }) async {
     _log.info(
       'clientMsgID=${message.clientMsgID}, contentType=${message.contentType}, userID=$userID, groupID=$groupID, isOnlineOnly=$isOnlineOnly',
@@ -940,6 +942,7 @@ class MessageManager {
         conversationID,
         sessionType,
         isOnlineOnly,
+        messageOptions: messageOptions,
       );
       return sentMsg;
     } on OpenIMException {
@@ -2113,15 +2116,16 @@ class MessageManager {
     Message message,
     String conversationID,
     ConversationType sessionType,
-    bool isOnlineOnly,
-  ) async {
+    bool isOnlineOnly, {
+    Map<String, bool>? messageOptions,
+  }) async {
     _log.info(
       'conversationID=$conversationID, clientMsgID=${message.clientMsgID}',
       methodName: '_sendMsgViaWebSocket',
     );
     try {
       // 1. 构建 MsgData protobuf
-      final msgData = _buildMsgData(message, isOnlineOnly);
+      final msgData = _buildMsgData(message, isOnlineOnly, messageOptions: messageOptions);
 
       // 2. 序列化为 protobuf 字节
       final msgDataBytes = msgData.writeToBuffer();
@@ -2180,7 +2184,7 @@ class MessageManager {
 
   /// 构建 MsgData protobuf
   /// 对应 sdkws.proto 中的 MsgData 消息
-  sdkws.MsgData _buildMsgData(Message msg, bool isOnlineOnly) {
+  sdkws.MsgData _buildMsgData(Message msg, bool isOnlineOnly, {Map<String, bool>? messageOptions}) {
     // 提取消息内容为字节（JSON 编码的 Elem）
     final contentJson = _extractContent(msg);
     final contentBytes = utf8.encode(contentJson);
@@ -2202,7 +2206,7 @@ class MessageManager {
     );
 
     // 添加离线推送信息
-    if (msg.offlinePush != null && !isOnlineOnly) {
+    if (msg.offlinePush != null && (!isOnlineOnly || messageOptions?['offlinePush'] == true)) {
       msgData.offlinePushInfo = _buildOfflinePushInfo(msg.offlinePush!);
     }
 
@@ -2217,6 +2221,13 @@ class MessageManager {
         MapEntry('unreadCount', false),
         MapEntry('offlinePush', false),
       ]);
+    }
+
+    // 自定义选项覆盖（在 isOnlineOnly 之后应用，可重新开启某些标志）
+    if (messageOptions != null) {
+      for (final entry in messageOptions.entries) {
+        msgData.options[entry.key] = entry.value;
+      }
     }
 
     return msgData;

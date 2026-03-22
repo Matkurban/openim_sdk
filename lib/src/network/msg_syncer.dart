@@ -1654,6 +1654,15 @@ class MsgSyncer {
   /// 与从数据库加载消息走同一条路径，确保 textElem 等字段正确填充。
   void _fireNewMessage(Map<String, dynamic> msg) {
     final message = convertMessage(msg);
+    // 拦截通话信令消息（invite 使用 persistent=true 发送，
+    // 离线用户上线后会通过此路径收到）
+    if (message.contentType == MessageType.custom) {
+      final customData = message.customElem?.data;
+      if (customData != null && callManager != null) {
+        final handled = callManager!.handleSignalingMessage(message.sendID ?? '', customData);
+        if (handled) return; // 信令消息已处理，不传递给普通监听器
+      }
+    }
     msgListener?.recvNewMessage(message);
     listenerForService?.recvNewMessage(message);
   }
