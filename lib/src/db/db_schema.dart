@@ -107,7 +107,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'ex', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['fromUserID', 'toUserID'], unique: true),
+      const IndexSchema(fields: ['fromUserID', 'toUserID']),
     ],
   );
 
@@ -128,7 +128,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'ex', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['ownerUserID', 'blockUserID'], unique: true),
+      const IndexSchema(fields: ['ownerUserID', 'blockUserID']),
     ],
   );
 
@@ -178,8 +178,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'inviterUserID', type: DataType.text, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['groupID', 'userID'], unique: true),
-      const IndexSchema(fields: ['groupID', 'roleLevel']),
+      const IndexSchema(fields: ['groupID', 'userID', 'roleLevel']),
     ],
   );
 
@@ -417,7 +416,7 @@ sealed class DbSchema {
       const FieldSchema(name: 'updateTime', type: DataType.integer, nullable: true),
     ],
     indexes: [
-      const IndexSchema(fields: ['tableName', 'entityID'], unique: true),
+      const IndexSchema(fields: ['tableName', 'entityID']),
     ],
   );
 

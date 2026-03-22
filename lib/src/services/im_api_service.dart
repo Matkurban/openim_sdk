@@ -857,7 +857,7 @@ class ImApiService {
       return await HttpClient().post(
         ImApiUrl.getSendGroupApplicationList,
         data: {
-          'fromUserID': userID,
+          'userID': userID,
           'pagination': {'pageNumber': offset ~/ count + 1, 'showNumber': count},
         },
       );
@@ -1354,6 +1354,42 @@ class ImApiService {
       return result;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'completeMultipartUpload');
+      rethrow;
+    }
+  }
+
+  /// 获取未处理好友申请数量（对齐 Go SDK: 从服务器获取）
+  Future<ApiResponse> getSelfUnhandledApplyCount({required String userID, int time = 0}) async {
+    _log.info('userID=$userID, time=$time', methodName: 'getSelfUnhandledApplyCount');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getSelfUnhandledApplyCount,
+        data: {'userID': userID, 'time': time},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getSelfUnhandledApplyCount');
+      rethrow;
+    }
+  }
+
+  /// 获取未处理入群申请数量（对齐 Go SDK: 从服务器获取）
+  Future<ApiResponse> getGroupApplicationUnhandledCount({
+    required String userID,
+    int time = 0,
+  }) async {
+    _log.info('userID=$userID, time=$time', methodName: 'getGroupApplicationUnhandledCount');
+    try {
+      return await HttpClient().post(
+        ImApiUrl.getGroupApplicationUnhandledCount,
+        data: {'userID': userID, 'time': time},
+      );
+    } catch (e, s) {
+      _log.error(
+        e.toString(),
+        error: e,
+        stackTrace: s,
+        methodName: 'getGroupApplicationUnhandledCount',
+      );
       rethrow;
     }
   }

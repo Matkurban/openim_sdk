@@ -160,13 +160,12 @@ class ConversationManager {
             sessionType == ConversationType.notification.value) {
           final friend = await _database.getFriendByUserID(sourceID);
           if (friend != null) {
-            final remark = friend.remark ?? '';
-            updates['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+            updates['showName'] = friend.getShowName();
             updates['faceURL'] = friend.faceURL ?? '';
           } else {
             final users = await _database.getUsersByIDs([sourceID]);
             if (users.isNotEmpty) {
-              updates['showName'] = users.first.nickname ?? '';
+              updates['showName'] = users.first.getShowName();
               updates['faceURL'] = users.first.faceURL ?? '';
             }
           }

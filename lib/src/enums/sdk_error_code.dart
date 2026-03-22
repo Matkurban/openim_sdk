@@ -12,6 +12,9 @@ enum SDKErrorCode {
   ///登录失败
   loginError(4, '登录失败，请根据报错日志解决。'),
 
+  ///websocket 未连接
+  websocketNotConnected(5, 'Websocket 未连接，请根据报错日志解决。'),
+
   /// Network Request Error
   networkRequestError(10000, 'Network Request Error'),
 

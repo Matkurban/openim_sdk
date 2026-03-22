@@ -34,9 +34,9 @@ class UserInfo extends Equatable {
 
   Map<String, dynamic> toJson() => _$UserInfoToJson(this);
 
-  String getShowName() => _isNull(remark) ?? _isNull(nickname) ?? userID;
+  String getShowName() => _nonBlank(remark) ?? _nonBlank(nickname) ?? userID;
 
-  static String? _isNull(String? value) {
+  static String? _nonBlank(String? value) {
     if (value == null || value.trim().isEmpty) return null;
     return value;
   }
@@ -138,9 +138,9 @@ class FriendInfo extends Equatable {
 
   Map<String, dynamic> toJson() => _$FriendInfoToJson(this);
 
-  String getShowName() => _isNull(remark) ?? _isNull(nickname) ?? friendUserID!;
+  String getShowName() => _nonBlank(remark) ?? _nonBlank(nickname) ?? (friendUserID ?? '');
 
-  static String? _isNull(String? value) {
+  static String? _nonBlank(String? value) {
     if (value == null || value.trim().isEmpty) return null;
     return value;
   }

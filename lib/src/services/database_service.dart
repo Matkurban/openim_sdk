@@ -314,8 +314,24 @@ class DatabaseService {
   }
 
   /// 批量插入或更新群成员
+  /// ToStore 3.0.8 复合唯一索引 bug 绕过：
+  /// batchUpsert 无法正确检测复合唯一索引 [groupID, userID] 的已有记录，
+  /// 导致产生 Unique Constraint Violation 警告。
+  /// 解决方法：先按 groupID 删除旧成员，再批量写入。
   Future<DbResult> batchUpsertGroupMembers(List<Map<String, dynamic>> dataList) async {
-    return toStore.batchUpsert(DbTableName.localGroupMember, dataList);
+    if (dataList.isEmpty) return DbResult.success(message: 'Empty');
+    // 按 groupID 分组，逐群先删再插
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final data in dataList) {
+      final gid = data['groupID'] as String? ?? '';
+      if (gid.isEmpty) continue;
+      (grouped[gid] ??= []).add(data);
+    }
+    for (final entry in grouped.entries) {
+      await toStore.delete(DbTableName.localGroupMember).whereEqual('groupID', entry.key);
+      await toStore.batchUpsert(DbTableName.localGroupMember, entry.value);
+    }
+    return DbResult.success(message: 'OK');
   }
 
   /// 获取群成员列表
@@ -950,6 +966,22 @@ class DatabaseService {
         .update(DbTableName.localFriend, data)
         .whereEqual('ownerUserID', _currentUserID)
         .whereEqual('friendUserID', friendUserID);
+  }
+
+  /// 更新单聊消息中的发送者展示信息
+  Future<DbResult> updateSingleChatMessageSenderInfo(
+    String userID, {
+    required String senderNickname,
+    String? senderFaceUrl,
+  }) async {
+    final data = <String, dynamic>{'senderNickname': senderNickname};
+    if (senderFaceUrl != null) {
+      data['senderFaceUrl'] = senderFaceUrl;
+    }
+    return toStore
+        .update(DbTableName.localChatLog, data)
+        .whereEqual('sessionType', ConversationType.single.value)
+        .whereEqual('sendID', userID);
   }
 
   /// 根据会话ID + seq列表获取消息（按 sendTime 倒序）

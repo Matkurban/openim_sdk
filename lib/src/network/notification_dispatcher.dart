@@ -281,16 +281,19 @@ class NotificationDispatcher {
       switch (ct) {
         case 1201: // friendApplicationApproved
           _debounceSyncFriends();
-          final info = FriendApplicationInfo.fromJson(detail);
+          final request1201 = detail['request'] as Map<String, dynamic>? ?? detail;
+          final info = FriendApplicationInfo.fromJson(request1201);
           friendshipListener?.friendApplicationAccepted(info);
           listenerForService?.friendApplicationAccepted(info);
 
         case 1202: // friendApplicationRejected
-          final info = FriendApplicationInfo.fromJson(detail);
+          final request1202 = detail['request'] as Map<String, dynamic>? ?? detail;
+          final info = FriendApplicationInfo.fromJson(request1202);
           friendshipListener?.friendApplicationRejected(info);
 
         case 1203: // friendApplication (new)
-          final info = FriendApplicationInfo.fromJson(detail);
+          final request1203 = detail['request'] as Map<String, dynamic>? ?? detail;
+          final info = FriendApplicationInfo.fromJson(request1203);
           friendshipListener?.friendApplicationAdded(info);
           listenerForService?.friendApplicationAdded(info);
 
@@ -310,7 +313,7 @@ class NotificationDispatcher {
           }
 
         case 1206: // friendRemarkSet
-          _syncFriendsAndNotifyChanged(detail);
+          _syncFriendsAndNotifyChanged(ct, detail);
 
         case 1207: // blackAdded
           _syncBlackList();
@@ -337,10 +340,10 @@ class NotificationDispatcher {
           }
 
         case 1209: // friendInfoUpdated
-          _syncFriendsAndNotifyChanged(detail);
+          _syncFriendsAndNotifyChanged(ct, detail);
 
         case 1210: // friendsInfoUpdate
-          _syncFriendsAndNotifyChanged(detail);
+          _syncFriendsAndNotifyChanged(ct, detail);
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onFriendNotification');
@@ -389,6 +392,41 @@ class NotificationDispatcher {
     return null;
   }
 
+  /// 将群申请通知的 Tips 转换为扁平的 GroupApplicationInfo
+  /// 对齐 Go SDK ServerGroupRequestToLocalGroupRequestForNotification:
+  /// Tips 中 request 字段包含嵌套的 userInfo/groupInfo，需展开为扁平结构
+  GroupApplicationInfo _tipsToGroupApplicationInfo(Map<String, dynamic> tips) {
+    final request = tips['request'] as Map<String, dynamic>? ?? tips;
+    final groupFromTips = tips['group'] as Map<String, dynamic>?;
+    final userInfo = request['userInfo'] as Map<String, dynamic>? ?? {};
+    final groupInfo = groupFromTips ?? request['groupInfo'] as Map<String, dynamic>? ?? {};
+    return GroupApplicationInfo.fromJson({
+      'groupID': groupInfo['groupID'],
+      'groupName': groupInfo['groupName'],
+      'notification': groupInfo['notification'],
+      'introduction': groupInfo['introduction'],
+      'groupFaceURL': groupInfo['faceURL'],
+      'createTime': groupInfo['createTime'],
+      'status': groupInfo['status'],
+      'creatorUserID': groupInfo['creatorUserID'],
+      'groupType': groupInfo['groupType'],
+      'ownerUserID': groupInfo['ownerUserID'],
+      'memberCount': groupInfo['memberCount'],
+      'userID': userInfo['userID'],
+      'nickname': userInfo['nickname'],
+      'userFaceURL': userInfo['faceURL'],
+      'handleResult': request['handleResult'],
+      'reqMsg': request['reqMsg'],
+      'handledMsg': request['handleMsg'],
+      'reqTime': request['reqTime'],
+      'handleUserID': request['handleUserID'],
+      'handledTime': request['handleTime'],
+      'ex': request['ex'],
+      'joinSource': request['joinSource'],
+      'inviterUserID': request['inviterUserID'],
+    });
+  }
+
   /// 群组通知处理（对齐 Go SDK group/notification.go doNotification）
   ///
   /// Go SDK 模式:
@@ -417,7 +455,7 @@ class NotificationDispatcher {
 
         // Go: callback only
         case 1503: // joinGroupApplication
-          final info = GroupApplicationInfo.fromJson(detail);
+          final info = _tipsToGroupApplicationInfo(detail);
           groupListener?.groupApplicationAdded(info);
           listenerForService?.groupApplicationAdded(info);
 
@@ -437,14 +475,14 @@ class NotificationDispatcher {
 
         // Go: callback only (no sync)
         case 1505: // groupApplicationAccepted
-          final info = GroupApplicationInfo.fromJson(detail);
+          final info = _tipsToGroupApplicationInfo(detail);
           groupListener?.groupApplicationAccepted(info);
           listenerForService?.groupApplicationAccepted(info);
 
         // Go: callback only
         case 1506: // groupApplicationRejected
-          final info = GroupApplicationInfo.fromJson(detail);
-          groupListener?.groupApplicationRejected(info);
+          final info1506 = _tipsToGroupApplicationInfo(detail);
+          groupListener?.groupApplicationRejected(info1506);
 
         // Go: onlineSyncGroupAndMember(groupID)
         case 1507: // groupOwnerTransferred
@@ -921,8 +959,9 @@ class NotificationDispatcher {
   // 同步辅助 (异步执行，不阻塞通知分发)
   // ---------------------------------------------------------------------------
 
-  Future<void> _syncFriends() async {
+  Future<Set<String>> _syncFriends() async {
     _log.info('called', methodName: '_syncFriends');
+    final changedFriendIDs = <String>{};
     try {
       // 版本感知增量同步（对齐 Go get_incremental_friends）
       final versionInfo = await database.getVersionSync('friend', _userID);
@@ -932,7 +971,7 @@ class NotificationDispatcher {
       final resp = await api.getIncrementalFriends(
         req: {'userID': _userID, 'versionID': versionID, 'version': version},
       );
-      if (resp.errCode != 0) return;
+      if (resp.errCode != 0) return changedFriendIDs;
 
       final data = resp.data as Map<String, dynamic>? ?? {};
       final bool full = data['full'] as bool? ?? false;
@@ -971,14 +1010,40 @@ class NotificationDispatcher {
         await database.deleteFriend(userID);
       }
 
-      // insert/update 统一 upsert
-      final allFriends = <Map<String, dynamic>>[];
-      for (final f in [...insertList, ...updateList]) {
+      // 对齐 Go SDK friendSyncer.Sync(): update 列表使用 SQL UPDATE，insert 列表使用 batchUpsert
+      for (final f in updateList) {
         if (f is! Map<String, dynamic>) continue;
         final friendUser = f['friendUser'] as Map<String, dynamic>? ?? const {};
         final friendUserID = (friendUser['userID'] ?? f['friendUserID'] ?? f['userID'])?.toString();
         if (friendUserID == null || friendUserID.isEmpty) continue;
-        allFriends.add({
+        final friendData = {
+          'friendUserID': friendUserID,
+          'ownerUserID': f['ownerUserID'] ?? _userID,
+          'nickname': friendUser['nickname'],
+          'faceURL': friendUser['faceURL'],
+          'remark': f['remark'],
+          'createTime': (f['createTime'] as num?)?.toInt(),
+          'ex': f['ex'],
+          'addSource': f['addSource'],
+          'operatorUserID': f['operatorUserID'],
+          'isPinned': f['isPinned'],
+        };
+        final localFriend = await database.getFriendByUserID(friendUserID);
+        if (localFriend == null) {
+          await database.upsertFriend(friendData);
+        } else {
+          await database.updateFriend(friendUserID, friendData);
+        }
+        changedFriendIDs.add(friendUserID);
+      }
+
+      final toInsert = <Map<String, dynamic>>[];
+      for (final f in insertList) {
+        if (f is! Map<String, dynamic>) continue;
+        final friendUser = f['friendUser'] as Map<String, dynamic>? ?? const {};
+        final friendUserID = (friendUser['userID'] ?? f['friendUserID'] ?? f['userID'])?.toString();
+        if (friendUserID == null || friendUserID.isEmpty) continue;
+        toInsert.add({
           'friendUserID': friendUserID,
           'ownerUserID': f['ownerUserID'] ?? _userID,
           'nickname': friendUser['nickname'],
@@ -992,8 +1057,14 @@ class NotificationDispatcher {
         });
       }
 
-      if (allFriends.isNotEmpty) {
-        await database.batchUpsertFriends(allFriends);
+      if (toInsert.isNotEmpty) {
+        await database.batchUpsertFriends(toInsert);
+        for (final item in toInsert) {
+          final friendUserID = item['friendUserID']?.toString();
+          if (friendUserID != null && friendUserID.isNotEmpty) {
+            changedFriendIDs.add(friendUserID);
+          }
+        }
       }
 
       final newVersion = (data['version'] as num?)?.toInt() ?? version;
@@ -1005,8 +1076,25 @@ class NotificationDispatcher {
         version: newVersion,
         uidList: const [],
       );
+      return changedFriendIDs;
     } catch (e, s) {
       _log.error('同步好友异常: $e', error: e, stackTrace: s, methodName: '_syncFriends');
+      return changedFriendIDs;
+    }
+  }
+
+  Future<void> _syncUsersInfoByIDs(Set<String> userIDs) async {
+    if (userIDs.isEmpty) return;
+    try {
+      final resp = await api.getUsersInfo(userIDs: userIDs.toList());
+      if (resp.errCode != 0) return;
+      final users = resp.data?['usersInfo'] as List? ?? [];
+      final batch = users.whereType<Map<String, dynamic>>().toList();
+      if (batch.isNotEmpty) {
+        await database.upsertUsers(batch);
+      }
+    } catch (e, s) {
+      _log.error('同步用户信息异常: $e', error: e, stackTrace: s, methodName: '_syncUsersInfoByIDs');
     }
   }
 
@@ -1436,13 +1524,12 @@ class NotificationDispatcher {
           final uid = conv['userID'] as String? ?? '';
           final friend = friendMap[uid];
           if (friend != null) {
-            final remark = friend.remark ?? '';
-            conv['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+            conv['showName'] = friend.getShowName();
             conv['faceURL'] = friend.faceURL ?? '';
           } else {
             final user = userMap[uid];
             if (user != null) {
-              conv['showName'] = user.nickname ?? '';
+              conv['showName'] = user.getShowName();
               conv['faceURL'] = user.faceURL ?? '';
             }
           }
@@ -1479,29 +1566,54 @@ class NotificationDispatcher {
   /// 同步好友并对比变更，触发 OnFriendInfoChanged
   ///
   /// 对应 Go SDK 的 IncrSyncFriends → syncer.Update → OnFriendInfoChanged
-  Future<void> _syncFriendsAndNotifyChanged(Map<String, dynamic> detail) async {
+  Future<void> _syncFriendsAndNotifyChanged(int ct, Map<String, dynamic> detail) async {
     _log.info('called', methodName: '_syncFriendsAndNotifyChanged');
     try {
       final fromTo = detail['fromToUserID'] as Map<String, dynamic>?;
-      final userID = detail['userID'] as String?;
-      final changedUserID = fromTo?['toUserID'] as String? ?? userID;
+      final changedUserIDs = <String>{};
+      String? asString(dynamic value) {
+        final text = value?.toString();
+        if (text == null || text.isEmpty) return null;
+        return text;
+      }
 
-      await _syncFriends();
+      switch (ct) {
+        case 1206:
+          final friendUserID = asString(fromTo?['toUserID']);
+          if (friendUserID != null) changedUserIDs.add(friendUserID);
+          break;
+        case 1209:
+          final friendUserID = asString(detail['userID']);
+          if (friendUserID != null) changedUserIDs.add(friendUserID);
+          break;
+        case 1210:
+          final friendIDs = (detail['friendIDs'] as List?) ?? const <dynamic>[];
+          for (final friendID in friendIDs) {
+            final value = asString(friendID);
+            if (value != null) changedUserIDs.add(value);
+          }
+          break;
+        default:
+          final friendUserID = asString(fromTo?['toUserID']) ?? asString(detail['userID']);
+          if (friendUserID != null) changedUserIDs.add(friendUserID);
+          break;
+      }
 
-      if (changedUserID != null && changedUserID.isNotEmpty) {
+      final syncedUserIDs = await _syncFriends();
+      changedUserIDs.addAll(syncedUserIDs);
+      await _syncUsersInfoByIDs(changedUserIDs);
+
+      for (final changedUserID in changedUserIDs) {
         final updated = await database.getFriendByUserID(changedUserID);
         if (updated != null) {
           friendshipListener?.friendInfoChanged(updated);
 
           // 对齐 Go SDK：更新对应单聊会话的 showName / faceURL
-          final showName = (updated.remark != null && updated.remark!.isNotEmpty)
-              ? updated.remark!
-              : updated.nickname ?? '';
+          final showName = updated.getShowName();
           final convID = OpenImUtils.genSingleConversationID(_userID, changedUserID);
           final conv = await database.getConversation(convID);
           if (conv != null) {
-            final convUpdates = <String, dynamic>{};
-            if (showName.isNotEmpty) convUpdates['showName'] = showName;
+            final convUpdates = <String, dynamic>{'showName': showName};
             if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
             if (convUpdates.isNotEmpty) {
               await database.updateConversation(convID, convUpdates);
@@ -1511,6 +1623,12 @@ class NotificationDispatcher {
               }
             }
           }
+
+          await database.updateSingleChatMessageSenderInfo(
+            changedUserID,
+            senderNickname: showName,
+            senderFaceUrl: updated.faceURL,
+          );
         }
       }
     } catch (e, s) {

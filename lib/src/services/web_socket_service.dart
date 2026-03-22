@@ -55,8 +55,10 @@ class WebSocketService {
   // ---- 请求/响应异步匹配 ----
   int _msgIncrCounter = 0;
 
+  ///发送完待处理的请求
   final Map<String, Completer<WebSocketResponse>> _pendingRequests = {};
 
+  ///请求超时时间
   static const _requestTimeout = Duration(seconds: 10);
 
   /// 收到推送消息（原始 JSON data）
@@ -73,10 +75,6 @@ class WebSocketService {
 
   /// 是否已连接
   bool get isConnected => _connStatus == WebSocketStatus.connected;
-
-  // ---------------------------------------------------------------------------
-  // 连接生命周期
-  // ---------------------------------------------------------------------------
 
   /// 初始化并建立连接
   ///
@@ -178,30 +176,26 @@ class WebSocketService {
   Future<WebSocketResponse> sendRequestWaitResponse({
     required int reqIdentifier,
     Uint8List? data,
-    String? operationID,
   }) async {
-    _log.info(
-      'reqIdentifier=$reqIdentifier, operationID=$operationID',
-      methodName: 'sendRequestWaitResponse',
-    );
+    _log.info('reqIdentifier=$reqIdentifier', methodName: 'sendRequestWaitResponse');
     try {
       if (!isConnected) {
-        throw StateError('WebSocket 未连接');
+        throw OpenIMException(
+          code: SDKErrorCode.websocketNotConnected.code,
+          message: 'WebSocket 未连接',
+        );
       }
-      final opID = operationID ?? OpenImUtils.generateOperationID();
       final msgIncr = _generateMsgIncr();
       final req = WebSocketRequest(
         reqIdentifier: reqIdentifier,
         token: _token,
         sendID: _userID,
-        operationID: opID,
+        operationID: OpenImUtils.generateOperationID(),
         msgIncr: msgIncr,
         data: data,
       );
-
       final completer = Completer<WebSocketResponse>();
       _pendingRequests[msgIncr] = completer;
-
       // 超时处理
       final timer = Timer(_requestTimeout, () {
         if (_pendingRequests.containsKey(msgIncr)) {
@@ -211,7 +205,6 @@ class WebSocketService {
           }
         }
       });
-
       try {
         _sendBinary(req);
         final resp = await completer.future;
@@ -226,15 +219,10 @@ class WebSocketService {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 内部连接逻辑
-  // ---------------------------------------------------------------------------
-
   /// 处理握手阶段鉴权类错误（token 过期/无效/被踢）
   /// 返回值用于决定是否允许继续重连。
   bool _handleAuthHandshakeError(int? errCode, String? errMsg) {
     if (errCode == null) return false;
-
     // 这些错误属于鉴权失败：停止自动重连，并交由上层清理登录态
     if (errCode == 1501) {
       connectListener.userTokenExpired();
@@ -249,12 +237,7 @@ class WebSocketService {
     } else {
       return false;
     }
-
     _userDisconnected = true;
-    _log.warning(
-      'auth handshake error(errCode=$errCode): $errMsg, stop reconnect',
-      methodName: '_handleAuthHandshakeError',
-    );
     return true;
   }
 
@@ -276,21 +259,16 @@ class WebSocketService {
       if (_connStatus == WebSocketStatus.connecting) return;
       _setStatus(WebSocketStatus.connecting);
       connectListener.onConnecting?.call();
-
       final url = _buildWsUrl();
-
       try {
         _channel = WebSocketChannel.connect(Uri.parse(url));
         await _channel!.ready;
         _startListening();
-
         // 连接成功
         _setStatus(WebSocketStatus.connected);
         _reconnectAttempts = 0;
         _reconnectIndex = -1;
-
         _startHeartbeat();
-
         connectListener.onConnectSuccess?.call();
         onConnected?.call();
       } catch (e) {
@@ -357,29 +335,23 @@ class WebSocketService {
   /// 处理文本消息（ping/pong，对应 ws_js.go handlerText）
   void _handleTextMessage(String text) {
     try {
-      try {
-        final msg = jsonDecode(text) as Map<String, dynamic>;
-        final type = msg['type'] as String? ?? '';
-        switch (type) {
-          case 'pong':
-            _lastPong = DateTime.now();
-            _log.info('收到 pong', methodName: '_handleTextMessage');
-          case '':
-            // 服务端连接/握手响应 {errCode, errMsg, errDlt}，无 type 字段
-            final errCodeNum = (msg['errCode'] as num?)?.toInt() ?? (msg['code'] as num?)?.toInt();
-            if (errCodeNum != null && errCodeNum != 0) {
-              _handleAuthHandshakeError(errCodeNum, msg['errMsg'] as String? ?? text);
-            }
-            break;
-          default:
-            _log.warning('未知文本消息类型: $type', methodName: '_handleTextMessage');
-        }
-      } catch (e) {
-        _log.warning('解析文本消息失败: $e', methodName: '_handleTextMessage');
+      final msg = jsonDecode(text) as Map<String, dynamic>;
+      final type = msg['type'] as String? ?? '';
+      switch (type) {
+        case 'pong':
+          _lastPong = DateTime.now();
+        case '':
+          // 服务端连接/握手响应 {errCode, errMsg, errDlt}，无 type 字段
+          final errCodeNum = (msg['errCode'] as num?)?.toInt() ?? (msg['code'] as num?)?.toInt();
+          if (errCodeNum != null && errCodeNum != 0) {
+            _handleAuthHandshakeError(errCodeNum, msg['errMsg'] as String? ?? text);
+          }
+          break;
+        default:
+          _log.warning('未知文本消息类型: $type', methodName: '_handleTextMessage');
       }
     } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_handleTextMessage');
-      rethrow;
+      _log.warning('解析文本消息失败:', error: e, stackTrace: s, methodName: '_handleTextMessage');
     }
   }
 
@@ -471,11 +443,10 @@ class WebSocketService {
       WebSocketResponse resp;
       try {
         resp = _codec.decodeResponse(raw);
-      } catch (e) {
-        _log.warning('消息解码失败: $e', methodName: '_handleBinaryMessage');
+      } catch (e, s) {
+        _log.warning('消息解码失败,跳过此消息: ', error: e, stackTrace: s, methodName: '_handleBinaryMessage');
         return;
       }
-
       switch (resp.reqIdentifier) {
         case WebSocketIdentifier.pushMsg:
           onPushMsg?.call(resp);

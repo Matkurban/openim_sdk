@@ -137,16 +137,80 @@ class GroupManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  /// 将服务器返回的嵌套 GroupRequest 转换为扁平化的 GroupApplicationInfo
+  /// 对齐 Go SDK ServerGroupRequestToLocalGroupRequest
+  GroupApplicationInfo _serverGroupRequestToLocal(Map<String, dynamic> req) {
+    final userInfo = req['userInfo'] as Map<String, dynamic>? ?? {};
+    final groupInfo = req['groupInfo'] as Map<String, dynamic>? ?? {};
+    return GroupApplicationInfo.fromJson({
+      'groupID': groupInfo['groupID'],
+      'groupName': groupInfo['groupName'],
+      'notification': groupInfo['notification'],
+      'introduction': groupInfo['introduction'],
+      'groupFaceURL': groupInfo['faceURL'],
+      'createTime': groupInfo['createTime'],
+      'status': groupInfo['status'],
+      'creatorUserID': groupInfo['creatorUserID'],
+      'groupType': groupInfo['groupType'],
+      'ownerUserID': groupInfo['ownerUserID'],
+      'memberCount': groupInfo['memberCount'],
+      'userID': userInfo['userID'],
+      'nickname': userInfo['nickname'],
+      'userFaceURL': userInfo['faceURL'],
+      'handleResult': req['handleResult'],
+      'reqMsg': req['reqMsg'],
+      'handledMsg': req['handleMsg'],
+      'reqTime': req['reqTime'],
+      'handleUserID': req['handleUserID'],
+      'handledTime': req['handleTime'],
+      'ex': req['ex'],
+      'joinSource': req['joinSource'],
+      'inviterUserID': req['inviterUserID'],
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
 
   /// 查询群组信息
   /// [groupIDList] 群组ID列表
+  /// 对齐 Go SDK GetSpecifiedGroupsInfoSafe：先查本地，缺失的从服务器拉取但不写入本地
+  /// （local_groups 表仅存储已加入的群，由 sync 维护）
   Future<List<GroupInfo>> getGroupsInfo({required List<String> groupIDList}) async {
     _log.info('groupIDList=$groupIDList', methodName: 'getGroupsInfo');
     try {
       if (groupIDList.isEmpty) return [];
-      return await _database.getGroupsByIDs(groupIDList);
+
+      // 1. 从本地数据库查询
+      final localGroups = await _database.getGroupsByIDs(groupIDList);
+      final localIDSet = <String>{for (final g in localGroups) g.groupID};
+
+      // 2. 找出本地缺失的 groupID
+      final missingIDs = groupIDList.where((id) => !localIDSet.contains(id)).toList();
+      if (missingIDs.isEmpty) return localGroups;
+
+      // 3. 从服务器拉取缺失的群信息（不写入本地 DB，避免污染 local_groups 表）
+      _log.info('本地缺失 ${missingIDs.length} 个群，从服务器拉取: $missingIDs', methodName: 'getGroupsInfo');
+      final resp = await _api.getGroupsInfo(groupIDs: missingIDs);
+      if (resp.errCode != 0) {
+        _log.warning('从服务器获取群信息失败: ${resp.errMsg}', methodName: 'getGroupsInfo');
+        return localGroups;
+      }
+
+      final serverGroups = resp.data?['groupInfos'] as List? ?? [];
+      final serverGroupInfos = <GroupInfo>[];
+      for (final g in serverGroups) {
+        if (g is Map<String, dynamic>) {
+          serverGroupInfos.add(GroupInfo.fromJson(g));
+        }
+      }
+
+      // 4. 合并返回（不缓存到本地，local_groups 仅由 sync 维护）
+      return [...localGroups, ...serverGroupInfos];
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupsInfo');
       rethrow;
@@ -179,11 +243,14 @@ class GroupManager {
 
   /// 检查是否已加入群组
   /// [groupID] 群组ID
+  /// 通过服务器查询当前用户是否为群成员，避免本地 local_groups 表数据不准确
   Future<bool> isJoinedGroup({required String groupID}) async {
     _log.info('groupID=$groupID', methodName: 'isJoinedGroup');
     try {
-      final data = await _database.getGroupByID(groupID);
-      return data != null;
+      final resp = await _api.getGroupMembersInfo(groupID: groupID, userIDs: [_currentUserID]);
+      if (resp.errCode != 0) return false;
+      final members = resp.data?['members'] as List?;
+      return members != null && members.isNotEmpty;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'isJoinedGroup');
       rethrow;
@@ -496,6 +563,8 @@ class GroupManager {
         groupID: groupID,
         reqMessage: reason,
         joinSource: joinSource,
+        inviterUserID: _currentUserID,
+        ex: ex,
       );
       if (resp.errCode != 0) {
         throw OpenIMException(code: resp.errCode, message: resp.errMsg);
@@ -596,7 +665,7 @@ class GroupManager {
     }
   }
 
-  /// 获取收到的入群申请列表（作为群主/管理员）
+  /// 获取收到的入群申请列表（对齐 Go SDK: 从服务器按需获取）
   /// [req] 查询参数
   Future<List<GroupApplicationInfo>> getGroupApplicationListAsRecipient({
     GetGroupApplicationListAsRecipientReq? req,
@@ -606,10 +675,19 @@ class GroupManager {
       methodName: 'getGroupApplicationListAsRecipient',
     );
     try {
-      return await _database.getGroupRequestsAsRecipient(
-        offset: req?.offset ?? 0,
-        count: req?.count ?? 40,
+      final offset = req?.offset ?? 0;
+      final count = req?.count ?? 40;
+      final resp = await _api.getRecvGroupApplicationList(
+        userID: _currentUserID,
+        offset: offset,
+        count: count,
       );
+      if (resp.errCode != 0) return [];
+      final list = resp.data?['groupRequests'] as List? ?? [];
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map((e) => _serverGroupRequestToLocal(e))
+          .toList();
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -621,7 +699,7 @@ class GroupManager {
     }
   }
 
-  /// 获取已发送的入群申请列表
+  /// 获取已发送的入群申请列表（对齐 Go SDK: 从服务器按需获取）
   /// [req] 查询参数
   Future<List<GroupApplicationInfo>> getGroupApplicationListAsApplicant({
     GetGroupApplicationListAsApplicantReq? req,
@@ -631,10 +709,19 @@ class GroupManager {
       methodName: 'getGroupApplicationListAsApplicant',
     );
     try {
-      return await _database.getGroupRequestsAsApplicant(
-        offset: req?.offset ?? 0,
-        count: req?.count ?? 40,
+      final offset = req?.offset ?? 0;
+      final count = req?.count ?? 40;
+      final resp = await _api.getSendGroupApplicationList(
+        userID: _currentUserID,
+        offset: offset,
+        count: count,
       );
+      if (resp.errCode != 0) return [];
+      final list = resp.data?['groupRequests'] as List? ?? [];
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map((e) => _serverGroupRequestToLocal(e))
+          .toList();
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -704,12 +791,17 @@ class GroupManager {
     }
   }
 
-  /// 获取未处理的入群申请数量
+  /// 获取未处理的入群申请数量（对齐 Go SDK: 从服务器获取）
   /// [req] 查询参数
   Future<int> getGroupApplicationUnhandledCount(GetGroupApplicationUnhandledCountReq req) async {
     _log.info('called', methodName: 'getGroupApplicationUnhandledCount');
     try {
-      return await _database.getGroupRequestUnhandledCount();
+      final resp = await _api.getGroupApplicationUnhandledCount(
+        userID: _currentUserID,
+        time: req.time,
+      );
+      if (resp.errCode != 0) return 0;
+      return (resp.data?['count'] as num?)?.toInt() ?? 0;
     } catch (e, s) {
       _log.error(
         e.toString(),

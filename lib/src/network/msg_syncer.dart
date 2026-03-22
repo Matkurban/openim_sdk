@@ -550,13 +550,12 @@ class MsgSyncer {
           final uid = conv['userID'] as String? ?? '';
           final friend = friendMap[uid];
           if (friend != null) {
-            final remark = friend.remark ?? '';
-            conv['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+            conv['showName'] = friend.getShowName();
             conv['faceURL'] = friend.faceURL ?? '';
           } else {
             final user = userMap[uid];
             if (user != null) {
-              conv['showName'] = user.nickname ?? '';
+              conv['showName'] = user.getShowName();
               conv['faceURL'] = user.faceURL ?? '';
             }
           }
@@ -576,12 +575,22 @@ class MsgSyncer {
   }
 
   /// 同步好友列表
+  /// 对齐 Go SDK IncrSyncFriends → friendSyncer.Sync():
+  /// 比对 server vs local，执行 insert/update/delete + 触发 OnFriendInfoChanged
   Future<void> _syncFriends() async {
     _log.info('called', methodName: '_syncFriends');
     try {
+      // 1. 快照当前本地好友
+      final oldFriends = await database.getAllFriends();
+      final localMap = <String, FriendInfo>{};
+      for (final f in oldFriends) {
+        if (f.friendUserID != null) localMap[f.friendUserID!] = f;
+      }
+
+      // 2. 全量拉取服务端好友列表
       int pageNumber = 1;
       const pageSize = 100;
-      final allFriends = <Map<String, dynamic>>[];
+      final allServerFriends = <Map<String, dynamic>>[];
       while (true) {
         final resp = await api.getFriendList(
           userID: _userID,
@@ -593,12 +602,10 @@ class MsgSyncer {
         if (friends.isEmpty) break;
         for (final f in friends) {
           if (f is Map<String, dynamic>) {
-            // 服务端返回的好友信息中，对方的详细信息在嵌套的 friendUser 字段中
-            // 需要将其扁平化为 DB 表格的结构（主键 friendUserID = friendUser.userID）
             final friendUser = f['friendUser'] as Map<String, dynamic>? ?? {};
-            allFriends.add({
+            allServerFriends.add({
               'friendUserID': friendUser['userID'] ?? f['userID'],
-              'ownerUserID': f['ownerUserID'],
+              'ownerUserID': f['ownerUserID'] ?? _userID,
               'nickname': friendUser['nickname'],
               'faceURL': friendUser['faceURL'],
               'remark': f['remark'],
@@ -613,7 +620,96 @@ class MsgSyncer {
         if (friends.length < pageSize) break;
         pageNumber++;
       }
-      if (allFriends.isNotEmpty) await database.batchUpsertFriends(allFriends);
+
+      // 3. 对齐 Go SDK Syncer.Sync(): 逐条比对 server vs local
+      final serverIDSet = <String>{};
+      final toInsert = <Map<String, dynamic>>[];
+      final listener = notificationDispatcher.friendshipListener;
+
+      for (final record in allServerFriends) {
+        final friendUserID = record['friendUserID']?.toString();
+        if (friendUserID == null || friendUserID.isEmpty) continue;
+        serverIDSet.add(friendUserID);
+
+        final local = localMap[friendUserID];
+        if (local == null) {
+          // 本地不存在 → insert
+          toInsert.add(record);
+          continue;
+        }
+
+        // 本地存在 → 检查是否有变化
+        final newNickname = record['nickname']?.toString() ?? '';
+        final newFaceURL = record['faceURL']?.toString() ?? '';
+        final newRemark = record['remark']?.toString() ?? '';
+
+        final changed =
+            newNickname != (local.nickname ?? '') ||
+            newFaceURL != (local.faceURL ?? '') ||
+            newRemark != (local.remark ?? '');
+
+        if (changed) {
+          // 对齐 Go SDK: UpdateFriend (SQL UPDATE)
+          await database.updateFriend(friendUserID, {
+            'nickname': record['nickname'],
+            'faceURL': record['faceURL'],
+            'remark': record['remark'],
+            'ex': record['ex'],
+            'addSource': record['addSource'],
+            'operatorUserID': record['operatorUserID'],
+            'isPinned': record['isPinned'],
+          });
+
+          // 触发 OnFriendInfoChanged 回调
+          final updated = FriendInfo(
+            ownerUserID: record['ownerUserID']?.toString(),
+            friendUserID: friendUserID,
+            nickname: record['nickname']?.toString(),
+            faceURL: record['faceURL']?.toString(),
+            remark: record['remark']?.toString(),
+            ex: record['ex']?.toString(),
+            createTime: (record['createTime'] as num?)?.toInt(),
+            addSource: (record['addSource'] as num?)?.toInt(),
+            operatorUserID: record['operatorUserID']?.toString(),
+          );
+          listener?.friendInfoChanged(updated);
+
+          // 对齐 Go SDK: 同步更新对应单聊会话的 showName / faceURL
+          final showName = updated.getShowName();
+          final convID = OpenImUtils.genSingleConversationID(_userID, friendUserID);
+          final conv = await database.getConversation(convID);
+          if (conv != null) {
+            final convUpdates = <String, dynamic>{'showName': showName};
+            if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
+            if (convUpdates.isNotEmpty) {
+              await database.updateConversation(convID, convUpdates);
+              final updatedConv = await database.getConversation(convID);
+              if (updatedConv != null) {
+                conversationListener?.conversationChanged([updatedConv]);
+              }
+            }
+          }
+
+          await database.updateSingleChatMessageSenderInfo(
+            friendUserID,
+            senderNickname: showName,
+            senderFaceUrl: updated.faceURL,
+          );
+        }
+      }
+
+      // 4. 批量插入新好友
+      if (toInsert.isNotEmpty) {
+        await database.batchUpsertFriends(toInsert);
+      }
+
+      // 5. 删除服务端已不存在的好友
+      for (final local in oldFriends) {
+        if (local.friendUserID != null && !serverIDSet.contains(local.friendUserID)) {
+          await database.deleteFriend(local.friendUserID!);
+        }
+      }
+
       _log.info('好友同步完成', methodName: '_syncFriends');
     } catch (e, s) {
       _log.error('同步好友异常: $e', error: e, stackTrace: s, methodName: '_syncFriends');
@@ -1264,33 +1360,28 @@ class MsgSyncer {
 
   /// 将 protobuf MsgData 转为 [Map<String, dynamic>]（供数据库和回调使用）
   Map<String, dynamic> _msgDataToMap(sdkws.MsgData msg) {
-    try {
-      return {
-        'sendID': msg.sendID,
-        'recvID': msg.recvID,
-        'groupID': msg.groupID,
-        'clientMsgID': msg.clientMsgID,
-        'serverMsgID': msg.serverMsgID,
-        'senderPlatformID': msg.senderPlatformID,
-        'senderNickname': msg.senderNickname,
-        'senderFaceURL': msg.senderFaceURL,
-        'sessionType': msg.sessionType,
-        'msgFrom': msg.msgFrom,
-        'contentType': msg.contentType,
-        'content': utf8.decode(msg.content, allowMalformed: true),
-        'seq': msg.seq.toInt(),
-        'sendTime': msg.sendTime.toInt(),
-        'createTime': msg.createTime.toInt(),
-        'status': msg.status,
-        'isRead': msg.isRead,
-        'options': Map<String, bool>.from(msg.options),
-        'attachedInfo': msg.attachedInfo,
-        'ex': msg.ex,
-      };
-    } catch (e, s) {
-      _log.error('转换MsgData失败: $e', error: e, stackTrace: s, methodName: '_msgDataToMap');
-      throw Exception('MsgDataToMap failed');
-    }
+    return {
+      'sendID': msg.sendID,
+      'recvID': msg.recvID,
+      'groupID': msg.groupID,
+      'clientMsgID': msg.clientMsgID,
+      'serverMsgID': msg.serverMsgID,
+      'senderPlatformID': msg.senderPlatformID,
+      'senderNickname': msg.senderNickname,
+      'senderFaceURL': msg.senderFaceURL,
+      'sessionType': msg.sessionType,
+      'msgFrom': msg.msgFrom,
+      'contentType': msg.contentType,
+      'content': utf8.decode(msg.content, allowMalformed: true),
+      'seq': msg.seq.toInt(),
+      'sendTime': msg.sendTime.toInt(),
+      'createTime': msg.createTime.toInt(),
+      'status': msg.status,
+      'isRead': msg.isRead,
+      'options': Map<String, bool>.from(msg.options),
+      'attachedInfo': msg.attachedInfo,
+      'ex': msg.ex,
+    };
   }
 
   /// 将 HTTP API 返回消息中 base64 编码的 content 解码为原始 JSON 字符串。
@@ -1508,14 +1599,13 @@ class MsgSyncer {
         // 单聊/通知：优先用好友备注
         final friend = await database.getFriendByUserID(userID);
         if (friend != null) {
-          final remark = friend.remark ?? '';
-          updates['showName'] = remark.isNotEmpty ? remark : (friend.nickname ?? '');
+          updates['showName'] = friend.getShowName();
           updates['faceURL'] = friend.faceURL ?? '';
         } else {
           // 从用户表查
           final users = await database.getUsersByIDs([userID]);
           if (users.isNotEmpty) {
-            updates['showName'] = users.first.nickname ?? '';
+            updates['showName'] = users.first.getShowName();
             updates['faceURL'] = users.first.faceURL ?? '';
           } else {
             // 网络兜底

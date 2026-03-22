@@ -67,32 +67,23 @@ class FriendshipManager {
   Future<void> addFriend({required String userID, String? reason}) async {
     _log.info('userID=$userID, reason=$reason', methodName: 'addFriend');
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await _database.upsertFriendRequest({
-        'fromUserID': _currentUserID,
-        'toUserID': userID,
-        'reqMsg': reason ?? '',
-        'createTime': now,
-        'handleResult': 0,
-      });
-      _log.info('已发送好友申请: toUserID=$userID', methodName: 'addFriend');
-
-      // 同步到服务器
+      // API-first: 先请求服务器，与 Go SDK 保持一致
       final resp = await _api.addFriend(
         fromUserID: _currentUserID,
         toUserID: userID,
         reqMsg: reason,
       );
       if (resp.errCode != 0) {
-        _log.warning('发送好友申请同步服务器失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
+      _log.info('已发送好友申请: toUserID=$userID', methodName: 'addFriend');
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addFriend');
       rethrow;
     }
   }
 
-  /// 获取收到的好友申请列表
+  /// 获取收到的好友申请列表（对齐 Go SDK: 从服务器按需获取）
   /// [req] 查询参数
   Future<List<FriendApplicationInfo>> getFriendApplicationListAsRecipient({
     GetFriendApplicationListAsRecipientReq? req,
@@ -101,8 +92,17 @@ class FriendshipManager {
     try {
       final offset = req?.offset ?? 0;
       final count = req?.count ?? 40;
-      final dataList = await _database.getFriendRequestsAsRecipient(offset: offset, count: count);
-      return dataList;
+      final resp = await _api.getRecvFriendApplicationList(
+        userID: _currentUserID,
+        offset: offset,
+        count: count,
+      );
+      if (resp.errCode != 0) return [];
+      final list = resp.data?['FriendRequests'] as List? ?? [];
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map((e) => FriendApplicationInfo.fromJson(e))
+          .toList();
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -114,7 +114,7 @@ class FriendshipManager {
     }
   }
 
-  /// 获取已发送的好友申请列表
+  /// 获取已发送的好友申请列表（对齐 Go SDK: 从服务器按需获取）
   /// [req] 查询参数
   Future<List<FriendApplicationInfo>> getFriendApplicationListAsApplicant({
     GetFriendApplicationListAsApplicantReq? req,
@@ -123,8 +123,17 @@ class FriendshipManager {
     try {
       final offset = req?.offset ?? 0;
       final count = req?.count ?? 40;
-      final dataList = await _database.getFriendRequestsAsApplicant(offset: offset, count: count);
-      return dataList;
+      final resp = await _api.getSelfFriendApplicationList(
+        userID: _currentUserID,
+        offset: offset,
+        count: count,
+      );
+      if (resp.errCode != 0) return [];
+      final list = resp.data?['FriendRequests'] as List? ?? [];
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map((e) => FriendApplicationInfo.fromJson(e))
+          .toList();
     } catch (e, s) {
       _log.error(
         e.toString(),
@@ -286,29 +295,7 @@ class FriendshipManager {
   Future<void> acceptFriendApplication({required String userID, String? handleMsg}) async {
     _log.info('userID=$userID, handleMsg=$handleMsg', methodName: 'acceptFriendApplication');
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await _database.upsertFriendRequest({
-        'fromUserID': userID,
-        'toUserID': _currentUserID,
-        'handleResult': 1,
-        'handleMsg': handleMsg ?? '',
-        'handlerUserID': _currentUserID,
-        'handleTime': now,
-      });
-
-      await _database.upsertFriend({
-        'ownerUserID': _currentUserID,
-        'friendUserID': userID,
-        'createTime': now,
-      });
-
-      _log.info('好友申请已接受: userID=$userID', methodName: 'acceptFriendApplication');
-
-      listener?.friendAdded(
-        FriendInfo(ownerUserID: _currentUserID, friendUserID: userID, createTime: now),
-      );
-
-      // 同步到服务器
+      // API-first: 先请求服务器，与 Go SDK 保持一致
       final resp = await _api.addFriendResponse(
         fromUserID: userID,
         toUserID: _currentUserID,
@@ -316,8 +303,9 @@ class FriendshipManager {
         handleMsg: handleMsg,
       );
       if (resp.errCode != 0) {
-        _log.warning('接受好友申请同步服务器失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
+      _log.info('好友申请已接受: userID=$userID', methodName: 'acceptFriendApplication');
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'acceptFriendApplication');
       rethrow;
@@ -330,28 +318,7 @@ class FriendshipManager {
   Future<void> refuseFriendApplication({required String userID, String? handleMsg}) async {
     _log.info('userID=$userID, handleMsg=$handleMsg', methodName: 'refuseFriendApplication');
     try {
-      final now = DateTime.now().millisecondsSinceEpoch;
-      await _database.upsertFriendRequest({
-        'fromUserID': userID,
-        'toUserID': _currentUserID,
-        'handleResult': -1,
-        'handleMsg': handleMsg ?? '',
-        'handlerUserID': _currentUserID,
-        'handleTime': now,
-      });
-
-      _log.info('好友申请已拒绝: userID=$userID', methodName: 'refuseFriendApplication');
-
-      listener?.friendApplicationRejected(
-        FriendApplicationInfo(
-          fromUserID: userID,
-          toUserID: _currentUserID,
-          handleResult: -1,
-          handleMsg: handleMsg,
-        ),
-      );
-
-      // 同步到服务器
+      // API-first: 先请求服务器，与 Go SDK 保持一致
       final resp = await _api.addFriendResponse(
         fromUserID: userID,
         toUserID: _currentUserID,
@@ -359,8 +326,9 @@ class FriendshipManager {
         handleMsg: handleMsg,
       );
       if (resp.errCode != 0) {
-        _log.warning('拒绝好友申请同步服务器失败: ${resp.errMsg}');
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
       }
+      _log.info('好友申请已拒绝: userID=$userID', methodName: 'refuseFriendApplication');
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'refuseFriendApplication');
       rethrow;
@@ -453,17 +421,14 @@ class FriendshipManager {
         listener?.friendInfoChanged(updated);
 
         // 对齐 Go SDK UpdateConFaceUrlAndNickName：更新对应单聊会话的 showName/faceURL
-        final showName = (updated.remark != null && updated.remark!.isNotEmpty)
-            ? updated.remark!
-            : updated.nickname ?? '';
+        final showName = updated.getShowName();
         final convID = OpenImUtils.genSingleConversationID(
           _currentUserID,
           updated.friendUserID ?? '',
         );
         final conv = await _database.getConversation(convID);
         if (conv != null) {
-          final convUpdates = <String, dynamic>{};
-          if (showName.isNotEmpty) convUpdates['showName'] = showName;
+          final convUpdates = <String, dynamic>{'showName': showName};
           if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
           if (convUpdates.isNotEmpty) {
             await _database.updateConversation(convID, convUpdates);
@@ -473,6 +438,12 @@ class FriendshipManager {
             }
           }
         }
+
+        await _database.updateSingleChatMessageSenderInfo(
+          updated.friendUserID ?? '',
+          senderNickname: showName,
+          senderFaceUrl: updated.faceURL,
+        );
       }
 
       _log.info('好友信息已更新: ${updateFriendsReq.friendUserIDs}', methodName: 'updateFriends');
@@ -482,12 +453,13 @@ class FriendshipManager {
     }
   }
 
-  /// 获取未处理的好友申请数量
-  /// [req] 查询参数
+  /// 获取未处理的好友申请数量（对齐 Go SDK: 从服务器获取）
   Future<int> getFriendApplicationUnhandledCount() async {
     _log.info('called', methodName: 'getFriendApplicationUnhandledCount');
     try {
-      return await _database.getFriendRequestUnhandledCount();
+      final resp = await _api.getSelfUnhandledApplyCount(userID: _currentUserID);
+      if (resp.errCode != 0) return 0;
+      return (resp.data?['count'] as num?)?.toInt() ?? 0;
     } catch (e, s) {
       _log.error(
         e.toString(),
