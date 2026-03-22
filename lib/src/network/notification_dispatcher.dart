@@ -1603,6 +1603,25 @@ class NotificationDispatcher {
       changedUserIDs.addAll(syncedUserIDs);
       await _syncUsersInfoByIDs(changedUserIDs);
 
+      // 将 localUser 中最新的用户资料（nickname/faceURL）同步到 localFriend，
+      // 防止增量好友接口未返回变更时 localFriend 仍为旧数据。
+      final freshUsers = await database.getUsersByIDs(changedUserIDs.toList());
+      final userInfoMap = <String, UserInfo>{};
+      for (final u in freshUsers) {
+        userInfoMap[u.userID] = u;
+      }
+      for (final changedUserID in changedUserIDs) {
+        final userInfo = userInfoMap[changedUserID];
+        if (userInfo != null) {
+          final profileUpdates = <String, dynamic>{};
+          if (userInfo.nickname != null) profileUpdates['nickname'] = userInfo.nickname;
+          if (userInfo.faceURL != null) profileUpdates['faceURL'] = userInfo.faceURL;
+          if (profileUpdates.isNotEmpty) {
+            await database.updateFriend(changedUserID, profileUpdates);
+          }
+        }
+      }
+
       for (final changedUserID in changedUserIDs) {
         final updated = await database.getFriendByUserID(changedUserID);
         if (updated != null) {
