@@ -177,19 +177,6 @@ class SettingsController extends GetxController {
     }
   }
 
-  // ---- SDK 控制 ----
-
-  /// 设置前后台状态
-  Future<void> setBackgroundStatus(bool bg) async {
-    try {
-      await OpenIM.iMManager.setAppBackgroundStatus(isBackground: bg);
-      isBackground.value = bg;
-      Get.snackbar('成功', bg ? '已进入后台模式' : '已恢复前台模式', snackPosition: SnackPosition.BOTTOM);
-    } catch (e) {
-      Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
-    }
-  }
-
   /// 通知网络状态变化
   Future<void> notifyNetworkChanged() async {
     try {

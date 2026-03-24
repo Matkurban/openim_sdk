@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.3
+
+- remove `setAppBackgroundStatus` method
+
 ## 1.6.2
 
 - Bug fixes.

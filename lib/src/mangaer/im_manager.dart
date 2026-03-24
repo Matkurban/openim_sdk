@@ -11,7 +11,6 @@ import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/logger/im_log_config.dart';
 import 'package:openim_sdk/src/logger/logger.dart';
-import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -20,7 +19,6 @@ import 'package:openim_sdk/src/network/http_client.dart';
 import 'package:openim_sdk/src/services/web_socket_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:openim_sdk/src/utils/platform_utils.dart';
-import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 
 class IMManager {
   IMManager._internal();
@@ -993,35 +991,6 @@ class IMManager {
     }
 
     return headers;
-  }
-
-  /// 设置 App 前后台状态
-  /// 对应 Go SDK SetAppBackgroundStatus
-  /// [isBackground] true=后台, false=前台
-  Future<void> setAppBackgroundStatus({required bool isBackground}) async {
-    _log.info('isBackground=$isBackground', methodName: 'setAppBackgroundStatus');
-    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
-      instanceName: InstanceName.webSocketService,
-    );
-    webSocketService.setBackground(isBackground);
-    try {
-      await webSocketService.sendRequestWaitResponse(
-        reqIdentifier: WebSocketIdentifier.setBackgroundStatus,
-        data: _encodeBackgroundStatusReq(isBackground),
-      );
-      if (!isBackground) {
-        unawaited(_msgSyncer?.doWakeupSync());
-      }
-    } catch (e, s) {
-      _log.error('设置失败', error: e, stackTrace: s, methodName: 'setAppBackgroundStatus');
-    }
-  }
-
-  Uint8List _encodeBackgroundStatusReq(bool isBackground) {
-    final req = sdkws.SetAppBackgroundStatusReq()
-      ..userID = userID
-      ..isBackground = isBackground;
-    return req.writeToBuffer();
   }
 
   /// 网络状态变更通知

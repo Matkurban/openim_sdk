@@ -157,15 +157,6 @@ class SettingsPage extends GetView<SettingsController> {
 
             // 应用控制
             _sectionTitle('应用控制'),
-            Obx(
-              () => SwitchListTile(
-                secondary: const Icon(Icons.dark_mode),
-                title: const Text('后台模式'),
-                subtitle: const Text('通知服务端当前为后台状态'),
-                value: controller.isBackground.value,
-                onChanged: (v) => controller.setBackgroundStatus(v),
-              ),
-            ),
             ListTile(
               leading: const Icon(Icons.wifi),
               title: const Text('网络重连'),
