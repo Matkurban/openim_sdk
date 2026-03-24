@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.4
+
+- fix snync bugs
+
 ## 1.6.3
 
 - remove `setAppBackgroundStatus` method

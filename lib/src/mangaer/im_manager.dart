@@ -551,6 +551,17 @@ class IMManager {
     return _loginStatus;
   }
 
+  /// 前台唤醒后触发轻量消息同步。
+  ///
+  /// 对齐 Go SDK 的 CmdWakeUpDataSync 行为：
+  /// 每次应用回到前台时主动做一次缺口补偿同步。
+  Future<void> triggerWakeupSync() async {
+    if (_loginStatus != LoginStatus.logged) return;
+    final syncer = _msgSyncer;
+    if (syncer == null) return;
+    await syncer.doWakeupSync();
+  }
+
   /// 获取当前登录用户ID
   String getLoginUserID() {
     return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser).userID;
