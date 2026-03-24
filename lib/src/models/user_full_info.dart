@@ -27,7 +27,6 @@ class UserFullInfo extends Equatable {
   @JsonKey(defaultValue: '')
   final String? faceURL;
 
-  @JsonKey(defaultValue: -1)
   final int? gender;
 
   @JsonKey(defaultValue: 0)

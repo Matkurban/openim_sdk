@@ -14,7 +14,7 @@ UserFullInfo _$UserFullInfoFromJson(Map<String, dynamic> json) => UserFullInfo(
   areaCode: json['areaCode'] as String? ?? '',
   nickname: json['nickname'] as String? ?? '',
   faceURL: json['faceURL'] as String? ?? '',
-  gender: (json['gender'] as num?)?.toInt() ?? -1,
+  gender: (json['gender'] as num?)?.toInt() ?? 0,
   level: (json['level'] as num?)?.toInt() ?? 0,
   birth: (json['birth'] as num?)?.toInt() ?? 0,
   email: json['email'] as String? ?? '',

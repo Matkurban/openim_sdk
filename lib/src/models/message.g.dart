@@ -144,7 +144,6 @@ Map<String, dynamic> _$MessageToJson(Message instance) => <String, dynamic>{
 
 const _$ConversationTypeEnumMap = {
   ConversationType.single: 1,
-  ConversationType.group: 2,
   ConversationType.superGroup: 3,
   ConversationType.notification: 4,
 };

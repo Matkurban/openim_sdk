@@ -1,11 +1,8 @@
-import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/listener/moments_listener.dart';
-import 'package:openim_sdk/src/models/api_response.dart';
-import 'package:openim_sdk/src/models/init_config.dart';
 import 'package:openim_sdk/src/models/moment_comment.dart';
 import 'package:openim_sdk/src/models/moment_create_req.dart';
 import 'package:openim_sdk/src/models/moment_info.dart';
@@ -13,7 +10,6 @@ import 'package:openim_sdk/src/models/moment_like.dart';
 import 'package:openim_sdk/src/models/moment_list_response.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
 
 /// 朋友圈管理器
 ///
@@ -43,62 +39,11 @@ class MomentsManager {
     return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
   }
 
-  // ---------------------------------------------------------------------------
-  // 内部 HTTP
-  // ---------------------------------------------------------------------------
-
-  String get _chatAddr {
-    final config = _getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
-    final addr = config.authAddr;
-    if (addr == null || addr.isEmpty) {
-      throw Exception('chatAddr 未配置');
-    }
-    return addr;
-  }
-
-  Future<ApiResponse> _post(String path, Map<String, dynamic> data) async {
-    _log.info('path=$path', methodName: '_post');
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: _chatAddr,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        contentType: Headers.jsonContentType,
-        responseType: ResponseType.json,
-        headers: {
-          if (HttpClient().chatToken != null) 'token': HttpClient().chatToken,
-          'operationID': OpenImUtils.generateOperationID(operationName: 'moments'),
-        },
-      ),
-    );
-    try {
-      final response = await dio.post(path, data: data);
-      return ApiResponse.fromJson(response.data as Map<String, dynamic>);
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_post');
-      if (e is DioException) {
-        return ApiResponse(
-          errCode: -1,
-          errMsg: e.message ?? 'network error',
-          errDlt: '',
-          data: null,
-        );
-      }
-      return ApiResponse(errCode: -1, errMsg: e.toString(), errDlt: '', data: null);
-    } finally {
-      dio.close();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 发布 / 删除
-  // ---------------------------------------------------------------------------
-
   /// 发布朋友圈动态
   Future<MomentInfo?> createMoment({required MomentCreateReq request}) async {
     _log.info('content=${request.content}', methodName: 'createMoment');
     try {
-      final resp = await _post('/moment/create', request.toJson());
+      final resp = await HttpClient().chatPost('/moment/create', data: request.toJson());
       if (!resp.isSuccess) {
         _log.warning('createMoment failed: ${resp.errMsg}');
         return null;
@@ -122,7 +67,7 @@ class MomentsManager {
   Future<bool> deleteMoment({required String momentID}) async {
     _log.info('momentID: $momentID', methodName: 'deleteMoment');
     try {
-      final resp = await _post('/moment/delete', {'momentID': momentID});
+      final resp = await HttpClient().chatPost('/moment/delete', data: {'momentID': momentID});
       if (resp.isSuccess) {
         await _database.deleteMoment(momentID);
         return true;
@@ -134,10 +79,6 @@ class MomentsManager {
       rethrow;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 列表（local-first）
-  // ---------------------------------------------------------------------------
 
   /// 获取朋友圈列表
   ///
@@ -192,11 +133,14 @@ class MomentsManager {
       methodName: 'fetchMomentListFromServer',
     );
     try {
-      final resp = await _post('/moment/list', {
-        'ownerUserID': ownerUserID ?? '',
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
+      final resp = await HttpClient().chatPost(
+        '/moment/list',
+        data: {
+          'ownerUserID': ownerUserID ?? '',
+          'pageNumber': pageNumber,
+          'showNumber': showNumber,
+        },
+      );
       if (!resp.isSuccess || resp.data is! Map<String, dynamic>) {
         return MomentListResponse.empty();
       }
@@ -223,11 +167,14 @@ class MomentsManager {
       methodName: '_fetchAndCacheMoments',
     );
     try {
-      final resp = await _post('/moment/list', {
-        'ownerUserID': ownerUserID ?? '',
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
+      final resp = await HttpClient().chatPost(
+        '/moment/list',
+        data: {
+          'ownerUserID': ownerUserID ?? '',
+          'pageNumber': pageNumber,
+          'showNumber': showNumber,
+        },
+      );
       if (!resp.isSuccess || resp.data is! Map<String, dynamic>) return;
       final response = MomentListResponse.fromJson(resp.data as Map<String, dynamic>);
       if (response.moments.isNotEmpty) {
@@ -239,15 +186,14 @@ class MomentsManager {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 点赞 / 取消点赞
-  // ---------------------------------------------------------------------------
-
   /// 点赞动态
   Future<bool> likeMoment({required String momentID, String? ownerUserID}) async {
     _log.info('momentID: $momentID', methodName: 'likeMoment');
     try {
-      final resp = await _post('/moment/like', {'momentID': momentID, 'ownerUserID': ?ownerUserID});
+      final resp = await HttpClient().chatPost(
+        '/moment/like',
+        data: {'momentID': momentID, 'ownerUserID': ownerUserID},
+      );
       if (resp.isSuccess) {
         final like = MomentLikeWithUser(
           momentID: momentID,
@@ -270,10 +216,10 @@ class MomentsManager {
   Future<bool> unlikeMoment({required String momentID, String? ownerUserID}) async {
     _log.info('momentID: $momentID', methodName: 'unlikeMoment');
     try {
-      final resp = await _post('/moment/unlike', {
-        'momentID': momentID,
-        'ownerUserID': ?ownerUserID,
-      });
+      final resp = await HttpClient().chatPost(
+        '/moment/unlike',
+        data: {'momentID': momentID, 'ownerUserID': ?ownerUserID},
+      );
       if (resp.isSuccess) {
         await _updateLocalMomentLike(
           momentID,
@@ -314,10 +260,6 @@ class MomentsManager {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 评论
-  // ---------------------------------------------------------------------------
-
   /// 评论动态
   Future<MomentCommentWithUser?> commentMoment({
     required String momentID,
@@ -327,12 +269,15 @@ class MomentsManager {
   }) async {
     _log.info('momentID=$momentID, content=$content', methodName: 'commentMoment');
     try {
-      final resp = await _post('/moment/comment', {
-        'momentID': momentID,
-        'content': content,
-        if (replyToUserID != null && replyToUserID.isNotEmpty) 'replyToUserID': replyToUserID,
-        'ownerUserID': ?ownerUserID,
-      });
+      final resp = await HttpClient().chatPost(
+        '/moment/comment',
+        data: {
+          'momentID': momentID,
+          'content': content,
+          if (replyToUserID != null && replyToUserID.isNotEmpty) 'replyToUserID': replyToUserID,
+          'ownerUserID': ?ownerUserID,
+        },
+      );
       if (!resp.isSuccess) {
         _log.warning('commentMoment failed: ${resp.errMsg}');
         return null;
@@ -356,7 +301,10 @@ class MomentsManager {
   Future<bool> deleteComment({required String commentID, String? momentID}) async {
     _log.info('commentID: $commentID', methodName: 'deleteComment');
     try {
-      final resp = await _post('/moment/delete_comment', {'commentID': commentID});
+      final resp = await HttpClient().chatPost(
+        '/moment/delete_comment',
+        data: {'commentID': commentID},
+      );
       if (resp.isSuccess) {
         if (momentID != null) {
           await _updateLocalMomentComment(momentID, null, add: false, removeCommentID: commentID);
@@ -394,10 +342,6 @@ class MomentsManager {
       rethrow;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // WS 通知处理（由 NotificationDispatcher 调用）
-  // ---------------------------------------------------------------------------
 
   /// 处理来自 WS 的朋友圈业务通知
   Future<void> handleNotification(String key, Map<String, dynamic> data) async {
@@ -460,10 +404,6 @@ class MomentsManager {
       rethrow;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 全量同步（登录 / 重连时调用）
-  // ---------------------------------------------------------------------------
 
   /// 全量同步第一页数据到本地（由 MsgSyncer 在 doConnectedSync 中调用）
   Future<void> syncFromServer() async {

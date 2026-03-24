@@ -64,8 +64,9 @@ class ConversationInfo extends Equatable {
 
   bool get isSingleChat => conversationType == ConversationType.single;
 
-  bool get isGroupChat =>
-      conversationType == ConversationType.group || conversationType == ConversationType.superGroup;
+  bool get isGroupChat => conversationType == ConversationType.superGroup;
+
+  bool get isNotificationChat => conversationType == ConversationType.notification;
 
   /// 当前用户是否在该群中（仅群聊有意义）
   bool get isInGroup => isNotInGroup != true;

@@ -6,11 +6,6 @@ enum ConversationType {
   @JsonValue(1)
   single(1),
 
-  /// Group (Deprecated in v3)
-  @Deprecated('Use superGroup instead')
-  @JsonValue(2)
-  group(2),
-
   /// Super group chat
   @JsonValue(3)
   superGroup(3),

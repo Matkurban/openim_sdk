@@ -65,7 +65,7 @@ const _$GroupStatusEnumMap = {
   GroupStatus.muted: 3,
 };
 
-const _$GroupTypeEnumMap = {GroupType.general: 0, GroupType.work: 2};
+const _$GroupTypeEnumMap = {GroupType.work: 2};
 
 const _$GroupVerificationEnumMap = {
   GroupVerification.applyNeedVerificationInviteDirectly: 0,

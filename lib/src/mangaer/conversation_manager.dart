@@ -150,7 +150,7 @@ class ConversationManager {
       final updates = <String, dynamic>{};
       try {
         if (sessionType == ConversationType.superGroup.value ||
-            sessionType == ConversationType.group.value) {
+            sessionType == ConversationType.superGroup.value) {
           final group = await _database.getGroupByID(sourceID);
           if (group != null) {
             updates['showName'] = group.groupName ?? '';

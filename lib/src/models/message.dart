@@ -182,8 +182,9 @@ class Message extends Equatable {
   bool get isSingleChat => sessionType == ConversationType.single;
 
   /// Group chat message
-  bool get isGroupChat =>
-      sessionType == ConversationType.group || sessionType == ConversationType.superGroup;
+  bool get isGroupChat => sessionType == ConversationType.superGroup;
+
+  bool get isNotificationChat => sessionType == ConversationType.notification;
 
   Message copyWith({
     String? clientMsgID,

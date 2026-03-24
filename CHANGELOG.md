@@ -1,471 +1,466 @@
 # Changelog
 
+## 1.6.2
+
+- Bug fixes.
+
 ## 1.6.1
 
-### 修复
+### Fixes
 
-- **会话 / 好友 / 群组 三路增量同步（对齐 Go SDK `VersionSynchronizer`）**：
-  - `MsgSyncer._syncConversationsAndSeqs()`：改用 `getIncrementalConversation`（version 增量），
-    `full=true` 或首次安装/重装时降级为 `_syncConversationsFull()`；
-    神独步骤始终刷新 `getConversationsHasReadAndMaxSeq`，确保 `_serverMaxSeqs` 最新
-  - `MsgSyncer._syncFriends()`：改用 `getIncrementalFriends`，支持 delete / insert / update 三种差异路径，
-    `full=true` 或首次同步时降级为 `_syncFriendsFull()`；增量路径在好友更新时同步
-    对应单聊会话的 showName / faceURL
-  - `MsgSyncer._syncJoinedGroups()`：改用 `getIncrementalJoinGroup`，
-    仅对新增群组（insert）重新拉取成员列表，降低无用 HTTP 请求
-  - 三路同步均将新版本号通过 `setVersionSync` 持久化到 `local_version_sync` 表
+- **Incremental synchronization for Conversations / Friends / Groups (aligned with Go SDK `VersionSynchronizer`)**:
+  - `MsgSyncer._syncConversationsAndSeqs()`: switched to `getIncrementalConversation` (version-based increment). Falls back to `_syncConversationsFull()` when `full=true` or on first install/reinstall.
+    The independent step always refreshes `getConversationsHasReadAndMaxSeq` to keep `_serverMaxSeqs` up to date.
+  - `MsgSyncer._syncFriends()`: switched to `getIncrementalFriends`, supporting delete / insert / update paths.
+    Falls back to `_syncFriendsFull()` when `full=true` or during initial sync; also syncs single-chat `showName` / `faceURL` when friend data changes.
+  - `MsgSyncer._syncJoinedGroups()`: switched to `getIncrementalJoinGroup`; only re-fetches member lists for newly inserted groups to reduce unnecessary HTTP requests.
+  - All three sync channels persist new version numbers via `setVersionSync` into the `local_version_sync` table.
 
 ## 1.5.0
 
-- 修复好友同步问题，修复好友信息监听错误返回旧数据的问题
+- Fixed friend sync issues, including incorrect old data returned by friendship listeners.
 
 ## 1.4.7
 
-- 修复群聊信息同步问题
+- Fixed group chat info synchronization issues.
 
 ## 1.4.6
 
-- 修复消息未填充发送者的基础信息的问题
-
+- Fixed missing sender base information in messages.
 
 ## 1.4.5
 
-- 修复删除黑名单失败的问题
+- Fixed failure when removing users from blocklist.
 
 ## 1.4.4
 
-- 优化文件上传的性能
+- Optimized file upload performance.
 
 ## 1.4.3
 
-- 优化上传文件
+- Optimized file upload.
 
 ## 1.4.2
 
-### 修复
-
-- **修复 Flutter Web 平台 `MissingPluginException(getApplicationSupportDirectory)` 崩溃**：
-  - `OpenImUtils.defaultDbPath()` 改用 `kIsWeb` 判断 Web，避免在 Web 环境调用 `path_provider.getApplicationSupportDirectory`
-  - 同步修复平台判断链路中的 Web 识别（避免 `UniversalPlatform.isWeb` 在 Web 下误判）：
-    - `PlatformUtils.currentPlatform` 使用 `kIsWeb`
-    - `WebSocketService` 在 Web 下强制关闭压缩使用 `kIsWeb` 判断
+- **Fixed Flutter Web crash `MissingPluginException(getApplicationSupportDirectory)`**:
+  - `OpenImUtils.defaultDbPath()` now uses `kIsWeb` to detect Web and avoids calling `path_provider.getApplicationSupportDirectory` on Web.
+  - Fixed Web detection in platform checks (to avoid `UniversalPlatform.isWeb` misdetection on Web):
+    - `PlatformUtils.currentPlatform` now uses `kIsWeb`.
+    - `WebSocketService` force-disables compression on Web using `kIsWeb`.
 
 ## 1.4.1
 
-- 修复启动时的 getApplicationSupportDirectory 的警告
+- Fixed startup warning for `getApplicationSupportDirectory`.
 
 ## 1.4.0
 
-### 修复
+- **Aligned message/conversation sync logic with Go SDK**:
+  - `MsgSyncer._syncConversationsAndSeqs()`: for non-first install, fetches full server conversation `seq` to avoid missing newly added server conversations when requesting only by local IDs.
+  - `MsgSyncer._syncMessages()`: fixed incorrect skipping of `n_` notification conversations in non-reinstall scenarios; batching now accumulates by estimated message count to `SplitPullMsgNum(100)` before pulling, aligned with Go `syncAndTriggerMsgs`.
+  - `MsgSyncer._syncMissingMessages()`: gap sync now first fetches server `maxSeq`, then pulls by actual interval `[local+1, serverMax]`, removing fixed-window gap pulls.
+  - `MsgSyncer.handlePushMsg()`: push continuity check aligned with Go `pushTriggerAndSync` (`seq=0` excluded from continuity; uses `lastSeq == local + count`). If gaps are detected, pull first then insert to avoid out-of-order/gap mishandling.
+  - `MsgSyncer._syncHistoryByQueue()`: added history sync queue to continuously pull by ranges and advance `seq`, fixing the issue where only `latestMsg` was synchronized.
 
-- **对齐 Go SDK 消息/会话同步逻辑**：
-  - `MsgSyncer._syncConversationsAndSeqs()`：非首次安装时获取服务端全量会话 `seq`，避免仅用本地会话 ID 请求导致漏同步服务端新增会话
-  - `MsgSyncer._syncMessages()`：修复非重装场景错误跳过 `n_` 通知会话的问题；分批策略改为按预计消息数累计到 `SplitPullMsgNum(100)` 再拉取，对齐 Go `syncAndTriggerMsgs`
-  - `MsgSyncer._syncMissingMessages()`：缺口补拉改为先取服务端 `maxSeq` 再按真实区间 `[local+1, serverMax]` 拉取，移除固定窗口补拉
-  - `MsgSyncer.handlePushMsg()`：推送连续性校验改为与 Go `pushTriggerAndSync` 一致（`seq=0` 不参与连续性；按 `lastSeq == local + count` 判定），有缺口时先补拉后入库，避免乱序/断档误处理
-  - `MsgSyncer._syncHistoryByQueue()`：新增历史同步队列，按区间持续拉取并推进 `seq`，修复仅同步 latestMsg 的问题
+- **Fixed repeated login failure (duplicate GetIt registration)**:
+  - `IMManager.login()`: unregisters old `loginUser` instance before registration.
+  - `IMManager.logout()`: unregisters `loginUser` to fix `UserInfo already registered` on relogin.
 
-- **修复重复登录失败（GetIt 重复注册）**：
-  - `IMManager.login()`：注册 `loginUser` 前先判断并反注册旧实例
-  - `IMManager.logout()`：补充反注册 `loginUser`，修复“退出后再次登录”触发 `UserInfo already registered` 异常
+- **Aligned restart recovery strategy with Go SDK (`sending -> failed`)**:
+  - `MessageManager.recoverSendingMessages()`: no longer auto-resends `sending` messages after restart; marks them as failed and updates conversation `latestMsg` status, aligned with Go `handlerSendingMsg`.
 
-- **对齐 Go SDK 重启恢复策略（sending -> failed）**：
-  - `MessageManager.recoverSendingMessages()`：重启后不再自动重发 sending 消息，改为直接置失败并更新会话 latestMsg 状态，行为与 Go `handlerSendingMsg` 一致
+- **Aligned post-connect sync trigger timing**:
+  - `WebSocketService` added a unified success callback for connection/reconnection success.
+  - `IMManager` triggers `MsgSyncer.doConnectedSync()` on each successful connection and again when app returns to foreground.
 
-- **对齐连接后同步触发时机**：
-  - `WebSocketService` 新增连接成功统一回调（含重连成功）
-  - `IMManager` 在每次连接成功后触发 `MsgSyncer.doConnectedSync()`，并在前台唤醒后补触发同步
+- **Completed notification semantics and read receipt handling**:
+  - `NotificationDispatcher` added handling for `2102` (delete message) and `1703` (clear conversation), refreshing conversation latest/unread.
+  - `2200` read receipt now maps `seq` back to `clientMsgID` before invoking `recvC2CReadReceipt`, and computes unread by `maxSeq - hasReadSeq` to avoid incorrect zeroing.
 
-- **补齐通知语义与已读回执处理**：
-  - `NotificationDispatcher` 新增 `2102`（删除消息）和 `1703`（清空会话）处理，刷新会话 latestMsg/未读
-  - `2200` 已读回执改为按 `seq` 回查 `clientMsgID` 后回调 `recvC2CReadReceipt`，并按 `maxSeq - hasReadSeq` 计算未读，避免错误清零
+- **Completed incremental sync and storage capabilities (aligned with Go structure)**:
+  - `ImApiService` added `getIncrementalJoinGroup()` and `getFullJoinGroupIDs()`.
+  - `DbSchema` added `local_uploads` and `local_version_sync`; group member unique key aligned to `(groupID, userID)`.
+  - `DatabaseService` added `VersionSync`, upload task, and `seq`-based query/read/delete capabilities.
 
-- **补齐增量同步与存储能力（对齐 Go 结构）**：
-  - `ImApiService` 新增 `getIncrementalJoinGroup()`、`getFullJoinGroupIDs()`
-  - `DbSchema` 新增 `local_uploads`、`local_version_sync`，并将群成员唯一键对齐为 `(groupID, userID)`
-  - `DatabaseService` 新增 `VersionSync`、上传任务、按 `seq` 查询/已读/删除等接口能力
+- **Fixed consistency gaps in full-ID sync for friends/groups**:
+  - `NotificationDispatcher._syncFriends()`: added local set-diff cleanup (delete `local - server` friends).
+  - `NotificationDispatcher._syncJoinedGroups()`: added local set-diff cleanup (delete `local - server` groups and members, and mark conversation `isNotInGroup=true`).
+  - Empty-server-set handling: no longer returns early; performs local cleanup first and updates version sync records to avoid stale data.
 
-- **修复好友/群组全量 ID 同步的一致性缺口**：
-  - `NotificationDispatcher._syncFriends()`：新增本地差集清理（删除 `local - server` 好友）
-  - `NotificationDispatcher._syncJoinedGroups()`：新增本地差集清理（删除 `local - server` 群组与成员，并标记会话 `isNotInGroup=true`）
-  - 处理服务端空集合场景：不再直接返回，先完成本地清理并更新版本同步记录，避免残留脏数据
-- **对齐关系/群组/会话通知的增量同步入口（版本感知）**：
-  - `NotificationDispatcher._syncFriends()`：从全量拉取改为使用 `getIncrementalFriends`，按 `local_version_sync` 推进版本（同时处理 delete/insert/update）
-  - `NotificationDispatcher._syncJoinedGroups()`：从全量拉取改为使用 `getIncrementalJoinGroup`，对 delete/insert/update 做增量收敛，并仅对变更群拉取成员列表
-  - `NotificationDispatcher._syncConversations()`：从全量 `getAllConversations` 改为 `getIncrementalConversation`，按 insert/update/delete 增量更新会话
-  - `NotificationDispatcher` 中 `memberQuit/memberKicked`：非自身的群成员删除不再直接 `deleteGroupMember`，交由增量同步收敛减少本地补丁冲突
-- **回归验证要点（对齐 Go SDK 行为）**：
-  - 重连后需触发 post-connect 同步：确认 `reconnect` 成功后会话/消息缺口被补齐
-  - 已读回执映射：确认 `recvC2CReadReceipt` 的 `msgIDList` 填充为 `clientMsgID`（而非 `seq` 字符串）
-  - 删除/清空会话通知：确认本地 DB 删除/清空先完成，再刷新 conversation latestMsg/未读（避免时序竞争）
+- **Aligned incremental entry points (version-aware) for relationships/groups/conversations**:
+  - `NotificationDispatcher._syncFriends()`: switched from full pull to `getIncrementalFriends`, advancing by `local_version_sync` and handling delete/insert/update.
+  - `NotificationDispatcher._syncJoinedGroups()`: switched from full pull to `getIncrementalJoinGroup`, incrementally converging delete/insert/update and fetching member lists only for changed groups.
+  - `NotificationDispatcher._syncConversations()`: switched from full `getAllConversations` to `getIncrementalConversation`, updating conversations incrementally by insert/update/delete.
+  - In `NotificationDispatcher`, `memberQuit/memberKicked`: no longer directly call `deleteGroupMember` for non-self changes; handled by incremental sync to reduce local patch conflicts.
 
-- **补齐上传断点续传闭环（对齐 Go upload_model 语义）**：
-  - `DatabaseService` 新增 `getUploadTaskByHashAndName()`，上传前按 `hash + name` 查询历史任务
-  - `IMManager.uploadFile()` 支持恢复同 `uploadID` 的已上传分片（跳过已完成分片），持续更新 `uploadedParts`
-  - 上传完成后删除本地上传任务记录，避免脏状态残留
+- **Regression validation points (aligned with Go SDK behavior)**:
+  - Post-reconnect sync must be triggered: verify gaps are filled after successful reconnect.
+  - Read-receipt mapping: verify `recvC2CReadReceipt.msgIDList` uses `clientMsgID` (not `seq` strings).
+  - Delete/clear conversation notifications: verify local DB delete/clear happens before refreshing latest/unread to avoid timing races.
 
-- **补齐通知 seq 独立持久化（对齐 Go notification_seqs 语义）**：
-  - `DbSchema` 新增 `local_notification_seqs`
-  - `DatabaseService` 新增 `upsertNotificationSeq()`、`getAllNotificationSeqs()`
-  - `MsgSyncer._loadSeqs()` 启动时恢复通知 seq 到内存
-  - 通知消息处理路径（push/pull）在推进 seq 时同步写入通知 seq
-  - 重装场景对 `n_` 通知会话改为“只推进 seq 不拉通知内容”，与 Go 分支语义一致
+- **Completed resumable upload loop (aligned with Go `upload_model` semantics)**:
+  - `DatabaseService` added `getUploadTaskByHashAndName()` to query historical upload tasks by `hash + name` before upload.
+  - `IMManager.uploadFile()` now supports resuming uploaded parts for the same `uploadID` (skip finished parts) and continuously updates `uploadedParts`.
+  - Local upload task records are deleted after upload completion to avoid stale state.
+
+- **Completed independent notification-seq persistence (aligned with Go `notification_seqs` semantics)**:
+  - `DbSchema` added `local_notification_seqs`.
+  - `DatabaseService` added `upsertNotificationSeq()` and `getAllNotificationSeqs()`.
+  - `MsgSyncer._loadSeqs()` restores notification seqs to memory at startup.
+  - Notification processing paths (push/pull) now persist notification seq updates.
+  - In reinstall scenarios, `n_` notification conversations now "advance seq only without pulling notification content", aligned with Go branch semantics.
 
 ## 1.3.4
 
-### 修复
+- **Fixed missing group names during conversation sync**:
+  - `NotificationDispatcher._syncConversations()`: server `getAllConversations` does not return `showName`/`faceURL`; client now fills them. Added `_batchFillShowNameAndFaceURL()` to batch-fill before DB write (local DB first, network fallback), aligned with Go `batchAddFaceURLAndName`.
+  - `MsgSyncer._enrichNewConversation()`: when auto-creating conversation from push messages, it previously only queried local DB for group/user names. If the group was not yet synced locally (e.g. just invited), name remained sender nickname. Added network fallback with caching.
 
-- **修复同步会话时群聊名称缺失**：
-  - `NotificationDispatcher._syncConversations()`：服务端 `getAllConversations` 不返回 `showName`/`faceURL`，需客户端填充。新增 `_batchFillShowNameAndFaceURL()` 方法，在写入本地数据库前批量填充（本地 DB → 网络 API 兜底），对齐 Go SDK 的 `batchAddFaceURLAndName`
-  - `MsgSyncer._enrichNewConversation()`：收到推送消息自动创建新会话时，仅从本地数据库查询群组/用户名称。若群组尚未同步到本地（如刚被邀请入群），名称会保持为发送者昵称。新增网络 API 兜底，查不到时自动从服务端拉取并缓存
-
-- **修复 Web 端刷新后 `userInfo` 为 null**：浏览器刷新后所有 Dart 内存状态丢失（`_userInfo`、`_loginStatus` 等），但浏览器保留当前 URL（如 `/main`）跳过 splash 页的 `loadLoginConfig()` 自动登录流程。在 `IMManager` 中支持 `loadLoginConfig()` 在 `runApp` 之前调用，从 IndexedDB 恢复登录态
+- **Fixed `userInfo == null` after Web refresh**:
+  Browser refresh resets in-memory Dart state (`_userInfo`, `_loginStatus`, etc.) while URL is retained (e.g. `/main`), skipping splash auto-login (`loadLoginConfig()`). `IMManager` now supports calling `loadLoginConfig()` before `runApp` to restore login state from IndexedDB.
 
 ## 1.3.3
 
-### 新增
+### Added
 
-- **Web 平台文件/图片/视频上传支持**：Web 端无法使用 `dart:io File` 读取文件路径，新增基于字节流的上传方式：
-  - `MessageManager.createImageMessageFromBytes()` — 通过 `Uint8List` 字节创建图片消息
-  - `MessageManager.createVideoMessageFromBytes()` — 通过 `Uint8List` 字节创建视频消息
-  - `MessageManager.createFileMessageFromBytes()` — 通过 `Uint8List` 字节创建文件消息
-  - `IMManager.uploadFile()` 新增可选 `fileBytes` 参数，支持直接传入字节流上传（跳过 `dart:io File` 读取）
-  - `_handleMediaUploadIfNeeded()` 优先使用内存中的 `_pendingUploadBytes` 上传，Web 端无需依赖文件系统路径
+- **Web file/image/video upload support**: Web cannot use `dart:io File` path reads; added byte-stream upload methods:
+  - `MessageManager.createImageMessageFromBytes()`
+  - `MessageManager.createVideoMessageFromBytes()`
+  - `MessageManager.createFileMessageFromBytes()`
+  - `IMManager.uploadFile()` adds optional `fileBytes` parameter for direct byte upload (without `dart:io File` reads)
+  - `_handleMediaUploadIfNeeded()` prioritizes in-memory `_pendingUploadBytes`, removing file path dependency on Web
 
-### 优化
+### Optimized
 
-- **`IMManager` 改为单例模式**：使用 `factory` + `_internal` 构造函数，避免重复创建实例导致状态丢失
+- **`IMManager` changed to singleton mode**: uses `factory` + `_internal` to avoid state loss from repeated instance creation.
 
-- **全部数据模型统一使用 `Equatable`**：审计并修复所有模型类，确保 `props` 包含全部属性，修复 `didUpdateWidget` 等依赖对象相等性判断的场景：
-  - `Message.props` 从 `[clientMsgID]` 扩展为全部 41 个属性（**关键修复**：此前发送图片消息后 UI 无法检测到 URL 变化）
-  - 新增 `Equatable`：`FullUserInfo`、`AuthCacheData`、`LinkInfo`、`NoteInfo`、`MomentInfo`、`MomentCommentWithUser`、`MomentLikeWithUser`、`MomentMedia`、`MomentUserInfo`、`MomentCreateReq`、`MomentListResponse`、`FavoriteItem`、`FavoriteListResponse`
+- **Unified all data models with `Equatable`**:
+  audited and fixed model `props` to include all fields, fixing object equality-dependent scenes like `didUpdateWidget`.
+  - `Message.props` expanded from `[clientMsgID]` to all 41 fields (**critical fix**: UI could not detect URL change after image send before this)
+  - Added `Equatable` to: `FullUserInfo`, `AuthCacheData`, `LinkInfo`, `NoteInfo`, `MomentInfo`, `MomentCommentWithUser`, `MomentLikeWithUser`, `MomentMedia`, `MomentUserInfo`, `MomentCreateReq`, `MomentListResponse`, `FavoriteItem`, `FavoriteListResponse`
 
 ## 1.3.2
 
-### 修复
+- **Fixed message state becoming failed after switching conversations**:
+  `getAdvancedHistoryMessageList` upserts cloud messages via `batchInsertMessages`; protobuf `status` defaults to `0`, while `MessageStatus.fromValue(0)` falls back to `failed`, overwriting successful messages.
+  Fix: default incoming cloud/push message status to `MessageStatus.succeeded` before insertion (aligned with Go SDK: server-side messages must already be sent successfully).
 
-- **修复切换会话后消息状态变为失败**：`getAdvancedHistoryMessageList` 从云端拉取消息后执行 `batchInsertMessages`（upsert），云端消息的 protobuf `status` 字段默认为 `0`，而 `MessageStatus.fromValue(0)` 的 `orElse` 默认返回 `failed`，导致已发送成功的消息被覆盖为失败状态。修复：云端拉取和推送的消息在插入前默认设置 `status = MessageStatus.succeeded`（对齐 Go SDK 行为，服务端消息必然已发送成功）
+- **Fixed conversation list not showing latest message content after send**:
+  `_updateConversationLatestMsg` serialized latest message with `message.toJson()` (json_serializable format), generating `{textElem: {content: "..."}}`, but `convertMessage()` expects DB flat `content` format like `{content: '{"content":"..."}'}`.
+  Fix: switched to `DatabaseService.messageToDbMap()` serialization for format compatibility.
 
-- **修复发送消息后会话列表不显示最新消息内容**：`_updateConversationLatestMsg` 使用 `message.toJson()`（json_serializable 格式）序列化 latestMsg，生成 `{textElem: {content: "..."}}` 格式，但 `convertMessage()` 读取时期望 DB 格式 `{content: '{"content":"..."}'}` 的扁平 `content` 字段，导致反序列化后所有元素字段（textElem、pictureElem 等）为 null，会话列表副标题为空。修复：改用 `DatabaseService.messageToDbMap()` 序列化，确保与 `convertMessage()` 格式兼容
+- **Fixed latestMsg not updating on message send**:
+  `_updateConversationLatestMsg` only compared `sendTime >= existingTime`; newly created local message has `sendTime=0`, so update might be skipped.
+  Fix: aligned with Go `doUpdateConversation > AddConOrUpLatMsg` (notification.go:198) by adding `clientMsgID` fallback matching, so status transitions (sending -> succeeded) always update latestMsg for the same message.
 
-- **修复发送消息时 latestMsg 未更新**：`_updateConversationLatestMsg` 仅比较 `sendTime >= existingTime`，新创建的消息 `sendTime=0`（尚未发送到服务器），当已有 latestMsg 的 `sendTime > 0` 时条件不成立，导致会话 latestMsg 不更新。修复：对齐 Go SDK `doUpdateConversation > AddConOrUpLatMsg`（notification.go:198）的逻辑，增加 `clientMsgID` 匹配回退条件 — 同一条消息的状态更新（sending→succeeded）始终允许更新 latestMsg
-
-- **优化初次安装同步性能**：初次安装时 `_processPulledMsgs` 对每条通知消息（contentType >= 1000）逐条调用 `notificationDispatcher.dispatch()`，大量好友/群组通知（如 500+ 条 contentType=1201）导致重复触发 `_debounceSyncFriends`。修复：重装同步时跳过通知分发（对齐 Go SDK `doMsgSyncByReinstalled` 行为，此时好友/群组已通过 `_syncFriends`/`_syncJoinedGroups` 全量同步）
+- **Optimized first-install sync performance**:
+  on first install, `_processPulledMsgs` dispatched each notification message (`contentType >= 1000`) one by one, causing repeated `_debounceSyncFriends` with large notification volumes.
+  Fix: skip notification dispatch in reinstall sync (aligned with Go `doMsgSyncByReinstalled`, where friends/groups are already fully synced by `_syncFriends` / `_syncJoinedGroups`).
 
 ## 1.3.1
 
-### 修复
-
-- **修复黑名单列表显示错误**：`getBlacklist()` 返回的 `BlacklistInfo` 中 `userID` 字段为 `null`，导致 UI 无法正确显示被拉黑用户。修改 `BlacklistInfo` 模型，移除 `userID` 字段，使用 `blockUserID` 替代，并在 `BlacklistInfo.fromJson()` 中正确映射字段
+- **Fixed incorrect blocklist display**:
+  `BlacklistInfo.userID` returned as `null` from `getBlacklist()`, causing UI display issues.
+  Updated `BlacklistInfo` model to use `blockUserID` instead of `userID`, with correct mapping in `BlacklistInfo.fromJson()`.
 
 ## 1.3.0
 
-### 修复
+- **Fixed empty `latestMsg` in conversation list on first install**:
+  optimized `_syncMessages()` so messages are pulled even when seq is 0 during first install (`reinstalled=true`), aligned with Go SDK `connectPullNums=1` behavior.
 
-- **修复初次安装时会话列表 latestMsg 为空**：优化 `_syncMessages()` 逻辑，初次安装时（`reinstalled=true`）无论 seq 是否为 0 都尝试拉取消息，确保 `latestMsg` 能正确显示在会话列表中，与 Go SDK 的 `connectPullNums=1` 行为一致
+- **Fixed file upload failure (HTTP 500)**:
+  corrected multipart upload URL assembly; server `partInfo.url` may be incomplete and now composes `signUrl + uploadId + partNumber`.
+  also fixed response header parsing (server returns List instead of Map) and ETag format trimming (S3 returns quoted ETag).
 
-- **修复文件上传失败（500 错误）**：修正分片上传 URL 构造逻辑，服务器返回的 `partInfo.url` 不完整，需手动拼接 `signUrl + uploadId + partNumber`；修复响应头解析（服务器返回 List 而非 Map）；修复 ETag 格式（S3 返回带双引号，需去除）
+- **Fixed uploaded message loss when switching conversations**:
+  added `recoverSendingMessages()`; on app restart/relogin, sending messages are marked failed (not deleted), consistent with Go SDK, so users can resend via long-press.
 
-- **修复切换会话时上传消息丢失**：新增 `recoverSendingMessages()` 方法，与 Go SDK 行为一致，App 重启后登录时自动将所有发送中的消息标记为失败（而非直接删除），用户可长按消息重发
+- **Fixed message sync efficiency issues**:
+  optimized `_syncConversationsAndSeqs()` aligned with Go SDK: fetch server seqs first, only fetch full info for new conversations, and update seq only for existing ones.
 
-- **修复消息同步效率问题**：优化 `_syncConversationsAndSeqs()` 逻辑，与 Go SDK 保持一致，先获取服务端 seqs 与本地会话比较，只获取新增会话的完整信息，已存在会话只更新 seq，减少不必要的网络请求和数据处理
-
-- **修复初次安装时无法同步会话**：优化 `_syncConversationsAndSeqs()` 逻辑，初次安装时（本地无会话或 reinstalled=true）直接调用 `getAllConversations` 获取所有会话，与 Go SDK 行为一致
-
+- **Fixed inability to sync conversations on first install**:
+  optimized `_syncConversationsAndSeqs()` so first install (or `reinstalled=true`) directly calls `getAllConversations`, aligned with Go SDK.
 
 ## 1.2.1
 
-### 修复
+- **Fixed messages disappearing after re-entering conversation when send previously failed**:
+  updated `recoverSendingMessages()` to match Go `handlerSendingMsg`:
+  - mark sending messages as failed
+  - if it is conversation `latestMsg`, update `latestMsg` status to failed
+  - trigger `onMessageStatusChanged` callback for UI update
 
-- **修复消息发送失败后再次进入会话消息消失**：更新 `recoverSendingMessages()` 方法，与 Go SDK `handlerSendingMsg` 行为一致：
-  - 将发送中的消息标记为失败状态
-  - 如果该消息是会话的 `latestMsg`，同时更新会话的 `latestMsg` 状态为失败
-  - 调用 `onMessageStatusChanged` 回调通知 UI 更新消息显示
+- **Fixed sending messages disappearing when switching conversations**:
+  corrected `getHistoryMessages()` filtering for `startSeq=0`; now includes all `seq<=0` messages except the `startMsgID` itself.
 
-- **修复切换会话时发送中的消息消失**：`getHistoryMessages()` 的过滤逻辑在 `startSeq=0` 时错误地排除了其他发送中的消息（seq=0）。修改过滤条件为：当 startSeq=0 时，包含所有 seq<=0 的消息，只排除与 startMsgID 相同的消息本身，确保切换回原会话时能看到之前正在发送的消息
+- **Fixed inability to pull history messages**:
+  removed blocking check `convMaxSeq > 0` in `getAdvancedHistoryMessageList`; now attempts pull even when `maxSeq=0` for new conversations.
 
-- **修复历史消息无法拉取**：`getAdvancedHistoryMessageList` 中 `convMaxSeq > 0` 的检查阻止了对新会话（maxSeq=0）拉取历史消息。修改为即使 maxSeq=0 也尝试拉取，确保首次安装时进入聊天页面能获取历史记录
+- **Fixed empty `latestMsg` on first install**:
+  same alignment with Go SDK `connectPullNums=1` behavior.
 
-- **修复初次安装时会话列表 latestMsg 为空**：优化 `_syncMessages()` 逻辑，初次安装时（`reinstalled=true`）无论 seq 是否为 0 都尝试拉取消息，确保 `latestMsg` 能正确显示在会话列表中，与 Go SDK 的 `connectPullNums=1` 行为一致
+- **Fixed file upload failure (500)**:
+  same multipart URL/header/ETag fixes as above.
 
-- **修复文件上传失败（500 错误）**：修正分片上传 URL 构造逻辑，服务器返回的 `partInfo.url` 不完整，需手动拼接 `signUrl + uploadId + partNumber`；修复响应头解析（服务器返回 List 而非 Map）；修复 ETag 格式（S3 返回带双引号，需去除）
+- **Fixed upload message loss on conversation switch**:
+  added `recoverSendingMessages()` with Go-consistent behavior.
 
-- **修复切换会话时上传消息丢失**：新增 `recoverSendingMessages()` 方法，与 Go SDK 行为一致，App 重启后登录时自动将所有发送中的消息标记为失败（而非直接删除），用户可长按消息重发
+- **Fixed message sync efficiency issues**:
+  optimized `_syncConversationsAndSeqs()` per Go logic.
 
-- **修复消息同步效率问题**：优化 `_syncConversationsAndSeqs()` 逻辑，与 Go SDK 保持一致，先获取服务端 seqs 与本地会话比较，只获取新增会话的完整信息，已存在会话只更新 seq，减少不必要的网络请求和数据处理
-
-- **修复初次安装时无法同步会话**：优化 `_syncConversationsAndSeqs()` 逻辑，初次安装时（本地无会话或 reinstalled=true）直接调用 `getAllConversations` 获取所有会话，与 Go SDK 行为一致
+- **Fixed first-install conversation sync failure**:
+  first install or reinstall directly uses `getAllConversations`.
 
 ## 1.2.0
 
-### 新增
-
-- **朋友圈后台刷新通知 `onMomentListUpdated`**：`OnMomentsListener` 新增 `onMomentListUpdated` 回调，`getMomentList()` 采用 local-first 策略先返回本地缓存，后台拉取网络最新数据写入数据库后，通过该回调通知 UI 刷新列表，解决本地缓存中评论/点赞详情为空的问题
+- **Background refresh callback for Moments: `onMomentListUpdated`**:
+  `OnMomentsListener` adds `onMomentListUpdated`; `getMomentList()` now uses local-first return, then asynchronously fetches network latest and writes DB, then notifies UI via callback.
 
 ## 1.1.9
 
-### 修复
-
-- **修复 Web 平台 WebSocket 消息解码失败**：`dart:io` 的 `gzip` 在 Web 平台不可用（`_newZLibInflateFilter`），现在自动检测 Web 平台并禁用 gzip 压缩，同时不向服务端发送 `compression=gzip` 参数
+- **Fixed WebSocket message decode failure on Web**:
+  Web does not support `dart:io` gzip (`_newZLibInflateFilter`). SDK now detects Web and disables gzip compression, and no longer sends `compression=gzip` to server.
 
 ## 1.1.8
 
-### 修复
-
-- **修复聊天消息无法加载**：移除对 `contentType >= 1000` 消息的错误过滤。Go SDK 在 conversation 层（`n_` 前缀）分流通知/普通会话，而非按 contentType 过滤，`pull_msg_by_seq` 的 `msgs` 字段只包含普通会话消息，应全部存入 chatLog。修复了三处：`_processPulledMsgs`（同步）、`_collectMessageUpdate`（推送）、`getAdvancedHistoryMessageList`（历史拉取）
+- **Fixed chat messages failing to load**:
+  removed incorrect filtering for `contentType >= 1000`.
+  Go SDK routes by conversation layer (`n_` prefix), not by contentType. `pull_msg_by_seq.msgs` contains normal conversation messages and should all be stored in `chatLog`.
+  Fixed in three places: `_processPulledMsgs` (sync), `_collectMessageUpdate` (push), `getAdvancedHistoryMessageList` (history pull).
 
 ## 1.1.7
 
-### 修复
-
-- **修复朋友圈 API 使用错误的 Token**：`MomentsManager` 的 `_post` 方法从 `HttpClient().token`（imToken）改为 `HttpClient().chatToken`（chatToken），修正请求 chat 服务端时携带错误 token 导致 API 调用失败的问题
+- **Fixed Moments API using wrong token**:
+  `MomentsManager._post` switched from `HttpClient().token` (imToken) to `HttpClient().chatToken` (chatToken), fixing chat-server API failures caused by wrong token type.
 
 ## 1.1.6
 
-### 修复
-
-- **修复朋友圈首次加载为空**：`getMomentList()` 本地无数据时现在直接走网络请求返回，而非返回空列表后后台静默缓存
+- **Fixed empty first load in Moments**:
+  when local cache is empty, `getMomentList()` now directly returns network result instead of returning empty list and silently caching in background.
 
 ## 1.1.5
 
-### 新增
-
-- **`loginByAccount()`**：新增账号密码登录方式，支持通过 `account` + `password` 登录（后端原生支持 `CredentialAccount` 类型凭据）
+- **`loginByAccount()`**:
+  added account/password login, supporting `account + password` (backend native `CredentialAccount`).
 
 ## 1.1.4
 
-### 新增
+- **`UserManager.register()`**:
+  register account via chat service, supporting email or phone registration, returning `AuthCacheData?`.
+- **`UserManager.sendVerificationCode()`**:
+  send verification code via chat service for register/reset-password/login scenarios.
 
-- **`UserManager.register()`**：注册账号（chat 服务端），支持邮箱或手机号注册，返回 `AuthCacheData?`
-- **`UserManager.sendVerificationCode()`**：发送验证码（chat 服务端），支持注册、重置密码、登录三种用途
+- **`loginByEmail` / `loginByPhone` support either password or verification code**:
+  both `password` and `verificationCode` are optional; provide either one.
 
-### 优化
-
-- **`loginByEmail` / `loginByPhone` 支持密码或验证码二选一**：`password` 和 `verificationCode` 均改为可选参数，提供其中一个即可登录
-
-### 修复
-
-- **修复 `register()` API 使用错误的 Dio 实例**：`ImApiService.register()` 从 `HttpClient().post()`（IM API）改为 `HttpClient().chatPost()`（Chat API），修正请求发往错误服务端的问题
+- **Fixed `register()` using wrong Dio instance**:
+  `ImApiService.register()` switched from `HttpClient().post()` (IM API) to `HttpClient().chatPost()` (Chat API), fixing requests sent to wrong backend.
 
 ## 1.1.3
 
-### 修复
-
-- **修复 Web 端退出登录后重新登录卡死**：`logout()` 不再关闭数据库，避免 Web (IndexedDB) 上对已关闭实例操作静默挂起
-- **修复 WebSocket 重连标志未重置**：`connect()` 中重置 `_isReconnecting`，防止退出时处于重连状态导致重新登录后无法重连
+- **Fixed Web relogin freeze after logout**:
+  `logout()` no longer closes database to avoid silent hangs on closed IndexedDB instance.
+- **Fixed reconnect flag not reset**:
+  `connect()` now resets `_isReconnecting` to avoid reconnect failure after relogin.
 
 ## 1.1.2
 
-### 新增
+- Added `LinkInfo` model: link structure (`url`, `title`, `description`, `imageUrl`).
+- `FavoriteItem` adds `linkInfo`, auto-parsed when `favoriteType == .link`.
+- Added `FavoriteItem.fromLink()` factory.
+- Added convenience methods `FavoriteManager.addLink()` / `removeLink()`.
 
-- **新增 `LinkInfo` 模型**：链接数据结构（`url`、`title`、`description`、`imageUrl`）
-- **`FavoriteItem` 新增 `linkInfo` 属性**：当 `favoriteType == .link` 时自动解析
-- **`FavoriteItem.fromLink()` 工厂方法**：快速创建链接收藏
-- **`FavoriteManager.addLink()` / `removeLink()`** 便捷方法
-
-### 优化
-
-- **`NoteInfo` 属性改为非空**：`noteID`、`summary`、`content`、`createdAt` 现为 `String`（非 `String?`）
-- **`FavoriteType` 枚举补充注释**：每个值添加中文说明
+- `NoteInfo` fields changed to non-null: `noteID`, `summary`, `content`, `createdAt` are now `String`.
+- Added comments for each `FavoriteType` enum value.
 
 ## 1.1.1
 
-### 重构
+### Refactor
 
-- **`FavoriteType` 改为枚举类型**（破坏性变更）
-  - 从 `sealed class` 字符串常量改为 `enum FavoriteType`，通过 `.value` 获取字符串值
-  - 新增 `FavoriteType.fromValue(String?)` 静态方法
+- **`FavoriteType` changed to enum** (breaking change):
+  - Replaced `sealed class` string constants with `enum FavoriteType`, use `.value` to get string value.
+  - Added static `FavoriteType.fromValue(String?)`.
 
-- **`FavoriteItem` 增加类型化内容属性**
-  - `targetType` 字段替换为 `favoriteType`（`FavoriteType` 枚举），保留 `targetType` getter 兼容
-  - 新增可空属性：`message`、`momentInfo`、`momentComment`、`noteInfo`，根据 `favoriteType` 自动从 `data` JSON 解析
-  - 新增快速创建工厂：`FavoriteItem.fromMessage()`、`FavoriteItem.fromMoment()`、`FavoriteItem.fromMomentComment()`、`FavoriteItem.fromNote()`
+- **`FavoriteItem` adds typed content fields**:
+  - Replaced `targetType` with `favoriteType` (`FavoriteType` enum), while keeping `targetType` getter for compatibility.
+  - Added nullable fields: `message`, `momentInfo`, `momentComment`, `noteInfo`, auto-parsed from `data` by `favoriteType`.
+  - Added quick factories: `FavoriteItem.fromMessage()`, `FavoriteItem.fromMoment()`, `FavoriteItem.fromMomentComment()`, `FavoriteItem.fromNote()`.
 
-### 新增
-
-- **新增 `NoteInfo` 模型**：笔记数据结构（`noteID`、`summary`、`content`、`createdAt`）
-- **`FavoriteManager` 新增辅助方法**
-  - `isMessageFavorited(clientMsgID)` — 判断消息是否已收藏
-  - `isMomentFavorited(momentID)` — 判断朝友圈动态是否已收藏
-  - `addMessage(message:)` 简化为直接传入 `Message` 对象
-  - `addMoment(moment:)` 直接传入 `MomentInfo` 对象
-  - `addMomentComment(comment:)` 直接传入 `MomentCommentWithUser` 对象
-  - `removeMoment(momentID:)` / `removeMomentComment(commentID:)` 便捷删除
+- Added `NoteInfo` model: note structure (`noteID`, `summary`, `content`, `createdAt`).
+- Added helper methods in `FavoriteManager`:
+  - `isMessageFavorited(clientMsgID)`
+  - `isMomentFavorited(momentID)`
+  - `addMessage(message:)`
+  - `addMoment(moment:)`
+  - `addMomentComment(comment:)`
+  - `removeMoment(momentID:)` / `removeMomentComment(commentID:)`
 
 ## 1.1.0
 
-### 新增
-
-- **新增 `isInitialized` 属性**：用于判断 SDK 是否已完成初始化（`initSDK` 是否已成功调用）
+- Added `isInitialized` property to check whether SDK has been initialized successfully.
 
 ## 1.0.9
 
-### Bug 修复
+### Bug Fixes
 
-- **修复会话列表出现自己与自己的会话**
-  - 服务端可能创建登录用户自己的单聊会话，同步时现在跳过 `conversationType == 1 && userID == loginUserID` 的会话
-  - 登录同步时自动清理本地已存在的自我会话记录
+- **Fixed self-to-self conversations appearing in list**:
+  - Server may create self single-chat for login user; sync now skips `conversationType == 1 && userID == loginUserID`.
+  - Local existing self-conversation records are cleaned automatically during login sync.
 
 ## 1.0.8
 
-### 新增
-
-- **新增 `OpenIMException` 异常类**
-  - 消息发送失败（如 errCode=1303 不是好友）时，`sendMessage` 现在抛出 `OpenIMException` 而非静默返回失败消息，前端可通过 `try-catch` 捕获并处理
-  - `OpenIMException` 携带服务端返回的 `code` 和 `message`，提供 `sdkErrorCode` getter 可直接匹配 `SDKErrorCode` 枚举
+- Added `OpenIMException`:
+  - On message send failure (for example errCode=1303 not-friend), `sendMessage` now throws `OpenIMException` instead of silently returning failed message.
+  - `OpenIMException` carries server `code` and `message`, and provides `sdkErrorCode` getter for direct matching with `SDKErrorCode`.
 
 ## 1.0.7
 
-### Bug 修复
+- **Fixed `getGroupMemberList` returning empty list**:
+  - Root cause: login sync only synced groups, not group members. `getGroupMemberList` reads local DB, but members were only written in local `createGroup` / `inviteUserToGroup` flows.
+  - Fix: `_syncJoinedGroups` (login sync + notification-triggered sync) now paginates and pulls all members for each joined group and writes local DB, aligned with Go SDK `SyncAllJoinedGroupsAndMembersWithLock` -> `IncrSyncJoinGroupMember`.
 
-- **修复 `getGroupMemberList` 返回空列表的问题**
-  - 根本原因：登录同步仅同步群组信息，从未同步群成员数据。`getGroupMemberList` 读取本地数据库，但成员只在本地 `createGroup` / `inviteUserToGroup` 时写入，对于已存在的群或其他途径加入的群，本地数据库中没有成员记录
-  - 修复：`_syncJoinedGroups`（登录同步 + 通知触发）现在会为每个已加入群组分页拉取全部成员并写入本地数据库（对齐 Go SDK `SyncAllJoinedGroupsAndMembersWithLock` → `IncrSyncJoinGroupMember` 行为）
-- **群成员实时通知现在同步写入本地数据库**
-  - `memberQuit` (1504) / `memberKicked` (1508)：从本地数据库删除对应成员
-  - `memberInvited` (1509) / `memberEnter` (1510)：将新成员写入本地数据库
-  - `groupMemberInfoSet` (1516) / `groupMemberMuted` (1512) / `groupMemberSetToAdmin` (1517) 等：更新本地成员信息
-  - `groupDismissed` (1511)：清除该群所有本地成员记录
+- **Realtime group-member notifications now update local DB**:
+  - `memberQuit` (1504) / `memberKicked` (1508): delete member locally.
+  - `memberInvited` (1509) / `memberEnter` (1510): insert new member locally.
+  - `groupMemberInfoSet` (1516) / `groupMemberMuted` (1512) / `groupMemberSetToAdmin` (1517): update local member info.
+  - `groupDismissed` (1511): clear all local members for that group.
 
 ## 1.0.6
 
-### Bug 修复
+- **Fixed conversation `latestMsg` always null after initial sync**:
+  - Aligned with Go `doMsgSyncByReinstalled`: both normal and notification messages participate in `latestMsg` calculation.
+  - Notification messages (`contentType >= 1000`) in `_processPulledMsgs` are correctly routed to `NotificationDispatcher`, aligned with Go `triggerNotification`.
+  - Added `_processPulledNotifications` for `notificationMsgs` response field, aligned with Go handling.
+  - Triggered `conversationChanged` callback after sync to ensure UI receives latest state.
 
-- **修复初始同步后会话 `latestMsg` 始终为 null 的问题**
-  - 对齐 Go SDK `doMsgSyncByReinstalled` 行为：拉取到的消息无论是普通消息还是通知消息，都会参与 `latestMsg` 计算。之前仅普通消息（contentType < 1000）可作为 `latestMsg`，导致会话列表最新消息为空
-  - `_processPulledMsgs` 中的通知消息（contentType >= 1000）现已正确路由到 `NotificationDispatcher`，与推送路径保持一致（对齐 Go SDK `triggerNotification`）
-  - 新增 `_processPulledNotifications` 方法单独处理 `notificationMsgs` 响应字段（对齐 Go SDK `triggerNotification` 对 `resp.NotificationMsgs` 的处理）
-  - 消息同步完成后触发 `conversationChanged` 回调，确保 UI 能获取到最新的 `latestMsg`
-- **重装同步优化**：首次安装时跳过 `n_` 通知会话的消息拉取（对齐 Go SDK `compareSeqsAndBatchSync` 中重装分支的行为）
-- **缺口同步修复**：`_syncMissingMessages` 不再传递 `num: 0`，改为不限制拉取条数；同步完成后触发会话变更回调
-- **类型安全**：`_processPulledMsgs` 中所有 `as int?` 改为 `(as num?)?.toInt()`
+- **Reinstall sync optimization**: skip pulling `n_` notification conversation messages during first install, aligned with Go reinstall branch in `compareSeqsAndBatchSync`.
+- **Gap sync fix**: `_syncMissingMessages` no longer passes `num: 0`; now pulls without count limit and triggers conversation update callback after completion.
+- **Type safety**: all `as int?` in `_processPulledMsgs` changed to `(as num?)?.toInt()`.
 
 ## 1.0.5
 
-### Bug 修复
+- **Fixed single conversation unread count always being 0**:
+  - `_syncConversationsAndSeqs` used `as int?` casts for `maxSeq`/`hasReadSeq`; if server returned `num` (such as `double`), sync could fail and unread counts were never written.
+    fixed with safe cast `(as num?)?.toInt()`.
+  - Missing `conversationChanged` and `totalUnreadMessageCountChanged` callbacks after initial sync prevented UI from reading computed unread counts; now triggered after DB write.
+  - `clearAllUnreadCounts()` lacked `.allowUpdateAll()`, causing silent rejection by ToStore `updateInternal` without where-clause; "mark all as read" effectively failed.
 
-- **修复单个会话未读数始终为 0 的问题**
-  - `_syncConversationsAndSeqs` 中 `maxSeq`/`hasReadSeq` 使用 `as int?` 强制转型，若服务端返回 `num`（如 `double`）会导致整个同步方法异常退出，未读数永远无法写入本地数据库；改用 `(as num?)?.toInt()` 安全转换
-  - 初始同步完成后缺少 `conversationChanged` 与 `totalUnreadMessageCountChanged` 回调，导致 UI 无法获取到已计算的未读数；现已在写入数据库后触发对应回调（对齐 Go SDK `doUpdateConversation` 行为）
-  - `clearAllUnreadCounts()` 缺少 `.allowUpdateAll()`，ToStore 的 `updateInternal` 在无 where 条件时会静默拒绝执行，导致「标记全部已读」实际无效
-- **全局类型安全加固**：`_convertConversation`、`getTotalUnreadCount`、`decrConversationUnreadCount`、`getConversationMaxSeq`、`getAllConversationMaxSeqs` 中所有 `as int?` 统一改为 `(as num?)?.toInt()`，避免数据库/JSON 返回 `double` 时崩溃
+- **Global type-safety hardening**:
+  converted all `as int?` to `(as num?)?.toInt()` in `_convertConversation`, `getTotalUnreadCount`, `decrConversationUnreadCount`, `getConversationMaxSeq`, `getAllConversationMaxSeqs`.
 
 ## 1.0.4
 
-- 修复已知问题
+- Fixed known issues.
 
 ## 1.0.3
 
-- 修复已知问题
+- Fixed known issues.
 
 ## 1.0.2
 
-- 导出 `OpenImUtils` 类
+- Exported `OpenImUtils` class.
 
 ## 1.0.1
 
-- 纠正 MessageType 中 跟原 sdk 命名不一致的变量
-
+- Corrected names in `MessageType` that were inconsistent with the original SDK.
 
 ## 1.0.0
 
-纯 Dart 实现的 OpenIM SDK 首个正式版，对齐 Go SDK (openim-sdk-core v3.8.0) 核心功能。
+First official release of the pure-Dart OpenIM SDK, aligned with Go SDK (openim-sdk-core v3.8.0) core capabilities.
 
-### 核心架构
+### Core Architecture
 
-- 基于 WebSocket 的长连接通信，支持 protobuf 编解码、心跳保活、断线自动重连
-- 基于 ToStore 的本地数据持久化，按用户隔离存储空间
-- GetIt 依赖注入管理服务生命周期
-- HTTP REST API 层对接 openim-server 全部接口
-- 通知分发器统一处理服务端推送（好友/群组/用户变更）
-- 消息同步器处理增量消息拉取与去重
+- WebSocket long connection with protobuf encoding/decoding, heartbeat, and auto-reconnect.
+- ToStore-based local persistence with user-scoped storage isolation.
+- Service lifecycle managed with GetIt dependency injection.
+- HTTP REST API layer covering all openim-server endpoints.
+- Unified notification dispatcher for server push events (friend/group/user changes).
+- Message syncer for incremental pulling and deduplication.
 
-### IMManager — SDK 管理
+### IMManager — SDK Management
 
-- `initSDK` / `unInitSDK` — SDK 初始化与销毁
-- `login` / `logout` — 用户登录登出，支持自动登录恢复
-- `uploadFile` — 分片文件上传（2MB 分片、MD5 秒传、进度回调）
-- `getSdkVersion` — 获取 SDK 版本号
-- `setAppBackgroundStatus` — 前后台状态切换，通过 WebSocket 通知服务端
-- `networkStatusChanged` — 网络状态变更触发重连
-- `updateFcmToken` — 更新 FCM 推送 Token
-- `setAppBadge` — 设置 App 角标未读数
-- Token 过期/无效/踢下线的全局错误拦截与回调
+- `initSDK` / `unInitSDK` — SDK initialization and teardown.
+- `login` / `logout` — login/logout with auto-login restore support.
+- `uploadFile` — multipart upload (2MB chunks, MD5 instant upload, progress callback).
+- `getSdkVersion` — get SDK version.
+- `setAppBackgroundStatus` — app foreground/background switch with WebSocket server notification.
+- `networkStatusChanged` — trigger reconnect on network state changes.
+- `updateFcmToken` — update FCM push token.
+- `setAppBadge` — set app badge unread count.
+- Global interception and callbacks for token expired/invalid/kicked states.
 
-### ConversationManager — 会话管理
+### ConversationManager — Conversation Management
 
-- 会话获取：`getAllConversationList`、`getConversationListSplit`（分页）、`getOneConversation`、`getMultipleConversation`
-- 会话操作：`pinConversation`（置顶）、`setConversationDraft`（草稿）、`hideConversation`、`setConversation`（免打扰/置顶/私聊阅后即焚等）
-- 已读处理：`markConversationMessageAsRead`（会话维度）、`markMessagesAsReadByMsgID`（消息维度）、`markAllConversationMessageAsRead`
-- 输入状态：`changeInputStates` / `getInputStates`（对端正在输入通知）
-- 清理删除：`deleteConversationAndDeleteAllMsg`、`clearConversationAndDeleteAllMsg`
-- 搜索：`searchConversations`
-- 未读统计：`getTotalUnreadMsgCount`
+- Fetch: `getAllConversationList`, `getConversationListSplit` (pagination), `getOneConversation`, `getMultipleConversation`.
+- Operations: `pinConversation`, `setConversationDraft`, `hideConversation`, `setConversation` (DND/pin/burn-after-read, etc.).
+- Read: `markConversationMessageAsRead`, `markMessagesAsReadByMsgID`, `markAllConversationMessageAsRead`.
+- Typing: `changeInputStates` / `getInputStates`.
+- Delete/Clear: `deleteConversationAndDeleteAllMsg`, `clearConversationAndDeleteAllMsg`.
+- Search: `searchConversations`.
+- Unread stats: `getTotalUnreadMsgCount`.
 
-### MessageManager — 消息管理
+### MessageManager — Message Management
 
-- 24 种消息创建方法：文本、图片、语音、视频、文件、@文本、合并、转发、名片、位置、自定义、引用、表情、高级文本及 URL 变体
-- 消息发送：`sendMessage` / `sendMessageNotOss`
-- 历史消息：`getAdvancedHistoryMessageList`（正序/倒序）、`findMessageList`（按 ID 精确查找）
-- 消息搜索：`searchLocalMessages`（按关键词/类型/时间/会话搜索）
-- 消息操作：`revokeMessage`（撤回）、`deleteMessageFromLocalStorage`、`deleteMessageFromLocalAndSvr`、`deleteAllMsgFromLocalAndSvr`
-- 本地插入：`insertSingleMessageToLocalStorage`、`insertGroupMessageToLocalStorage`
+- 24 creation methods: text/image/voice/video/file/@text/merge/forward/card/location/custom/quote/emoji/advanced text and URL variants.
+- Send: `sendMessage` / `sendMessageNotOss`.
+- History: `getAdvancedHistoryMessageList` (asc/desc), `findMessageList` (exact by IDs).
+- Search: `searchLocalMessages` (keyword/type/time/conversation).
+- Operations: `revokeMessage`, `deleteMessageFromLocalStorage`, `deleteMessageFromLocalAndSvr`, `deleteAllMsgFromLocalAndSvr`.
+- Local insert: `insertSingleMessageToLocalStorage`, `insertGroupMessageToLocalStorage`.
 
-### GroupManager — 群组管理
+### GroupManager — Group Management
 
-- 群组 CRUD：`createGroup`、`setGroupInfo`、`dismissGroup`、`getGroupsInfo`
-- 群列表：`getJoinedGroupList`、`getJoinedGroupListPage`、`searchGroups`
-- 成员管理：`inviteUserToGroup`、`kickGroupMember`、`transferGroupOwner`、`setGroupMemberInfo`
-- 成员查询：`getGroupMemberList`、`getGroupMembersInfo`、`getGroupOwnerAndAdmin`、`searchGroupMembers`、`getGroupMemberListByJoinTime`、`getUsersInGroup`
-- 禁言：`changeGroupMute`（全员禁言）、`changeGroupMemberMute`（单人禁言）
-- 入群：`joinGroup`、`quitGroup`
-- 入群审批：`getGroupApplicationListAsRecipient`、`getGroupApplicationListAsApplicant`、`acceptGroupApplication`、`refuseGroupApplication`、`getGroupApplicationUnhandledCount`
+- Group CRUD: `createGroup`, `setGroupInfo`, `dismissGroup`, `getGroupsInfo`.
+- Group list: `getJoinedGroupList`, `getJoinedGroupListPage`, `searchGroups`.
+- Member management: `inviteUserToGroup`, `kickGroupMember`, `transferGroupOwner`, `setGroupMemberInfo`.
+- Member query: `getGroupMemberList`, `getGroupMembersInfo`, `getGroupOwnerAndAdmin`, `searchGroupMembers`, `getGroupMemberListByJoinTime`, `getUsersInGroup`.
+- Mute: `changeGroupMute`, `changeGroupMemberMute`.
+- Join/Quit: `joinGroup`, `quitGroup`.
+- Applications: `getGroupApplicationListAsRecipient`, `getGroupApplicationListAsApplicant`, `acceptGroupApplication`, `refuseGroupApplication`, `getGroupApplicationUnhandledCount`.
 
-### FriendshipManager — 好友关系
+### FriendshipManager — Friendship
 
-- 好友操作：`addFriend`、`deleteFriend`、`updateFriends`（批量更新备注/扩展）
-- 好友查询：`getFriendsInfo`、`getFriendList`、`getFriendListPage`、`searchFriends`、`checkFriend`
-- 好友申请：`getFriendApplicationListAsRecipient`、`getFriendApplicationListAsApplicant`、`acceptFriendApplication`、`refuseFriendApplication`、`getFriendApplicationUnhandledCount`
-- 黑名单：`addBlacklist`、`getBlacklist`、`removeBlacklist`
+- Operations: `addFriend`, `deleteFriend`, `updateFriends`.
+- Query: `getFriendsInfo`, `getFriendList`, `getFriendListPage`, `searchFriends`, `checkFriend`.
+- Applications: `getFriendApplicationListAsRecipient`, `getFriendApplicationListAsApplicant`, `acceptFriendApplication`, `refuseFriendApplication`, `getFriendApplicationUnhandledCount`.
+- Blocklist: `addBlacklist`, `getBlacklist`, `removeBlacklist`.
 
-### UserManager — 用户管理
+### UserManager — User Management
 
-- 便捷登录：`loginByEmail`、`loginByPhone`（通过 Chat 服务端）
-- 用户信息：`getUsersInfo`（带本地缓存）、`getUsersInfoWithCache`、`getUsersInfoFromSrv`、`getSelfUserInfo`、`setSelfInfo`
-- 在线状态：`subscribeUsersStatus`、`unsubscribeUsersStatus`、`getSubscribeUsersStatus`、`getUserStatus`
-- 客户端配置：`getUserClientConfig`
+- Login helpers: `loginByEmail`, `loginByPhone` (via Chat service).
+- User profile: `getUsersInfo`, `getUsersInfoWithCache`, `getUsersInfoFromSrv`, `getSelfUserInfo`, `setSelfInfo`.
+- Online status: `subscribeUsersStatus`, `unsubscribeUsersStatus`, `getSubscribeUsersStatus`, `getUserStatus`.
+- Client config: `getUserClientConfig`.
 
-### 监听器（10 个）
+### Listeners (10)
 
-- `OnConnectListener` — 连接成功/失败/重连/被踢下线/Token 过期
-- `OnAdvancedMsgListener` — 新消息/撤回/已读回执/离线消息/在线消息
-- `OnConversationListener` — 会话变更/新建/未读数/同步状态/输入状态
-- `OnFriendshipListener` — 好友增删/申请/拒绝/黑名单/备注变更
-- `OnGroupListener` — 群信息/成员增删/角色/禁言/申请/解散
-- `OnUserListener` — 用户信息变更/在线状态变更
-- `OnMsgSendProgressListener` — 消息发送进度
-- `OnUploadFileListener` — 文件上传全流程进度
-- `OnCustomBusinessListener` — 自定义业务消息
-- `OnListenerForService` — 后台推送服务监听
+- `OnConnectListener` — connect success/failure/reconnect/kicked/token expired.
+- `OnAdvancedMsgListener` — new message/revoke/read receipt/offline/online message.
+- `OnConversationListener` — conversation changes/new conversation/unread/sync state/input state.
+- `OnFriendshipListener` — friend add/delete/request/refuse/blocklist/remark changes.
+- `OnGroupListener` — group info/member/role/mute/application/dismiss updates.
+- `OnUserListener` — user info and online-status changes.
+- `OnMsgSendProgressListener` — message send progress.
+- `OnUploadFileListener` — full file upload lifecycle progress.
+- `OnCustomBusinessListener` — custom business messages.
+- `OnListenerForService` — backend push service listener.
 
-### 性能优化
+### Performance Optimizations
 
-- 枚举 O(1) 静态 Map 查找替代线性遍历
-- 批量数据库查询（`whereIn` / `batchUpsert`）替代 N+1 查询
-- Timer 资源在 `logout` / `dispose` 时统一清理
-- 会话 maxSeq 懒加载，仅在真正需要时查询
-- 登录流程中独立操作并行执行
-- 好友/黑名单列表使用 Set O(1) 排除已有数据
+- O(1) static map lookup for enums instead of linear traversal.
+- Batched DB queries (`whereIn` / `batchUpsert`) instead of N+1 queries.
+- Unified timer cleanup in `logout` / `dispose`.
+- Lazy loading of conversation `maxSeq`.
+- Parallelized independent operations in login flow.
+- O(1) set-based dedup/exclusion for friend/blocklist handling.
 
-### 数据模型
+### Data Models
 
-- `Message` — 消息（24 种 contentType）
-- `ConversationInfo` — 会话
-- `UserInfo` / `FriendInfo` / `BlacklistInfo` / `UserStatusInfo` — 用户相关
-- `GroupInfo` / `GroupMembersInfo` / `GroupApplicationInfo` — 群组相关
-- `FriendApplicationInfo` — 好友申请
-- `NotificationInfo` / `SearchInfo` / `InputStatusChangedData` — 辅助模型
+- `Message` — message (24 content types).
+- `ConversationInfo` — conversation.
+- `UserInfo` / `FriendInfo` / `BlacklistInfo` / `UserStatusInfo` — user-related.
+- `GroupInfo` / `GroupMembersInfo` / `GroupApplicationInfo` — group-related.
+- `FriendApplicationInfo` — friend application.
+- `NotificationInfo` / `SearchInfo` / `InputStatusChangedData` — helper models.
 
-### 枚举（17 个）
+### Enums (17)
 
-- `MessageType`、`MessageStatus`、`ConversationType`、`LoginStatus`、`GroupType`、`GroupRoleLevel`、`GroupStatus`、`GroupVerification`、`GroupMemberFilter`、`GroupAtType`、`AllowType`、`JoinSource`、`Relationship`、`ReceiveMessageOpt`、`IMPlatform`、`SDKErrorCode`、`WebSocketStatus`
+- `MessageType`, `MessageStatus`, `ConversationType`, `LoginStatus`, `GroupType`, `GroupRoleLevel`, `GroupStatus`, `GroupVerification`, `GroupMemberFilter`, `GroupAtType`, `AllowType`, `JoinSource`, `Relationship`, `ReceiveMessageOpt`, `IMPlatform`, `SDKErrorCode`, `WebSocketStatus`.

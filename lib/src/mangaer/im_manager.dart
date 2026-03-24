@@ -470,7 +470,7 @@ class IMManager {
     AuthCacheData loginData = await _chatLogin(body);
     _authData = loginData;
     HttpClient().setChatToken(loginData.chatToken);
-    final userInfo = login(userID: loginData.userID, token: loginData.imToken);
+    final userInfo = await login(userID: loginData.userID, token: loginData.imToken);
     // 保存登录数据到缓存（用于自动登录）
     final DatabaseService db = _getIt.get<DatabaseService>(
       instanceName: InstanceName.databaseService,

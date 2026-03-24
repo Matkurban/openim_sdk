@@ -48,7 +48,6 @@ Map<String, dynamic> _$SearchResultItemsToJson(SearchResultItems instance) => <S
 
 const _$ConversationTypeEnumMap = {
   ConversationType.single: 1,
-  ConversationType.group: 2,
   ConversationType.superGroup: 3,
   ConversationType.notification: 4,
 };

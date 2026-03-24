@@ -1,158 +1,158 @@
 # OpenIM SDK for Dart/Flutter
 
-纯 Dart 实现的 OpenIM 客户端 SDK，兼容 Flutter 全平台（iOS / Android / Web / macOS / Windows / Linux），提供完整的即时通讯能力。
+A pure Dart implementation of the OpenIM client SDK, compatible with all Flutter platforms (iOS / Android / Web / macOS / Windows / Linux), providing complete instant messaging capabilities.
 
-## 功能特性
+## Features
 
-- **完整的即时通讯能力** — 单聊、群聊、系统通知等消息收发
-- **24 种消息类型** — 文本、图片、语音、视频、文件、名片、位置、自定义消息等
-- **会话管理** — 会话列表、置顶、免打扰、草稿、未读数、已读回执
-- **群组管理** — 创建/解散群、邀请/踢出成员、群公告、禁言、角色管理
-- **好友管理** — 添加/删除好友、好友申请、黑名单、好友备注
-- **用户管理** — 用户资料、在线状态订阅、客户端配置
-- **实时通信** — WebSocket 长连接、心跳保活、断线重连
-- **本地存储** — 基于 ToStore 的本地持久化，支持离线消息
-- **文件上传** — 分片上传、秒传、进度回调
-- **推送支持** — FCM Token 管理、App 角标设置
+- **Complete IM capabilities** — Message sending/receiving for one-to-one chat, group chat, and system notifications
+- **24 message types** — Text, image, voice, video, file, contact card, location, custom message, and more
+- **Conversation management** — Conversation list, pin, do-not-disturb, draft, unread count, read receipts
+- **Group management** — Create/dismiss groups, invite/kick members, announcements, mute, role management
+- **Friendship management** — Add/delete friends, friend requests, blocklist, friend remarks
+- **User management** — User profile, online status subscription, client configuration
+- **Real-time communication** — WebSocket long connection, heartbeat, auto-reconnect
+- **Local storage** — ToStore-based local persistence with offline message support
+- **File upload** — Multipart upload, instant upload by hash, progress callbacks
+- **Push support** — FCM token management and app badge updates
 
-## 快速开始
+## Quick Start
 
-### 安装
+### Installation
 
-在 `pubspec.yaml` 中添加依赖：
+Add dependency in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  openim_sdk: ^1.0.0
+  openim_sdk: ^lasted
 ```
 
-### 初始化
+### Initialization
 
 ```dart
 import 'package:openim_sdk/openim_sdk.dart';
 
-// 1. 初始化 SDK
+// 1. Initialize SDK
 await OpenIM.iMManager.initSDK(
   apiAddr: 'http://your-server:10002',
   wsAddr: 'ws://your-server:10001',
   chatAddr: 'http://your-server:10008',
   listener: OnConnectListener(
-    onConnectSuccess: () => print('连接成功'),
-    onConnecting: () => print('连接中...'),
-    onConnectFailed: (code, msg) => print('连接失败: $code $msg'),
-    onKickedOffline: () => print('被踢下线'),
-    onUserTokenExpired: () => print('Token 过期'),
+    onConnectSuccess: () => print('Connected successfully'),
+    onConnecting: () => print('Connecting...'),
+    onConnectFailed: (code, msg) => print('Connection failed: $code $msg'),
+    onKickedOffline: () => print('Kicked offline'),
+    onUserTokenExpired: () => print('Token expired'),
   ),
 );
 ```
 
-### 注册与登录
+### Registration and Login
 
-SDK 提供三种登录方式（邮箱 / 手机号 / 账号）和完整的注册流程。
+The SDK provides three login methods (email / phone / account) and a complete registration flow.
 
 ```dart
-// ── 发送验证码 ──
+// ── Send verification code ──
 await OpenIM.iMManager.userManager.sendVerificationCode(
-  email: 'user@example.com',   // 或 phoneNumber + areaCode
-  usedFor: 1,                   // 1-注册  2-重置密码  3-登录
+  email: 'user@example.com',   // or phoneNumber + areaCode
+  usedFor: 1,                  // 1-register  2-reset password  3-login
 );
 
-// ── 注册 ──
+// ── Register ──
 final authData = await OpenIM.iMManager.userManager.register(
-  nickname: '张三',
+  nickname: 'Zhang San',
   password: 'your_password',
-  email: 'user@example.com',    // 邮箱注册
-  // phoneNumber: '13800138000', areaCode: '+86',  // 或手机号注册
-  // account: 'zhangsan',       // 或账号注册
+  email: 'user@example.com',    // register by email
+  // phoneNumber: '13800138000', areaCode: '+86',  // or by phone
+  // account: 'zhangsan',       // or by account
   verificationCode: '123456',
   deviceID: 'your_device_id',
 );
 
-// ── 邮箱登录（密码或验证码二选一）──
+// ── Email login (password or verification code) ──
 final userInfo = await OpenIM.iMManager.loginByEmail(
   email: 'user@example.com',
-  password: 'your_password',         // 密码登录
-  // verificationCode: '123456',     // 或验证码登录
+  password: 'your_password',         // password login
+  // verificationCode: '123456',     // or verification-code login
 );
 
-// ── 手机号登录（密码或验证码二选一）──
+// ── Phone login (password or verification code) ──
 final userInfo = await OpenIM.iMManager.loginByPhone(
   areaCode: '+86',
   phoneNumber: '13800138000',
-  password: 'your_password',         // 密码登录
-  // verificationCode: '123456',     // 或验证码登录
+  password: 'your_password',         // password login
+  // verificationCode: '123456',     // or verification-code login
 );
 
-// ── 账号登录（仅密码）──
+// ── Account login (password only) ──
 final userInfo = await OpenIM.iMManager.loginByAccount(
   account: 'zhangsan',
   password: 'your_password',
 );
 
-// ── 自动登录（使用缓存的 token）──
+// ── Auto login (with cached token) ──
 final loginStatus = await OpenIM.iMManager.loadLoginConfig();
 
-// ── 登出 ──
+// ── Logout ──
 await OpenIM.iMManager.logout();
 ```
 
-> **说明**：`loginByEmail` / `loginByPhone` / `loginByAccount` 会自动完成 Chat 服务端认证 → 获取 imToken → SDK 内部 login → WebSocket 连接，返回 `UserInfo` 即表示登录成功。
+> **Note**: `loginByEmail` / `loginByPhone` / `loginByAccount` automatically completes Chat service authentication -> gets imToken -> SDK internal login -> WebSocket connection. Returning `UserInfo` indicates login success.
 
-### 设置监听器
+### Set Listeners
 
 ```dart
-// 消息监听
+// Message listener
 OpenIM.iMManager.messageManager.setAdvancedMsgListener(
   OnAdvancedMsgListener(
     onRecvNewMessage: (msg) {
-      print('收到新消息: ${msg.contentType} ${msg.textElem?.content}');
+      print('Received new message: ${msg.contentType} ${msg.textElem?.content}');
     },
     onNewRecvMessageRevoked: (info) {
-      print('消息被撤回: ${info.clientMsgID}');
+      print('Message revoked: ${info.clientMsgID}');
     },
   ),
 );
 
-// 会话监听
+// Conversation listener
 OpenIM.iMManager.conversationManager.setConversationListener(
   OnConversationListener(
     onConversationChanged: (list) {
-      print('会话变更: ${list.length} 个');
+      print('Conversations changed: ${list.length} items');
     },
     onTotalUnreadMessageCountChanged: (count) {
-      print('未读总数: $count');
+      print('Total unread: $count');
     },
   ),
 );
 
-// 好友监听
+// Friendship listener
 OpenIM.iMManager.friendshipManager.setFriendshipListener(
   OnFriendshipListener(
-    onFriendAdded: (info) => print('新增好友: ${info.nickname}'),
-    onFriendDeleted: (info) => print('好友已删除: ${info.userID}'),
+    onFriendAdded: (info) => print('Friend added: ${info.nickname}'),
+    onFriendDeleted: (info) => print('Friend deleted: ${info.userID}'),
   ),
 );
 
-// 群组监听
+// Group listener
 OpenIM.iMManager.groupManager.setGroupListener(
   OnGroupListener(
-    onGroupInfoChanged: (info) => print('群信息变更: ${info.groupName}'),
-    onGroupMemberAdded: (member) => print('新成员: ${member.nickname}'),
+    onGroupInfoChanged: (info) => print('Group info changed: ${info.groupName}'),
+    onGroupMemberAdded: (member) => print('New member: ${member.nickname}'),
   ),
 );
 ```
 
-### 发送消息
+### Send Messages
 
 ```dart
-// 发送文本
-final msg = OpenIM.iMManager.messageManager.createTextMessage(text: '你好!');
+// Send text
+final msg = OpenIM.iMManager.messageManager.createTextMessage(text: 'Hello!');
 await OpenIM.iMManager.messageManager.sendMessage(
   message: msg,
-  userID: 'receiver_001',  // 单聊
+  userID: 'receiver_001',  // one-to-one chat
 );
 
-// 发送图片
+// Send image
 final imgMsg = OpenIM.iMManager.messageManager.createImageMessageByURL(
   sourcePath: '/path/to/image.jpg',
   sourcePicture: PictureInfo(url: 'https://...', width: 800, height: 600),
@@ -161,141 +161,141 @@ final imgMsg = OpenIM.iMManager.messageManager.createImageMessageByURL(
 );
 await OpenIM.iMManager.messageManager.sendMessage(
   message: imgMsg,
-  groupID: 'group_001',  // 群聊
+  groupID: 'group_001',  // group chat
 );
 
-// 发送 @消息
+// Send @ message
 final atMsg = OpenIM.iMManager.messageManager.createTextAtMessage(
-  text: '@张三 开会了',
+  text: '@ZhangSan Meeting time',
   atUserIDList: ['user_zhangsan'],
-  atUserInfoList: [AtUserInfo(atUserID: 'user_zhangsan', groupNickname: '张三')],
+  atUserInfoList: [AtUserInfo(atUserID: 'user_zhangsan', groupNickname: 'ZhangSan')],
 );
 ```
 
-### 会话操作
+### Conversation Operations
 
 ```dart
-// 获取会话列表
+// Get conversation list
 final conversations = await OpenIM.iMManager.conversationManager.getAllConversationList();
 
-// 标记已读
+// Mark conversation as read
 await OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
   conversationID: 'si_user001_user002',
 );
 
-// 按消息 ID 标记已读
+// Mark messages as read by message IDs
 await OpenIM.iMManager.conversationManager.markMessagesAsReadByMsgID(
   conversationID: 'si_user001_user002',
   clientMsgIDs: ['msg_001', 'msg_002'],
 );
 
-// 获取历史消息
+// Get history messages
 final history = await OpenIM.iMManager.messageManager.getAdvancedHistoryMessageList(
   conversationID: 'si_user001_user002',
   count: 20,
 );
 ```
 
-### 群组操作
+### Group Operations
 
 ```dart
-// 创建群组
+// Create group
 final groupInfo = await OpenIM.iMManager.groupManager.createGroup(
-  groupName: '技术讨论组',
+  groupName: 'Tech Discussion Group',
   memberUserIDs: ['user_002', 'user_003'],
 );
 
-// 获取已加入的群列表
+// Get joined groups
 final groups = await OpenIM.iMManager.groupManager.getJoinedGroupList();
 
-// 检查用户是否在群内
+// Check whether users are in group
 final usersInGroup = await OpenIM.iMManager.groupManager.getUsersInGroup(
   groupID: 'group_001',
   userIDList: ['user_002', 'user_003'],
 );
 ```
 
-### 好友操作
+### Friendship Operations
 
 ```dart
-// 添加好友
-await OpenIM.iMManager.friendshipManager.addFriend(userID: 'user_002', reqMsg: '你好');
+// Add friend
+await OpenIM.iMManager.friendshipManager.addFriend(userID: 'user_002', reqMsg: 'Hi');
 
-// 获取好友列表
+// Get friend list
 final friends = await OpenIM.iMManager.friendshipManager.getFriendList();
 
-// 搜索好友
+// Search friends
 final results = await OpenIM.iMManager.friendshipManager.searchFriends(
-  keywordList: ['张三'],
+  keywordList: ['Zhang San'],
   isSearchNickname: true,
 );
 ```
 
-## API 参考
+## API Reference
 
-### 核心管理器
+### Core Managers
 
-| 管理器 | 访问方式 | 说明 |
-|--------|---------|------|
-| `IMManager` | `OpenIM.iMManager` | SDK 初始化、登录登出、文件上传 |
-| `ConversationManager` | `OpenIM.iMManager.conversationManager` | 会话列表与状态管理 |
-| `MessageManager` | `OpenIM.iMManager.messageManager` | 消息创建、发送、查询 |
-| `GroupManager` | `OpenIM.iMManager.groupManager` | 群组与群成员管理 |
-| `FriendshipManager` | `OpenIM.iMManager.friendshipManager` | 好友与黑名单管理 |
-| `UserManager` | `OpenIM.iMManager.userManager` | 用户信息、在线状态、注册、验证码、Chat 用户管理 |
-| `MomentsManager` | `OpenIM.iMManager.momentsManager` | 朋友圈动态、点赞、评论 |
-| `FavoriteManager` | `OpenIM.iMManager.favoriteManager` | 收藏夹管理 |
+| Manager               | Access Path                            | Description                                                                     |
+|-----------------------|----------------------------------------|---------------------------------------------------------------------------------|
+| `IMManager`           | `OpenIM.iMManager`                     | SDK initialization, login/logout, file upload                                   |
+| `ConversationManager` | `OpenIM.iMManager.conversationManager` | Conversation list and state management                                          |
+| `MessageManager`      | `OpenIM.iMManager.messageManager`      | Message creation, sending, query                                                |
+| `GroupManager`        | `OpenIM.iMManager.groupManager`        | Group and member management                                                     |
+| `FriendshipManager`   | `OpenIM.iMManager.friendshipManager`   | Friendship and blocklist management                                             |
+| `UserManager`         | `OpenIM.iMManager.userManager`         | User info, online status, registration, verification code, chat user management |
+| `MomentsManager`      | `OpenIM.iMManager.momentsManager`      | Moments feed, likes, comments                                                   |
+| `FavoriteManager`     | `OpenIM.iMManager.favoriteManager`     | Favorites management                                                            |
 
-### 监听器
+### Listeners
 
-| 监听器 | 说明 |
-|--------|------|
-| `OnConnectListener` | 连接状态回调 |
-| `OnAdvancedMsgListener` | 新消息、撤回、已读回执 |
-| `OnConversationListener` | 会话变更、未读数、同步状态 |
-| `OnFriendshipListener` | 好友增删、申请、黑名单变更 |
-| `OnGroupListener` | 群信息变更、成员进出、申请 |
-| `OnUserListener` | 用户信息变更 |
-| `OnMsgSendProgressListener` | 消息发送进度 |
-| `OnUploadFileListener` | 文件上传进度 |
-| `OnCustomBusinessListener` | 自定义业务消息 |
-| `OnListenerForService` | 后台服务监听 |
+| Listener                    | Description                                        |
+|-----------------------------|----------------------------------------------------|
+| `OnConnectListener`         | Connection status callbacks                        |
+| `OnAdvancedMsgListener`     | New messages, revoke, read receipts                |
+| `OnConversationListener`    | Conversation changes, unread count, sync status    |
+| `OnFriendshipListener`      | Friendship add/remove, requests, blocklist changes |
+| `OnGroupListener`           | Group changes, member join/leave, applications     |
+| `OnUserListener`            | User info updates                                  |
+| `OnMsgSendProgressListener` | Message sending progress                           |
+| `OnUploadFileListener`      | File upload progress                               |
+| `OnCustomBusinessListener`  | Custom business messages                           |
+| `OnListenerForService`      | Background service listener                        |
 
-### 支持的消息类型
+### Supported Message Types
 
-| 类型 | ContentType | 创建方法 |
-|------|-------------|---------|
-| 文本 | 101 | `createTextMessage` |
-| 图片 | 102 | `createImageMessage` / `createImageMessageByURL` |
-| 语音 | 103 | `createSoundMessage` / `createSoundMessageByURL` |
-| 视频 | 104 | `createVideoMessage` / `createVideoMessageByURL` |
-| 文件 | 105 | `createFileMessage` / `createFileMessageByURL` |
-| @文本 | 106 | `createTextAtMessage` |
-| 合并 | 107 | `createMergerMessage` |
-| 名片 | 108 | `createCardMessage` |
-| 位置 | 109 | `createLocationMessage` |
-| 自定义 | 110 | `createCustomMessage` |
-| 引用 | 114 | `createQuoteMessage` |
-| 表情 | 115 | `createFaceMessage` |
-| 高级文本 | 117 | `createAdvancedTextMessage` |
-| 转发 | — | `createForwardMessage` |
+| Type          | ContentType | Creation Method                                  |
+|---------------|-------------|--------------------------------------------------|
+| Text          | 101         | `createTextMessage`                              |
+| Image         | 102         | `createImageMessage` / `createImageMessageByURL` |
+| Voice         | 103         | `createSoundMessage` / `createSoundMessageByURL` |
+| Video         | 104         | `createVideoMessage` / `createVideoMessageByURL` |
+| File          | 105         | `createFileMessage` / `createFileMessageByURL`   |
+| @Text         | 106         | `createTextAtMessage`                            |
+| Merged        | 107         | `createMergerMessage`                            |
+| Card          | 108         | `createCardMessage`                              |
+| Location      | 109         | `createLocationMessage`                          |
+| Custom        | 110         | `createCustomMessage`                            |
+| Quote         | 114         | `createQuoteMessage`                             |
+| Emoji         | 115         | `createFaceMessage`                              |
+| Advanced text | 117         | `createAdvancedTextMessage`                      |
+| Forward       | —           | `createForwardMessage`                           |
 
-## 平台支持
+## Platform Support
 
-| 平台 | 支持 |
-|------|------|
-| Android | ✅ |
-| iOS | ✅ |
-| Web | ✅ |
-| macOS | ✅ |
-| Windows | ✅ |
-| Linux | ✅ |
+| Platform | Support |
+|----------|---------|
+| Android  | ✅       |
+| iOS      | ✅       |
+| Web      | ✅       |
+| macOS    | ✅       |
+| Windows  | ✅       |
+| Linux    | ✅       |
 
-## 环境要求
+## Requirements
 
 - Dart SDK: `^3.10.0`
-- Flutter: 3.x+（使用 Flutter 时）
+- Flutter: 3.x+ (when used in Flutter)
 
-## 许可证
+## License
 
-见 [LICENSE](LICENSE) 文件。
+See the [LICENSE](LICENSE) file.

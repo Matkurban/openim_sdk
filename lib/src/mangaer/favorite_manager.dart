@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
 import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:meta/meta.dart';
@@ -40,57 +39,6 @@ class FavoriteManager {
     return _getIt.get<DatabaseService>(instanceName: InstanceName.databaseService);
   }
 
-  // ---------------------------------------------------------------------------
-  // 内部 HTTP
-  // ---------------------------------------------------------------------------
-
-  String get _chatAddr {
-    final config = _getIt.get<InitConfig>(instanceName: InstanceName.initConfig);
-    final addr = config.authAddr;
-    if (addr == null || addr.isEmpty) {
-      throw Exception('chatAddr 未配置');
-    }
-    return addr;
-  }
-
-  Future<ApiResponse> _post(String path, Map<String, dynamic> data) async {
-    _log.info('path=$path', methodName: '_post');
-    final dio = Dio(
-      BaseOptions(
-        baseUrl: _chatAddr,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
-        contentType: Headers.jsonContentType,
-        responseType: ResponseType.json,
-        headers: {
-          if (HttpClient().token != null) 'token': HttpClient().token,
-          'operationID': OpenImUtils.generateOperationID(operationName: 'favorite'),
-        },
-      ),
-    );
-    try {
-      final response = await dio.post(path, data: data);
-      return ApiResponse.fromJson(response.data as Map<String, dynamic>);
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_post');
-      if (e is DioException) {
-        return ApiResponse(
-          errCode: -1,
-          errMsg: e.message ?? 'network error',
-          errDlt: '',
-          data: null,
-        );
-      }
-      return ApiResponse(errCode: -1, errMsg: e.toString(), errDlt: '', data: null);
-    } finally {
-      dio.close();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // 通用收藏
-  // ---------------------------------------------------------------------------
-
   /// 添加收藏
   Future<FavoriteItem?> addFavorite({
     required FavoriteType type,
@@ -99,11 +47,10 @@ class FavoriteManager {
   }) async {
     _log.info('type=${type.value}, id=$targetID', methodName: 'addFavorite');
     try {
-      final resp = await _post('/favorite/add', {
-        'targetType': type.value,
-        'targetID': targetID,
-        'data': data,
-      });
+      final resp = await HttpClient().chatPost(
+        '/favorite/add',
+        data: {'targetType': type.value, 'targetID': targetID, 'data': data},
+      );
       if (!resp.isSuccess) {
         _log.warning('addFavorite failed: ${resp.errMsg}');
         return null;
@@ -128,10 +75,10 @@ class FavoriteManager {
   Future<bool> removeFavorite({required FavoriteType type, required String targetID}) async {
     _log.info('type=${type.value}, id=$targetID', methodName: 'removeFavorite');
     try {
-      final resp = await _post('/favorite/remove', {
-        'targetType': type.value,
-        'targetID': targetID,
-      });
+      final resp = await HttpClient().chatPost(
+        '/favorite/remove',
+        data: {'targetType': type.value, 'targetID': targetID},
+      );
       if (resp.isSuccess) {
         await _database.deleteFavoriteByTarget(type.value, targetID);
         listener?.favoriteRemoved(type.value, targetID);
@@ -171,10 +118,10 @@ class FavoriteManager {
   }) async {
     _log.info('page=$pageNumber, size=$showNumber', methodName: 'fetchFavoriteListFromServer');
     try {
-      final resp = await _post('/favorite/list', {
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
+      final resp = await HttpClient().chatPost(
+        '/favorite/list',
+        data: {'pageNumber': pageNumber, 'showNumber': showNumber},
+      );
       if (!resp.isSuccess || resp.data is! Map<String, dynamic>) {
         return FavoriteListResponse.empty();
       }
@@ -192,10 +139,10 @@ class FavoriteManager {
   Future<void> _fetchAndCacheFavorites({int pageNumber = 1, int showNumber = 20}) async {
     _log.info('page=$pageNumber, size=$showNumber', methodName: '_fetchAndCacheFavorites');
     try {
-      final resp = await _post('/favorite/list', {
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
+      final resp = await HttpClient().chatPost(
+        '/favorite/list',
+        data: {'pageNumber': pageNumber, 'showNumber': showNumber},
+      );
       if (!resp.isSuccess || resp.data is! Map<String, dynamic>) return;
       final response = FavoriteListResponse.fromJson(resp.data as Map<String, dynamic>);
       if (response.favorites.isNotEmpty) {
@@ -269,10 +216,6 @@ class FavoriteManager {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 便捷方法 —— 收藏朋友圈
-  // ---------------------------------------------------------------------------
-
   /// 收藏朋友圈动态
   Future<FavoriteItem?> addMoment({required MomentInfo moment}) async {
     _log.info('called', methodName: 'addMoment');
@@ -319,10 +262,6 @@ class FavoriteManager {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // 便捷方法 —— 收藏笔记
-  // ---------------------------------------------------------------------------
-
   /// 添加笔记到收藏
   Future<FavoriteItem?> addNote({required String title, required String content}) async {
     _log.info('called', methodName: 'addNote');
@@ -340,10 +279,6 @@ class FavoriteManager {
       rethrow;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 便捷方法 —— 收藏链接
-  // ---------------------------------------------------------------------------
 
   /// 收藏链接
   Future<FavoriteItem?> addLink({required LinkInfo link}) async {
@@ -367,10 +302,6 @@ class FavoriteManager {
       rethrow;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // WS 通知处理（由 NotificationDispatcher 调用）
-  // ---------------------------------------------------------------------------
 
   /// 处理来自 WS 的收藏夹业务通知
   Future<void> handleNotification(String key, Map<String, dynamic> data) async {
@@ -396,10 +327,6 @@ class FavoriteManager {
       rethrow;
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // 全量同步（登录 / 重连时调用）
-  // ---------------------------------------------------------------------------
 
   /// 全量同步到本地（由 MsgSyncer 在 doConnectedSync 中调用）
   Future<void> syncFromServer() async {
