@@ -172,7 +172,7 @@ class IMManager {
   }) async {
     try {
       return await ToStore.open(
-        dbPath: dbPath,
+        dbPath: dbPath ?? await OpenImUtils.defaultDbPath(),
         dbName: dbName ?? 'kurban_openim_sdk',
         schemas: [...DbSchema.allSchemas, ...schemas],
       );
