@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.0
+
+### 修复
+
+- **会话 / 好友 / 群组 三路增量同步（对齐 Go SDK `VersionSynchronizer`）**：
+  - `MsgSyncer._syncConversationsAndSeqs()`：改用 `getIncrementalConversation`（version 增量），
+    `full=true` 或首次安装/重装时降级为 `_syncConversationsFull()`；
+    神独步骤始终刷新 `getConversationsHasReadAndMaxSeq`，确保 `_serverMaxSeqs` 最新
+  - `MsgSyncer._syncFriends()`：改用 `getIncrementalFriends`，支持 delete / insert / update 三种差异路径，
+    `full=true` 或首次同步时降级为 `_syncFriendsFull()`；增量路径在好友更新时同步
+    对应单聊会话的 showName / faceURL
+  - `MsgSyncer._syncJoinedGroups()`：改用 `getIncrementalJoinGroup`，
+    仅对新增群组（insert）重新拉取成员列表，降低无用 HTTP 请求
+  - 三路同步均将新版本号通过 `setVersionSync` 持久化到 `local_version_sync` 表
+
 ## 1.5.0
 
 - 修复好友同步问题，修复好友信息监听错误返回旧数据的问题

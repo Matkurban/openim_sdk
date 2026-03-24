@@ -262,177 +262,191 @@ class MsgSyncer {
   /// 对应 Go SDK 的 SyncAllConversationHashReadSeqs + batchAddFaceURLAndName
   /// 优化：先获取服务端 seqs，比较本地会话，只获取/更新有变化的会话
   /// 初次安装时：获取所有会话
+  /// 同步会话及 seq（版本增量，对齐 Go SDK IncrSyncConversations）
+  ///
+  /// 使用 getIncrementalConversation 接口按版本增量同步会话列表，
+  /// 之后调用 getConversationsHasReadAndMaxSeq 更新 seq / 未读数。
   Future<void> _syncConversationsAndSeqs() async {
     _log.info('called', methodName: '_syncConversationsAndSeqs');
     try {
-      // 1. 先获取本地所有会话 ID（用于比较哪些是新增的）
-      final localConvs = await database.getAllConversations();
-      final localConvIDs = localConvs.map((c) => c.conversationID).toSet();
+      // ---------- Step 1: 版本增量同步会话结构 ----------
+      final versionInfo = await database.getVersionSync('conversations', _userID);
+      final localVersion = (versionInfo?['version'] as num?)?.toInt() ?? 0;
+      final localVersionID = versionInfo?['versionID']?.toString() ?? '';
       _log.info(
-        '本地会话数: ${localConvIDs.length}, reinstalled: $_reinstalled',
+        'version=$localVersion versionID=$localVersionID reinstalled=$_reinstalled',
         methodName: '_syncConversationsAndSeqs',
       );
 
-      // 2. 初次安装或非首次：不同处理逻辑
-      Map<String, dynamic> serverSeqs = {};
-      final bool isFirstInstall = localConvIDs.isEmpty || _reinstalled;
+      final incrResp = await api.getIncrementalConversation(
+        req: {'userID': _userID, 'version': localVersion, 'versionID': localVersionID},
+      );
 
-      if (isFirstInstall) {
-        // 初次安装：从服务端获取完整会话列表
-        final resp = await api.getAllConversations(ownerUserID: _userID);
-        if (resp.errCode == 0) {
-          final conversations = resp.data?['conversations'] as List? ?? [];
-          if (conversations.isNotEmpty) {
-            final convMaps = <Map<String, dynamic>>[];
-            final allConvIDs = <String>[];
-            for (final conv in conversations) {
-              if (conv is Map<String, dynamic>) {
-                final convType = conv['conversationType'] as int?;
-                final uid = conv['userID'] as String?;
-                if (convType == 1 && uid == _userID) continue;
+      if (incrResp.errCode == 0) {
+        final respData = incrResp.data as Map<String, dynamic>? ?? {};
+        final isFull = respData['full'] as bool? ?? false;
+        final newVersionID = respData['versionID']?.toString() ?? localVersionID;
+        final newVersion = (respData['version'] as num?)?.toInt() ?? localVersion;
 
-                final map = Map<String, dynamic>.from(conv);
-                if (map['latestMsg'] is Map) {
-                  map['latestMsg'] = jsonEncode(map['latestMsg']);
-                }
-                convMaps.add(map);
+        if (isFull || localVersion == 0 || _reinstalled) {
+          // 全量路径（首次安装、重装或服务端要求全量）
+          _log.info(
+            '会话全量同步（full=$isFull, localVersion=$localVersion, reinstalled=$_reinstalled）',
+            methodName: '_syncConversationsAndSeqs',
+          );
+          await _syncConversationsFull();
+        } else {
+          // 增量路径
+          final deleteIDs = (respData['delete'] as List?)?.cast<String>() ?? [];
+          final insertList = (respData['insert'] as List?) ?? [];
+          final updateList = (respData['update'] as List?) ?? [];
 
-                final cid = conv['conversationID'] as String?;
-                if (cid != null) allConvIDs.add(cid);
-              }
-            }
-
-            // 对齐 Go SDK doConnected → GetMaxSeqs：
-            // 从消息数据库获取真实的 maxSeq/hasReadSeq（会话表中的 maxSeq 可能为 0 或过时）
-            final seqResp = await api.getConversationsHasReadAndMaxSeq(
-              userID: _userID,
-              conversationIDs: const [],
-            );
-            if (seqResp.errCode == 0) {
-              serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
-            }
-            _log.info(
-              '初次安装：获取到 ${serverSeqs.length} 个会话的真实 seq',
-              methodName: '_syncConversationsAndSeqs',
-            );
-
-            // 补充 showName/faceURL
-            await _batchAddFaceURLAndName(convMaps);
-
-            // 用真实 maxSeq 计算未读数
-            for (final conv in convMaps) {
-              final convID = conv['conversationID'] as String?;
-              if (convID == null) continue;
-
-              final seqInfo = serverSeqs[convID];
-              if (seqInfo is Map<String, dynamic>) {
-                final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
-                final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
-                final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
-                conv['unreadCount'] = unread;
-                conv['maxSeq'] = maxSeq;
-                conv['hasReadSeq'] = hasReadSeq;
-                // 记录服务端 maxSeq，不污染 _syncedMaxSeqs（后者仅在消息实际拉取后推进）
-                _serverMaxSeqs[convID] = maxSeq;
-              }
-            }
-
-            // 批量写入本地
-            if (convMaps.isNotEmpty) {
-              await database.batchUpsertConversations(convMaps);
-            }
-            _log.info('初次安装：已同步 ${convMaps.length} 个会话', methodName: '_syncConversationsAndSeqs');
+          // 删除
+          for (final convID in deleteIDs) {
+            await database.deleteConversation(convID);
+            _log.info('会话删除: $convID', methodName: '_syncConversationsAndSeqs');
           }
+
+          // 新增
+          final toInsert = <Map<String, dynamic>>[];
+          for (final item in insertList) {
+            if (item is Map<String, dynamic>) {
+              final map = Map<String, dynamic>.from(item);
+              if (map['latestMsg'] is Map) map['latestMsg'] = jsonEncode(map['latestMsg']);
+              toInsert.add(map);
+            }
+          }
+          if (toInsert.isNotEmpty) {
+            await _batchAddFaceURLAndName(toInsert);
+            await database.batchUpsertConversations(toInsert);
+          }
+
+          // 更新
+          final toUpdate = <Map<String, dynamic>>[];
+          for (final item in updateList) {
+            if (item is Map<String, dynamic>) {
+              final map = Map<String, dynamic>.from(item);
+              if (map['latestMsg'] is Map) map['latestMsg'] = jsonEncode(map['latestMsg']);
+              toUpdate.add(map);
+            }
+          }
+          if (toUpdate.isNotEmpty) {
+            await database.batchUpsertConversations(toUpdate);
+            conversationListener?.conversationChanged(
+              toUpdate.map((m) => ConversationInfo.fromJson(m)).toList(),
+            );
+          }
+
+          _log.info(
+            '会话增量同步完成，del=${deleteIDs.length} ins=${toInsert.length} upd=${toUpdate.length}',
+            methodName: '_syncConversationsAndSeqs',
+          );
+        }
+
+        // 保存新版本
+        if (newVersion > 0 || newVersionID.isNotEmpty) {
+          await database.setVersionSync(
+            tableName: 'conversations',
+            entityID: _userID,
+            versionID: newVersionID,
+            version: newVersion,
+            uidList: const [],
+          );
         }
       } else {
-        // 非初次安装：获取服务端所有会话 seqs（而非仅本地会话）
-        // 对应 Go SDK: GetConvMaxReadSeq（conversationIDs 为空表示全量）
-        final seqResp = await api.getConversationsHasReadAndMaxSeq(
-          userID: _userID,
-          conversationIDs: const [],
+        _log.warning(
+          'getIncrementalConversation 失败: ${incrResp.errMsg}，降级为全量',
+          methodName: '_syncConversationsAndSeqs',
         );
-        if (seqResp.errCode == 0) {
-          serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
-        }
+        await _syncConversationsFull();
+      }
+
+      // ---------- Step 2: 始终更新 seq / 未读数（独立于会话结构同步）----------
+      // 对应 Go SDK GetConvMaxReadSeq，确保 _serverMaxSeqs 始终最新
+      final localConvs = await database.getAllConversations();
+      final localConvIDs = localConvs.map((c) => c.conversationID).whereType<String>().toList();
+
+      final seqResp = await api.getConversationsHasReadAndMaxSeq(
+        userID: _userID,
+        conversationIDs: const [],
+      );
+      if (seqResp.errCode == 0) {
+        final serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
         _log.info('服务端 seq 数: ${serverSeqs.length}', methodName: '_syncConversationsAndSeqs');
 
-        // 3. 找出需要同步的会话 ID（服务端有但本地没有的会话）
-        final newConvIDs = serverSeqs.keys.where((id) => !localConvIDs.contains(id)).toList();
-        _log.info('新增会话数: ${newConvIDs.length}', methodName: '_syncConversationsAndSeqs');
-
-        // 4. 只获取新增会话的完整信息（按需获取，效率更高）
-        // 对应 Go SDK: getConversationsByIDsFromServer
-        final convMaps = <Map<String, dynamic>>[];
-        if (newConvIDs.isNotEmpty) {
-          final resp = await api.getConversations(
-            ownerUserID: _userID,
-            conversationIDs: newConvIDs,
-          );
-          if (resp.errCode == 0) {
-            final conversations = resp.data?['conversations'] as List? ?? [];
-            for (final conv in conversations) {
-              if (conv is Map<String, dynamic>) {
-                final map = Map<String, dynamic>.from(conv);
-                if (map['latestMsg'] is Map) {
-                  map['latestMsg'] = jsonEncode(map['latestMsg']);
-                }
-                convMaps.add(map);
-              }
-            }
-          }
-
-          // 补充 showName/faceURL
-          await _batchAddFaceURLAndName(convMaps);
-
-          // 5. 计算未读数并设置 seq
-          for (final conv in convMaps) {
-            final convID = conv['conversationID'] as String?;
-            if (convID == null) continue;
-
-            final seqInfo = serverSeqs[convID];
-            if (seqInfo != null) {
-              final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
-              final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
-              final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
-              conv['unreadCount'] = unread;
-              conv['maxSeq'] = maxSeq;
-              conv['hasReadSeq'] = hasReadSeq;
-              // 记录服务端 maxSeq（新增会话本地消息为 0，后续 _syncMessages 会检测到缺口）
-              _serverMaxSeqs[convID] = maxSeq;
-            }
-          }
-
-          // 6. 批量写入新增会话到本地数据库
-          if (convMaps.isNotEmpty) {
-            await database.batchUpsertConversations(convMaps);
-          }
-        }
-
-        // 7. 更新已存在会话的 seq 和未读数
-        final existingConvIDs = serverSeqs.keys.where((id) => localConvIDs.contains(id)).toList();
-        for (final convID in existingConvIDs) {
+        for (final convID in localConvIDs) {
           final seqInfo = serverSeqs[convID];
           if (seqInfo is Map<String, dynamic>) {
             final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
             final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
-
-            // Go 行为：如果 hasReadSeq 变化（即用户已读推进），也需要刷新 unreadCount。
-            final serverUnreadCount = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+            final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
             await database.updateConversation(convID, {
               'maxSeq': maxSeq,
               'hasReadSeq': hasReadSeq,
-              'unreadCount': serverUnreadCount,
+              'unreadCount': unread,
             });
-            // 记录服务端 maxSeq，不更新 _syncedMaxSeqs（后者由 _loadSeqs 从消息表加载）
             _serverMaxSeqs[convID] = maxSeq;
           }
         }
-
-        _log.info('会话同步完成，新增: ${convMaps.length}', methodName: '_syncConversationsAndSeqs');
       }
     } catch (e, s) {
       _log.error('同步会话异常: $e', error: e, stackTrace: s, methodName: '_syncConversationsAndSeqs');
     }
+  }
+
+  /// 全量同步会话（降级路径）
+  Future<void> _syncConversationsFull() async {
+    final resp = await api.getAllConversations(ownerUserID: _userID);
+    if (resp.errCode != 0) return;
+
+    final conversations = resp.data?['conversations'] as List? ?? [];
+    if (conversations.isEmpty) return;
+
+    final convMaps = <Map<String, dynamic>>[];
+    for (final conv in conversations) {
+      if (conv is Map<String, dynamic>) {
+        final convType = conv['conversationType'] as int?;
+        final uid = conv['userID'] as String?;
+        if (convType == 1 && uid == _userID) continue;
+        final map = Map<String, dynamic>.from(conv);
+        if (map['latestMsg'] is Map) map['latestMsg'] = jsonEncode(map['latestMsg']);
+        convMaps.add(map);
+      }
+    }
+
+    await _batchAddFaceURLAndName(convMaps);
+
+    final seqResp = await api.getConversationsHasReadAndMaxSeq(
+      userID: _userID,
+      conversationIDs: const [],
+    );
+    Map<String, dynamic> serverSeqs;
+    if (seqResp.errCode == 0) {
+      serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
+    } else {
+      serverSeqs = {};
+    }
+
+    for (final conv in convMaps) {
+      final convID = conv['conversationID'] as String?;
+      if (convID == null) continue;
+      final seqInfo = serverSeqs[convID];
+      if (seqInfo is Map<String, dynamic>) {
+        final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
+        final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
+        conv['unreadCount'] = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+        conv['maxSeq'] = maxSeq;
+        conv['hasReadSeq'] = hasReadSeq;
+        _serverMaxSeqs[convID] = maxSeq;
+      }
+    }
+
+    if (convMaps.isNotEmpty) {
+      await database.batchUpsertConversations(convMaps);
+    }
+    // 清除旧版本，下次重新用增量
+    await database.deleteVersionSync('conversations', _userID);
+    _log.info('会话全量同步完成，共 ${convMaps.length} 个', methodName: '_syncConversationsFull');
   }
 
   /// 批量为会话填充 showName 和 faceURL
@@ -574,183 +588,386 @@ class MsgSyncer {
     }
   }
 
-  /// 同步好友列表
-  /// 对齐 Go SDK IncrSyncFriends → friendSyncer.Sync():
-  /// 比对 server vs local，执行 insert/update/delete + 触发 OnFriendInfoChanged
+  /// 同步好友列表（版本增量，对齐 Go SDK IncrSyncFriends）
+  ///
+  /// 优先使用 getIncrementalFriends 接口（version 增量），避免每次全量拉取。
+  /// 服务端返回 full=true 时自动降级为全量同步（首次安装或版本号不连续）。
   Future<void> _syncFriends() async {
     _log.info('called', methodName: '_syncFriends');
     try {
-      // 1. 快照当前本地好友
-      final oldFriends = await database.getAllFriends();
-      final localMap = <String, FriendInfo>{};
-      for (final f in oldFriends) {
-        if (f.friendUserID != null) localMap[f.friendUserID!] = f;
+      // 读取本地保存的版本信息
+      final versionInfo = await database.getVersionSync('friends', _userID);
+      final localVersion = (versionInfo?['version'] as num?)?.toInt() ?? 0;
+      final localVersionID = versionInfo?['versionID']?.toString() ?? '';
+
+      _log.info('version=$localVersion versionID=$localVersionID', methodName: '_syncFriends');
+
+      // 请求增量好友数据
+      final incrResp = await api.getIncrementalFriends(
+        req: {'userID': _userID, 'version': localVersion, 'versionID': localVersionID},
+      );
+
+      if (incrResp.errCode != 0) {
+        _log.warning('getIncrementalFriends 失败: ${incrResp.errMsg}', methodName: '_syncFriends');
+        return;
       }
 
-      // 2. 全量拉取服务端好友列表
-      int pageNumber = 1;
-      const pageSize = 100;
-      final allServerFriends = <Map<String, dynamic>>[];
-      while (true) {
-        final resp = await api.getFriendList(
-          userID: _userID,
-          offset: (pageNumber - 1) * pageSize,
-          count: pageSize,
-        );
-        if (resp.errCode != 0) break;
-        final friends = resp.data?['friendsInfo'] as List? ?? [];
-        if (friends.isEmpty) break;
-        for (final f in friends) {
-          if (f is Map<String, dynamic>) {
-            final friendUser = f['friendUser'] as Map<String, dynamic>? ?? {};
-            allServerFriends.add({
-              'friendUserID': friendUser['userID'] ?? f['userID'],
-              'ownerUserID': f['ownerUserID'] ?? _userID,
-              'nickname': friendUser['nickname'],
-              'faceURL': friendUser['faceURL'],
-              'remark': f['remark'],
-              'createTime': f['createTime'],
-              'addSource': f['addSource'],
-              'operatorUserID': f['operatorUserID'],
-              'ex': f['ex'],
-              'isPinned': f['isPinned'],
-            });
+      final respData = incrResp.data as Map<String, dynamic>? ?? {};
+      final isFull = respData['full'] as bool? ?? false;
+      final newVersionID = respData['versionID']?.toString() ?? localVersionID;
+      final newVersion = (respData['version'] as num?)?.toInt() ?? localVersion;
+
+      if (isFull || localVersion == 0) {
+        // 全量路径（首次安装或服务端要求全量）：全量拉取后保存版本
+        _log.info('好友全量同步（full=$isFull, localVersion=$localVersion）', methodName: '_syncFriends');
+        await _syncFriendsFull();
+      } else {
+        // 增量路径：处理 delete / insert / update
+        final listener = notificationDispatcher.friendshipListener;
+
+        // 删除
+        final deleteIDs = (respData['delete'] as List?)?.cast<String>() ?? [];
+        for (final id in deleteIDs) {
+          await database.deleteFriend(id);
+          _log.info('好友删除: $id', methodName: '_syncFriends');
+        }
+
+        // 新增
+        final insertList = (respData['insert'] as List?) ?? [];
+        final toInsert = <Map<String, dynamic>>[];
+        for (final item in insertList) {
+          if (item is Map<String, dynamic>) {
+            final friendUser = item['friendUser'] as Map<String, dynamic>? ?? {};
+            toInsert.add(_normalizeFriendRecord(item, friendUser));
           }
         }
-        if (friends.length < pageSize) break;
-        pageNumber++;
-      }
-
-      // 3. 对齐 Go SDK Syncer.Sync(): 逐条比对 server vs local
-      final serverIDSet = <String>{};
-      final toInsert = <Map<String, dynamic>>[];
-      final listener = notificationDispatcher.friendshipListener;
-
-      for (final record in allServerFriends) {
-        final friendUserID = record['friendUserID']?.toString();
-        if (friendUserID == null || friendUserID.isEmpty) continue;
-        serverIDSet.add(friendUserID);
-
-        final local = localMap[friendUserID];
-        if (local == null) {
-          // 本地不存在 → insert
-          toInsert.add(record);
-          continue;
+        if (toInsert.isNotEmpty) {
+          await database.batchUpsertFriends(toInsert);
         }
 
-        // 本地存在 → 检查是否有变化
-        final newNickname = record['nickname']?.toString() ?? '';
-        final newFaceURL = record['faceURL']?.toString() ?? '';
-        final newRemark = record['remark']?.toString() ?? '';
+        // 更新
+        final updateList = (respData['update'] as List?) ?? [];
+        for (final item in updateList) {
+          if (item is Map<String, dynamic>) {
+            final friendUser = item['friendUser'] as Map<String, dynamic>? ?? {};
+            final record = _normalizeFriendRecord(item, friendUser);
+            final friendUserID = record['friendUserID']?.toString();
+            if (friendUserID == null || friendUserID.isEmpty) continue;
 
-        final changed =
-            newNickname != (local.nickname ?? '') ||
-            newFaceURL != (local.faceURL ?? '') ||
-            newRemark != (local.remark ?? '');
+            await database.updateFriend(friendUserID, {
+              'nickname': record['nickname'],
+              'faceURL': record['faceURL'],
+              'remark': record['remark'],
+              'ex': record['ex'],
+              'addSource': record['addSource'],
+              'operatorUserID': record['operatorUserID'],
+              'isPinned': record['isPinned'],
+            });
 
-        if (changed) {
-          // 对齐 Go SDK: UpdateFriend (SQL UPDATE)
-          await database.updateFriend(friendUserID, {
-            'nickname': record['nickname'],
-            'faceURL': record['faceURL'],
-            'remark': record['remark'],
-            'ex': record['ex'],
-            'addSource': record['addSource'],
-            'operatorUserID': record['operatorUserID'],
-            'isPinned': record['isPinned'],
-          });
+            // 触发回调
+            final updated = FriendInfo(
+              ownerUserID: record['ownerUserID']?.toString(),
+              friendUserID: friendUserID,
+              nickname: record['nickname']?.toString(),
+              faceURL: record['faceURL']?.toString(),
+              remark: record['remark']?.toString(),
+              ex: record['ex']?.toString(),
+              createTime: (record['createTime'] as num?)?.toInt(),
+              addSource: (record['addSource'] as num?)?.toInt(),
+              operatorUserID: record['operatorUserID']?.toString(),
+            );
+            listener?.friendInfoChanged(updated);
 
-          // 触发 OnFriendInfoChanged 回调
-          final updated = FriendInfo(
-            ownerUserID: record['ownerUserID']?.toString(),
-            friendUserID: friendUserID,
-            nickname: record['nickname']?.toString(),
-            faceURL: record['faceURL']?.toString(),
-            remark: record['remark']?.toString(),
-            ex: record['ex']?.toString(),
-            createTime: (record['createTime'] as num?)?.toInt(),
-            addSource: (record['addSource'] as num?)?.toInt(),
-            operatorUserID: record['operatorUserID']?.toString(),
-          );
-          listener?.friendInfoChanged(updated);
-
-          // 对齐 Go SDK: 同步更新对应单聊会话的 showName / faceURL
-          final showName = updated.getShowName();
-          final convID = OpenImUtils.genSingleConversationID(_userID, friendUserID);
-          final conv = await database.getConversation(convID);
-          if (conv != null) {
-            final convUpdates = <String, dynamic>{'showName': showName};
-            if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
-            if (convUpdates.isNotEmpty) {
+            // 同步更新对应单聊会话的 showName / faceURL（对齐 Go SDK）
+            final showName = updated.getShowName();
+            final convID = OpenImUtils.genSingleConversationID(_userID, friendUserID);
+            final conv = await database.getConversation(convID);
+            if (conv != null) {
+              final convUpdates = <String, dynamic>{'showName': showName};
+              if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
               await database.updateConversation(convID, convUpdates);
               final updatedConv = await database.getConversation(convID);
               if (updatedConv != null) {
                 conversationListener?.conversationChanged([updatedConv]);
               }
             }
+            await database.updateSingleChatMessageSenderInfo(
+              friendUserID,
+              senderNickname: showName,
+              senderFaceUrl: updated.faceURL,
+            );
           }
-
-          await database.updateSingleChatMessageSenderInfo(
-            friendUserID,
-            senderNickname: showName,
-            senderFaceUrl: updated.faceURL,
-          );
         }
+
+        _log.info(
+          '好友增量同步完成，del=${deleteIDs.length} ins=${toInsert.length} upd=${updateList.length}',
+          methodName: '_syncFriends',
+        );
       }
 
-      // 4. 批量插入新好友
-      if (toInsert.isNotEmpty) {
-        await database.batchUpsertFriends(toInsert);
+      // 保存新版本号（全量和增量路径均更新）
+      if (newVersion > 0 || newVersionID.isNotEmpty) {
+        await database.setVersionSync(
+          tableName: 'friends',
+          entityID: _userID,
+          versionID: newVersionID,
+          version: newVersion,
+          uidList: const [],
+        );
       }
-
-      // 5. 删除服务端已不存在的好友
-      for (final local in oldFriends) {
-        if (local.friendUserID != null && !serverIDSet.contains(local.friendUserID)) {
-          await database.deleteFriend(local.friendUserID!);
-        }
-      }
-
-      _log.info('好友同步完成', methodName: '_syncFriends');
     } catch (e, s) {
       _log.error('同步好友异常: $e', error: e, stackTrace: s, methodName: '_syncFriends');
     }
   }
 
+  /// 全量同步好友（降级路径，对齐旧逻辑）
+  Future<void> _syncFriendsFull() async {
+    final oldFriends = await database.getAllFriends();
+    final localMap = <String, FriendInfo>{};
+    for (final f in oldFriends) {
+      if (f.friendUserID != null) localMap[f.friendUserID!] = f;
+    }
+
+    int pageNumber = 1;
+    const pageSize = 100;
+    final allServerFriends = <Map<String, dynamic>>[];
+    while (true) {
+      final resp = await api.getFriendList(
+        userID: _userID,
+        offset: (pageNumber - 1) * pageSize,
+        count: pageSize,
+      );
+      if (resp.errCode != 0) break;
+      final friends = resp.data?['friendsInfo'] as List? ?? [];
+      if (friends.isEmpty) break;
+      for (final f in friends) {
+        if (f is Map<String, dynamic>) {
+          final friendUser = f['friendUser'] as Map<String, dynamic>? ?? {};
+          allServerFriends.add(_normalizeFriendRecord(f, friendUser));
+        }
+      }
+      if (friends.length < pageSize) break;
+      pageNumber++;
+    }
+
+    final serverIDSet = <String>{};
+    final toInsert = <Map<String, dynamic>>[];
+    final listener = notificationDispatcher.friendshipListener;
+
+    for (final record in allServerFriends) {
+      final friendUserID = record['friendUserID']?.toString();
+      if (friendUserID == null || friendUserID.isEmpty) continue;
+      serverIDSet.add(friendUserID);
+
+      final local = localMap[friendUserID];
+      if (local == null) {
+        toInsert.add(record);
+        continue;
+      }
+
+      final changed =
+          (record['nickname']?.toString() ?? '') != (local.nickname ?? '') ||
+          (record['faceURL']?.toString() ?? '') != (local.faceURL ?? '') ||
+          (record['remark']?.toString() ?? '') != (local.remark ?? '');
+
+      if (changed) {
+        await database.updateFriend(friendUserID, {
+          'nickname': record['nickname'],
+          'faceURL': record['faceURL'],
+          'remark': record['remark'],
+          'ex': record['ex'],
+          'addSource': record['addSource'],
+          'operatorUserID': record['operatorUserID'],
+          'isPinned': record['isPinned'],
+        });
+
+        final updated = FriendInfo(
+          ownerUserID: record['ownerUserID']?.toString(),
+          friendUserID: friendUserID,
+          nickname: record['nickname']?.toString(),
+          faceURL: record['faceURL']?.toString(),
+          remark: record['remark']?.toString(),
+          ex: record['ex']?.toString(),
+          createTime: (record['createTime'] as num?)?.toInt(),
+          addSource: (record['addSource'] as num?)?.toInt(),
+          operatorUserID: record['operatorUserID']?.toString(),
+        );
+        listener?.friendInfoChanged(updated);
+
+        final showName = updated.getShowName();
+        final convID = OpenImUtils.genSingleConversationID(_userID, friendUserID);
+        final conv = await database.getConversation(convID);
+        if (conv != null) {
+          final convUpdates = <String, dynamic>{'showName': showName};
+          if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
+          await database.updateConversation(convID, convUpdates);
+          final updatedConv = await database.getConversation(convID);
+          if (updatedConv != null) {
+            conversationListener?.conversationChanged([updatedConv]);
+          }
+        }
+        await database.updateSingleChatMessageSenderInfo(
+          friendUserID,
+          senderNickname: showName,
+          senderFaceUrl: updated.faceURL,
+        );
+      }
+    }
+
+    if (toInsert.isNotEmpty) {
+      await database.batchUpsertFriends(toInsert);
+    }
+
+    for (final local in oldFriends) {
+      if (local.friendUserID != null && !serverIDSet.contains(local.friendUserID)) {
+        await database.deleteFriend(local.friendUserID!);
+      }
+    }
+
+    _log.info('好友全量同步完成，共 ${allServerFriends.length} 个', methodName: '_syncFriendsFull');
+  }
+
+  /// 将服务端好友记录标准化为 DB 写入格式
+  Map<String, dynamic> _normalizeFriendRecord(
+    Map<String, dynamic> item,
+    Map<String, dynamic> friendUser,
+  ) {
+    return {
+      'friendUserID': friendUser['userID'] ?? item['friendUserID'] ?? item['userID'],
+      'ownerUserID': item['ownerUserID'] ?? _userID,
+      'nickname': friendUser['nickname'] ?? item['nickname'],
+      'faceURL': friendUser['faceURL'] ?? item['faceURL'],
+      'remark': item['remark'],
+      'createTime': item['createTime'],
+      'addSource': item['addSource'],
+      'operatorUserID': item['operatorUserID'],
+      'ex': item['ex'],
+      'isPinned': item['isPinned'],
+    };
+  }
+
   /// 同步已加入的群组及其成员
+  /// 同步已加入群组（版本增量，对齐 Go SDK IncrSyncJoinGroup）
+  ///
+  /// 使用 getIncrementalJoinGroup 接口按版本增量同步群组列表，
+  /// 仅对新增/变更的群组重新拉取群成员。
   Future<void> _syncJoinedGroups() async {
     _log.info('called', methodName: '_syncJoinedGroups');
     try {
-      int pageNumber = 1;
-      const pageSize = 100;
-      final allGroups = <Map<String, dynamic>>[];
-      while (true) {
-        final resp = await api.getJoinedGroupList(
-          fromUserID: _userID,
-          offset: (pageNumber - 1) * pageSize,
-          count: pageSize,
-        );
-        if (resp.errCode != 0) break;
-        final groups = resp.data?['groups'] as List? ?? [];
-        if (groups.isEmpty) break;
-        for (final g in groups) {
-          if (g is Map<String, dynamic>) allGroups.add(g);
-        }
-        if (groups.length < pageSize) break;
-        pageNumber++;
-      }
-      if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
-      _log.info('群组同步完成，共 ${allGroups.length} 个群', methodName: '_syncJoinedGroups');
+      final versionInfo = await database.getVersionSync('groups', _userID);
+      final localVersion = (versionInfo?['version'] as num?)?.toInt() ?? 0;
+      final localVersionID = versionInfo?['versionID']?.toString() ?? '';
 
-      // 同步每个群的成员列表
-      for (final group in allGroups) {
-        final groupID = group['groupID'] as String?;
-        if (groupID == null || groupID.isEmpty) continue;
-        await _syncGroupMembersForGroup(groupID);
+      _log.info('version=$localVersion versionID=$localVersionID', methodName: '_syncJoinedGroups');
+
+      final incrResp = await api.getIncrementalJoinGroup(
+        req: {'userID': _userID, 'version': localVersion, 'versionID': localVersionID},
+      );
+
+      if (incrResp.errCode != 0) {
+        _log.warning(
+          'getIncrementalJoinGroup 失败: ${incrResp.errMsg}',
+          methodName: '_syncJoinedGroups',
+        );
+        return;
       }
-      _log.info('群成员同步完成', methodName: '_syncJoinedGroups');
+
+      final respData = incrResp.data as Map<String, dynamic>? ?? {};
+      final isFull = respData['full'] as bool? ?? false;
+      final newVersionID = respData['versionID']?.toString() ?? localVersionID;
+      final newVersion = (respData['version'] as num?)?.toInt() ?? localVersion;
+
+      if (isFull || localVersion == 0) {
+        _log.info(
+          '群组全量同步（full=$isFull, localVersion=$localVersion）',
+          methodName: '_syncJoinedGroups',
+        );
+        await _syncJoinedGroupsFull();
+      } else {
+        // 增量路径
+        final deleteIDs = (respData['delete'] as List?)?.cast<String>() ?? [];
+        final insertList = (respData['insert'] as List?) ?? [];
+        final updateList = (respData['update'] as List?) ?? [];
+
+        // 删除
+        for (final groupID in deleteIDs) {
+          await database.deleteGroup(groupID);
+          _log.info('群组删除: $groupID', methodName: '_syncJoinedGroups');
+        }
+
+        // 新增（需要同步成员）
+        final toInsert = <Map<String, dynamic>>[];
+        for (final item in insertList) {
+          if (item is Map<String, dynamic>) toInsert.add(item);
+        }
+        if (toInsert.isNotEmpty) {
+          await database.batchUpsertGroups(toInsert);
+          for (final g in toInsert) {
+            final gid = g['groupID']?.toString();
+            if (gid != null && gid.isNotEmpty) await _syncGroupMembersForGroup(gid);
+          }
+        }
+
+        // 更新（仅更新群信息，成员不一定变化）
+        final toUpdate = <Map<String, dynamic>>[];
+        for (final item in updateList) {
+          if (item is Map<String, dynamic>) toUpdate.add(item);
+        }
+        if (toUpdate.isNotEmpty) {
+          await database.batchUpsertGroups(toUpdate);
+        }
+
+        _log.info(
+          '群组增量同步完成，del=${deleteIDs.length} ins=${toInsert.length} upd=${toUpdate.length}',
+          methodName: '_syncJoinedGroups',
+        );
+      }
+
+      // 保存新版本
+      if (newVersion > 0 || newVersionID.isNotEmpty) {
+        await database.setVersionSync(
+          tableName: 'groups',
+          entityID: _userID,
+          versionID: newVersionID,
+          version: newVersion,
+          uidList: const [],
+        );
+      }
     } catch (e, s) {
       _log.error('同步群组异常: $e', error: e, stackTrace: s, methodName: '_syncJoinedGroups');
     }
+  }
+
+  /// 全量同步已加入群组（降级路径）
+  Future<void> _syncJoinedGroupsFull() async {
+    int pageNumber = 1;
+    const pageSize = 100;
+    final allGroups = <Map<String, dynamic>>[];
+    while (true) {
+      final resp = await api.getJoinedGroupList(
+        fromUserID: _userID,
+        offset: (pageNumber - 1) * pageSize,
+        count: pageSize,
+      );
+      if (resp.errCode != 0) break;
+      final groups = resp.data?['groups'] as List? ?? [];
+      if (groups.isEmpty) break;
+      for (final g in groups) {
+        if (g is Map<String, dynamic>) allGroups.add(g);
+      }
+      if (groups.length < pageSize) break;
+      pageNumber++;
+    }
+    if (allGroups.isNotEmpty) await database.batchUpsertGroups(allGroups);
+    _log.info('群组全量同步完成，共 ${allGroups.length} 个群', methodName: '_syncJoinedGroupsFull');
+
+    for (final group in allGroups) {
+      final groupID = group['groupID'] as String?;
+      if (groupID == null || groupID.isEmpty) continue;
+      await _syncGroupMembersForGroup(groupID);
+    }
+    // 清除旧版本，下次重新走增量路径
+    await database.deleteVersionSync('groups', _userID);
   }
 
   /// 从服务器同步指定群组的所有成员到本地数据库

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:openim_sdk/openim_sdk.dart';
 
@@ -1053,19 +1054,42 @@ class DatabaseService {
   /// 而非会话表的 maxSeq（后者可能在消息拉取失败时已提前推进）。
   Future<Map<String, int>> getAllConversationNormalMsgMaxSeqs(List<String> conversationIDs) async {
     if (conversationIDs.isEmpty) return {};
-    final result = await toStore
-        .query(DbTableName.localChatLog)
-        .whereIn('conversationID', conversationIDs)
-        .select(['conversationID', Agg.max('seq', alias: 'maxSeq')])
-        .groupBy(['conversationID']);
-    final seqs = <String, int>{};
-    for (final row in result.data) {
-      final convID = row['conversationID'] as String?;
-      if (convID != null) {
-        seqs[convID] = (row['maxSeq'] as num?)?.toInt() ?? 0;
+    try {
+      // 优先使用聚合查询（高效）
+      final result = await toStore
+          .query(DbTableName.localChatLog)
+          .whereIn('conversationID', conversationIDs)
+          .select(['conversationID', Agg.max('seq', alias: 'maxSeq')])
+          .groupBy(['conversationID']);
+      final seqs = <String, int>{};
+      for (final row in result.data) {
+        final convID = row['conversationID'] as String?;
+        if (convID != null) {
+          seqs[convID] = (row['maxSeq'] as num?)?.toInt() ?? 0;
+        }
       }
+      return seqs;
+    } catch (e) {
+      // DDC 热重启时 `is QueryAggregation` 类型检查可能因模块身份问题失败，
+      // 回退为逐批读取原始数据并在 Dart 侧计算最大值。
+      const batchSize = 100;
+      final seqs = <String, int>{};
+      for (var i = 0; i < conversationIDs.length; i += batchSize) {
+        final batch = conversationIDs.sublist(i, min(i + batchSize, conversationIDs.length));
+        final rows = await toStore
+            .query(DbTableName.localChatLog)
+            .whereIn('conversationID', batch)
+            .select(['conversationID', 'seq']);
+        for (final row in rows.data) {
+          final convID = row['conversationID'] as String?;
+          final seq = (row['seq'] as num?)?.toInt() ?? 0;
+          if (convID != null && seq > (seqs[convID] ?? 0)) {
+            seqs[convID] = seq;
+          }
+        }
+      }
+      return seqs;
     }
-    return seqs;
   }
 
   // ---------------------------------------------------------------------------

@@ -127,7 +127,7 @@ class IMManager {
       HttpClient().onApiError = _createApiErrorHandler(listener);
 
       ToStore toStore = await _initDatabase(
-        dbPath: config.dbPath ?? await OpenImUtils.defaultDbPath(),
+        dbPath: config.dbPath,
         dbName: config.dbName,
         schemas: config.schemas,
       );
@@ -293,44 +293,35 @@ class IMManager {
       ),
     );
 
-    try {
-      final Response response = await dio.post('/account/login', data: body);
-      final Map<String, dynamic> data = response.data as Map<String, dynamic>;
-      _log.info('登录接口响应: $data');
-      ApiResponse apiResponse = ApiResponse.fromJson(data);
-      if (apiResponse.isSuccess) {
-        return AuthCacheData.fromJson(apiResponse.data);
+    final Response response = await dio.post('/account/login', data: body);
+    dio.close();
+    final Map<String, dynamic> data = response.data as Map<String, dynamic>;
+    _log.info('登录接口响应: $data');
+    ApiResponse apiResponse = ApiResponse.fromJson(data);
+    if (apiResponse.isSuccess) {
+      return AuthCacheData.fromJson(apiResponse.data);
+    } else {
+      if (apiResponse.errCode == SDKErrorCode.accountNotRegistered.code) {
+        throw OpenIMException(
+          code: SDKErrorCode.accountNotRegistered.code,
+          message: SDKErrorCode.accountNotRegistered.message,
+        );
+      } else if (apiResponse.errCode == SDKErrorCode.passwordError.code) {
+        throw OpenIMException(
+          code: SDKErrorCode.passwordError.code,
+          message: SDKErrorCode.passwordError.message,
+        );
+      } else if (apiResponse.errCode == SDKErrorCode.ipBanned.code) {
+        throw OpenIMException(
+          code: SDKErrorCode.ipBanned.code,
+          message: SDKErrorCode.ipBanned.message,
+        );
       } else {
-        if (apiResponse.errCode == SDKErrorCode.accountNotRegistered.code) {
-          throw OpenIMException(
-            code: SDKErrorCode.accountNotRegistered.code,
-            message: SDKErrorCode.accountNotRegistered.message,
-          );
-        } else if (apiResponse.errCode == SDKErrorCode.passwordError.code) {
-          throw OpenIMException(
-            code: SDKErrorCode.passwordError.code,
-            message: SDKErrorCode.passwordError.message,
-          );
-        } else if (apiResponse.errCode == SDKErrorCode.ipBanned.code) {
-          throw OpenIMException(
-            code: SDKErrorCode.ipBanned.code,
-            message: SDKErrorCode.ipBanned.message,
-          );
-        } else {
-          throw OpenIMException(
-            code: SDKErrorCode.loginError.code,
-            message: '获取登录Token失败: ${data.toString()}',
-          );
-        }
+        throw OpenIMException(
+          code: SDKErrorCode.loginError.code,
+          message: '获取登录Token失败: ${data.toString()}',
+        );
       }
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s);
-      throw OpenIMException(
-        code: SDKErrorCode.networkRequestError.code,
-        message: SDKErrorCode.networkRequestError.message,
-      );
-    } finally {
-      dio.close();
     }
   }
 
@@ -339,97 +330,92 @@ class IMManager {
   /// [token] 用户 token
   Future<UserInfo> login({required String userID, required String token}) async {
     _log.info('userID=$userID ,token=$token', methodName: 'login');
-    try {
-      _loginStatus = LoginStatus.logging;
-      HttpClient().setToken(token);
-      final DatabaseService databaseService = _getIt.get<DatabaseService>(
-        instanceName: InstanceName.databaseService,
-      );
-      final ImApiService imApiService = _getIt.get<ImApiService>(
-        instanceName: InstanceName.imApiService,
-      );
-      final ApiResponse response = await imApiService.getUsersInfo(userIDs: [userID]);
-      if (response.isSuccess) {
-        final dataMap = response.data as Map<String, dynamic>;
-        final users = dataMap['usersInfo'] as List?;
-        if (users != null && users.isNotEmpty) {
-          final userData = Map<String, dynamic>.from(users.first as Map);
-          await databaseService.upsertUser(userData);
-          UserInfo user = UserInfo.fromJson(userData);
-          if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
-            await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
-          }
-          _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
-        } else {
-          _loginStatus = LoginStatus.logout;
-          throw OpenIMException(
-            code: SDKErrorCode.loginError.code,
-            message: '登录失败，获取登录用户 $userID 信息失败。',
-          );
+    _loginStatus = LoginStatus.logging;
+    HttpClient().setToken(token);
+    final DatabaseService databaseService = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+    final ImApiService imApiService = _getIt.get<ImApiService>(
+      instanceName: InstanceName.imApiService,
+    );
+    final ApiResponse response = await imApiService.getUsersInfo(userIDs: [userID]);
+    if (response.isSuccess) {
+      final dataMap = response.data as Map<String, dynamic>;
+      final users = dataMap['usersInfo'] as List?;
+      if (users != null && users.isNotEmpty) {
+        final userData = Map<String, dynamic>.from(users.first as Map);
+        await databaseService.upsertUser(userData);
+        UserInfo user = UserInfo.fromJson(userData);
+        if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+          await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
         }
+        _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
       } else {
         _loginStatus = LoginStatus.logout;
-        throw OpenIMException(code: SDKErrorCode.loginError.code, message: '登录失败，获取登录用户信息失败。');
+        throw OpenIMException(
+          code: SDKErrorCode.loginError.code,
+          message: '登录失败，获取登录用户 $userID 信息失败。',
+        );
       }
-      conversationManager.setCurrentUserID(userID);
-      groupManager.setCurrentUserID(userID);
-      messageManager.setCurrentUserID(userID);
-      messageManager.setConversationManager(conversationManager);
-      friendshipManager.setCurrentUserID(userID);
-      friendshipManager.setConversationManager(conversationManager);
-      userManager.setCurrentUserID(userID);
-      momentsManager.setCurrentUserID(userID);
-      favoriteManager.setCurrentUserID(userID);
-      callManager.setCurrentUserID(userID);
-      callManager.setSendSignalingFn((toUserID, data, {bool isInvite = false}) {
-        _sendCallSignaling(toUserID, data, isInvite: isInvite);
-      });
-      // 初始化数据库（以用户维度）
-      await databaseService.switchSpace(userID: userID);
-      _loginStatus = LoginStatus.logged;
-      final dispatcher = NotificationDispatcher(
-        database: databaseService,
-        api: imApiService,
-        friendshipManager: friendshipManager,
-        groupManager: groupManager,
-        userManager: userManager,
-        conversationManager: conversationManager,
-        messageManager: messageManager,
-        momentsManager: momentsManager,
-        favoriteManager: favoriteManager,
-      );
-      dispatcher.setLoginUserID(userID);
-      dispatcher.listenerForService = _listenerForService;
-      _notificationDispatcher = dispatcher;
-      final msgSyncer = MsgSyncer(
-        database: databaseService,
-        api: imApiService,
-        notificationDispatcher: dispatcher,
-        messageManager: messageManager,
-        conversationManager: conversationManager,
-        momentsManager: momentsManager,
-        favoriteManager: favoriteManager,
-      );
-      msgSyncer.setLoginUserID(userID);
-      msgSyncer.listenerForService = _listenerForService;
-      msgSyncer.callManager = callManager;
-      _msgSyncer = msgSyncer;
-      final WebSocketService webSocketService = _getIt.get<WebSocketService>(
-        instanceName: InstanceName.webSocketService,
-      );
-      webSocketService.onConnected = () {
-        _msgSyncer?.doConnectedSync();
-      };
-      webSocketService.connect(userID: userID, token: token);
-      webSocketService.onPushMsg = msgSyncer.handlePushMsg;
-      // 恢复发送中的消息（App 重启后重新登录时调用）
-      messageManager.recoverSendingMessages();
-      _log.info('用户已登录: $userID');
-      return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser);
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'login');
-      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '登录失败');
+    } else {
+      _loginStatus = LoginStatus.logout;
+      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '登录失败，获取登录用户信息失败。');
     }
+    conversationManager.setCurrentUserID(userID);
+    groupManager.setCurrentUserID(userID);
+    messageManager.setCurrentUserID(userID);
+    messageManager.setConversationManager(conversationManager);
+    friendshipManager.setCurrentUserID(userID);
+    friendshipManager.setConversationManager(conversationManager);
+    userManager.setCurrentUserID(userID);
+    momentsManager.setCurrentUserID(userID);
+    favoriteManager.setCurrentUserID(userID);
+    callManager.setCurrentUserID(userID);
+    callManager.setSendSignalingFn((toUserID, data, {bool isInvite = false}) {
+      _sendCallSignaling(toUserID, data, isInvite: isInvite);
+    });
+    // 初始化数据库（以用户维度）
+    await databaseService.switchSpace(userID: userID);
+    _loginStatus = LoginStatus.logged;
+    final dispatcher = NotificationDispatcher(
+      database: databaseService,
+      api: imApiService,
+      friendshipManager: friendshipManager,
+      groupManager: groupManager,
+      userManager: userManager,
+      conversationManager: conversationManager,
+      messageManager: messageManager,
+      momentsManager: momentsManager,
+      favoriteManager: favoriteManager,
+    );
+    dispatcher.setLoginUserID(userID);
+    dispatcher.listenerForService = _listenerForService;
+    _notificationDispatcher = dispatcher;
+    final msgSyncer = MsgSyncer(
+      database: databaseService,
+      api: imApiService,
+      notificationDispatcher: dispatcher,
+      messageManager: messageManager,
+      conversationManager: conversationManager,
+      momentsManager: momentsManager,
+      favoriteManager: favoriteManager,
+    );
+    msgSyncer.setLoginUserID(userID);
+    msgSyncer.listenerForService = _listenerForService;
+    msgSyncer.callManager = callManager;
+    _msgSyncer = msgSyncer;
+    final WebSocketService webSocketService = _getIt.get<WebSocketService>(
+      instanceName: InstanceName.webSocketService,
+    );
+    webSocketService.onConnected = () {
+      _msgSyncer?.doConnectedSync();
+    };
+    webSocketService.connect(userID: userID, token: token);
+    webSocketService.onPushMsg = msgSyncer.handlePushMsg;
+    // 恢复发送中的消息（App 重启后重新登录时调用）
+    messageManager.recoverSendingMessages();
+    _log.info('用户已登录: $userID');
+    return _getIt.get<UserInfo>(instanceName: InstanceName.loginUser);
   }
 
   /// 使用邮箱登录（包含 SDK login）
@@ -442,27 +428,22 @@ class IMManager {
   }) async {
     assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
     _log.info('email=$email', methodName: 'loginByEmail');
-    try {
-      final body = <String, dynamic>{'email': email, 'platform': PlatformUtils.platformID};
-      if (verificationCode != null) {
-        body['verifyCode'] = verificationCode;
-      } else {
-        body['password'] = OpenImUtils.generateMD5(password!);
-      }
-      AuthCacheData loginData = await _chatLogin(body);
-      _authData = loginData;
-      HttpClient().setChatToken(loginData.chatToken);
-      final userInfo = await login(userID: loginData.userID, token: loginData.imToken);
-      // 保存登录数据到缓存（用于自动登录）
-      final DatabaseService db = _getIt.get<DatabaseService>(
-        instanceName: InstanceName.databaseService,
-      );
-      await db.toStore.setValue(CacheKey.loginAuthData, loginData.toString(), isGlobal: true);
-      return userInfo;
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'loginByEmail');
-      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '邮箱登录失败');
+    final body = <String, dynamic>{'email': email, 'platform': PlatformUtils.platformID};
+    if (verificationCode != null) {
+      body['verifyCode'] = verificationCode;
+    } else {
+      body['password'] = OpenImUtils.generateMD5(password!);
     }
+    AuthCacheData loginData = await _chatLogin(body);
+    _authData = loginData;
+    HttpClient().setChatToken(loginData.chatToken);
+    final userInfo = await login(userID: loginData.userID, token: loginData.imToken);
+    // 保存登录数据到缓存（用于自动登录）
+    final DatabaseService db = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+    await db.toStore.setValue(CacheKey.loginAuthData, loginData.toString(), isGlobal: true);
+    return userInfo;
   }
 
   /// 使用手机号登录（包含 SDK login）
@@ -476,31 +457,26 @@ class IMManager {
   }) async {
     assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
     _log.info('areaCode=$areaCode, phoneNumber=$phoneNumber', methodName: 'loginByPhone');
-    try {
-      final body = <String, dynamic>{
-        'areaCode': areaCode,
-        'phoneNumber': phoneNumber,
-        'platform': PlatformUtils.platformID,
-      };
-      if (verificationCode != null) {
-        body['verifyCode'] = verificationCode;
-      } else {
-        body['password'] = OpenImUtils.generateMD5(password!);
-      }
-      AuthCacheData loginData = await _chatLogin(body);
-      _authData = loginData;
-      HttpClient().setChatToken(loginData.chatToken);
-      final userInfo = login(userID: loginData.userID, token: loginData.imToken);
-      // 保存登录数据到缓存（用于自动登录）
-      final DatabaseService db = _getIt.get<DatabaseService>(
-        instanceName: InstanceName.databaseService,
-      );
-      await db.toStore.setValue(CacheKey.loginAuthData, loginData.toString(), isGlobal: true);
-      return userInfo;
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'loginByPhone');
-      throw OpenIMException(code: SDKErrorCode.loginError.code, message: '手机登录失败');
+    final body = <String, dynamic>{
+      'areaCode': areaCode,
+      'phoneNumber': phoneNumber,
+      'platform': PlatformUtils.platformID,
+    };
+    if (verificationCode != null) {
+      body['verifyCode'] = verificationCode;
+    } else {
+      body['password'] = OpenImUtils.generateMD5(password!);
     }
+    AuthCacheData loginData = await _chatLogin(body);
+    _authData = loginData;
+    HttpClient().setChatToken(loginData.chatToken);
+    final userInfo = login(userID: loginData.userID, token: loginData.imToken);
+    // 保存登录数据到缓存（用于自动登录）
+    final DatabaseService db = _getIt.get<DatabaseService>(
+      instanceName: InstanceName.databaseService,
+    );
+    await db.toStore.setValue(CacheKey.loginAuthData, loginData.toString(), isGlobal: true);
+    return userInfo;
   }
 
   /// 使用账号登录（包含 SDK login）

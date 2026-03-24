@@ -9,6 +9,9 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../models/web_socket_codec.dart';
 import '../models/web_socket_identifier.dart';
+// Web 热重启专用：JS interop 代码通过条件导入隔离，非 web 平台使用 stub。
+import 'web_socket_js_interop_stub.dart'
+    if (dart.library.js_interop) 'web_socket_js_interop_web.dart';
 
 /// WebSocket 长连接管理器
 class WebSocketService {
@@ -256,6 +259,8 @@ class WebSocketService {
 
   Future<void> _doConnect() async {
     try {
+      // 热重启时先释放上一轮残留的 WebSocket 订阅，阻止其继续触发已销毁的 EngineFlutterView
+      _disposeOldWebSocketFromJsGlobal();
       if (_connStatus == WebSocketStatus.connecting) return;
       _setStatus(WebSocketStatus.connecting);
       connectListener.onConnecting?.call();
@@ -264,6 +269,8 @@ class WebSocketService {
         _channel = WebSocketChannel.connect(Uri.parse(url));
         await _channel!.ready;
         _startListening();
+        // 连接成功后注册本次连接的释放回调，供下次热重启时调用
+        _registerDisposeInJsGlobal();
         // 连接成功
         _setStatus(WebSocketStatus.connected);
         _reconnectAttempts = 0;
@@ -426,7 +433,6 @@ class WebSocketService {
       final opID = OpenImUtils.generateOperationID();
       final ping = jsonEncode({'type': 'ping', 'body': opID});
       _channel!.sink.add(ping);
-      _log.info('发送 ping: $opID', methodName: '_sendPing');
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_sendPing');
       rethrow;
@@ -576,5 +582,26 @@ class WebSocketService {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_cancelAllPendingRequests');
       rethrow;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Web 热重启支持：通过 JS 全局保存/恢复旧连接的释放回调
+  // ---------------------------------------------------------------------------
+
+  /// 热重启时调用上一轮注册的 JS 全局释放回调，终止残留 WebSocket 订阅（仅 Web）
+  void _disposeOldWebSocketFromJsGlobal() {
+    if (!kIsWeb) return;
+    disposeOldWsFromJsGlobal();
+  }
+
+  /// 在 JS 全局注册当前连接的释放回调，供下次热重启时调用（仅 Web）
+  void _registerDisposeInJsGlobal() {
+    if (!kIsWeb) return;
+    final sub = _subscription;
+    final ch = _channel;
+    registerDisposeInJsGlobal(() {
+      sub?.cancel();
+      ch?.sink.close();
+    });
   }
 }
