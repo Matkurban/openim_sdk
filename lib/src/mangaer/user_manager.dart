@@ -1,5 +1,5 @@
 import 'package:get_it/get_it.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -7,7 +7,13 @@ import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
 class UserManager {
-  static final Logger _log = Logger('UserManager');
+  UserManager._internal();
+
+  static final UserManager _instance = UserManager._internal();
+
+  factory UserManager() => _instance;
+
+  static final AoiweLogger _log = AoiweLogger('UserManager');
 
   final GetIt _getIt = GetIt.instance;
 

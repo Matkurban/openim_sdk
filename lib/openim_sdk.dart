@@ -85,6 +85,6 @@ export 'src/enums/call_room_type.dart';
 
 ///utils
 export 'src/utils/open_im_utils.dart';
-export 'src/logger/im_log_level.dart';
+export 'package:aoiwe_logger/aoiwe_logger.dart' show AoiweLoggerLevel;
 
 export 'package:tostore/tostore.dart';

@@ -5,7 +5,7 @@ import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/enums/call_state.dart';
 import 'package:openim_sdk/src/enums/call_type.dart';
 import 'package:openim_sdk/src/listener/call_listener.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/models/call_session.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
 
@@ -38,7 +38,13 @@ import 'package:openim_sdk/src/network/http_client.dart';
 /// await callManager.hangup();
 /// ```
 class CallManager {
-  static final Logger _log = Logger('CallManager');
+  CallManager._internal();
+
+  static final CallManager _instance = CallManager._internal();
+
+  factory CallManager() => _instance;
+
+  static final AoiweLogger _log = AoiweLogger('CallManager');
 
   /// 通话事件回调
   OnCallListener? _callListener;

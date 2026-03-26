@@ -6,6 +6,10 @@ sealed class PlatformUtils {
   ///获取当前默认的平台 id
   static IMPlatform get currentPlatform {
     if (kIsWeb) {
+      if (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS) {
+        return IMPlatform.miniWeb;
+      }
       return IMPlatform.web;
     } else if (UniversalPlatform.isAndroid) {
       return IMPlatform.android;
@@ -18,7 +22,7 @@ sealed class PlatformUtils {
     } else if (UniversalPlatform.isLinux) {
       return IMPlatform.linux;
     } else {
-      return IMPlatform.miniWeb;
+      return IMPlatform.androidPad;
     }
   }
 

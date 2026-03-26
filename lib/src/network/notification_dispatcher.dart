@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -18,7 +18,7 @@ import 'package:openim_sdk/src/services/im_api_service.dart';
 /// 每个通知: 解析 detail JSON → 更新本地 DB → 触发 Listener 回调
 @internal
 class NotificationDispatcher {
-  final Logger _log = Logger('NotificationDispatcher');
+  final AoiweLogger _log = AoiweLogger('NotificationDispatcher');
 
   final DatabaseService database;
 

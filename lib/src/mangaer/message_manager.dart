@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -16,7 +16,13 @@ import 'package:openim_sdk/src/utils/sdk_isolate.dart' as isolate_util;
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 
 class MessageManager {
-  static final Logger _log = Logger('MessageManager');
+  MessageManager._internal();
+
+  static final MessageManager _instance = MessageManager._internal();
+
+  factory MessageManager() => _instance;
+
+  static final AoiweLogger _log = AoiweLogger('MessageManager');
 
   final GetIt _getIt = GetIt.instance;
 

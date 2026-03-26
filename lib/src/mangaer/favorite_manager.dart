@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:get_it/get_it.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -15,7 +15,13 @@ import 'package:openim_sdk/src/services/database_service.dart';
 /// - 读取：优先返回本地数据，后台异步拉取最新
 /// - 写入：先发网络请求，成功后写入本地 + 触发 listener
 class FavoriteManager {
-  static final Logger _log = Logger('FavoriteManager');
+  FavoriteManager._internal();
+
+  static final FavoriteManager _instance = FavoriteManager._internal();
+
+  factory FavoriteManager() => _instance;
+
+  static final AoiweLogger _log = AoiweLogger('FavoriteManager');
 
   final GetIt _getIt = GetIt.instance;
 

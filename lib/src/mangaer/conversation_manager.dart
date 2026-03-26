@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:get_it/get_it.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
@@ -13,7 +13,13 @@ import 'package:openim_sdk/src/utils/platform_utils.dart';
 import 'package:meta/meta.dart';
 
 class ConversationManager {
-  static final Logger _log = Logger('ConversationManager');
+  ConversationManager._internal();
+
+  static final ConversationManager _instance = ConversationManager._internal();
+
+  factory ConversationManager() => _instance;
+
+  static final AoiweLogger _log = AoiweLogger('ConversationManager');
 
   final GetIt _getIt = GetIt.instance;
 

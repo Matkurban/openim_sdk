@@ -1,4 +1,4 @@
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
@@ -10,7 +10,13 @@ import 'package:openim_sdk/src/utils/platform_utils.dart';
 /// 所有方法返回 [ApiResponse]，调用方根据 errCode 判断成功与否。
 /// token 由 [HttpClient] 统一在请求头中携带。
 class ImApiService {
-  final Logger _log = Logger('ImApiService');
+  ImApiService._internal();
+
+  static final ImApiService _instance = ImApiService._internal();
+
+  factory ImApiService() => _instance;
+
+  final AoiweLogger _log = AoiweLogger('ImApiService');
   // ---------------------------------------------------------------------------
   // Auth
   // ---------------------------------------------------------------------------

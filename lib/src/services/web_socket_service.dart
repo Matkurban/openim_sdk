@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/enums/web_socket_status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 
 import '../models/web_socket_codec.dart';
 import '../models/web_socket_identifier.dart';
@@ -15,9 +15,8 @@ import 'web_socket_js_interop_stub.dart'
 
 /// WebSocket 长连接管理器
 class WebSocketService {
-  final Logger _log = Logger('WebSocketService');
+  final AoiweLogger _log = AoiweLogger('WebSocketService');
 
-  // ---- 配置 ----
   final String wsUrl;
 
   final int platformID;

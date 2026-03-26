@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.5
+
+- Optimize logs and encapsulate logs as separate plug-ins ，`aoiwe_logger`
+
 ## 1.6.4
 
 - fix snync bugs

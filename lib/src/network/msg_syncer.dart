@@ -3,7 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:math' show max, min;
 
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
@@ -49,7 +49,7 @@ class _HistorySyncTask {
 /// - 会话已读状态同步
 /// - 收到推送时更新会话（latestMsg, unreadCount, maxSeq）
 class MsgSyncer {
-  final Logger _log = Logger('MsgSyncer');
+  final AoiweLogger _log = AoiweLogger('MsgSyncer');
 
   final DatabaseService database;
 

@@ -9,8 +9,7 @@ import 'package:openim_sdk/src/utils/sdk_isolate.dart' as isolate_util;
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
-import 'package:openim_sdk/src/logger/im_log_config.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -22,9 +21,12 @@ import 'package:openim_sdk/src/utils/platform_utils.dart';
 
 class IMManager {
   IMManager._internal();
+
   static final IMManager _instance = IMManager._internal();
+
   factory IMManager() => _instance;
-  static final Logger _log = Logger('IMManager');
+
+  static final AoiweLogger _log = AoiweLogger('IMManager');
 
   /// 会话管理
   final ConversationManager conversationManager = ConversationManager();
@@ -94,7 +96,7 @@ class IMManager {
     required String authAddr,
     String? dataDir,
     required OnConnectListener listener,
-    ImLogLevel logLevel = ImLogLevel.all,
+    AoiweLoggerLevel logLevel = AoiweLoggerLevel.all,
     List<TableSchema> schemas = const [],
   }) async {
     final InitConfig config = InitConfig(
@@ -106,8 +108,7 @@ class IMManager {
       schemas: schemas,
     );
     try {
-      ImLogConfig logConfig = ImLogConfig();
-      logConfig.setLevel(logLevel);
+      AoiweLogger.setGlobalConfig(level: logLevel, projectName: 'openim_sdk');
       _log.info(config.toString(), methodName: 'initSDK');
       // 注册配置
       _getIt.registerSingleton<InitConfig>(config, instanceName: InstanceName.initConfig);

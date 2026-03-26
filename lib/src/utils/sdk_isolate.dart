@@ -117,6 +117,7 @@ Uint8List _readFilePartWorker(ReadFilePartParam param) {
 class ImageDimensions {
   final int width;
   final int height;
+
   ImageDimensions(this.width, this.height);
 }
 
@@ -212,24 +213,6 @@ ImageDimensions? _imageDimensionsWorker(Uint8List bytes) {
 }
 
 // ============================================================
-// 4. JSON 编解码（大消息列表处理）
-// ============================================================
-
-/// 在 Isolate 中对大数据做 JSON 编码
-Future<String> computeJsonEncode(Object data) {
-  return compute(_jsonEncodeWorker, data);
-}
-
-String _jsonEncodeWorker(Object data) => jsonEncode(data);
-
-/// 在 Isolate 中做 JSON 解码
-Future<dynamic> computeJsonDecode(String jsonStr) {
-  return compute(_jsonDecodeWorker, jsonStr);
-}
-
-dynamic _jsonDecodeWorker(String jsonStr) => jsonDecode(jsonStr);
-
-// ============================================================
 // 5. 消息搜索过滤（数据库查询后的 Dart 层过滤）
 // ============================================================
 
@@ -255,6 +238,7 @@ class SearchFilterParam {
 
 class SearchFilterResult {
   final List<Map<String, dynamic>> filtered;
+
   SearchFilterResult(this.filtered);
 }
 
@@ -337,33 +321,6 @@ List<Map<String, dynamic>> _historyFilterWorker(HistoryFilterParam param) {
     }).toList();
   }
   return data.take(param.count).toList();
-}
-
-// ============================================================
-// 7. 会话列表排序
-// ============================================================
-
-/// 在 Isolate 中对会话列表排序（传入序列化数据避免跨 Isolate 传对象问题）
-Future<List<Map<String, dynamic>>> computeConversationSort(List<Map<String, dynamic>> list) {
-  return compute(_conversationSortWorker, list);
-}
-
-List<Map<String, dynamic>> _conversationSortWorker(List<Map<String, dynamic>> list) {
-  list.sort((a, b) {
-    final aPinned = a['isPinned'] as bool? ?? false;
-    final bPinned = b['isPinned'] as bool? ?? false;
-    if ((aPinned && bPinned) || (!aPinned && !bPinned)) {
-      final aDraft = a['draftTextTime'] as int? ?? 0;
-      final aLatest = a['latestMsgSendTime'] as int? ?? 0;
-      final bDraft = b['draftTextTime'] as int? ?? 0;
-      final bLatest = b['latestMsgSendTime'] as int? ?? 0;
-      final aCompare = aDraft > aLatest ? aDraft : aLatest;
-      final bCompare = bDraft > bLatest ? bDraft : bLatest;
-      return bCompare.compareTo(aCompare);
-    }
-    return aPinned ? -1 : 1;
-  });
-  return list;
 }
 
 // ============================================================

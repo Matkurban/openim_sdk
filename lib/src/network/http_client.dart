@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/utils/open_im_utils.dart';
 
 import '../models/api_response.dart';
@@ -15,7 +15,7 @@ class HttpClient {
   /// Chat 服务端 Dio 实例（独立于 IM API 的 Dio）
   Dio? _chatDio;
 
-  final Logger _log = Logger('HttpClient');
+  final AoiweLogger _log = AoiweLogger('HttpClient');
 
   String? _token;
   String? _chatToken;

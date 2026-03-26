@@ -1,13 +1,19 @@
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 import 'package:get_it/get_it.dart';
-import 'package:openim_sdk/src/logger/logger.dart';
+import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 
 class GroupManager {
-  static final Logger _log = Logger('GroupManager');
+  GroupManager._internal();
+
+  static final GroupManager _instance = GroupManager._internal();
+
+  factory GroupManager() => _instance;
+
+  static final AoiweLogger _log = AoiweLogger('GroupManager');
 
   final GetIt _getIt = GetIt.instance;
 
