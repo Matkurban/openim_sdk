@@ -1402,18 +1402,18 @@ class MsgSyncer {
             }
           }
           await database.batchInsertMessages(msgMaps);
-          // 补拉消息需要向上层分发离线消息事件，确保已打开的聊天页及时刷新。
-          for (final m in msgMaps) {
-            try {
-              messageManager.onRecvOfflineNewMessage(convertMessage(m));
-            } catch (e, s) {
-              _log.warning(
-                '分发离线消息事件失败: $e',
-                error: e,
-                stackTrace: s,
-                methodName: '_processPulledMsgs',
-              );
-            }
+          // 补拉消息批量分发离线消息事件，对齐 Go SDK batchNewMessages 设计：
+          // 每个会话只触发一次回调（而非逐条触发），避免上层对同一会话重复 DB 查询。
+          final convertedMsgs = msgMaps.map((m) => convertMessage(m)).toList();
+          try {
+            messageManager.onRecvOfflineNewMessages(convertedMsgs);
+          } catch (e, s) {
+            _log.warning(
+              '批量分发离线消息事件失败: $e',
+              error: e,
+              stackTrace: s,
+              methodName: '_processPulledMsgs',
+            );
           }
         }
 
@@ -1501,7 +1501,23 @@ class MsgSyncer {
       if (resp.errCode != 0) return;
       final users = resp.data?['usersInfo'] as List? ?? [];
       if (users.isNotEmpty && users.first is Map<String, dynamic>) {
-        await database.upsertUser(users.first as Map<String, dynamic>);
+        final newInfo = users.first as Map<String, dynamic>;
+        final oldUser = await database.getLoginUser();
+        final oldNickname = oldUser?.nickname ?? '';
+        final oldFaceUrl = oldUser?.faceURL ?? '';
+
+        await database.upsertUser(newInfo);
+
+        final newNickname = newInfo['nickname'] as String? ?? '';
+        final newFaceUrl = newInfo['faceURL'] as String? ?? '';
+
+        if ((newNickname != oldNickname || newFaceUrl != oldFaceUrl) && newNickname.isNotEmpty) {
+          await database.updateAllMessageSenderInfo(
+            _userID,
+            senderNickname: newNickname,
+            senderFaceUrl: newFaceUrl.isNotEmpty ? newFaceUrl : null,
+          );
+        }
       }
     } catch (e, s) {
       _log.error('同步自身用户信息异常: $e', error: e, stackTrace: s, methodName: '_syncSelfUserInfo');
@@ -1698,7 +1714,7 @@ class MsgSyncer {
       'serverMsgID': msg.serverMsgID,
       'senderPlatformID': msg.senderPlatformID,
       'senderNickname': msg.senderNickname,
-      'senderFaceURL': msg.senderFaceURL,
+      'senderFaceUrl': msg.senderFaceURL,
       'sessionType': msg.sessionType,
       'msgFrom': msg.msgFrom,
       'contentType': msg.contentType,

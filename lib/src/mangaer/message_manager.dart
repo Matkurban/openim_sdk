@@ -1920,6 +1920,17 @@ class MessageManager {
     }
   }
 
+  /// 处理批量离线消息（补拉完成后按会话批量分发，对齐 Go SDK batchNewMessages 设计）
+  void onRecvOfflineNewMessages(List<Message> messages) {
+    _log.info('called, count=${messages.length}', methodName: 'onRecvOfflineNewMessages');
+    try {
+      msgListener?.recvOfflineNewMessages(messages);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'onRecvOfflineNewMessages');
+      rethrow;
+    }
+  }
+
   /// 处理收到的仅在线消息
   void onRecvOnlineOnlyMessage(Message message) {
     _log.info('called', methodName: 'onRecvOnlineOnlyMessage');

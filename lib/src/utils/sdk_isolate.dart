@@ -250,8 +250,39 @@ Future<SearchFilterResult> computeSearchFilter(SearchFilterParam param) {
 SearchFilterResult _searchFilterWorker(SearchFilterParam param) {
   var filtered = param.data.where((msg) {
     if (param.keyword != null && param.keyword!.isNotEmpty) {
-      final content = msg['content'] as String? ?? '';
-      if (!content.toLowerCase().contains(param.keyword!.toLowerCase())) return false;
+      final keyword = param.keyword!.toLowerCase();
+      final ct = (msg['contentType'] as num?)?.toInt() ?? 0;
+      final rawContent = msg['content'] as String? ?? '';
+      // 图片(102)、语音(103)、视频(104) 有关键词时排除，与 Go SDK filterMsg 逻辑保持一致
+      if (ct == 102 || ct == 103 || ct == 104) return false;
+      // 其他类型解析内容 JSON，仅搜索对应文本字段
+      String searchText;
+      try {
+        final Map<String, dynamic> contentMap = jsonDecode(rawContent) as Map<String, dynamic>;
+        switch (ct) {
+          case 101: // text
+            searchText = (contentMap['content'] as String? ?? '').toLowerCase();
+          case 106: // atText
+            searchText = (contentMap['text'] as String? ?? '').toLowerCase();
+          case 105: // file
+            searchText = (contentMap['fileName'] as String? ?? '').toLowerCase();
+          case 107: // merger
+            searchText = (contentMap['title'] as String? ?? '').toLowerCase();
+          case 108: // card
+            searchText = (contentMap['nickname'] as String? ?? '').toLowerCase();
+          case 109: // location
+            searchText = (contentMap['description'] as String? ?? '').toLowerCase();
+          case 110: // custom
+            searchText = (contentMap['description'] as String? ?? '').toLowerCase();
+          case 114: // quote
+            searchText = (contentMap['text'] as String? ?? '').toLowerCase();
+          default:
+            searchText = rawContent.toLowerCase();
+        }
+      } catch (_) {
+        searchText = rawContent.toLowerCase();
+      }
+      if (!searchText.contains(keyword)) return false;
     }
     if (param.messageTypes != null && param.messageTypes!.isNotEmpty) {
       final ct = (msg['contentType'] as num?)?.toInt() ?? 0;

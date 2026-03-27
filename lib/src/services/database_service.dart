@@ -1002,6 +1002,19 @@ class DatabaseService {
         .whereEqual('sendID', userID);
   }
 
+  /// 更新所有会话类型消息中的发送者展示信息（用于自身昵称/头像变更后回溯更新）
+  Future<DbResult> updateAllMessageSenderInfo(
+    String userID, {
+    required String senderNickname,
+    String? senderFaceUrl,
+  }) async {
+    final data = <String, dynamic>{'senderNickname': senderNickname};
+    if (senderFaceUrl != null) {
+      data['senderFaceUrl'] = senderFaceUrl;
+    }
+    return toStore.update(DbTableName.localChatLog, data).whereEqual('sendID', userID);
+  }
+
   /// 根据会话ID + seq列表获取消息（按 sendTime 倒序）
   Future<List<Message>> getMessagesBySeqs(String conversationID, List<int> seqs) async {
     if (seqs.isEmpty) return [];

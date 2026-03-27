@@ -139,6 +139,19 @@ class UserManager {
         await _database.upsertUser({...current.toJson(), ...updateData});
       }
 
+      // 对齐 Go SDK：若昵称或头像发生变更，回溯更新本地所有消息中的发送者信息
+      final newNickname = (nickname ?? current?.nickname) ?? '';
+      final newFaceUrl = (faceURL ?? current?.faceURL) ?? '';
+      final oldNickname = current?.nickname ?? '';
+      final oldFaceUrl = current?.faceURL ?? '';
+      if ((newNickname != oldNickname || newFaceUrl != oldFaceUrl) && newNickname.isNotEmpty) {
+        await _database.updateAllMessageSenderInfo(
+          _currentUserID,
+          senderNickname: newNickname,
+          senderFaceUrl: newFaceUrl.isNotEmpty ? newFaceUrl : null,
+        );
+      }
+
       _log.info('用户信息已更新', methodName: 'setSelfInfo');
 
       // 触发监听回调

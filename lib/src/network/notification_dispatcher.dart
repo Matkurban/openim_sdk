@@ -1325,7 +1325,26 @@ class NotificationDispatcher {
       if (resp.errCode != 0) return;
       final users = resp.data?['usersInfo'] as List? ?? [];
       if (users.isNotEmpty && users.first is Map<String, dynamic>) {
-        await database.upsertUser(users.first as Map<String, dynamic>);
+        final newInfo = users.first as Map<String, dynamic>;
+        // 获取更新前的用户信息，用于判断昵称/头像是否发生变更
+        final oldUser = await database.getLoginUser();
+        final oldNickname = oldUser?.nickname ?? '';
+        final oldFaceUrl = oldUser?.faceURL ?? '';
+
+        await database.upsertUser(newInfo);
+
+        final newNickname = newInfo['nickname'] as String? ?? '';
+        final newFaceUrl = newInfo['faceURL'] as String? ?? '';
+
+        // 对齐 Go SDK：若昵称或头像发生变更，回溯更新本地所有消息中的发送者信息
+        if ((newNickname != oldNickname || newFaceUrl != oldFaceUrl) && newNickname.isNotEmpty) {
+          await database.updateAllMessageSenderInfo(
+            _userID,
+            senderNickname: newNickname,
+            senderFaceUrl: newFaceUrl.isNotEmpty ? newFaceUrl : null,
+          );
+        }
+
         final updated = await database.getLoginUser();
         if (updated != null) {
           userListener?.selfInfoUpdated(updated);

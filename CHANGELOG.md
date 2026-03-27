@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.7.0
+
+- **离线消息补拉：N 次逐条回调 → 1 次批量回调** (`msg_syncer.dart`, `message_manager.dart`, `advanced_msg_listener.dart`):  
+  对齐 Go SDK `batchNewMessages` 设计意图：`_processPulledMsgs` 不再对同一会话的每条消息逐条触发 `onRecvOfflineNewMessage`，  
+  改为一次性触发新增的 `onRecvOfflineNewMessages(List<Message>)` 批量回调。  
+  修复位置：
+  - 新增 `OnAdvancedMsgListener.onRecvOfflineNewMessages` 批量回调字段及 `recvOfflineNewMessages()` 分发方法
+  - 新增 `MessageManager.onRecvOfflineNewMessages()` 批量分发入口
+  - `_processPulledMsgs` 将逐条 `for` 循环替换为单次 `onRecvOfflineNewMessages(convertedMsgs)` 调用
+
+- **搜索结果 `senderNickname` 为空** (`notification_dispatcher.dart`, `msg_syncer.dart`, `user_manager.dart`, `database_service.dart`):  
+  对齐 Go SDK `UpdateMsgSenderFaceURLAndSenderNickname` 机制：当自身用户信息（昵称/头像）发生变更时，回溯更新本地数据库中所有消息的 `senderNickname`/`senderFaceUrl` 字段。  
+  修复位置：
+  - `_syncSelfUserInfo()` in `notification_dispatcher.dart`（服务端通知触发）
+  - `_syncSelfUserInfo()` in `msg_syncer.dart`（登录全量同步触发）
+  - `setSelfInfo()` in `user_manager.dart`（用户主动修改个人信息触发）
+  - 新增 `updateAllMessageSenderInfo()` in `database_service.dart`（无 sessionType 过滤，覆盖单聊和群聊）
+
+- **WebSocket 推送消息 `senderFaceUrl` 不存储** (`_msgDataToMap` in `msg_syncer.dart`):  
+  `_msgDataToMap` 中 map key 使用了 `'senderFaceURL'`（大写 L），与数据库列名 `senderFaceUrl`（小写 l）不匹配，导致头像 URL 无法写入数据库。  
+  修复：将 key 改为 `'senderFaceUrl'` 与 DB schema 对齐。
+
+- **`searchLocalMessages` 搜索结果错误** (`_searchFilterWorker` in `sdk_isolate.dart`):  
+  原实现对整个 `content` JSON 字符串做关键词模糊匹配，导致搜索数字（如 `"1"`）时命中图片的宽高值、文件路径中的数字序列、服务端 URL 中的 ID 等无关字段，返回大量错误结果。  
+  修复后按 `contentType` 精确搜索对应字段，与 Go SDK `filterMsg` 逻辑对齐：
+  - 文字消息 (101)：仅搜索 `textElem.content`
+  - @消息 (106)：仅搜索 `atTextElem.text`
+  - 文件消息 (105)：仅搜索 `fileElem.fileName`
+  - 合并消息 (107)：仅搜索 `mergeElem.title`
+  - 名片消息 (108)：仅搜索 `cardElem.nickname`
+  - 位置消息 (109) / 自定义消息 (110)：仅搜索 `description`
+  - 引用消息 (114)：仅搜索 `quoteElem.text`
+  - 图片 (102) / 语音 (103) / 视频 (104)：有关键词时直接排除（不可按关键词搜索媒体消息）
+
 ## 1.6.7
 
 - fix bugs

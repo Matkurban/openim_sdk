@@ -7,6 +7,10 @@ class OnAdvancedMsgListener {
   void Function(List<ReadReceiptInfo> list)? onRecvC2CReadReceipt;
   void Function(Message msg)? onRecvNewMessage;
   void Function(Message msg)? onRecvOfflineNewMessage;
+
+  /// 批量离线消息回调（对应 Go SDK batchNewMessages 设计）。
+  /// 补拉消息完成后，同一会话的所有消息一次性回调，避免逐条回调引发的 N 次 DB 查询。
+  void Function(List<Message> msgs)? onRecvOfflineNewMessages;
   void Function(Message msg)? onRecvOnlineOnlyMessage;
   void Function(Message msg)? onMessageStatusChanged;
 
@@ -19,6 +23,7 @@ class OnAdvancedMsgListener {
     this.onRecvC2CReadReceipt,
     this.onRecvNewMessage,
     this.onRecvOfflineNewMessage,
+    this.onRecvOfflineNewMessages,
     this.onRecvOnlineOnlyMessage,
     this.onMessageStatusChanged,
   }) : id = "id_${DateTime.now().microsecondsSinceEpoch}";
@@ -44,6 +49,10 @@ class OnAdvancedMsgListener {
 
   void recvOfflineNewMessage(Message msg) {
     onRecvOfflineNewMessage?.call(msg);
+  }
+
+  void recvOfflineNewMessages(List<Message> msgs) {
+    onRecvOfflineNewMessages?.call(msgs);
   }
 
   void recvOnlineOnlyMessage(Message msg) {
