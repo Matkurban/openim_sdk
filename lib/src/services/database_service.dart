@@ -632,10 +632,13 @@ class DatabaseService {
 
   /// 更新会话草稿
   Future<DbResult> setConversationDraft(String conversationID, String draftText) async {
+    // 对齐 Go SDK：draftText 为空时调用 RemoveConversationDraft，设 draftTextTime=0；
+    // 否则 draftTextTime 设为当前时间（SetConversationDraftDB 行为）。
+    // 这样 simpleSort 不会因空草稿的时间戳误把会话排到最顶部。
     return toStore
         .update(DbTableName.localConversation, {
           'draftText': draftText,
-          'draftTextTime': DateTime.now().millisecondsSinceEpoch,
+          'draftTextTime': draftText.isEmpty ? 0 : DateTime.now().millisecondsSinceEpoch,
         })
         .whereEqual('conversationID', conversationID);
   }
