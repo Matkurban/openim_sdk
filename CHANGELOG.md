@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.7
+
+- fix bugs
+
 ## 1.6.6
 
 - When Bug 1 sends an empty string, `draftTextTime` is refreshed to the current time. `simpleSort` uses `max(draftTextTime, latestMsgSendTime)` for sorting, with the new timestamp > the latestMsgSendTime of all older sessions → skipping to the top of the session list.

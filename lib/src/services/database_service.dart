@@ -524,6 +524,20 @@ class DatabaseService {
     return result.data.map(_convertConversation).toList();
   }
 
+  /// 获取所有会话的本地 hasReadSeq（map: conversationID → hasReadSeq）
+  /// 用于 _syncConversationsAndSeqs 防止服务端滞后值覆盖本地已读状态
+  Future<Map<String, int>> getAllConversationHasReadSeqs() async {
+    final result = await toStore.query(DbTableName.localConversation);
+    final map = <String, int>{};
+    for (final row in result.data) {
+      final convID = row['conversationID'] as String?;
+      if (convID != null) {
+        map[convID] = (row['hasReadSeq'] as num?)?.toInt() ?? 0;
+      }
+    }
+    return map;
+  }
+
   /// 获取可见会话列表（对齐 Go SDK GetAllConversationListDB：latestMsgSendTime > 0）
   Future<List<ConversationInfo>> getVisibleConversations() async {
     final result = await toStore

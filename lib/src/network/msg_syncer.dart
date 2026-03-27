@@ -401,6 +401,11 @@ class MsgSyncer {
       final localConvs = await database.getAllConversations();
       final localConvIDs = localConvs.map((c) => c.conversationID).whereType<String>().toList();
 
+      // 加载本地 hasReadSeq，防止服务端滞后值覆盖本地已读状态：
+      // 若本地 hasReadSeq >= 服务端 hasReadSeq，说明本地标记已读的请求可能还未到服务端，
+      // 用本地值计算 unreadCount 可避免"刚读完的消息重新变成未读"的问题。
+      final localHasReadSeqs = await database.getAllConversationHasReadSeqs();
+
       final seqResp = await api.getConversationsHasReadAndMaxSeq(
         userID: _userID,
         conversationIDs: const [],
@@ -413,11 +418,17 @@ class MsgSyncer {
           final seqInfo = serverSeqs[convID];
           if (seqInfo is Map<String, dynamic>) {
             final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
-            final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
-            final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+            final serverHasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
+            // 取本地与服务端中较大的 hasReadSeq：
+            // 本地 > 服务端说明标记已读请求尚未被服务端处理，使用本地值防止倒退
+            final localHasReadSeq = localHasReadSeqs[convID] ?? 0;
+            final effectiveHasReadSeq = localHasReadSeq > serverHasReadSeq
+                ? localHasReadSeq
+                : serverHasReadSeq;
+            final unread = (maxSeq - effectiveHasReadSeq).clamp(0, maxSeq);
             await database.updateConversation(convID, {
               'maxSeq': maxSeq,
-              'hasReadSeq': hasReadSeq,
+              'hasReadSeq': effectiveHasReadSeq,
               'unreadCount': unread,
             });
             _serverMaxSeqs[convID] = maxSeq;
@@ -1537,6 +1548,13 @@ class MsgSyncer {
         final gapSyncRanges = <String, List<int>>{};
         final convUpdates = <String, ConvBatchUpdate>{};
 
+        // 关键：在所有 _parsePushMsg 调用之前拍摄 seq 快照。
+        // _parsePushMsg 在连续推送时会立即推进 _syncedMaxSeqs（用于同批次多推送的缺口检测），
+        // 因此如果在 _parsePushMsg 之后读取 _syncedMaxSeqs，
+        // oldSyncedSeq 将等于最新消息的 seq，导致 newUnreadCount 永远为 0。
+        // 使用快照可确保 _applyBatchUpdatesAndNotify 使用推送前的基线 seq 计算未读数。
+        final preBatchMaxSeqs = Map<String, int>.from(_syncedMaxSeqs);
+
         // 取出当前队列中所有消息，合并解析
         while (_pushMsgQueue.isNotEmpty) {
           final resp = _pushMsgQueue.removeFirst();
@@ -1549,7 +1567,7 @@ class MsgSyncer {
 
         // 顺序执行批量 DB 更新（await 保证完成后才处理下一批）
         if (convUpdates.isNotEmpty || gapSyncRanges.isNotEmpty) {
-          await _applyBatchUpdatesAndNotify(convUpdates, gapSyncRanges);
+          await _applyBatchUpdatesAndNotify(convUpdates, gapSyncRanges, preBatchMaxSeqs);
         }
       }
     } catch (e, s) {
@@ -1785,7 +1803,10 @@ class MsgSyncer {
         update.latestMsgSeq = candidateSeq;
       }
       if (seq > update.maxSeq) update.maxSeq = seq;
-      if (!isSelfMsg && seq > 0) {
+      // 对齐 Go SDK doMsgNew：仅当消息的 IsUnreadCount 选项为 true 时才计入未读
+      // （召回通知、typing 等系统消息不计入未读）
+      final isUnreadCount = options['unreadCount'] ?? true;
+      if (!isSelfMsg && seq > 0 && isUnreadCount) {
         update.incomingSeqs.add(seq);
       }
 
@@ -1797,9 +1818,15 @@ class MsgSyncer {
   }
 
   /// 批量应用会话更新到 DB，并触发通知
+  ///
+  /// [preBatchMaxSeqs] 是在本批 _parsePushMsg 调用之前拍摄的 _syncedMaxSeqs 快照。
+  /// 必须用快照而非实时 _syncedMaxSeqs 计算 oldSyncedSeq，
+  /// 因为 _parsePushMsg 在处理连续推送时会提前推进 _syncedMaxSeqs，
+  /// 导致若使用实时值，所有 incomingSeqs 都不大于 oldSyncedSeq，newUnreadCount 始终为 0。
   Future<void> _applyBatchUpdatesAndNotify(
     Map<String, ConvBatchUpdate> convUpdates,
     Map<String, List<int>> gapSyncRanges,
+    Map<String, int> preBatchMaxSeqs,
   ) async {
     final changedConvIDs = <String>{};
     final newConvIDs = <String>{};
@@ -1811,8 +1838,10 @@ class MsgSyncer {
       try {
         if (update.pendingMessages.isNotEmpty) {
           await database.batchInsertMessages(update.pendingMessages);
-          final oldSyncedSeq = _syncedMaxSeqs[convID] ?? 0;
-          if (update.maxSeq > oldSyncedSeq) {
+          // 使用推送前快照（preBatchMaxSeqs）而非实时 _syncedMaxSeqs，
+          // 确保未读数计算基于正确的历史基线（对齐 Go SDK maxSeqRecorder.IsNewMsg 语义）。
+          final oldSyncedSeq = preBatchMaxSeqs[convID] ?? 0;
+          if (update.maxSeq > (_syncedMaxSeqs[convID] ?? 0)) {
             _syncedMaxSeqs[convID] = update.maxSeq;
           }
           if (update.incomingSeqs.isNotEmpty) {
