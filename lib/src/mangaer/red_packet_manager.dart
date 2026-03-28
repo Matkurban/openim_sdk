@@ -13,7 +13,7 @@ typedef OnRedPacketGrabbed = void Function(RedPacketGrabbedNotify notify);
 typedef OnRedPacketExpired = void Function(String packetID);
 
 /// 积分余额变化时的事件
-typedef OnPointsBalanceChanged = void Function(int newBalance);
+typedef OnPointsBalanceChanged = void Function(double newBalance);
 
 // ─── 红包 Manager ─────────────────────────────────────────────────────────────
 
@@ -38,8 +38,8 @@ class RedPacketManager {
   OnPointsBalanceChanged? onPointsBalanceChanged;
 
   /// 积分余额（本地缓存，供 UI 直接读取）
-  int _cachedBalance = 0;
-  int get cachedBalance => _cachedBalance;
+  double _cachedBalance = 0;
+  double get cachedBalance => _cachedBalance;
 
   @internal
   void setCurrentUserID(String userID) {
@@ -75,14 +75,14 @@ class RedPacketManager {
   // ─── 抢红包 ───────────────────────────────────────────────────────────────────
 
   /// 抢红包，返回实际领取积分数量。
-  Future<int> grabRedPacket(String packetID) async {
+  Future<double> grabRedPacket(String packetID) async {
     _log.info('packetID=$packetID', methodName: 'grabRedPacket');
     try {
       final resp = await HttpClient().chatPost('/red_packet/grab', data: {'packetID': packetID});
       if (!resp.isSuccess) {
         throw Exception('grabRedPacket failed: ${resp.errMsg}');
       }
-      final amount = (resp.data['amount'] as num).toInt();
+      final amount = (resp.data['amount'] as num).toDouble();
       // 更新积分缓存
       _cachedBalance += amount;
       onPointsBalanceChanged?.call(_cachedBalance);
@@ -112,11 +112,11 @@ class RedPacketManager {
   // ─── 积分余额 ─────────────────────────────────────────────────────────────────
 
   /// 拉取当前用户积分余额（同时更新本地缓存）
-  Future<int> getPointsBalance() async {
+  Future<double> getPointsBalance() async {
     try {
       final resp = await HttpClient().chatPost('/points/balance', data: {});
       if (!resp.isSuccess) throw Exception('getPointsBalance failed: ${resp.errMsg}');
-      _cachedBalance = (resp.data['balance'] as num).toInt();
+      _cachedBalance = (resp.data['balance'] as num).toDouble();
       onPointsBalanceChanged?.call(_cachedBalance);
       return _cachedBalance;
     } catch (e, s) {
@@ -175,7 +175,7 @@ class RedPacketManager {
         case 'points_adjusted':
           try {
             final map = jsonDecode(data) as Map<String, dynamic>;
-            final newBalance = (map['balance'] as num).toInt();
+            final newBalance = (map['balance'] as num).toDouble();
             _cachedBalance = newBalance;
             onPointsBalanceChanged?.call(_cachedBalance);
           } catch (_) {}

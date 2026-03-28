@@ -10,7 +10,7 @@ RedPacketGrabInfo _$RedPacketGrabInfoFromJson(Map<String, dynamic> json) => RedP
   grabberID: json['grabberID'] as String,
   nickname: json['nickname'] as String? ?? '',
   faceURL: json['faceURL'] as String? ?? '',
-  amount: (json['amount'] as num).toInt(),
+  amount: (json['amount'] as num).toDouble(),
   createTime: RedPacketGrabInfo._dateFromJson(json['createTime']),
 );
 
@@ -30,9 +30,9 @@ RedPacketDetail _$RedPacketDetailFromJson(Map<String, dynamic> json) => RedPacke
   senderNickname: json['senderNickname'] as String? ?? '',
   senderFaceURL: json['senderFaceURL'] as String? ?? '',
   packetType: (json['packetType'] as num).toInt(),
-  totalAmount: (json['totalAmount'] as num).toInt(),
+  totalAmount: (json['totalAmount'] as num).toDouble(),
   totalCount: (json['totalCount'] as num).toInt(),
-  grabbedAmount: (json['grabbedAmount'] as num).toInt(),
+  grabbedAmount: (json['grabbedAmount'] as num).toDouble(),
   grabbedCount: (json['grabbedCount'] as num).toInt(),
   status: (json['status'] as num).toInt(),
   greeting: json['greeting'] as String? ?? '恭喜发财，大吉大利',
@@ -42,7 +42,7 @@ RedPacketDetail _$RedPacketDetailFromJson(Map<String, dynamic> json) => RedPacke
           ?.map((e) => RedPacketGrabInfo.fromJson(e as Map<String, dynamic>))
           .toList() ??
       [],
-  myGrabAmount: (json['myGrabAmount'] as num?)?.toInt() ?? 0,
+  myGrabAmount: (json['myGrabAmount'] as num?)?.toDouble() ?? 0,
 );
 
 Map<String, dynamic> _$RedPacketDetailToJson(RedPacketDetail instance) => <String, dynamic>{
@@ -67,7 +67,7 @@ Map<String, dynamic> _$RedPacketDetailToJson(RedPacketDetail instance) => <Strin
 PointsTransaction _$PointsTransactionFromJson(Map<String, dynamic> json) => PointsTransaction(
   txID: json['txID'] as String,
   userID: json['userID'] as String,
-  amount: (json['amount'] as num).toInt(),
+  amount: (json['amount'] as num).toDouble(),
   txType: (json['txType'] as num).toInt(),
   relatedID: json['relatedID'] as String? ?? '',
   remark: json['remark'] as String? ?? '',

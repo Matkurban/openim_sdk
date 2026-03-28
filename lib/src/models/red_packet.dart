@@ -34,7 +34,7 @@ enum RedPacketStatus {
 
 class SendRedPacketRequest {
   final int packetType;
-  final int totalAmount;
+  final double totalAmount;
   final int totalCount;
   final String greeting;
   final String? targetUserID;
@@ -66,7 +66,7 @@ class RedPacketGrabInfo {
   final String grabberID;
   final String nickname;
   final String faceURL;
-  final int amount;
+  final double amount;
   @JsonKey(fromJson: _dateFromJson)
   final DateTime createTime;
 
@@ -95,9 +95,9 @@ class RedPacketDetail {
   final String senderNickname;
   final String senderFaceURL;
   final int packetType;
-  final int totalAmount;
+  final double totalAmount;
   final int totalCount;
-  final int grabbedAmount;
+  final double grabbedAmount;
   final int grabbedCount;
   final int status;
   final String greeting;
@@ -106,7 +106,7 @@ class RedPacketDetail {
   final List<RedPacketGrabInfo> grabs;
 
   /// 当前用户领取金额（0=未领取）
-  final int myGrabAmount;
+  final double myGrabAmount;
 
   const RedPacketDetail({
     required this.packetID,
@@ -148,7 +148,7 @@ class RedPacketDetail {
 class PointsTransaction {
   final String txID;
   final String userID;
-  final int amount;
+  final double amount;
   final int txType;
   final String relatedID;
   final String remark;
@@ -181,7 +181,7 @@ class PointsTransaction {
 class RedPacketMessageData {
   final String packetID;
   final int packetType;
-  final int totalAmount;
+  final double totalAmount;
   final int totalCount;
   final String greeting;
   final String? targetUserID;
@@ -198,7 +198,7 @@ class RedPacketMessageData {
   factory RedPacketMessageData.fromJson(Map<String, dynamic> json) => RedPacketMessageData(
     packetID: json['packetID'] as String,
     packetType: (json['packetType'] as num).toInt(),
-    totalAmount: (json['totalAmount'] as num).toInt(),
+    totalAmount: (json['totalAmount'] as num).toDouble(),
     totalCount: (json['totalCount'] as num).toInt(),
     greeting: json['greeting'] as String? ?? '恭喜发财，大吉大利',
     targetUserID: json['targetUserID'] as String?,
@@ -220,7 +220,7 @@ class RedPacketGrabbedNotify {
   final String grabberID;
   final String grabberName;
   final String grabberFaceURL;
-  final int amount;
+  final double amount;
   final String convID;
 
   const RedPacketGrabbedNotify({
@@ -237,7 +237,7 @@ class RedPacketGrabbedNotify {
     grabberID: json['grabberID'] as String,
     grabberName: json['grabberName'] as String? ?? json['grabberID'] as String? ?? '',
     grabberFaceURL: json['grabberFaceURL'] as String? ?? '',
-    amount: (json['amount'] as num).toInt(),
+    amount: (json['amount'] as num).toDouble(),
     convID: json['convID'] as String,
   );
 }
