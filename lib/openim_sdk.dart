@@ -28,6 +28,7 @@ export 'src/listener/user_listener.dart';
 export 'src/listener/moments_listener.dart';
 export 'src/listener/favorite_listener.dart';
 export 'src/listener/call_listener.dart';
+export 'src/listener/red_packet_listener.dart';
 
 /// Models
 export 'src/models/api_response.dart';

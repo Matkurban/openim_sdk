@@ -1777,6 +1777,11 @@ class MsgSyncer {
 
       // 仅在线消息：不存储，仅触发 onRecvOnlineOnlyMessage
       if (!isHistory) {
+        // 通知消息仍需路由到 NotificationDispatcher（如 BusinessNotification）
+        if (contentType >= 1000) {
+          final content = msg['content'] as String? ?? '';
+          notificationDispatcher.dispatch(contentType, content);
+        }
         // Typing 消息（contentType=113）触发输入状态变更回调
         if (contentType == 113) {
           _fireInputStatusChanged(msg, conversationID);

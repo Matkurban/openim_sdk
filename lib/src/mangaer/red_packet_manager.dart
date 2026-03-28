@@ -3,17 +3,9 @@ import 'dart:convert';
 
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
+import 'package:openim_sdk/src/listener/red_packet_listener.dart';
 import 'package:openim_sdk/src/models/red_packet.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
-
-/// 红包被领取时的事件
-typedef OnRedPacketGrabbed = void Function(RedPacketGrabbedNotify notify);
-
-/// 红包过期时的事件（仅发包人会收到）
-typedef OnRedPacketExpired = void Function(String packetID);
-
-/// 积分余额变化时的事件
-typedef OnPointsBalanceChanged = void Function(double newBalance);
 
 // ─── 红包 Manager ─────────────────────────────────────────────────────────────
 
@@ -31,11 +23,12 @@ class RedPacketManager {
 
   static final AoiweLogger _log = AoiweLogger('RedPacketManager');
 
-  // ─── 对外暴露的事件回调 ──────────────────────────────────────────────────────
+  OnRedPacketListener? listener;
 
-  OnRedPacketGrabbed? onRedPacketGrabbed;
-  OnRedPacketExpired? onRedPacketExpired;
-  OnPointsBalanceChanged? onPointsBalanceChanged;
+  void setRedPacketListener(OnRedPacketListener listener) {
+    _log.info('设置红包监听器', methodName: 'setRedPacketListener');
+    this.listener = listener;
+  }
 
   /// 积分余额（本地缓存，供 UI 直接读取）
   double _cachedBalance = 0;
@@ -64,7 +57,7 @@ class RedPacketManager {
       final packetID = resp.data['packetID'] as String;
       // 更新本地积分缓存
       _cachedBalance -= req.totalAmount;
-      onPointsBalanceChanged?.call(_cachedBalance);
+      listener?.pointsBalanceChanged(_cachedBalance);
       return packetID;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'sendRedPacket');
@@ -85,7 +78,7 @@ class RedPacketManager {
       final amount = (resp.data['amount'] as num).toDouble();
       // 更新积分缓存
       _cachedBalance += amount;
-      onPointsBalanceChanged?.call(_cachedBalance);
+      listener?.pointsBalanceChanged(_cachedBalance);
       return amount;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'grabRedPacket');
@@ -117,7 +110,7 @@ class RedPacketManager {
       final resp = await HttpClient().chatPost('/points/balance', data: {});
       if (!resp.isSuccess) throw Exception('getPointsBalance failed: ${resp.errMsg}');
       _cachedBalance = (resp.data['balance'] as num).toDouble();
-      onPointsBalanceChanged?.call(_cachedBalance);
+      listener?.pointsBalanceChanged(_cachedBalance);
       return _cachedBalance;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getPointsBalance');
@@ -162,7 +155,7 @@ class RedPacketManager {
       switch (key) {
         case 'red_packet_grabbed':
           final notify = RedPacketGrabbedNotify.fromJson(jsonDecode(data) as Map<String, dynamic>);
-          onRedPacketGrabbed?.call(notify);
+          listener?.redPacketGrabbed(notify);
         case 'red_packet_expired':
           // data 可能是 packetID 字符串
           String packetID;
@@ -171,14 +164,16 @@ class RedPacketManager {
           } catch (_) {
             packetID = data;
           }
-          onRedPacketExpired?.call(packetID);
+          listener?.redPacketExpired(packetID);
         case 'points_adjusted':
           try {
             final map = jsonDecode(data) as Map<String, dynamic>;
             final newBalance = (map['balance'] as num).toDouble();
             _cachedBalance = newBalance;
-            onPointsBalanceChanged?.call(_cachedBalance);
-          } catch (_) {}
+            listener?.pointsBalanceChanged(_cachedBalance);
+          } catch (e) {
+            _log.error('points_adjusted parse error: $e', methodName: 'dispatch');
+          }
         default:
           break;
       }
