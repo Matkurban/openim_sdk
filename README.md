@@ -2,6 +2,15 @@
 
 A pure Dart implementation of the OpenIM client SDK, compatible with all Flutter platforms (iOS / Android / Web / macOS / Windows / Linux), providing complete instant messaging capabilities.
 
+>
+> **⚠️ 警告：**
+>
+>请注意：此 sdk 为个人使用编写，因此源代码没有开源，因为我对 openim 的 server 和 chat 进行了一些改变所以你在使用过程中有些方法是没有作用的，因为这些功能是需要后端的支持的。如需要可联系于我，但是你必须要遵守 openim 的开源许可。
+>
+>Please note: This SDK was written for personal use, therefore the source code is not open source. Because I made some changes to the OpenIM server and chat, some methods may not work, as these functions require backend support. Please contact me if needed, but you must comply with the OpenIM open source license.
+
+> matkurban0102@gmail.com
+
 ## Features
 
 - **Complete IM capabilities** — Message sending/receiving for one-to-one chat, group chat, and system notifications
