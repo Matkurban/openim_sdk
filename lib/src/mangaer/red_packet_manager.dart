@@ -172,6 +172,13 @@ class RedPacketManager {
             packetID = data;
           }
           onRedPacketExpired?.call(packetID);
+        case 'points_adjusted':
+          try {
+            final map = jsonDecode(data) as Map<String, dynamic>;
+            final newBalance = (map['balance'] as num).toInt();
+            _cachedBalance = newBalance;
+            onPointsBalanceChanged?.call(_cachedBalance);
+          } catch (_) {}
         default:
           break;
       }

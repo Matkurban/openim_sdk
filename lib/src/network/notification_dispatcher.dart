@@ -654,7 +654,7 @@ class NotificationDispatcher {
           return;
         }
         // 红包通知
-        if (key.startsWith('red_packet_')) {
+        if (key.startsWith('red_packet_') || key.startsWith('points_')) {
           redPacketManager.dispatchBusinessNotification(key, dataStr);
           return;
         }
