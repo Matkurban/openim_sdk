@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.4
+
+- fix bugs
+
 ## 1.7.3
 
 - fix bugs
