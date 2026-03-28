@@ -40,6 +40,8 @@ class NotificationDispatcher {
 
   final FavoriteManager favoriteManager;
 
+  final RedPacketManager redPacketManager;
+
   OnListenerForService? listenerForService;
 
   OnFriendshipListener? get friendshipListener => friendshipManager.listener;
@@ -64,6 +66,7 @@ class NotificationDispatcher {
     required this.messageManager,
     required this.momentsManager,
     required this.favoriteManager,
+    required this.redPacketManager,
   });
 
   // ---------------------------------------------------------------------------
@@ -648,6 +651,11 @@ class NotificationDispatcher {
         // Try to route to moment/favorite managers
         if (key.startsWith('moment_') || key.startsWith('favorite_')) {
           _onMomentOrFavoriteNotification(key, dataStr);
+          return;
+        }
+        // 红包通知
+        if (key.startsWith('red_packet_')) {
+          redPacketManager.dispatchBusinessNotification(key, dataStr);
           return;
         }
       }

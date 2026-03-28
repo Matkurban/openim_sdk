@@ -52,6 +52,9 @@ class IMManager {
   /// 通话管理
   final CallManager callManager = CallManager();
 
+  /// 红包 & 积分管理
+  final RedPacketManager redPacketManager = RedPacketManager();
+
   /// 服务监听（可选）
   OnListenerForService? _listenerForService;
 
@@ -370,6 +373,7 @@ class IMManager {
     momentsManager.setCurrentUserID(userID);
     favoriteManager.setCurrentUserID(userID);
     callManager.setCurrentUserID(userID);
+    redPacketManager.setCurrentUserID(userID);
     callManager.setSendSignalingFn((toUserID, data, {bool isInvite = false}) {
       _sendCallSignaling(toUserID, data, isInvite: isInvite);
     });
@@ -386,6 +390,7 @@ class IMManager {
       messageManager: messageManager,
       momentsManager: momentsManager,
       favoriteManager: favoriteManager,
+      redPacketManager: redPacketManager,
     );
     dispatcher.setLoginUserID(userID);
     dispatcher.listenerForService = _listenerForService;

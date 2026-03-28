@@ -12,6 +12,7 @@ export 'src/mangaer/user_manager.dart';
 export 'src/mangaer/moments_manager.dart';
 export 'src/mangaer/favorite_manager.dart';
 export 'src/mangaer/call_manager.dart';
+export 'src/mangaer/red_packet_manager.dart';
 
 /// Listeners
 export 'src/listener/advanced_msg_listener.dart';
@@ -55,6 +56,9 @@ export 'src/models/link_info.dart';
 export 'src/models/note_info.dart';
 export 'src/models/user_full_info.dart';
 export 'src/models/auth_cache_data.dart';
+
+/// Red Packet Models
+export 'src/models/red_packet.dart';
 
 /// Call Models
 export 'src/models/call_session.dart';

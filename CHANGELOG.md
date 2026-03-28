@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.1
+
+- **红包 & 积分系统**：新增 `RedPacketManager`，封装发红包、抢红包、查看红包详情及积分余额查询接口。
+- **模型扩展**：`RedPacketGrabInfo` / `RedPacketDetail` / `RedPacketGrabbedNotify` 新增 `nickname`、`faceURL` 字段，抢红包记录中包含用户昵称与头像信息。
+- **`IMManager` 集成**：`redPacketManager` 作为标准字段归入 `IMManager`，与其他管理器保持一致；`onPointsBalanceChanged` 回调在余额变化时自动触发。
+- **重构**：移除 `OpenIM.redPacketManager` 快捷访问，统一改为 `OpenIM.iMManager.redPacketManager`。
+
 ## 1.7.0
 
 - **离线消息补拉：N 次逐条回调 → 1 次批量回调** (`msg_syncer.dart`, `message_manager.dart`, `advanced_msg_listener.dart`):  
