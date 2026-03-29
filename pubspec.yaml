@@ -1,6 +1,6 @@
 name: openim_sdk
 description: An instant messaging plug-in that supports Android and IOS. And the server is also all open source.
-version: 1.7.6
+version: 1.7.7
 homepage: https://jsontodart.cn
 repository: https://github.com/Matkurban/openim_sdk
 topics: [openim, im, sdk, flutter]
@@ -14,7 +14,7 @@ dependencies:
   equatable: ^2.0.8
   json_annotation: ^4.11.0
   synchronized: ^3.4.0
-  tostore: ^3.0.8
+  tostore: ^3.0.9
   path: ^1.9.1
   get_it: ^9.2.1
   universal_platform: ^1.1.0

@@ -1,5 +1,7 @@
 # Changelog
 
+## update `tostore` version
+
 ## 1.7.6
 
 - **Red packet grab notification refactored: BusinessNotification → real IM custom message**:
