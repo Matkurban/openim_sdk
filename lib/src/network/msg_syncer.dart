@@ -1459,6 +1459,10 @@ class MsgSyncer {
   Future<void> _processPulledNotifications(Map<String, dynamic> msgsByConv) async {
     _log.info('called', methodName: '_processPulledNotifications');
     try {
+      // 收集 contentType=2200（已读回执）通知用于预聚合
+      // key = conversationID (from detail), value = {content, hasReadSeq}
+      final readReceiptBest = <String, _ReadReceiptEntry>{};
+
       for (final entry in msgsByConv.entries) {
         final convID = entry.key;
         final pullMsgs = entry.value as Map<String, dynamic>? ?? {};
@@ -1473,7 +1477,12 @@ class MsgSyncer {
             final seq = (msg['seq'] as num?)?.toInt() ?? 0;
 
             if (contentType >= 1000) {
-              notificationDispatcher.dispatch(contentType, content);
+              if (contentType == 2200) {
+                // 预聚合已读回执：只保留每个会话中 hasReadSeq 最大的通知
+                _aggregateReadReceipt(readReceiptBest, content);
+              } else {
+                notificationDispatcher.dispatch(contentType, content);
+              }
             }
 
             if (seq > 0 && seq > (_syncedMaxSeqs[convID] ?? 0)) {
@@ -1483,6 +1492,17 @@ class MsgSyncer {
           }
         }
       }
+
+      // 批量分发去重后的已读回执
+      if (readReceiptBest.isNotEmpty) {
+        _log.info(
+          '已读回执预聚合: ${readReceiptBest.length} 个会话（已去重）',
+          methodName: '_processPulledNotifications',
+        );
+        for (final entry in readReceiptBest.values) {
+          notificationDispatcher.dispatch(2200, entry.content);
+        }
+      }
     } catch (e, s) {
       _log.error(
         '处理通知消息失败: $e',
@@ -1490,6 +1510,29 @@ class MsgSyncer {
         stackTrace: s,
         methodName: '_processPulledNotifications',
       );
+    }
+  }
+
+  /// 预聚合已读回执：解析 content 提取 conversationID + hasReadSeq，
+  /// 只保留每个会话中 hasReadSeq 最大的通知。
+  void _aggregateReadReceipt(Map<String, _ReadReceiptEntry> best, String content) {
+    try {
+      if (content.isEmpty) return;
+      final map = jsonDecode(content) as Map<String, dynamic>;
+      final detailStr = map['detail'] as String?;
+      final detail = detailStr != null && detailStr.isNotEmpty
+          ? jsonDecode(detailStr) as Map<String, dynamic>
+          : map;
+      final conversationID = detail['conversationID'] as String?;
+      final hasReadSeq = (detail['hasReadSeq'] as num?)?.toInt() ?? 0;
+      if (conversationID == null) return;
+      final existing = best[conversationID];
+      if (existing == null || hasReadSeq > existing.hasReadSeq) {
+        best[conversationID] = _ReadReceiptEntry(content, hasReadSeq);
+      }
+    } catch (_) {
+      // 解析失败则作为普通通知直接分发
+      notificationDispatcher.dispatch(2200, content);
     }
   }
 
@@ -2195,4 +2238,12 @@ class MsgSyncer {
     }
     conversationListener?.totalUnreadMessageCountChanged(total);
   }
+}
+
+/// 已读回执预聚合条目
+class _ReadReceiptEntry {
+  final String content;
+  final int hasReadSeq;
+
+  _ReadReceiptEntry(this.content, this.hasReadSeq);
 }

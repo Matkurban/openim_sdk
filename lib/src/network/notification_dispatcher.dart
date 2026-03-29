@@ -89,6 +89,19 @@ class NotificationDispatcher {
 
   static const _syncDebounce = Duration(milliseconds: 200);
 
+  // ---------------------------------------------------------------------------
+  // 已读回执去重：避免相同 hasReadSeq 重复触发 DB 操作和 UI 回调
+  // ---------------------------------------------------------------------------
+  /// 记录每个会话已处理的最大 hasReadSeq（自己已读路径）
+  final Map<String, int> _lastSelfReadSeq = {};
+
+  /// 记录每个会话已写入 DB 的最大 hasReadSeq（避免重复 updateConversation）
+  final Map<String, int> _lastWrittenHasReadSeq = {};
+
+  /// 对方已读后需更新会话的去重集合（microtask 批量刷新）
+  final Set<String> _pendingReadReceiptConvIDs = {};
+  bool _readReceiptFlushScheduled = false;
+
   /// 防抖触发好友同步（多条好友通知合并为一次同步）
   void _debounceSyncFriends() {
     _log.info('called', methodName: '_debounceSyncFriends');
@@ -181,6 +194,10 @@ class NotificationDispatcher {
       _groupSyncTimer = null;
       _conversationSyncTimer?.cancel();
       _conversationSyncTimer = null;
+      _lastSelfReadSeq.clear();
+      _lastWrittenHasReadSeq.clear();
+      _pendingReadReceiptConvIDs.clear();
+      _readReceiptFlushScheduled = false;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'dispose');
       rethrow;
@@ -785,36 +802,43 @@ class NotificationDispatcher {
       final markAsReadUserID = detail['markAsReadUserID'] as String?;
       final seqs = (detail['seqs'] as List?)?.map((e) => e as int).toList() ?? [];
 
-      if (conversationID != null && hasReadSeq != null) {
-        database.updateConversation(conversationID, {'hasReadSeq': hasReadSeq});
+      if (conversationID == null) return;
+
+      // 去重：只在 hasReadSeq 增大时才写入 DB
+      if (hasReadSeq != null) {
+        final lastWritten = _lastWrittenHasReadSeq[conversationID] ?? 0;
+        if (hasReadSeq > lastWritten) {
+          _lastWrittenHasReadSeq[conversationID] = hasReadSeq;
+          database.updateConversation(conversationID, {'hasReadSeq': hasReadSeq});
+        }
       }
 
       if (markAsReadUserID != _userID) {
         // 对方已读：触发 OnRecvC2CReadReceipt + 更新 latestMsg 已读状态
-        final msgList = conversationID != null
+        final msgList = seqs.isNotEmpty
             ? await database.getMessagesBySeqs(conversationID, seqs)
             : const <Message>[];
         final msgIDs = msgList.map((e) => e.clientMsgID).whereType<String>().toList();
-        final receipts = <ReadReceiptInfo>[
-          ReadReceiptInfo(
-            userID: markAsReadUserID,
-            msgIDList: msgIDs,
-            readTime: detail['readTime'] as int?,
-          ),
-        ];
-        msgListener?.recvC2CReadReceipt(receipts);
-        if (conversationID != null) {
+        if (msgIDs.isNotEmpty) {
+          final receipts = <ReadReceiptInfo>[
+            ReadReceiptInfo(
+              userID: markAsReadUserID,
+              msgIDList: msgIDs,
+              readTime: detail['readTime'] as int?,
+            ),
+          ];
+          msgListener?.recvC2CReadReceipt(receipts);
           await database.markMessagesAsReadBySeqs(conversationID, seqs);
         }
-        // 更新会话（对应 Go SDK doReadDrawing 的 latestMsg IsRead 更新）
-        if (conversationID != null) {
-          _updateConversationAfterReadReceipt(conversationID);
-        }
+        // 批量更新会话（防抖，多条合并为一次 UI 通知）
+        _scheduleReadReceiptConvUpdate(conversationID);
       } else {
-        // 自己在其他设备已读：减少未读数（对应 Go SDK doUnreadCount）
-        if (conversationID != null) {
-          _handleSelfReadReceipt(conversationID, hasReadSeq ?? 0, seqs);
-        }
+        // 自己在其他设备已读：去重 —— hasReadSeq 未增大则跳过
+        final effectiveSeq = hasReadSeq ?? 0;
+        final lastSelf = _lastSelfReadSeq[conversationID] ?? 0;
+        if (effectiveSeq <= lastSelf) return;
+        _lastSelfReadSeq[conversationID] = effectiveSeq;
+        _handleSelfReadReceipt(conversationID, effectiveSeq, seqs);
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_onReadReceipt');
@@ -822,31 +846,34 @@ class NotificationDispatcher {
     }
   }
 
-  /// 对方已读后更新会话（latestMsg 的 isRead 状态）
-  Future<void> _updateConversationAfterReadReceipt(String conversationID) async {
-    _log.info('conversationID=$conversationID', methodName: '_updateConversationAfterReadReceipt');
+  /// 调度已读回执的会话更新（microtask 批量合并，避免逐条触发 UI）
+  void _scheduleReadReceiptConvUpdate(String conversationID) {
+    _pendingReadReceiptConvIDs.add(conversationID);
+    if (!_readReceiptFlushScheduled) {
+      _readReceiptFlushScheduled = true;
+      scheduleMicrotask(_flushReadReceiptConvUpdates);
+    }
+  }
+
+  /// 批量刷新所有待更新的已读回执会话
+  Future<void> _flushReadReceiptConvUpdates() async {
+    _readReceiptFlushScheduled = false;
+    final convIDs = _pendingReadReceiptConvIDs.toList();
+    _pendingReadReceiptConvIDs.clear();
+    if (convIDs.isEmpty) return;
+
+    _log.info('批量更新 ${convIDs.length} 个会话', methodName: '_flushReadReceiptConvUpdates');
     try {
-      try {
-        final conv = await database.getConversation(conversationID);
-        if (conv == null) return;
-        // 触发 conversationChanged 让 UI 更新已读状态
-        conversationListener?.conversationChanged([conv]);
-      } catch (e, s) {
-        _log.error(
-          e.toString(),
-          error: e,
-          stackTrace: s,
-          methodName: '_updateConversationAfterReadReceipt',
-        );
+      final convList = <ConversationInfo>[];
+      for (final id in convIDs) {
+        final conv = await database.getConversation(id);
+        if (conv != null) convList.add(conv);
+      }
+      if (convList.isNotEmpty) {
+        conversationListener?.conversationChanged(convList);
       }
     } catch (e, s) {
-      _log.error(
-        e.toString(),
-        error: e,
-        stackTrace: s,
-        methodName: '_updateConversationAfterReadReceipt',
-      );
-      rethrow;
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: '_flushReadReceiptConvUpdates');
     }
   }
 
