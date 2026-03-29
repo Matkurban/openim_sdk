@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.7.5
+## 1.7.6
 
 - **Red packet grab notification refactored: BusinessNotification → real IM custom message**:
   Grab notifications are no longer pushed as BusinessNotification "phantom messages". The backend now sends a real IM custom message (`contentType=110`, `description="redPacketGrabNotify"`) into the conversation after a successful grab, appearing as a visible grab-notification bar in chat history.
