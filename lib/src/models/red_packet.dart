@@ -214,35 +214,6 @@ class RedPacketMessageData {
   };
 }
 
-/// 红包被领取通知（business notification）的 data 字段。
-/// 用于实时刷新红包气泡状态（已领取/已领完）。
-class RedPacketGrabbedNotify {
-  final String packetID;
-  final String grabberID;
-  final String grabberName;
-  final String grabberFaceURL;
-  final double amount;
-  final String convID;
-
-  const RedPacketGrabbedNotify({
-    required this.packetID,
-    required this.grabberID,
-    this.grabberName = '',
-    this.grabberFaceURL = '',
-    required this.amount,
-    required this.convID,
-  });
-
-  factory RedPacketGrabbedNotify.fromJson(Map<String, dynamic> json) => RedPacketGrabbedNotify(
-    packetID: json['packetID'] as String,
-    grabberID: json['grabberID'] as String,
-    grabberName: json['grabberName'] as String? ?? json['grabberID'] as String? ?? '',
-    grabberFaceURL: json['grabberFaceURL'] as String? ?? '',
-    amount: (json['amount'] as num).toDouble(),
-    convID: json['convID'] as String,
-  );
-}
-
 /// 红包领取提示（真实 IM 自定义消息）的 data 字段。
 /// 由服务端在抢红包成功后发送到会话中，作为聊天记录中可见的领取提示条。
 /// description = "redPacketGrabNotify"

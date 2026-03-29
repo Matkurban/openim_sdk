@@ -153,9 +153,6 @@ class RedPacketManager {
   void dispatchBusinessNotification(String key, String data) {
     try {
       switch (key) {
-        case 'red_packet_grabbed':
-          final notify = RedPacketGrabbedNotify.fromJson(jsonDecode(data) as Map<String, dynamic>);
-          listener?.redPacketGrabbed(notify);
         case 'red_packet_expired':
           // data 可能是 packetID 字符串
           String packetID;
