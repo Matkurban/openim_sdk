@@ -1524,4 +1524,34 @@ class DatabaseService {
     }
     return map;
   }
+
+  // ---------------------------------------------------------------------------
+  // 已领取红包记录操作
+  // ---------------------------------------------------------------------------
+
+  /// 记录红包已被领取
+  Future<DbResult> markRedPacketGrabbed(String packetID) async {
+    return toStore.upsert(DbTableName.localGrabbedRedPacket, {
+      'packetID': packetID,
+      'grabTime': DateTime.now().millisecondsSinceEpoch,
+    });
+  }
+
+  /// 查询单个红包是否已领取
+  Future<bool> isRedPacketGrabbed(String packetID) async {
+    final data = await toStore
+        .query(DbTableName.localGrabbedRedPacket)
+        .whereEqual('packetID', packetID)
+        .first();
+    return data != null;
+  }
+
+  /// 批量查询红包是否已领取，返回已领取的 packetID 集合
+  Future<Set<String>> getGrabbedRedPacketIDs(List<String> packetIDs) async {
+    if (packetIDs.isEmpty) return {};
+    final result = await toStore
+        .query(DbTableName.localGrabbedRedPacket)
+        .whereIn('packetID', packetIDs);
+    return result.data.map((r) => r['packetID'] as String).toSet();
+  }
 }

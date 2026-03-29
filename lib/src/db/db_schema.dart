@@ -47,6 +47,9 @@ sealed class DbTableName {
 
   /// 本地通知seq表
   static const String localNotificationSeq = 'local_notification_seqs';
+
+  /// 本地已领取红包记录表
+  static const String localGrabbedRedPacket = 'local_grabbed_red_packets';
 }
 
 /// 数据库表结构定义
@@ -430,6 +433,13 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地已领取红包记录表结构
+  static final localGrabbedRedPacket = TableSchema(
+    name: DbTableName.localGrabbedRedPacket,
+    primaryKeyConfig: const PrimaryKeyConfig(name: 'packetID', type: PrimaryKeyType.none),
+    fields: [const FieldSchema(name: 'grabTime', type: DataType.integer, nullable: false)],
+  );
+
   /// 获取所有表结构定义列表，用于数据库初始化
   static List<TableSchema> get allSchemas => [
     localUser,
@@ -447,5 +457,6 @@ sealed class DbSchema {
     localUpload,
     localVersionSync,
     localNotificationSeq,
+    localGrabbedRedPacket,
   ];
 }

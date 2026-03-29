@@ -374,6 +374,7 @@ class IMManager {
     favoriteManager.setCurrentUserID(userID);
     callManager.setCurrentUserID(userID);
     redPacketManager.setCurrentUserID(userID);
+    redPacketManager.setDatabase(databaseService);
     callManager.setSendSignalingFn((toUserID, data, {bool isInvite = false}) {
       _sendCallSignaling(toUserID, data, isInvite: isInvite);
     });

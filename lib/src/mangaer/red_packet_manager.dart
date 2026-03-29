@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/listener/red_packet_listener.dart';
 import 'package:openim_sdk/src/models/red_packet.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
+import 'package:openim_sdk/src/services/database_service.dart';
 
 // ─── 红包 Manager ─────────────────────────────────────────────────────────────
 
@@ -34,9 +35,38 @@ class RedPacketManager {
   double _cachedBalance = 0;
   double get cachedBalance => _cachedBalance;
 
+  /// 已领取红包 ID 的内存缓存（高性能本地判断）
+  final Set<String> _grabbedPacketIDs = {};
+  DatabaseService? _database;
+
   @internal
   void setCurrentUserID(String userID) {
     // userID is managed via auth token; kept for interface compatibility
+  }
+
+  /// 设置数据库服务（登录时由 IMManager 调用）
+  @internal
+  void setDatabase(DatabaseService database) {
+    _database = database;
+  }
+
+  /// 预加载已领取红包 ID 到内存缓存（批量查询，供消息列表使用）
+  Future<void> preloadGrabbedStatus(List<String> packetIDs) async {
+    if (packetIDs.isEmpty || _database == null) return;
+    // 过滤掉已在缓存中的
+    final uncached = packetIDs.where((id) => !_grabbedPacketIDs.contains(id)).toList();
+    if (uncached.isEmpty) return;
+    final grabbed = await _database!.getGrabbedRedPacketIDs(uncached);
+    _grabbedPacketIDs.addAll(grabbed);
+  }
+
+  /// 同步判断红包是否已领取（O(1)，纯内存查询）
+  bool isGrabbed(String packetID) => _grabbedPacketIDs.contains(packetID);
+
+  /// 标记红包已领取（写入内存缓存 + 持久化到本地数据库）
+  Future<void> markGrabbed(String packetID) async {
+    _grabbedPacketIDs.add(packetID);
+    await _database?.markRedPacketGrabbed(packetID);
   }
 
   // ─── 发送红包 ─────────────────────────────────────────────────────────────────
@@ -79,6 +109,8 @@ class RedPacketManager {
       // 更新积分缓存（保留两位小数避免浮点误差）
       _cachedBalance = ((_cachedBalance + amount) * 100).roundToDouble() / 100;
       listener?.pointsBalanceChanged(_cachedBalance);
+      // 标记已领取（内存 + 本地数据库）
+      await markGrabbed(packetID);
       return amount;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'grabRedPacket');
