@@ -1399,4 +1399,99 @@ class ImApiService {
       rethrow;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Payment Password
+  // ---------------------------------------------------------------------------
+
+  /// 设置支付密码（首次设置，需验证登录密码）
+  Future<ApiResponse> setPaymentPassword({
+    required String paymentPassword,
+    required String loginPassword,
+  }) async {
+    _log.info('setPaymentPassword called', methodName: 'setPaymentPassword');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.setPaymentPassword,
+        data: {
+          'paymentPassword': paymentPassword,
+          'loginPassword': OpenImUtils.generateMD5(loginPassword),
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setPaymentPassword');
+      rethrow;
+    }
+  }
+
+  /// 修改支付密码（已设置，验证当前支付密码后更改）
+  Future<ApiResponse> changePaymentPassword({
+    required String currentPaymentPassword,
+    required String newPaymentPassword,
+  }) async {
+    _log.info('changePaymentPassword called', methodName: 'changePaymentPassword');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.changePaymentPassword,
+        data: {
+          'currentPaymentPassword': currentPaymentPassword,
+          'newPaymentPassword': newPaymentPassword,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'changePaymentPassword');
+      rethrow;
+    }
+  }
+
+  /// 验证支付密码
+  Future<ApiResponse> verifyPaymentPassword({required String paymentPassword}) async {
+    _log.info('verifyPaymentPassword called', methodName: 'verifyPaymentPassword');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.verifyPaymentPassword,
+        data: {'paymentPassword': paymentPassword},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'verifyPaymentPassword');
+      rethrow;
+    }
+  }
+
+  /// 检查是否已设置支付密码
+  Future<ApiResponse> checkPaymentPasswordSet() async {
+    _log.info('checkPaymentPasswordSet called', methodName: 'checkPaymentPasswordSet');
+    try {
+      return await HttpClient().chatPost(ChatApiUrl.checkPaymentPasswordSet, data: {});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'checkPaymentPasswordSet');
+      rethrow;
+    }
+  }
+
+  /// 通过验证码重置支付密码
+  Future<ApiResponse> resetPaymentPassword({
+    String? areaCode,
+    String? phoneNumber,
+    String? email,
+    required String verifyCode,
+    required String newPaymentPassword,
+  }) async {
+    _log.info('resetPaymentPassword called', methodName: 'resetPaymentPassword');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.resetPaymentPassword,
+        data: {
+          'areaCode': ?areaCode,
+          'phoneNumber': ?phoneNumber,
+          'email': ?email,
+          'verifyCode': verifyCode,
+          'newPaymentPassword': newPaymentPassword,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'resetPaymentPassword');
+      rethrow;
+    }
+  }
 }

@@ -489,4 +489,107 @@ class UserManager {
       rethrow;
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Payment Password
+  // ---------------------------------------------------------------------------
+
+  /// 设置支付密码（首次设置，需验证登录密码）
+  Future<void> setPaymentPassword({
+    required String paymentPassword,
+    required String loginPassword,
+  }) async {
+    _log.info('setPaymentPassword called', methodName: 'setPaymentPassword');
+    try {
+      final resp = await _api.setPaymentPassword(
+        paymentPassword: paymentPassword,
+        loginPassword: loginPassword,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setPaymentPassword');
+      rethrow;
+    }
+  }
+
+  /// 修改支付密码（验证当前支付密码后更改）
+  Future<void> changePaymentPassword({
+    required String currentPaymentPassword,
+    required String newPaymentPassword,
+  }) async {
+    _log.info('changePaymentPassword called', methodName: 'changePaymentPassword');
+    try {
+      final resp = await _api.changePaymentPassword(
+        currentPaymentPassword: currentPaymentPassword,
+        newPaymentPassword: newPaymentPassword,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'changePaymentPassword');
+      rethrow;
+    }
+  }
+
+  /// 验证支付密码
+  Future<bool> verifyPaymentPassword({required String paymentPassword}) async {
+    _log.info('verifyPaymentPassword called', methodName: 'verifyPaymentPassword');
+    try {
+      final resp = await _api.verifyPaymentPassword(paymentPassword: paymentPassword);
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+      return true;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'verifyPaymentPassword');
+      rethrow;
+    }
+  }
+
+  /// 检查是否已设置支付密码
+  Future<bool> checkPaymentPasswordSet() async {
+    _log.info('checkPaymentPasswordSet called', methodName: 'checkPaymentPasswordSet');
+    try {
+      final resp = await _api.checkPaymentPasswordSet();
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+      if (resp.data is Map) {
+        return (resp.data as Map)['isSet'] == true;
+      }
+      return false;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'checkPaymentPasswordSet');
+      rethrow;
+    }
+  }
+
+  /// 通过验证码重置支付密码
+  Future<void> resetPaymentPassword({
+    String? areaCode,
+    String? phoneNumber,
+    String? email,
+    required String verifyCode,
+    required String newPaymentPassword,
+  }) async {
+    _log.info('resetPaymentPassword called', methodName: 'resetPaymentPassword');
+    try {
+      final resp = await _api.resetPaymentPassword(
+        areaCode: areaCode,
+        phoneNumber: phoneNumber,
+        email: email,
+        verifyCode: verifyCode,
+        newPaymentPassword: newPaymentPassword,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'resetPaymentPassword');
+      rethrow;
+    }
+  }
 }

@@ -20,6 +20,13 @@ sealed class ChatApiUrl {
   static const String endMeeting = '/meeting/end';
   static const String getMeeting = '/meeting/get';
   static const String getActiveMeeting = '/meeting/get_active';
+
+  // ---- Payment Password ----
+  static const String setPaymentPassword = '/user/payment_password/set';
+  static const String changePaymentPassword = '/user/payment_password/change';
+  static const String verifyPaymentPassword = '/user/payment_password/verify';
+  static const String checkPaymentPasswordSet = '/user/payment_password/check';
+  static const String resetPaymentPassword = '/user/payment_password/reset';
 }
 
 /// OpenIM 核心服务端 API 路由（对应 openim-server）
