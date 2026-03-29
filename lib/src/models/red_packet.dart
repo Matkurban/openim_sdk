@@ -214,7 +214,8 @@ class RedPacketMessageData {
   };
 }
 
-/// 红包被领取通知（business notification）的 data 字段
+/// 红包被领取通知（business notification）的 data 字段。
+/// 用于实时刷新红包气泡状态（已领取/已领完）。
 class RedPacketGrabbedNotify {
   final String packetID;
   final String grabberID;
@@ -240,6 +241,40 @@ class RedPacketGrabbedNotify {
     amount: (json['amount'] as num).toDouble(),
     convID: json['convID'] as String,
   );
+}
+
+/// 红包领取提示（真实 IM 自定义消息）的 data 字段。
+/// 由服务端在抢红包成功后发送到会话中，作为聊天记录中可见的领取提示条。
+/// description = "redPacketGrabNotify"
+class RedPacketGrabNotifyMessageData {
+  final String packetID;
+  final String grabberID;
+  final String grabberName;
+  final String grabberFaceURL;
+  final String senderID;
+  final String senderName;
+  final double amount;
+
+  const RedPacketGrabNotifyMessageData({
+    required this.packetID,
+    required this.grabberID,
+    this.grabberName = '',
+    this.grabberFaceURL = '',
+    required this.senderID,
+    this.senderName = '',
+    required this.amount,
+  });
+
+  factory RedPacketGrabNotifyMessageData.fromJson(Map<String, dynamic> json) =>
+      RedPacketGrabNotifyMessageData(
+        packetID: json['packetID'] as String,
+        grabberID: json['grabberID'] as String,
+        grabberName: json['grabberName'] as String? ?? '',
+        grabberFaceURL: json['grabberFaceURL'] as String? ?? '',
+        senderID: json['senderID'] as String? ?? '',
+        senderName: json['senderName'] as String? ?? '',
+        amount: (json['amount'] as num).toDouble(),
+      );
 }
 
 /// 红包过期通知的 data 字段
