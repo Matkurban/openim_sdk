@@ -55,8 +55,8 @@ class RedPacketManager {
         throw Exception('sendRedPacket failed: ${resp.errMsg}');
       }
       final packetID = resp.data['packetID'] as String;
-      // 更新本地积分缓存
-      _cachedBalance -= req.totalAmount;
+      // 更新本地积分缓存（保留两位小数避免浮点误差）
+      _cachedBalance = ((_cachedBalance - req.totalAmount) * 100).roundToDouble() / 100;
       listener?.pointsBalanceChanged(_cachedBalance);
       return packetID;
     } catch (e, s) {
@@ -76,8 +76,8 @@ class RedPacketManager {
         throw Exception('grabRedPacket failed: ${resp.errMsg}');
       }
       final amount = (resp.data['amount'] as num).toDouble();
-      // 更新积分缓存
-      _cachedBalance += amount;
+      // 更新积分缓存（保留两位小数避免浮点误差）
+      _cachedBalance = ((_cachedBalance + amount) * 100).roundToDouble() / 100;
       listener?.pointsBalanceChanged(_cachedBalance);
       return amount;
     } catch (e, s) {
@@ -109,7 +109,7 @@ class RedPacketManager {
     try {
       final resp = await HttpClient().chatPost('/points/balance', data: {});
       if (!resp.isSuccess) throw Exception('getPointsBalance failed: ${resp.errMsg}');
-      _cachedBalance = (resp.data['balance'] as num).toDouble();
+      _cachedBalance = ((resp.data['balance'] as num).toDouble() * 100).roundToDouble() / 100;
       listener?.pointsBalanceChanged(_cachedBalance);
       return _cachedBalance;
     } catch (e, s) {
@@ -165,7 +165,7 @@ class RedPacketManager {
         case 'points_adjusted':
           try {
             final map = jsonDecode(data) as Map<String, dynamic>;
-            final newBalance = (map['balance'] as num).toDouble();
+            final newBalance = ((map['balance'] as num).toDouble() * 100).roundToDouble() / 100;
             _cachedBalance = newBalance;
             listener?.pointsBalanceChanged(_cachedBalance);
           } catch (e) {
