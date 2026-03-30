@@ -1,11 +1,8 @@
 # Changelog
 
-## 1.7.8
-
-- add `changePassword` and `resetPassword` method.
-
 ## 1.7.7
 
+- add `changePassword` and `resetPassword` method.
 - update `tostore` version
 
 ## 1.7.6
