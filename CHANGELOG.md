@@ -1,5 +1,9 @@
 # Changelog
 
+## 1。7。8
+
+- Optimize the performance of a very small number of methods
+
 ## 1.7.7
 
 - add `changePassword` and `resetPassword` method.
