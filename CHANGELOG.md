@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.0
+
+-- fix bugs
+
+
 ## 1.7.9
 
 - fix bug

@@ -139,7 +139,8 @@ class GroupMembersInfo extends Equatable {
   final String? operatorUserID;
   final String? ex;
   final int? muteEndTime;
-  final int? appManagerLevel;
+  @JsonKey(name: 'appMangerLevel')
+  final int? appMangerLevel;
   final String? inviterUserID;
 
   const GroupMembersInfo({
@@ -153,7 +154,7 @@ class GroupMembersInfo extends Equatable {
     this.operatorUserID,
     this.ex,
     this.muteEndTime,
-    this.appManagerLevel,
+    this.appMangerLevel,
     this.inviterUserID,
   });
 
@@ -172,7 +173,7 @@ class GroupMembersInfo extends Equatable {
     String? operatorUserID,
     String? ex,
     int? muteEndTime,
-    int? appManagerLevel,
+    int? appMangerLevel,
     String? inviterUserID,
   }) {
     return GroupMembersInfo(
@@ -186,7 +187,7 @@ class GroupMembersInfo extends Equatable {
       operatorUserID: operatorUserID ?? this.operatorUserID,
       ex: ex ?? this.ex,
       muteEndTime: muteEndTime ?? this.muteEndTime,
-      appManagerLevel: appManagerLevel ?? this.appManagerLevel,
+      appMangerLevel: appMangerLevel ?? this.appMangerLevel,
       inviterUserID: inviterUserID ?? this.inviterUserID,
     );
   }
@@ -203,7 +204,7 @@ class GroupMembersInfo extends Equatable {
     operatorUserID,
     ex,
     muteEndTime,
-    appManagerLevel,
+    appMangerLevel,
     inviterUserID,
   ];
 }

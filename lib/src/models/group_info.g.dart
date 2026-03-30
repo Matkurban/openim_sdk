@@ -92,7 +92,7 @@ GroupMembersInfo _$GroupMembersInfoFromJson(Map<String, dynamic> json) => GroupM
   operatorUserID: json['operatorUserID'] as String?,
   ex: json['ex'] as String?,
   muteEndTime: (json['muteEndTime'] as num?)?.toInt(),
-  appManagerLevel: (json['appManagerLevel'] as num?)?.toInt(),
+  appMangerLevel: (json['appMangerLevel'] as num?)?.toInt(),
   inviterUserID: json['inviterUserID'] as String?,
 );
 
@@ -107,7 +107,7 @@ Map<String, dynamic> _$GroupMembersInfoToJson(GroupMembersInfo instance) => <Str
   'operatorUserID': instance.operatorUserID,
   'ex': instance.ex,
   'muteEndTime': instance.muteEndTime,
-  'appManagerLevel': instance.appManagerLevel,
+  'appMangerLevel': instance.appMangerLevel,
   'inviterUserID': instance.inviterUserID,
 };
 
