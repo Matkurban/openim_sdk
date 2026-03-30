@@ -596,7 +596,7 @@ class GroupManager {
       if (cached != null && cached.isNotEmpty) {
         var members = _apiMembersToGroupMembersInfo(cached);
         if (filter > 0) {
-          members = members.where((m) => m.roleLevel == filter).toList();
+          members = members.where((m) => m.roleLevel?.value == filter).toList();
         }
         if (offset > 0 || count < members.length) {
           final end = (offset + count).clamp(0, members.length);
@@ -652,16 +652,19 @@ class GroupManager {
       // DB 回退：从缓存或 API 获取
       final cached = _memberApiCache[groupID];
       if (cached != null && cached.isNotEmpty) {
-        return _apiMembersToGroupMembersInfo(
-          cached,
-        ).where((m) => m.roleLevel == 60 || m.roleLevel == 100).toList();
+        return _apiMembersToGroupMembersInfo(cached)
+            .where(
+              (m) => m.roleLevel == GroupRoleLevel.admin || m.roleLevel == GroupRoleLevel.owner,
+            )
+            .toList();
       }
-      return await _fetchMembersFromApi(
-        groupID,
-        filter: 0,
-        offset: 0,
-        count: 100,
-      ).then((all) => all.where((m) => m.roleLevel == 60 || m.roleLevel == 100).toList());
+      return await _fetchMembersFromApi(groupID, filter: 0, offset: 0, count: 100).then(
+        (all) => all
+            .where(
+              (m) => m.roleLevel == GroupRoleLevel.admin || m.roleLevel == GroupRoleLevel.owner,
+            )
+            .toList(),
+      );
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupOwnerAndAdmin');
       rethrow;
