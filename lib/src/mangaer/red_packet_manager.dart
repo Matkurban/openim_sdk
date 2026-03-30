@@ -152,16 +152,35 @@ class RedPacketManager {
 
   // ─── 积分流水 ─────────────────────────────────────────────────────────────────
 
-  /// 查询当前用户积分流水（分页）
+  /// 查询当前用户积分流水（分页 + 筛选）
+  ///
+  /// [txType] 交易类型筛选：1=发红包, 2=收红包, 3=退款, 4=管理加, 5=管理减，null 或 0 不筛选
+  /// [startTime] 起始时间筛选，null 不筛选
+  /// [endTime] 结束时间筛选，null 不筛选
+  /// [keyword] 关键字模糊搜索（匹配 relatedID 或 remark），null 或空不筛选
   Future<(int total, List<PointsTransaction> items)> getPointsTransactions({
     int pageNumber = 1,
     int showNumber = 20,
+    int? txType,
+    DateTime? startTime,
+    DateTime? endTime,
+    String? keyword,
   }) async {
     try {
-      final resp = await HttpClient().chatPost(
-        '/points/transactions',
-        data: {'pageNumber': pageNumber, 'showNumber': showNumber},
-      );
+      final data = <String, dynamic>{'pageNumber': pageNumber, 'showNumber': showNumber};
+      if (txType != null && txType > 0) {
+        data['txType'] = txType;
+      }
+      if (startTime != null) {
+        data['startTime'] = startTime.millisecondsSinceEpoch;
+      }
+      if (endTime != null) {
+        data['endTime'] = endTime.millisecondsSinceEpoch;
+      }
+      if (keyword != null && keyword.isNotEmpty) {
+        data['keyword'] = keyword;
+      }
+      final resp = await HttpClient().chatPost('/points/transactions', data: data);
       if (!resp.isSuccess) throw Exception('getPointsTransactions failed: ${resp.errMsg}');
       final total = (resp.data['total'] as num).toInt();
       final list = (resp.data['transactions'] as List<dynamic>)
@@ -172,6 +191,33 @@ class RedPacketManager {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getPointsTransactions');
       rethrow;
     }
+  }
+
+  /// 查询收入流水（收红包 + 退款 + 管理加）
+  Future<(int total, List<PointsTransaction> items)> getIncomeTransactions({
+    int pageNumber = 1,
+    int showNumber = 20,
+  }) async {
+    // 收入类型无单一 txType，拉取全部后客户端过滤
+    final (total, items) = await getPointsTransactions(
+      pageNumber: pageNumber,
+      showNumber: showNumber,
+    );
+    final filtered = items.where((tx) => tx.isIncome).toList();
+    return (total, filtered);
+  }
+
+  /// 查询支出流水（发红包 + 管理减）
+  Future<(int total, List<PointsTransaction> items)> getExpenseTransactions({
+    int pageNumber = 1,
+    int showNumber = 20,
+  }) async {
+    final (total, items) = await getPointsTransactions(
+      pageNumber: pageNumber,
+      showNumber: showNumber,
+    );
+    final filtered = items.where((tx) => tx.isExpense).toList();
+    return (total, filtered);
   }
 
   // ─── Business Notification 分发 ───────────────────────────────────────────────

@@ -144,6 +144,31 @@ class RedPacketDetail {
 
 // ─── 积分流水 ─────────────────────────────────────────────────────────────────
 
+/// 积分流水交易类型
+enum PointsTxType {
+  sendRedPacket(1),
+  receiveRedPacket(2),
+  refund(3),
+  adminAdd(4),
+  adminSub(5);
+
+  const PointsTxType(this.value);
+  final int value;
+
+  static PointsTxType? fromValue(int v) {
+    for (final e in values) {
+      if (e.value == v) return e;
+    }
+    return null;
+  }
+
+  /// 是否为收入类型（收红包、退款、管理加）
+  bool get isIncome => this == receiveRedPacket || this == refund || this == adminAdd;
+
+  /// 是否为支出类型（发红包、管理减）
+  bool get isExpense => this == sendRedPacket || this == adminSub;
+}
+
 @JsonSerializable()
 class PointsTransaction {
   final String txID;
@@ -173,6 +198,10 @@ class PointsTransaction {
     if (v is String) return DateTime.parse(v);
     return DateTime.fromMillisecondsSinceEpoch((v as num).toInt());
   }
+
+  PointsTxType? get txTypeEnum => PointsTxType.fromValue(txType);
+  bool get isIncome => txTypeEnum?.isIncome ?? false;
+  bool get isExpense => txTypeEnum?.isExpense ?? false;
 }
 
 // ─── 自定义消息 payload ───────────────────────────────────────────────────────

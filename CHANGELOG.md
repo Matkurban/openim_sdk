@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.8.1
+## 1.8.2
 
 -- fix bugs
 
