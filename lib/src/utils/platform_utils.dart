@@ -3,8 +3,10 @@ import 'package:openim_sdk/openim_sdk.dart';
 import 'package:universal_platform/universal_platform.dart';
 
 sealed class PlatformUtils {
-  ///获取当前默认的平台 id
-  static IMPlatform get currentPlatform {
+  // 平台在运行时不会改变，缓存一次避免每次重复检测
+  static final IMPlatform currentPlatform = _detectPlatform();
+
+  static IMPlatform _detectPlatform() {
     if (kIsWeb) {
       if (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS) {

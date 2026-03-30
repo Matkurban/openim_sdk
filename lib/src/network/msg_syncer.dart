@@ -251,14 +251,22 @@ class MsgSyncer {
   Future<void> _loadSeqs() async {
     _log.info('called', methodName: '_loadSeqs');
     try {
+      // 并行加载互不依赖的 DB 数据：安装标记、所有会话、通知 seq
+      final results = await Future.wait([
+        database.getVersionSync('app_sdk_version', 'app'),
+        database.getAllConversations(),
+        database.getAllNotificationSeqs(),
+      ]);
+
       // 对齐 Go：使用持久化 Installed 标记判定重装
-      final installedInfo = await database.getVersionSync('app_sdk_version', 'app');
+      final installedInfo = results[0] as Map<String, dynamic>?;
       final bool installed = (installedInfo?['version'] as num?)?.toInt() == 1;
       _reinstalled = !installed;
 
-      final newSyncedMaxSeqs = <String, int>{};
+      final conversations = results[1] as List<ConversationInfo>;
+      final notificationSeqs = results[2] as Map<String, int>;
 
-      final conversations = await database.getAllConversations();
+      final newSyncedMaxSeqs = <String, int>{};
 
       // 对齐 Go SDK CheckConversationNormalMsgSeq：从消息表读取实际已存储的 MAX(seq)
       if (conversations.isNotEmpty) {
@@ -272,7 +280,6 @@ class MsgSyncer {
       }
 
       // 通知会话 seq 独立持久化恢复（对齐 Go notification_seqs 语义）
-      final notificationSeqs = await database.getAllNotificationSeqs();
       for (final entry in notificationSeqs.entries) {
         newSyncedMaxSeqs[entry.key] = entry.value;
       }
@@ -414,6 +421,8 @@ class MsgSyncer {
         final serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
         _log.info('服务端 seq 数: ${serverSeqs.length}', methodName: '_syncConversationsAndSeqs');
 
+        // 收集所有更新任务并并行执行，消除 N 次串行 DB 往返
+        final updateFutures = <Future>[];
         for (final convID in localConvIDs) {
           final seqInfo = serverSeqs[convID];
           if (seqInfo is Map<String, dynamic>) {
@@ -426,13 +435,16 @@ class MsgSyncer {
                 ? localHasReadSeq
                 : serverHasReadSeq;
             final unread = (maxSeq - effectiveHasReadSeq).clamp(0, maxSeq);
-            await database.updateConversation(convID, {
+            _serverMaxSeqs[convID] = maxSeq;
+            updateFutures.add(database.updateConversation(convID, {
               'maxSeq': maxSeq,
               'hasReadSeq': effectiveHasReadSeq,
               'unreadCount': unread,
-            });
-            _serverMaxSeqs[convID] = maxSeq;
+            }));
           }
+        }
+        if (updateFutures.isNotEmpty) {
+          await Future.wait(updateFutures);
         }
       }
     } catch (e, s) {
@@ -732,10 +744,9 @@ class MsgSyncer {
               final convUpdates = <String, dynamic>{'showName': showName};
               if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
               await database.updateConversation(convID, convUpdates);
-              final updatedConv = await database.getConversation(convID);
-              if (updatedConv != null) {
-                conversationListener?.conversationChanged([updatedConv]);
-              }
+              // 用本地数据构建更新后的会话，无需再次读取 DB
+              final updatedConv = ConversationInfo.fromJson({...conv.toJson(), ...convUpdates});
+              conversationListener?.conversationChanged([updatedConv]);
             }
             await database.updateSingleChatMessageSenderInfo(
               friendUserID,
@@ -847,10 +858,9 @@ class MsgSyncer {
           final convUpdates = <String, dynamic>{'showName': showName};
           if (updated.faceURL != null) convUpdates['faceURL'] = updated.faceURL;
           await database.updateConversation(convID, convUpdates);
-          final updatedConv = await database.getConversation(convID);
-          if (updatedConv != null) {
-            conversationListener?.conversationChanged([updatedConv]);
-          }
+          // 用本地数据构建更新后的会话，无需再次读取 DB
+          final updatedConv = ConversationInfo.fromJson({...conv.toJson(), ...convUpdates});
+          conversationListener?.conversationChanged([updatedConv]);
         }
         await database.updateSingleChatMessageSenderInfo(
           friendUserID,
@@ -948,10 +958,14 @@ class MsgSyncer {
         }
         if (toInsert.isNotEmpty) {
           await database.batchUpsertGroups(toInsert);
-          for (final g in toInsert) {
-            final gid = g['groupID']?.toString();
-            if (gid != null && gid.isNotEmpty) await _syncGroupMembersForGroup(gid);
-          }
+          // 并行同步所有新增群的成员，消除 N 次串行网络请求
+          await Future.wait(
+            toInsert
+                .map((g) => g['groupID']?.toString())
+                .whereType<String>()
+                .where((gid) => gid.isNotEmpty)
+                .map(_syncGroupMembersForGroup),
+          );
         }
 
         // 更新（仅更新群信息，成员不一定变化）

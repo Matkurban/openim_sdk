@@ -7,9 +7,12 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 sealed class OpenImUtils {
+  // 复用同一个 Random 实例，避免每次 generateOperationID 时分配新对象
+  static final Random _rng = Random();
+
   ///生成唯一的操作ID
   static String generateOperationID({String operationName = 'openim_sdk'}) {
-    return '${operationName}_${DateTime.now().millisecondsSinceEpoch}_${Random().nextInt(10000)}';
+    return '${operationName}_${DateTime.now().millisecondsSinceEpoch}_${_rng.nextInt(10000)}';
   }
 
   ///生成md5

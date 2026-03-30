@@ -327,7 +327,10 @@ class WebSocketService {
 
   void _onMessage(dynamic message) {
     try {
-      if (message is List<int>) {
+      // Uint8List 是 List<int> 的子类型，先检查更具体的类型以避免不必要的 copy
+      if (message is Uint8List) {
+        _handleBinaryMessage(message);
+      } else if (message is List<int>) {
         _handleBinaryMessage(Uint8List.fromList(message));
       } else if (message is String) {
         _handleTextMessage(message);

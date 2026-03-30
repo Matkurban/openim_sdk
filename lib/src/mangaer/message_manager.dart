@@ -96,12 +96,20 @@ class MessageManager {
         methodName: 'recoverSendingMessages',
       );
 
+      // 批量加载所有待恢复消息，避免 N 次串行 DB 读取
+      final allClientMsgIDs = allSendingMessages
+          .map((m) => m['clientMsgID'] as String?)
+          .whereType<String>()
+          .toList();
+      final loadedMessages = await _database.getMessagesByClientMsgIDs(allClientMsgIDs);
+      final messageMap = {for (final m in loadedMessages) if (m.clientMsgID != null) m.clientMsgID!: m};
+
       for (final msg in allSendingMessages) {
         final clientMsgID = msg['clientMsgID'] as String?;
         final conversationID = msg['conversationID'] as String?;
         if (clientMsgID == null) continue;
 
-        final message = await _database.getMessage(clientMsgID);
+        final message = messageMap[clientMsgID];
         if (message == null) {
           // 消息不存在，删除发送记录
           await _database.deleteSendingMessage(clientMsgID);
