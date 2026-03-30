@@ -436,11 +436,13 @@ class MsgSyncer {
                 : serverHasReadSeq;
             final unread = (maxSeq - effectiveHasReadSeq).clamp(0, maxSeq);
             _serverMaxSeqs[convID] = maxSeq;
-            updateFutures.add(database.updateConversation(convID, {
-              'maxSeq': maxSeq,
-              'hasReadSeq': effectiveHasReadSeq,
-              'unreadCount': unread,
-            }));
+            updateFutures.add(
+              database.updateConversation(convID, {
+                'maxSeq': maxSeq,
+                'hasReadSeq': effectiveHasReadSeq,
+                'unreadCount': unread,
+              }),
+            );
           }
         }
         if (updateFutures.isNotEmpty) {

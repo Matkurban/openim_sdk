@@ -102,7 +102,10 @@ class MessageManager {
           .whereType<String>()
           .toList();
       final loadedMessages = await _database.getMessagesByClientMsgIDs(allClientMsgIDs);
-      final messageMap = {for (final m in loadedMessages) if (m.clientMsgID != null) m.clientMsgID!: m};
+      final messageMap = {
+        for (final m in loadedMessages)
+          if (m.clientMsgID != null) m.clientMsgID!: m,
+      };
 
       for (final msg in allSendingMessages) {
         final clientMsgID = msg['clientMsgID'] as String?;

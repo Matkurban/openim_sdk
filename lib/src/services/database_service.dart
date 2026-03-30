@@ -532,9 +532,10 @@ class DatabaseService {
   /// 用于 _syncConversationsAndSeqs 防止服务端滞后值覆盖本地已读状态
   Future<Map<String, int>> getAllConversationHasReadSeqs() async {
     // 仅获取需要的两个字段，减少反序列化开销
-    final result = await toStore
-        .query(DbTableName.localConversation)
-        .select(['conversationID', 'hasReadSeq']);
+    final result = await toStore.query(DbTableName.localConversation).select([
+      'conversationID',
+      'hasReadSeq',
+    ]);
     final map = <String, int>{};
     for (final row in result.data) {
       final convID = row['conversationID'] as String?;
@@ -679,7 +680,8 @@ class DatabaseService {
     if (decrCount <= 0) return DbResult.success();
     return toStore
         .update(DbTableName.localConversation, {
-          'unreadCount': Expr.field('unreadCount') -
+          'unreadCount':
+              Expr.field('unreadCount') -
               Expr.min(Expr.field('unreadCount'), Expr.value(decrCount)),
         })
         .whereEqual('conversationID', conversationID);
@@ -1072,9 +1074,10 @@ class DatabaseService {
   /// 批量获取所有会话的 maxSeq（单次查询，仅取需要的字段）
   Future<Map<String, int>> getAllConversationMaxSeqs() async {
     // 仅获取 conversationID 和 maxSeq 两个字段，减少反序列化开销
-    final result = await toStore
-        .query(DbTableName.localConversation)
-        .select(['conversationID', 'maxSeq']);
+    final result = await toStore.query(DbTableName.localConversation).select([
+      'conversationID',
+      'maxSeq',
+    ]);
     final seqs = <String, int>{};
     for (final row in result.data) {
       final convID = row['conversationID'] as String?;
