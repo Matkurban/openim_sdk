@@ -21,6 +21,10 @@ sealed class ChatApiUrl {
   static const String getMeeting = '/meeting/get';
   static const String getActiveMeeting = '/meeting/get_active';
 
+  // ---- Login Password ----
+  static const String changePassword = '/account/password/change';
+  static const String resetPassword = '/account/password/reset';
+
   // ---- Payment Password ----
   static const String setPaymentPassword = '/user/payment_password/set';
   static const String changePaymentPassword = '/user/payment_password/change';

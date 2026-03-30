@@ -491,6 +491,57 @@ class UserManager {
   }
 
   // ---------------------------------------------------------------------------
+  // Login Password
+  // ---------------------------------------------------------------------------
+
+  /// 修改登录密码（通过原密码验证）
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _log.info('changePassword called', methodName: 'changePassword');
+    try {
+      final resp = await _api.changePassword(
+        userID: _currentUserID,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'changePassword');
+      rethrow;
+    }
+  }
+
+  /// 重置登录密码（通过验证码）
+  Future<void> resetPassword({
+    String? areaCode,
+    String? phoneNumber,
+    String? email,
+    required String verifyCode,
+    required String newPassword,
+  }) async {
+    _log.info('resetPassword called', methodName: 'resetPassword');
+    try {
+      final resp = await _api.resetPassword(
+        areaCode: areaCode,
+        phoneNumber: phoneNumber,
+        email: email,
+        verifyCode: verifyCode,
+        newPassword: newPassword,
+      );
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'resetPassword');
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Payment Password
   // ---------------------------------------------------------------------------
 

@@ -1401,6 +1401,58 @@ class ImApiService {
   }
 
   // ---------------------------------------------------------------------------
+  // Login Password
+  // ---------------------------------------------------------------------------
+
+  /// 修改登录密码（通过原密码验证）
+  Future<ApiResponse> changePassword({
+    required String userID,
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    _log.info('changePassword called', methodName: 'changePassword');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.changePassword,
+        data: {
+          'userID': userID,
+          'currentPassword': OpenImUtils.generateMD5(currentPassword),
+          'newPassword': OpenImUtils.generateMD5(newPassword),
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'changePassword');
+      rethrow;
+    }
+  }
+
+  /// 重置登录密码（通过验证码）
+  Future<ApiResponse> resetPassword({
+    String? areaCode,
+    String? phoneNumber,
+    String? email,
+    required String verifyCode,
+    required String newPassword,
+  }) async {
+    _log.info('resetPassword called', methodName: 'resetPassword');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.resetPassword,
+        data: {
+          'areaCode': areaCode,
+          'phoneNumber': phoneNumber,
+          'email': email,
+          'verifyCode': verifyCode,
+          'password': OpenImUtils.generateMD5(newPassword),
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'resetPassword');
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Payment Password
   // ---------------------------------------------------------------------------
 
