@@ -29,6 +29,10 @@ class GroupManager {
 
   late String _currentUserID;
 
+  /// 已确认本地存在成员数据的群组（会话级缓存，避免重复检查）
+  /// 对齐 Go SDK GetGroupMemberList 中的 sync-before-read 模式。
+  final Set<String> _memberSyncedGroups = {};
+
   void setGroupListener(OnGroupListener listener) {
     this.listener = listener;
   }
@@ -36,7 +40,113 @@ class GroupManager {
   @internal
   void setCurrentUserID(String userID) {
     _currentUserID = userID;
+    _memberSyncedGroups.clear();
   }
+
+  // ---------------------------------------------------------------------------
+  // Sync-before-read (mirrors Go SDK's GetGroupMemberList pattern)
+  // ---------------------------------------------------------------------------
+
+  /// 对齐 Go SDK GetGroupMemberList：读取前确保群成员已同步到本地。
+  /// Go SDK 检查 groupAndMemberVersionTableName 的版本记录，若不存在则
+  /// 调用 IncrSyncGroupAndMember 先同步。此处简化为：检查本地是否有任何
+  /// 该群成员，没有则从服务器拉取全量成员。
+  Future<void> _ensureGroupMembersSynced(String groupID) async {
+    if (groupID.isEmpty || _memberSyncedGroups.contains(groupID)) return;
+    try {
+      final existing = await _database.getGroupMembersPage(groupID, filter: 0, offset: 0, count: 1);
+      if (existing.isNotEmpty) {
+        _memberSyncedGroups.add(groupID);
+        return;
+      }
+      _log.info(
+        'No local members for $groupID, syncing from server',
+        methodName: '_ensureGroupMembersSynced',
+      );
+      final apiMembers = await _syncGroupMembersFromServer(groupID);
+      if (apiMembers.isNotEmpty) {
+        _memberApiCache[groupID] = apiMembers;
+      }
+      _memberSyncedGroups.add(groupID);
+    } catch (e, s) {
+      _log.error(
+        'Failed to ensure members synced: $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_ensureGroupMembersSynced',
+      );
+    }
+  }
+
+  /// 从服务器分页拉取指定群的全部成员。
+  /// 返回原始 API 数据列表同时尝试存入本地数据库。
+  Future<List<Map<String, dynamic>>> _syncGroupMembersFromServer(String groupID) async {
+    int offset = 0;
+    const pageSize = 100;
+    final allMembers = <Map<String, dynamic>>[];
+    while (true) {
+      final resp = await _api.getGroupMemberList(groupID: groupID, offset: offset, count: pageSize);
+      _log.info(
+        'API resp for $groupID: errCode=${resp.errCode}, dataType=${resp.data?.runtimeType}, '
+        'dataKeys=${resp.data is Map ? (resp.data as Map).keys.toList() : "N/A"}',
+        methodName: '_syncGroupMembersFromServer',
+      );
+      if (resp.errCode != 0) {
+        _log.warning(
+          'API error for $groupID: ${resp.errCode} ${resp.errMsg}',
+          methodName: '_syncGroupMembersFromServer',
+        );
+        break;
+      }
+      final members = resp.data?['members'] as List? ?? [];
+      _log.info(
+        'Fetched ${members.length} members for $groupID (offset=$offset)',
+        methodName: '_syncGroupMembersFromServer',
+      );
+      if (members.isEmpty) break;
+      for (final m in members) {
+        if (m is Map<String, dynamic>) allMembers.add(m);
+      }
+      if (members.length < pageSize) break;
+      offset += pageSize;
+    }
+    if (allMembers.isNotEmpty) {
+      _log.info(
+        'Storing ${allMembers.length} members for $groupID to DB',
+        methodName: '_syncGroupMembersFromServer',
+      );
+      try {
+        await _database.batchUpsertGroupMembers(allMembers);
+        // 验证写入是否成功
+        final verify = await _database.getGroupMembersPage(groupID, filter: 0, offset: 0, count: 1);
+        _log.info(
+          'DB verify after write for $groupID: ${verify.length} rows found',
+          methodName: '_syncGroupMembersFromServer',
+        );
+      } catch (e, s) {
+        _log.error(
+          'DB write failed for $groupID: $e',
+          error: e,
+          stackTrace: s,
+          methodName: '_syncGroupMembersFromServer',
+        );
+      }
+    } else {
+      _log.warning(
+        'No members fetched from API for $groupID',
+        methodName: '_syncGroupMembersFromServer',
+      );
+    }
+    return allMembers;
+  }
+
+  /// 从 API 原始数据转换为 GroupMembersInfo 列表
+  List<GroupMembersInfo> _apiMembersToGroupMembersInfo(List<Map<String, dynamic>> apiMembers) {
+    return apiMembers.map((m) => GroupMembersInfo.fromJson(m)).toList();
+  }
+
+  /// 缓存最近一次从 API 拉取的群成员原始数据，用于 DB 写入失败时的回退
+  final Map<String, List<Map<String, dynamic>>> _memberApiCache = {};
 
   // ---------------------------------------------------------------------------
   // Incremental sync helpers (mirrors Go SDK's IncrSyncJoinGroup / IncrSyncGroupAndMember)
@@ -423,7 +533,26 @@ class GroupManager {
     _log.info('groupID=$groupID, userIDList=$userIDList', methodName: 'getGroupMembersInfo');
     try {
       if (userIDList.isEmpty) return [];
-      return await _database.getGroupMembersByUserIDs(groupID, userIDList);
+      await _ensureGroupMembersSynced(groupID);
+      final dbResult = await _database.getGroupMembersByUserIDs(groupID, userIDList);
+      if (dbResult.isNotEmpty) return dbResult;
+
+      // DB 回退：从缓存或 API 获取
+      final userIDSet = userIDList.toSet();
+      final cached = _memberApiCache[groupID];
+      if (cached != null && cached.isNotEmpty) {
+        return _apiMembersToGroupMembersInfo(
+          cached,
+        ).where((m) => userIDSet.contains(m.userID)).toList();
+      }
+      // 直接调用 getGroupMembersInfo API
+      final resp = await _api.getGroupMembersInfo(groupID: groupID, userIDs: userIDList);
+      if (resp.errCode != 0) return [];
+      final members = resp.data?['members'] as List? ?? [];
+      return members
+          .whereType<Map<String, dynamic>>()
+          .map((m) => GroupMembersInfo.fromJson(m))
+          .toList();
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupMembersInfo');
       rethrow;
@@ -435,6 +564,9 @@ class GroupManager {
   /// [filter] 成员过滤（0:全部，1:群主，2:管理员，3:普通成员，4:管理员+普通成员，5:群主+管理员）
   /// [offset] 起始索引
   /// [count] 数量
+  ///
+  /// 对齐 Go SDK GetGroupMemberList：先检查本地是否已同步成员，
+  /// 若无则从服务器拉取后再返回本地结果。
   Future<List<GroupMembersInfo>> getGroupMemberList({
     required String groupID,
     int filter = 0,
@@ -446,16 +578,66 @@ class GroupManager {
       methodName: 'getGroupMemberList',
     );
     try {
-      return await _database.getGroupMembersPage(
+      await _ensureGroupMembersSynced(groupID);
+      final dbResult = await _database.getGroupMembersPage(
         groupID,
         filter: filter,
         offset: offset,
         count: count,
       );
+      if (dbResult.isNotEmpty) return dbResult;
+
+      // DB 为空（写入可能失败），直接从 API 获取作为回退
+      _log.warning(
+        'DB empty after sync for $groupID, falling back to API',
+        methodName: 'getGroupMemberList',
+      );
+      final cached = _memberApiCache[groupID];
+      if (cached != null && cached.isNotEmpty) {
+        var members = _apiMembersToGroupMembersInfo(cached);
+        if (filter > 0) {
+          members = members.where((m) => m.roleLevel == filter).toList();
+        }
+        if (offset > 0 || count < members.length) {
+          final end = (offset + count).clamp(0, members.length);
+          members = members.sublist(offset.clamp(0, members.length), end);
+        }
+        return members;
+      }
+
+      // 缓存也没有，直接调 API
+      final apiMembers = await _fetchMembersFromApi(
+        groupID,
+        filter: filter,
+        offset: offset,
+        count: count,
+      );
+      return apiMembers;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupMemberList');
       rethrow;
     }
+  }
+
+  /// 直接从 API 获取群成员（DataFetcher 回退模式）
+  Future<List<GroupMembersInfo>> _fetchMembersFromApi(
+    String groupID, {
+    int filter = 0,
+    int offset = 0,
+    int count = 40,
+  }) async {
+    final resp = await _api.getGroupMemberList(
+      groupID: groupID,
+      offset: offset,
+      count: count,
+      filter: filter,
+    );
+    if (resp.errCode != 0) return [];
+    final members = resp.data?['members'] as List? ?? [];
+    return members
+        .whereType<Map<String, dynamic>>()
+        .map((m) => GroupMembersInfo.fromJson(m))
+        .toList();
   }
 
   /// 获取群主和管理员列表
@@ -463,7 +645,23 @@ class GroupManager {
   Future<List<GroupMembersInfo>> getGroupOwnerAndAdmin({required String groupID}) async {
     _log.info('groupID=$groupID', methodName: 'getGroupOwnerAndAdmin');
     try {
-      return await _database.getGroupOwnerAndAdmin(groupID);
+      await _ensureGroupMembersSynced(groupID);
+      final dbResult = await _database.getGroupOwnerAndAdmin(groupID);
+      if (dbResult.isNotEmpty) return dbResult;
+
+      // DB 回退：从缓存或 API 获取
+      final cached = _memberApiCache[groupID];
+      if (cached != null && cached.isNotEmpty) {
+        return _apiMembersToGroupMembersInfo(
+          cached,
+        ).where((m) => m.roleLevel == 60 || m.roleLevel == 100).toList();
+      }
+      return await _fetchMembersFromApi(
+        groupID,
+        filter: 0,
+        offset: 0,
+        count: 100,
+      ).then((all) => all.where((m) => m.roleLevel == 60 || m.roleLevel == 100).toList());
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getGroupOwnerAndAdmin');
       rethrow;
@@ -493,6 +691,7 @@ class GroupManager {
       final keyword = keywordList.isNotEmpty ? keywordList.first : '';
       if (keyword.isEmpty) return [];
 
+      await _ensureGroupMembersSynced(groupID);
       return await _database.searchGroupMembers(
         groupID,
         keyword,

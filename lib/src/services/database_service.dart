@@ -315,21 +315,14 @@ class DatabaseService {
   }
 
   /// 批量插入或更新群成员
-  /// ToStore 3.0.8 复合唯一索引 bug 绕过：
-  /// batchUpsert 无法正确检测复合唯一索引 [groupID, userID] 的已有记录，
-  /// 导致产生 Unique Constraint Violation 警告。
-  /// 解决方法：先按 groupID 删除旧成员，再批量写入。
-  /// 各群组间互无依赖，并行执行提升性能。
   Future<DbResult> batchUpsertGroupMembers(List<Map<String, dynamic>> dataList) async {
     if (dataList.isEmpty) return DbResult.success(message: 'Empty');
-    // 按 groupID 分组
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final data in dataList) {
       final gid = data['groupID'] as String? ?? '';
       if (gid.isEmpty) continue;
       (grouped[gid] ??= []).add(data);
     }
-    // 各群间无依赖，并行执行先删后插
     await Future.wait(
       grouped.entries.map((entry) async {
         await toStore.delete(DbTableName.localGroupMember).whereEqual('groupID', entry.key);

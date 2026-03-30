@@ -1,6 +1,11 @@
 # Changelog
 
-## 1。7。8
+## 1.7.9
+
+- fix bug
+
+
+## 1.7.8
 
 - Optimize the performance of a very small number of methods
 

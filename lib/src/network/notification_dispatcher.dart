@@ -87,6 +87,11 @@ class NotificationDispatcher {
   bool _conversationsSyncInFlight = false;
   bool _conversationsSyncAgain = false;
 
+  // 群级别同步串行化：防止同一个群的多条通知并发触发 _syncGroupInfoAndMembers
+  // 导致 batchUpsertGroupMembers 的 delete-then-insert 竞争
+  final Map<String, bool> _groupSyncInFlight = {};
+  final Map<String, bool> _groupSyncAgain = {};
+
   static const _syncDebounce = Duration(milliseconds: 200);
 
   // ---------------------------------------------------------------------------
@@ -198,6 +203,8 @@ class NotificationDispatcher {
       _lastWrittenHasReadSeq.clear();
       _pendingReadReceiptConvIDs.clear();
       _readReceiptFlushScheduled = false;
+      _groupSyncInFlight.clear();
+      _groupSyncAgain.clear();
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'dispose');
       rethrow;
@@ -1292,8 +1299,17 @@ class NotificationDispatcher {
           offset: offset,
           count: pageSize,
         );
+        _log.info(
+          'API resp for $groupID: errCode=${resp.errCode}, '
+          'dataKeys=${resp.data is Map ? (resp.data as Map).keys.toList() : "N/A"}',
+          methodName: '_syncGroupMembersForGroup',
+        );
         if (resp.errCode != 0) break;
         final members = resp.data?['members'] as List? ?? [];
+        _log.info(
+          'Fetched ${members.length} members for $groupID (offset=$offset)',
+          methodName: '_syncGroupMembersForGroup',
+        );
         if (members.isEmpty) break;
         for (final m in members) {
           if (m is Map<String, dynamic>) allMembers.add(m);
@@ -1302,7 +1318,16 @@ class NotificationDispatcher {
         offset += pageSize;
       }
       if (allMembers.isNotEmpty) {
+        _log.info(
+          'Storing ${allMembers.length} members for $groupID to DB',
+          methodName: '_syncGroupMembersForGroup',
+        );
         await database.batchUpsertGroupMembers(allMembers);
+      } else {
+        _log.warning(
+          'No members fetched from API for $groupID',
+          methodName: '_syncGroupMembersForGroup',
+        );
       }
     } catch (e, s) {
       _log.error(
@@ -1318,7 +1343,25 @@ class NotificationDispatcher {
   ///
   /// 当收到特定群的变更通知（成员变动、群信息修改等）时使用，
   /// 而不是全量同步所有群组。
+  /// 使用群级别串行化，防止同一个群的多条通知并发执行导致数据竞争。
   Future<void> _syncGroupInfoAndMembers(String groupID) async {
+    if (_groupSyncInFlight[groupID] == true) {
+      _groupSyncAgain[groupID] = true;
+      return;
+    }
+    _groupSyncInFlight[groupID] = true;
+    try {
+      do {
+        _groupSyncAgain[groupID] = false;
+        await _doSyncGroupInfoAndMembers(groupID);
+      } while (_groupSyncAgain[groupID] == true);
+    } finally {
+      _groupSyncInFlight.remove(groupID);
+      _groupSyncAgain.remove(groupID);
+    }
+  }
+
+  Future<void> _doSyncGroupInfoAndMembers(String groupID) async {
     _log.info('groupID=$groupID', methodName: '_syncGroupInfoAndMembers');
     try {
       final groupResp = await api.getGroupsInfo(groupIDs: [groupID]);

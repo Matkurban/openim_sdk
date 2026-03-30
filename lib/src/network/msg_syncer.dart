@@ -1045,8 +1045,24 @@ class MsgSyncer {
           offset: offset,
           count: pageSize,
         );
-        if (resp.errCode != 0) break;
+        _log.info(
+          'API resp for $groupID: errCode=${resp.errCode}, '
+          'dataType=${resp.data?.runtimeType}, '
+          'dataKeys=${resp.data is Map ? (resp.data as Map).keys.toList() : "N/A"}',
+          methodName: '_syncGroupMembersForGroup',
+        );
+        if (resp.errCode != 0) {
+          _log.warning(
+            'API error for $groupID: ${resp.errCode} ${resp.errMsg}',
+            methodName: '_syncGroupMembersForGroup',
+          );
+          break;
+        }
         final members = resp.data?['members'] as List? ?? [];
+        _log.info(
+          'Fetched ${members.length} members for $groupID (offset=$offset)',
+          methodName: '_syncGroupMembersForGroup',
+        );
         if (members.isEmpty) break;
         for (final m in members) {
           if (m is Map<String, dynamic>) allMembers.add(m);
@@ -1055,7 +1071,22 @@ class MsgSyncer {
         offset += pageSize;
       }
       if (allMembers.isNotEmpty) {
+        _log.info(
+          'Storing ${allMembers.length} members for $groupID to DB',
+          methodName: '_syncGroupMembersForGroup',
+        );
         await database.batchUpsertGroupMembers(allMembers);
+        // 验证写入
+        final verify = await database.getGroupMembersPage(groupID, filter: 0, offset: 0, count: 1);
+        _log.info(
+          'DB verify after write for $groupID: ${verify.length} rows',
+          methodName: '_syncGroupMembersForGroup',
+        );
+      } else {
+        _log.warning(
+          'No members fetched from API for $groupID',
+          methodName: '_syncGroupMembersForGroup',
+        );
       }
     } catch (e, s) {
       _log.error(
