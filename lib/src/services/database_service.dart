@@ -319,19 +319,23 @@ class DatabaseService {
   /// batchUpsert 无法正确检测复合唯一索引 [groupID, userID] 的已有记录，
   /// 导致产生 Unique Constraint Violation 警告。
   /// 解决方法：先按 groupID 删除旧成员，再批量写入。
+  /// 各群组间互无依赖，并行执行提升性能。
   Future<DbResult> batchUpsertGroupMembers(List<Map<String, dynamic>> dataList) async {
     if (dataList.isEmpty) return DbResult.success(message: 'Empty');
-    // 按 groupID 分组，逐群先删再插
+    // 按 groupID 分组
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (final data in dataList) {
       final gid = data['groupID'] as String? ?? '';
       if (gid.isEmpty) continue;
       (grouped[gid] ??= []).add(data);
     }
-    for (final entry in grouped.entries) {
-      await toStore.delete(DbTableName.localGroupMember).whereEqual('groupID', entry.key);
-      await toStore.batchUpsert(DbTableName.localGroupMember, entry.value);
-    }
+    // 各群间无依赖，并行执行先删后插
+    await Future.wait(
+      grouped.entries.map((entry) async {
+        await toStore.delete(DbTableName.localGroupMember).whereEqual('groupID', entry.key);
+        await toStore.batchUpsert(DbTableName.localGroupMember, entry.value);
+      }),
+    );
     return DbResult.success(message: 'OK');
   }
 
@@ -527,7 +531,10 @@ class DatabaseService {
   /// 获取所有会话的本地 hasReadSeq（map: conversationID → hasReadSeq）
   /// 用于 _syncConversationsAndSeqs 防止服务端滞后值覆盖本地已读状态
   Future<Map<String, int>> getAllConversationHasReadSeqs() async {
-    final result = await toStore.query(DbTableName.localConversation);
+    // 仅获取需要的两个字段，减少反序列化开销
+    final result = await toStore
+        .query(DbTableName.localConversation)
+        .select(['conversationID', 'hasReadSeq']);
     final map = <String, int>{};
     for (final row in result.data) {
       final convID = row['conversationID'] as String?;
@@ -626,14 +633,13 @@ class DatabaseService {
         .whereEqual('conversationID', conversationID);
   }
 
-  /// 获取未读消息总数
+  /// 获取未读消息总数（使用聚合 sum 避免加载全部行）
   Future<int> getTotalUnreadCount() async {
-    final result = await toStore.query(DbTableName.localConversation).where('unreadCount', '>', 0);
-    int total = 0;
-    for (final row in result.data) {
-      total += (row['unreadCount'] as num?)?.toInt() ?? 0;
-    }
-    return total;
+    final sum = await toStore
+        .query(DbTableName.localConversation)
+        .whereGreaterThan('unreadCount', 0)
+        .sum('unreadCount');
+    return sum?.toInt() ?? 0;
   }
 
   /// 获取黑名单用户ID集合
@@ -664,18 +670,18 @@ class DatabaseService {
         .whereEqual('conversationID', conversationID);
   }
 
-  /// 减少会话未读数
+  /// 减少会话未读数（使用原子表达式避免 read-modify-write 竞态）
+  ///
+  /// 利用 Expr.min 实现有界递减：
+  ///   unreadCount = unreadCount - min(unreadCount, decrCount)
+  /// 等价于 max(0, unreadCount - decrCount)，无需先读再写。
   Future<DbResult> decrConversationUnreadCount(String conversationID, int decrCount) async {
     if (decrCount <= 0) return DbResult.success();
-    final data = await toStore
-        .query(DbTableName.localConversation)
-        .whereEqual('conversationID', conversationID)
-        .first();
-    if (data == null) return DbResult.success();
-    final current = (data['unreadCount'] as num?)?.toInt() ?? 0;
-    final newCount = (current - decrCount).clamp(0, current);
     return toStore
-        .update(DbTableName.localConversation, {'unreadCount': newCount})
+        .update(DbTableName.localConversation, {
+          'unreadCount': Expr.field('unreadCount') -
+              Expr.min(Expr.field('unreadCount'), Expr.value(decrCount)),
+        })
         .whereEqual('conversationID', conversationID);
   }
 
@@ -685,14 +691,12 @@ class DatabaseService {
     List<String> clientMsgIDs,
   ) async {
     if (clientMsgIDs.isEmpty) return 0;
-    int count = 0;
-    for (final msgID in clientMsgIDs) {
-      await toStore
-          .update(DbTableName.localChatLog, {'isRead': true})
-          .whereEqual('clientMsgID', msgID);
-      count++;
-    }
-    return count;
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    // 单次批量更新，替代原 O(N) 逐条更新循环
+    await toStore
+        .update(DbTableName.localChatLog, {'isRead': true, 'hasReadTime': now})
+        .whereIn('clientMsgID', clientMsgIDs);
+    return clientMsgIDs.length;
   }
 
   /// 清空所有会话未读数
@@ -1065,9 +1069,12 @@ class DatabaseService {
     return (result.data.first['seq'] as num?)?.toInt() ?? 0;
   }
 
-  /// 批量获取所有会话的 maxSeq（单次查询）
+  /// 批量获取所有会话的 maxSeq（单次查询，仅取需要的字段）
   Future<Map<String, int>> getAllConversationMaxSeqs() async {
-    final result = await toStore.query(DbTableName.localConversation);
+    // 仅获取 conversationID 和 maxSeq 两个字段，减少反序列化开销
+    final result = await toStore
+        .query(DbTableName.localConversation)
+        .select(['conversationID', 'maxSeq']);
     final seqs = <String, int>{};
     for (final row in result.data) {
       final convID = row['conversationID'] as String?;
