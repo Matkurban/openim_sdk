@@ -52,7 +52,7 @@ Map<String, dynamic> _$ConversationInfoToJson(ConversationInfo instance) => <Str
   'faceURL': instance.faceURL,
   'recvMsgOpt': _$ReceiveMessageOptEnumMap[instance.recvMsgOpt],
   'unreadCount': instance.unreadCount,
-  'latestMsg': instance.latestMsg,
+  'latestMsg': instance.latestMsg?.toJson(),
   'latestMsgSendTime': instance.latestMsgSendTime,
   'draftText': instance.draftText,
   'draftTextTime': instance.draftTextTime,

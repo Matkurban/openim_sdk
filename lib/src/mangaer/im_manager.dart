@@ -69,8 +69,17 @@ class IMManager {
 
   AuthCacheData get authData => _authData!;
 
+  /// 存储 initSDK 传入的连接监听器（用于事件转发）
+  OnConnectListener? _initSdkListener;
+
+  /// 事件流订阅
+  StreamSubscription<SdkListenerEvent>? _eventSubscription;
+
   /// 当前登录状态
   LoginStatus _loginStatus = LoginStatus.logout;
+
+  /// SDK 是否已完成初始化
+  bool _initialized = false;
 
   final GetIt _getIt = GetIt.instance;
 
@@ -102,6 +111,25 @@ class IMManager {
     AoiweLoggerLevel logLevel = AoiweLoggerLevel.all,
     List<TableSchema> schemas = const [],
   }) async {
+    AoiweLogger.setGlobalConfig(level: logLevel, projectName: 'openim_sdk');
+    // 启动后台 Isolate（Web 端自动跳过，isActive 保持 false）
+    await SdkIsolateManager.initialize();
+    if (SdkIsolateManager.isActive) {
+      _initSdkListener = listener;
+      // 在主线程预解析数据库路径（避免后台 Isolate 调用 platform channel）
+      final resolvedDbPath = dataDir ?? await OpenImUtils.defaultDbPath();
+      final result = await SdkIsolateManager.instance.invoke('im.initSDK', {
+        'platformID': platformID,
+        'apiAddr': apiAddr,
+        'wsAddr': wsAddr,
+        'authAddr': authAddr,
+        'dataDir': resolvedDbPath,
+        'schemas': schemas,
+      });
+      _startEventForwarding();
+      _initialized = result as bool;
+      return _initialized;
+    }
     final InitConfig config = InitConfig(
       platformID: platformID,
       apiAddr: apiAddr,
@@ -158,9 +186,11 @@ class IMManager {
       );
 
       _log.info('OpenIM SDK initialized successfully', methodName: 'initSDK');
+      _initialized = true;
       return true;
     } catch (e, s) {
       _log.error('初始化失败：${e.toString()}', methodName: 'initSDK', error: e, stackTrace: s);
+      _initialized = false;
       return false;
     }
   }
@@ -194,6 +224,19 @@ class IMManager {
   ///调用完此方法后可以使用[getLoginStatus] 判断是否自动登录成功
   ///此方法建议在启动页（splash）页中调用，因为涉及网络请求，可能会有一定延迟
   Future<LoginStatus> loadLoginConfig() async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('im.loadLoginConfig', {}) as Map;
+      _loginStatus = LoginStatus.values[result['status'] as int];
+      if (result.containsKey('userInfo')) {
+        final user = UserInfo.fromJson(Map<String, dynamic>.from(result['userInfo'] as Map));
+        if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+          await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+        }
+        _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
+        _setManagersUserID(user.userID);
+      }
+      return _loginStatus;
+    }
     try {
       String? value = await getDatabaseInstance().getValue(CacheKey.loginAuthData, isGlobal: true);
       if (value != null) {
@@ -223,6 +266,9 @@ class IMManager {
 
   ///检验登录的 token 是否有效
   Future<bool> checkToken({required String token}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('im.checkToken', {'token': token}) as bool;
+    }
     _log.info('检查 Token', methodName: 'checkToken');
     final ImApiService imApiService = _getIt.get<ImApiService>(
       instanceName: InstanceName.imApiService,
@@ -237,10 +283,62 @@ class IMManager {
     }
   }
 
-  /// 获取数据库实例
-  /// 为了保证项目中只有一个实例提供的便捷方法，初始化之后可用
+  // --------------------------------------------------------------------------
+  // 键值存储（代理后台 Isolate 的 ToStore KV 操作）
+  // --------------------------------------------------------------------------
+
+  /// 获取键值
+  /// [key] 键名
+  /// [isGlobal] 是否全局（跨用户空间）
+  Future<dynamic> getValue(String key, {bool isGlobal = false}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('im.getValue', {
+        'key': key,
+        'isGlobal': isGlobal,
+      });
+    }
+    return getDatabaseInstance().getValue(key, isGlobal: isGlobal);
+  }
+
+  /// 设置键值
+  /// [key] 键名
+  /// [value] 值
+  /// [isGlobal] 是否全局（跨用户空间）
+  Future<void> setValue(String key, dynamic value, {bool isGlobal = false}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('im.setValue', {
+        'key': key,
+        'value': value,
+        'isGlobal': isGlobal,
+      });
+      return;
+    }
+    await getDatabaseInstance().setValue(key, value, isGlobal: isGlobal);
+  }
+
+  /// 移除键值
+  /// [key] 键名
+  /// [isGlobal] 是否全局（跨用户空间）
+  Future<void> removeValue(String key, {bool isGlobal = false}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('im.removeValue', {'key': key, 'isGlobal': isGlobal});
+      return;
+    }
+    await getDatabaseInstance().removeValue(key, isGlobal: isGlobal);
+  }
+
+  /// 获取当前数据库空间信息
+  Future<Map<String, dynamic>> getSpaceInfo() async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('im.getSpaceInfo', {});
+      return Map<String, dynamic>.from(result as Map);
+    }
+    final info = await getDatabaseInstance().getSpaceInfo();
+    return info.toJson();
+  }
+
+  /// 获取数据库实例（内部方法，仅在非 Isolate 模式下可用）
   ToStore getDatabaseInstance() {
-    _log.info('获取数据库实例', methodName: 'getDatabaseInstance');
     if (!_getIt.isRegistered<ToStore>(instanceName: InstanceName.toStore)) {
       throw OpenIMException(
         code: SDKErrorCode.initializedDatabaseError.code,
@@ -252,8 +350,18 @@ class IMManager {
 
   /// 反初始化 SDK
   Future<void> unInitSDK() async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('im.unInitSDK', {});
+      _eventSubscription?.cancel();
+      _eventSubscription = null;
+      await SdkIsolateManager.dispose();
+      _loginStatus = LoginStatus.logout;
+      _initialized = false;
+      return;
+    }
     _log.info('unInitSDK');
     _loginStatus = .logout;
+    _initialized = false;
     if (_getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
       await _getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);
     }
@@ -328,10 +436,40 @@ class IMManager {
     }
   }
 
+  /// 主线程 Manager 设置 currentUserID（Isolate 模式下本地方法需要）
+  void _setManagersUserID(String userID) {
+    conversationManager.setCurrentUserID(userID);
+    groupManager.setCurrentUserID(userID);
+    messageManager.setCurrentUserID(userID);
+    messageManager.setConversationManager(conversationManager);
+    friendshipManager.setCurrentUserID(userID);
+    friendshipManager.setConversationManager(conversationManager);
+    userManager.setCurrentUserID(userID);
+    momentsManager.setCurrentUserID(userID);
+    favoriteManager.setCurrentUserID(userID);
+    callManager.setCurrentUserID(userID);
+    redPacketManager.setCurrentUserID(userID);
+  }
+
   /// 登录
   /// [userID] 用户ID
   /// [token] 用户 token
   Future<UserInfo> login({required String userID, required String token}) async {
+    if (SdkIsolateManager.isActive) {
+      _loginStatus = LoginStatus.logging;
+      final result = await SdkIsolateManager.instance.invoke('im.login', {
+        'userID': userID,
+        'token': token,
+      });
+      final user = UserInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+        await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+      }
+      _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
+      _loginStatus = LoginStatus.logged;
+      _setManagersUserID(userID);
+      return user;
+    }
     _log.info('userID=$userID ,token=$token', methodName: 'login');
     _loginStatus = LoginStatus.logging;
     HttpClient().setToken(token);
@@ -432,6 +570,21 @@ class IMManager {
     String? password,
     String? verificationCode,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('im.loginByEmail', {
+        'email': email,
+        'password': password,
+        'verificationCode': verificationCode,
+      });
+      final user = UserInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+        await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+      }
+      _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
+      _loginStatus = LoginStatus.logged;
+      _setManagersUserID(user.userID);
+      return user;
+    }
     assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
     _log.info('email=$email', methodName: 'loginByEmail');
     final body = <String, dynamic>{'email': email, 'platform': PlatformUtils.platformID};
@@ -461,6 +614,22 @@ class IMManager {
     String? password,
     String? verificationCode,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('im.loginByPhone', {
+        'areaCode': areaCode,
+        'phoneNumber': phoneNumber,
+        'password': password,
+        'verificationCode': verificationCode,
+      });
+      final user = UserInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+        await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+      }
+      _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
+      _loginStatus = LoginStatus.logged;
+      _setManagersUserID(user.userID);
+      return user;
+    }
     assert(password != null || verificationCode != null, 'password 和 verificationCode 必须提供其中一个');
     _log.info('areaCode=$areaCode, phoneNumber=$phoneNumber', methodName: 'loginByPhone');
     final body = <String, dynamic>{
@@ -488,6 +657,20 @@ class IMManager {
   /// 使用账号登录（包含 SDK login）
   /// 账号登录仅支持密码方式，不支持验证码。
   Future<UserInfo> loginByAccount({required String account, required String password}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('im.loginByAccount', {
+        'account': account,
+        'password': password,
+      });
+      final user = UserInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+        await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+      }
+      _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
+      _loginStatus = LoginStatus.logged;
+      _setManagersUserID(user.userID);
+      return user;
+    }
     _log.info('loginByAccount: account=$account');
     AuthCacheData loginData = await _chatLogin({
       'account': account,
@@ -511,6 +694,16 @@ class IMManager {
 
   /// 登出
   Future<void> logout() async {
+    if (SdkIsolateManager.isActive) {
+      _eventSubscription?.cancel();
+      _eventSubscription = null;
+      await SdkIsolateManager.instance.invoke('im.logout', {});
+      _loginStatus = LoginStatus.logout;
+      if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
+        await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
+      }
+      return;
+    }
     _log.info('退出登录方法', methodName: 'logout');
     try {
       _loginStatus = LoginStatus.logout;
@@ -549,9 +742,7 @@ class IMManager {
   }
 
   /// 是否已初始化
-  bool get isInitialized {
-    return _getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig);
-  }
+  bool get isInitialized => _initialized;
 
   /// 获取登录状态
   /// 1: logout  2: logging  3: logged
@@ -564,6 +755,10 @@ class IMManager {
   /// 对齐 Go SDK 的 CmdWakeUpDataSync 行为：
   /// 每次应用回到前台时主动做一次缺口补偿同步。
   Future<void> triggerWakeupSync() async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('im.triggerWakeupSync', {});
+      return;
+    }
     if (_loginStatus != LoginStatus.logged) return;
     final syncer = _msgSyncer;
     if (syncer == null) return;
@@ -608,6 +803,17 @@ class IMManager {
     String? cause,
     void Function(int sent, int total)? onProgress,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('im.uploadFile', {
+        'id': id,
+        'filePath': filePath,
+        'fileBytes': fileBytes,
+        'fileName': fileName,
+        'contentType': contentType,
+        'cause': cause,
+      });
+      return result as String;
+    }
     assert(filePath != null || fileBytes != null, 'filePath 和 fileBytes 必须提供其中一个');
     _log.info(
       'id=$id, filePath=$filePath, fileName=$fileName, contentType=$contentType, cause=$cause, hasBytes=${fileBytes != null}',
@@ -1015,6 +1221,10 @@ class IMManager {
   /// 网络状态变更通知
   /// 对应 Go SDK NetworkStatusChanged —— 关闭长连接触发自动重连
   Future<void> networkStatusChanged() async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('im.networkStatusChanged', {});
+      return;
+    }
     _log.info('', methodName: 'networkStatusChanged');
     try {
       final WebSocketService webSocketService = _getIt.get<WebSocketService>(
@@ -1031,6 +1241,13 @@ class IMManager {
   /// [fcmToken] FCM 设备令牌
   /// [expireTime] 过期时间（秒级时间戳）
   Future<void> updateFcmToken({required String fcmToken, int expireTime = 0}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('im.updateFcmToken', {
+        'fcmToken': fcmToken,
+        'expireTime': expireTime,
+      });
+      return;
+    }
     _log.info('fcmToken=$fcmToken', methodName: 'updateFcmToken');
     try {
       final ImApiService imApiService = _getIt.get<ImApiService>(
@@ -1054,6 +1271,10 @@ class IMManager {
   /// 对应 Go SDK SetAppBadge
   /// [appUnreadCount] 角标显示的未读数量
   Future<void> setAppBadge({required int appUnreadCount}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('im.setAppBadge', {'appUnreadCount': appUnreadCount});
+      return;
+    }
     _log.info('appUnreadCount=$appUnreadCount', methodName: 'setAppBadge');
     try {
       final ImApiService imApiService = _getIt.get<ImApiService>(
@@ -1137,5 +1358,298 @@ class IMManager {
           }
       }
     };
+  }
+
+  // --------------------------------------------------------------------------
+  // Isolate 事件转发
+  // --------------------------------------------------------------------------
+
+  /// 启动事件转发（订阅后台 Isolate 事件流）
+  void _startEventForwarding() {
+    _eventSubscription?.cancel();
+    _eventSubscription = SdkIsolateManager.instance.events.listen(_dispatchEvent);
+  }
+
+  /// 分发后台 Isolate 事件到主线程监听器
+  void _dispatchEvent(SdkListenerEvent event) {
+    switch (event.listenerType) {
+      case 'connect':
+        _dispatchConnectEvent(event);
+      case 'conversation':
+        _dispatchConversationEvent(event);
+      case 'message':
+        _dispatchMessageEvent(event);
+      case 'msgProgress':
+        _dispatchMsgProgressEvent(event);
+      case 'friendship':
+        _dispatchFriendshipEvent(event);
+      case 'group':
+        _dispatchGroupEvent(event);
+      case 'user':
+        _dispatchUserEvent(event);
+      case 'moments':
+        _dispatchMomentsEvent(event);
+      case 'favorite':
+        _dispatchFavoriteEvent(event);
+      case 'call':
+        _dispatchCallEvent(event);
+      case 'redPacket':
+        _dispatchRedPacketEvent(event);
+    }
+  }
+
+  void _dispatchConnectEvent(SdkListenerEvent event) {
+    final l = _initSdkListener;
+    if (l == null) return;
+    final d = event.data;
+    switch (event.method) {
+      case 'onConnectFailed':
+        l.onConnectFailed?.call(d?['code'] as int?, d?['errorMsg'] as String?);
+      case 'onConnectSuccess':
+        l.onConnectSuccess?.call();
+      case 'onConnecting':
+        l.onConnecting?.call();
+      case 'onKickedOffline':
+        l.onKickedOffline?.call();
+      case 'onUserTokenExpired':
+        l.onUserTokenExpired?.call();
+      case 'onUserTokenInvalid':
+        l.onUserTokenInvalid?.call();
+    }
+  }
+
+  void _dispatchConversationEvent(SdkListenerEvent event) {
+    final l = conversationManager.listener;
+    if (l == null) return;
+    switch (event.method) {
+      case 'onConversationChanged':
+        l.onConversationChanged?.call(
+          (event.data as List)
+              .map((e) => ConversationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
+        );
+      case 'onNewConversation':
+        l.onNewConversation?.call(
+          (event.data as List)
+              .map((e) => ConversationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
+        );
+      case 'onTotalUnreadMessageCountChanged':
+        l.onTotalUnreadMessageCountChanged?.call(event.data as int);
+      case 'onSyncServerStart':
+        l.onSyncServerStart?.call(event.data as bool?);
+      case 'onSyncServerProgress':
+        l.onSyncServerProgress?.call(event.data as int?);
+      case 'onSyncServerFinish':
+        l.onSyncServerFinish?.call(event.data as bool?);
+      case 'onSyncServerFailed':
+        l.onSyncServerFailed?.call(event.data as bool?);
+      case 'onInputStatusChanged':
+        l.onInputStatusChanged?.call(
+          InputStatusChangedData.fromJson(Map<String, dynamic>.from(event.data as Map)),
+        );
+    }
+  }
+
+  void _dispatchMessageEvent(SdkListenerEvent event) {
+    final l = messageManager.msgListener;
+    if (l == null) return;
+    final d = event.data;
+    switch (event.method) {
+      case 'onMsgDeleted':
+        l.onMsgDeleted?.call(Message.fromJson(Map<String, dynamic>.from(d as Map)));
+      case 'onNewRecvMessageRevoked':
+        l.onNewRecvMessageRevoked?.call(RevokedInfo.fromJson(Map<String, dynamic>.from(d as Map)));
+      case 'onRecvC2CReadReceipt':
+        l.onRecvC2CReadReceipt?.call(
+          (d as List)
+              .map((e) => ReadReceiptInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
+        );
+      case 'onRecvNewMessage':
+        l.onRecvNewMessage?.call(Message.fromJson(Map<String, dynamic>.from(d as Map)));
+      case 'onRecvOfflineNewMessage':
+        l.onRecvOfflineNewMessage?.call(Message.fromJson(Map<String, dynamic>.from(d as Map)));
+      case 'onRecvOfflineNewMessages':
+        l.onRecvOfflineNewMessages?.call(
+          (d as List).map((e) => Message.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+        );
+      case 'onRecvOnlineOnlyMessage':
+        l.onRecvOnlineOnlyMessage?.call(Message.fromJson(Map<String, dynamic>.from(d as Map)));
+      case 'onMessageStatusChanged':
+        l.onMessageStatusChanged?.call(Message.fromJson(Map<String, dynamic>.from(d as Map)));
+    }
+  }
+
+  void _dispatchMsgProgressEvent(SdkListenerEvent event) {
+    final l = messageManager.msgSendProgressListener;
+    if (l == null) return;
+    final d = event.data as Map;
+    switch (event.method) {
+      case 'progress':
+        l.progress.call(d['clientMsgID'] as String, d['progress'] as int);
+      case 'fail':
+        l.fail.call(d['clientMsgID'] as String, d['errMsg'] as String);
+    }
+  }
+
+  void _dispatchFriendshipEvent(SdkListenerEvent event) {
+    final l = friendshipManager.listener;
+    if (l == null) return;
+    final d = Map<String, dynamic>.from(event.data as Map);
+    switch (event.method) {
+      case 'onFriendApplicationAccepted':
+        l.onFriendApplicationAccepted?.call(FriendApplicationInfo.fromJson(d));
+      case 'onFriendApplicationAdded':
+        l.onFriendApplicationAdded?.call(FriendApplicationInfo.fromJson(d));
+      case 'onFriendApplicationDeleted':
+        l.onFriendApplicationDeleted?.call(FriendApplicationInfo.fromJson(d));
+      case 'onFriendApplicationRejected':
+        l.onFriendApplicationRejected?.call(FriendApplicationInfo.fromJson(d));
+      case 'onFriendAdded':
+        l.onFriendAdded?.call(FriendInfo.fromJson(d));
+      case 'onFriendDeleted':
+        l.onFriendDeleted?.call(FriendInfo.fromJson(d));
+      case 'onFriendInfoChanged':
+        l.onFriendInfoChanged?.call(FriendInfo.fromJson(d));
+      case 'onBlackAdded':
+        l.onBlackAdded?.call(BlacklistInfo.fromJson(d));
+      case 'onBlackDeleted':
+        l.onBlackDeleted?.call(BlacklistInfo.fromJson(d));
+    }
+  }
+
+  void _dispatchGroupEvent(SdkListenerEvent event) {
+    final l = groupManager.listener;
+    if (l == null) return;
+    final d = Map<String, dynamic>.from(event.data as Map);
+    switch (event.method) {
+      case 'onGroupApplicationAccepted':
+        l.onGroupApplicationAccepted?.call(GroupApplicationInfo.fromJson(d));
+      case 'onGroupApplicationAdded':
+        l.onGroupApplicationAdded?.call(GroupApplicationInfo.fromJson(d));
+      case 'onGroupApplicationDeleted':
+        l.onGroupApplicationDeleted?.call(GroupApplicationInfo.fromJson(d));
+      case 'onGroupApplicationRejected':
+        l.onGroupApplicationRejected?.call(GroupApplicationInfo.fromJson(d));
+      case 'onGroupDismissed':
+        l.onGroupDismissed?.call(GroupInfo.fromJson(d));
+      case 'onGroupInfoChanged':
+        l.onGroupInfoChanged?.call(GroupInfo.fromJson(d));
+      case 'onGroupMemberAdded':
+        l.onGroupMemberAdded?.call(GroupMembersInfo.fromJson(d));
+      case 'onGroupMemberDeleted':
+        l.onGroupMemberDeleted?.call(GroupMembersInfo.fromJson(d));
+      case 'onGroupMemberInfoChanged':
+        l.onGroupMemberInfoChanged?.call(GroupMembersInfo.fromJson(d));
+      case 'onJoinedGroupAdded':
+        l.onJoinedGroupAdded?.call(GroupInfo.fromJson(d));
+      case 'onJoinedGroupDeleted':
+        l.onJoinedGroupDeleted?.call(GroupInfo.fromJson(d));
+    }
+  }
+
+  void _dispatchUserEvent(SdkListenerEvent event) {
+    final l = userManager.listener;
+    if (l == null) return;
+    final d = Map<String, dynamic>.from(event.data as Map);
+    switch (event.method) {
+      case 'onSelfInfoUpdated':
+        l.onSelfInfoUpdated?.call(UserInfo.fromJson(d));
+      case 'onUserStatusChanged':
+        l.onUserStatusChanged?.call(UserStatusInfo.fromJson(d));
+    }
+  }
+
+  void _dispatchMomentsEvent(SdkListenerEvent event) {
+    final l = momentsManager.listener;
+    if (l == null) return;
+    switch (event.method) {
+      case 'onMomentPublished':
+        l.onMomentPublished?.call(
+          MomentInfo.fromJson(Map<String, dynamic>.from(event.data as Map)),
+        );
+      case 'onMomentDeleted':
+        l.onMomentDeleted?.call(event.data as String);
+      case 'onMomentLiked':
+        l.onMomentLiked?.call(
+          MomentLikeWithUser.fromJson(Map<String, dynamic>.from(event.data as Map)),
+        );
+      case 'onMomentUnliked':
+        final d = event.data as Map;
+        l.onMomentUnliked?.call(d['momentID'] as String, d['userID'] as String);
+      case 'onMomentCommented':
+        l.onMomentCommented?.call(
+          MomentCommentWithUser.fromJson(Map<String, dynamic>.from(event.data as Map)),
+        );
+      case 'onMomentCommentDeleted':
+        l.onMomentCommentDeleted?.call(event.data as String);
+      case 'onMomentListUpdated':
+        l.onMomentListUpdated?.call(
+          (event.data as List)
+              .map((e) => MomentInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
+        );
+    }
+  }
+
+  void _dispatchFavoriteEvent(SdkListenerEvent event) {
+    final l = favoriteManager.listener;
+    if (l == null) return;
+    switch (event.method) {
+      case 'onFavoriteAdded':
+        l.onFavoriteAdded?.call(
+          FavoriteItem.fromJson(Map<String, dynamic>.from(event.data as Map)),
+        );
+      case 'onFavoriteRemoved':
+        final d = event.data as Map;
+        l.onFavoriteRemoved?.call(d['targetType'] as String, d['targetID'] as String);
+    }
+  }
+
+  void _dispatchCallEvent(SdkListenerEvent event) {
+    final l = callManager.listener;
+    if (l == null) return;
+    switch (event.method) {
+      case 'onIncomingCall':
+        l.onIncomingCall?.call(CallSession.fromJson(Map<String, dynamic>.from(event.data as Map)));
+      case 'onCallAccepted':
+        final d = event.data as Map;
+        l.onCallAccepted?.call(
+          CallSession.fromJson(Map<String, dynamic>.from(d['session'] as Map)),
+          d['userID'] as String,
+        );
+      case 'onCallRejected':
+        final d = event.data as Map;
+        l.onCallRejected?.call(
+          CallSession.fromJson(Map<String, dynamic>.from(d['session'] as Map)),
+          d['userID'] as String,
+        );
+      case 'onCallCancelled':
+        l.onCallCancelled?.call(CallSession.fromJson(Map<String, dynamic>.from(event.data as Map)));
+      case 'onCallEnded':
+        l.onCallEnded?.call(CallSession.fromJson(Map<String, dynamic>.from(event.data as Map)));
+      case 'onCallTimeout':
+        l.onCallTimeout?.call(CallSession.fromJson(Map<String, dynamic>.from(event.data as Map)));
+      case 'onCallBusy':
+        final d = event.data as Map;
+        l.onCallBusy?.call(
+          CallSession.fromJson(Map<String, dynamic>.from(d['session'] as Map)),
+          d['busyUserID'] as String,
+        );
+      case 'onCallConnected':
+        l.onCallConnected?.call(CallSession.fromJson(Map<String, dynamic>.from(event.data as Map)));
+    }
+  }
+
+  void _dispatchRedPacketEvent(SdkListenerEvent event) {
+    final l = redPacketManager.listener;
+    if (l == null) return;
+    switch (event.method) {
+      case 'onRedPacketExpired':
+        l.onRedPacketExpired?.call(event.data as String);
+      case 'onPointsBalanceChanged':
+        l.onPointsBalanceChanged?.call((event.data as num).toDouble());
+    }
   }
 }

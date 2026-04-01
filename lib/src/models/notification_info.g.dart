@@ -35,10 +35,10 @@ Map<String, dynamic> _$OANotificationToJson(OANotification instance) => <String,
   'text': instance.text,
   'externalUrl': instance.externalUrl,
   'mixType': instance.mixType,
-  'pictureElem': instance.pictureElem,
-  'soundElem': instance.soundElem,
-  'videoElem': instance.videoElem,
-  'fileElem': instance.fileElem,
+  'pictureElem': instance.pictureElem?.toJson(),
+  'soundElem': instance.soundElem?.toJson(),
+  'videoElem': instance.videoElem?.toJson(),
+  'fileElem': instance.fileElem?.toJson(),
   'ex': instance.ex,
 };
 
@@ -53,7 +53,7 @@ BaseGroupNotification _$BaseGroupNotificationFromJson(Map<String, dynamic> json)
     );
 
 Map<String, dynamic> _$BaseGroupNotificationToJson(BaseGroupNotification instance) =>
-    <String, dynamic>{'group': instance.group, 'opUser': instance.opUser};
+    <String, dynamic>{'group': instance.group?.toJson(), 'opUser': instance.opUser?.toJson()};
 
 GroupNotification _$GroupNotificationFromJson(Map<String, dynamic> json) => GroupNotification(
   group: json['group'] == null ? null : GroupInfo.fromJson(json['group'] as Map<String, dynamic>),
@@ -69,10 +69,10 @@ GroupNotification _$GroupNotificationFromJson(Map<String, dynamic> json) => Grou
 );
 
 Map<String, dynamic> _$GroupNotificationToJson(GroupNotification instance) => <String, dynamic>{
-  'group': instance.group,
-  'opUser': instance.opUser,
-  'groupOwnerUser': instance.groupOwnerUser,
-  'memberList': instance.memberList,
+  'group': instance.group?.toJson(),
+  'opUser': instance.opUser?.toJson(),
+  'groupOwnerUser': instance.groupOwnerUser?.toJson(),
+  'memberList': instance.memberList?.map((e) => e.toJson()).toList(),
 };
 
 InvitedJoinGroupNotification _$InvitedJoinGroupNotificationFromJson(Map<String, dynamic> json) =>
@@ -93,10 +93,10 @@ InvitedJoinGroupNotification _$InvitedJoinGroupNotificationFromJson(Map<String, 
 
 Map<String, dynamic> _$InvitedJoinGroupNotificationToJson(InvitedJoinGroupNotification instance) =>
     <String, dynamic>{
-      'group': instance.group,
-      'opUser': instance.opUser,
-      'inviterUser': instance.inviterUser,
-      'invitedUserList': instance.invitedUserList,
+      'group': instance.group?.toJson(),
+      'opUser': instance.opUser?.toJson(),
+      'inviterUser': instance.inviterUser?.toJson(),
+      'invitedUserList': instance.invitedUserList?.map((e) => e.toJson()).toList(),
     };
 
 KickedGroupMemeberNotification _$KickedGroupMemeberNotificationFromJson(
@@ -114,9 +114,9 @@ KickedGroupMemeberNotification _$KickedGroupMemeberNotificationFromJson(
 Map<String, dynamic> _$KickedGroupMemeberNotificationToJson(
   KickedGroupMemeberNotification instance,
 ) => <String, dynamic>{
-  'group': instance.group,
-  'opUser': instance.opUser,
-  'kickedUserList': instance.kickedUserList,
+  'group': instance.group?.toJson(),
+  'opUser': instance.opUser?.toJson(),
+  'kickedUserList': instance.kickedUserList?.map((e) => e.toJson()).toList(),
 };
 
 QuitGroupNotification _$QuitGroupNotificationFromJson(Map<String, dynamic> json) =>
@@ -130,7 +130,7 @@ QuitGroupNotification _$QuitGroupNotificationFromJson(Map<String, dynamic> json)
     );
 
 Map<String, dynamic> _$QuitGroupNotificationToJson(QuitGroupNotification instance) =>
-    <String, dynamic>{'group': instance.group, 'quitUser': instance.quitUser};
+    <String, dynamic>{'group': instance.group?.toJson(), 'quitUser': instance.quitUser?.toJson()};
 
 EnterGroupNotification _$EnterGroupNotificationFromJson(Map<String, dynamic> json) =>
     EnterGroupNotification(
@@ -143,7 +143,10 @@ EnterGroupNotification _$EnterGroupNotificationFromJson(Map<String, dynamic> jso
     );
 
 Map<String, dynamic> _$EnterGroupNotificationToJson(EnterGroupNotification instance) =>
-    <String, dynamic>{'group': instance.group, 'entrantUser': instance.entrantUser};
+    <String, dynamic>{
+      'group': instance.group?.toJson(),
+      'entrantUser': instance.entrantUser?.toJson(),
+    };
 
 GroupRightsTransferNoticication _$GroupRightsTransferNoticicationFromJson(
   Map<String, dynamic> json,
@@ -160,9 +163,9 @@ GroupRightsTransferNoticication _$GroupRightsTransferNoticicationFromJson(
 Map<String, dynamic> _$GroupRightsTransferNoticicationToJson(
   GroupRightsTransferNoticication instance,
 ) => <String, dynamic>{
-  'group': instance.group,
-  'opUser': instance.opUser,
-  'newGroupOwner': instance.newGroupOwner,
+  'group': instance.group?.toJson(),
+  'opUser': instance.opUser?.toJson(),
+  'newGroupOwner': instance.newGroupOwner?.toJson(),
 };
 
 MuteMemberNotification _$MuteMemberNotificationFromJson(Map<String, dynamic> json) =>
@@ -181,9 +184,9 @@ MuteMemberNotification _$MuteMemberNotificationFromJson(Map<String, dynamic> jso
 
 Map<String, dynamic> _$MuteMemberNotificationToJson(MuteMemberNotification instance) =>
     <String, dynamic>{
-      'group': instance.group,
-      'opUser': instance.opUser,
-      'mutedUser': instance.mutedUser,
+      'group': instance.group?.toJson(),
+      'opUser': instance.opUser?.toJson(),
+      'mutedUser': instance.mutedUser?.toJson(),
       'mutedSeconds': instance.mutedSeconds,
     };
 
@@ -216,7 +219,7 @@ GroupMemberInfoChangedNotification _$GroupMemberInfoChangedNotificationFromJson(
 Map<String, dynamic> _$GroupMemberInfoChangedNotificationToJson(
   GroupMemberInfoChangedNotification instance,
 ) => <String, dynamic>{
-  'group': instance.group,
-  'opUser': instance.opUser,
-  'changedUser': instance.changedUser,
+  'group': instance.group?.toJson(),
+  'opUser': instance.opUser?.toJson(),
+  'changedUser': instance.changedUser?.toJson(),
 };

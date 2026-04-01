@@ -18,8 +18,8 @@ SearchResult _$SearchResultFromJson(Map<String, dynamic> json) => SearchResult(
 
 Map<String, dynamic> _$SearchResultToJson(SearchResult instance) => <String, dynamic>{
   'totalCount': instance.totalCount,
-  'searchResultItems': instance.searchResultItems,
-  'findResultItems': instance.findResultItems,
+  'searchResultItems': instance.searchResultItems?.map((e) => e.toJson()).toList(),
+  'findResultItems': instance.findResultItems?.map((e) => e.toJson()).toList(),
 };
 
 SearchResultItems _$SearchResultItemsFromJson(Map<String, dynamic> json) => SearchResultItems(
@@ -43,7 +43,7 @@ Map<String, dynamic> _$SearchResultItemsToJson(SearchResultItems instance) => <S
   'showName': instance.showName,
   'faceURL': instance.faceURL,
   'messageCount': instance.messageCount,
-  'messageList': instance.messageList,
+  'messageList': instance.messageList?.map((e) => e.toJson()).toList(),
 };
 
 const _$ConversationTypeEnumMap = {

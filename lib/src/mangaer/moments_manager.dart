@@ -2,6 +2,7 @@ import 'package:get_it/get_it.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_manager.dart';
 import 'package:openim_sdk/src/listener/moments_listener.dart';
 import 'package:openim_sdk/src/models/moment_comment.dart';
 import 'package:openim_sdk/src/models/moment_create_req.dart';
@@ -47,6 +48,12 @@ class MomentsManager {
 
   /// 发布朋友圈动态
   Future<MomentInfo?> createMoment({required MomentCreateReq request}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('moments.createMoment', {
+        'request': request.toJson(),
+      });
+      return result != null ? MomentInfo.fromJson(Map<String, dynamic>.from(result as Map)) : null;
+    }
     _log.info('content=${request.content}', methodName: 'createMoment');
     try {
       final resp = await HttpClient().chatPost('/moment/create', data: request.toJson());
@@ -71,6 +78,10 @@ class MomentsManager {
 
   /// 删除朋友圈动态
   Future<bool> deleteMoment({required String momentID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('moments.deleteMoment', {'momentID': momentID})
+          as bool;
+    }
     _log.info('momentID: $momentID', methodName: 'deleteMoment');
     try {
       final resp = await HttpClient().chatPost('/moment/delete', data: {'momentID': momentID});
@@ -95,6 +106,14 @@ class MomentsManager {
     int pageNumber = 1,
     int showNumber = 20,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('moments.getMomentList', {
+        'ownerUserID': ownerUserID,
+        'pageNumber': pageNumber,
+        'showNumber': showNumber,
+      });
+      return MomentListResponse.fromJson(Map<String, dynamic>.from(result as Map));
+    }
     _log.info(
       'ownerUserID=$ownerUserID, page=$pageNumber, size=$showNumber',
       methodName: 'getMomentList',
@@ -134,6 +153,14 @@ class MomentsManager {
     int pageNumber = 1,
     int showNumber = 20,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('moments.fetchMomentListFromServer', {
+        'ownerUserID': ownerUserID,
+        'pageNumber': pageNumber,
+        'showNumber': showNumber,
+      });
+      return MomentListResponse.fromJson(Map<String, dynamic>.from(result as Map));
+    }
     _log.info(
       'ownerUserID=$ownerUserID, page=$pageNumber, size=$showNumber',
       methodName: 'fetchMomentListFromServer',
@@ -194,6 +221,13 @@ class MomentsManager {
 
   /// 点赞动态
   Future<bool> likeMoment({required String momentID, String? ownerUserID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('moments.likeMoment', {
+            'momentID': momentID,
+            'ownerUserID': ownerUserID,
+          })
+          as bool;
+    }
     _log.info('momentID: $momentID', methodName: 'likeMoment');
     try {
       final resp = await HttpClient().chatPost(
@@ -220,6 +254,13 @@ class MomentsManager {
 
   /// 取消点赞
   Future<bool> unlikeMoment({required String momentID, String? ownerUserID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('moments.unlikeMoment', {
+            'momentID': momentID,
+            'ownerUserID': ownerUserID,
+          })
+          as bool;
+    }
     _log.info('momentID: $momentID', methodName: 'unlikeMoment');
     try {
       final resp = await HttpClient().chatPost(
@@ -273,6 +314,17 @@ class MomentsManager {
     String? replyToUserID,
     String? ownerUserID,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('moments.commentMoment', {
+        'momentID': momentID,
+        'content': content,
+        'replyToUserID': replyToUserID,
+        'ownerUserID': ownerUserID,
+      });
+      return result != null
+          ? MomentCommentWithUser.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
     _log.info('momentID=$momentID, content=$content', methodName: 'commentMoment');
     try {
       final resp = await HttpClient().chatPost(
@@ -305,6 +357,13 @@ class MomentsManager {
 
   /// 删除评论
   Future<bool> deleteComment({required String commentID, String? momentID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('moments.deleteComment', {
+            'commentID': commentID,
+            'momentID': momentID,
+          })
+          as bool;
+    }
     _log.info('commentID: $commentID', methodName: 'deleteComment');
     try {
       final resp = await HttpClient().chatPost(
@@ -351,6 +410,13 @@ class MomentsManager {
 
   /// 处理来自 WS 的朋友圈业务通知
   Future<void> handleNotification(String key, Map<String, dynamic> data) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('moments.handleNotification', {
+        'key': key,
+        'data': data,
+      });
+      return;
+    }
     _log.info('key=$key', methodName: 'handleNotification');
     try {
       switch (key) {
@@ -413,6 +479,10 @@ class MomentsManager {
 
   /// 全量同步第一页数据到本地（由 MsgSyncer 在 doConnectedSync 中调用）
   Future<void> syncFromServer() async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('moments.syncFromServer', {});
+      return;
+    }
     _log.info('开始同步朋友圈', methodName: 'syncFromServer');
     try {
       await fetchMomentListFromServer(pageNumber: 1, showNumber: 50);

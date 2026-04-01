@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/enums/call_state.dart';
 import 'package:openim_sdk/src/enums/call_type.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_manager.dart';
 import 'package:openim_sdk/src/listener/call_listener.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/models/call_session.dart';
@@ -48,6 +49,9 @@ class CallManager {
 
   /// 通话事件回调
   OnCallListener? _callListener;
+
+  /// 公开的通话事件回调（供 IMManager 事件转发使用）
+  OnCallListener? get listener => _callListener;
 
   /// 当前通话会话
   CallSession? _currentSession;
@@ -100,6 +104,14 @@ class CallManager {
     required CallType callType,
     int timeout = 60,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('call.invite', {
+        'inviteeUserIDs': inviteeUserIDs,
+        'callType': callType.value,
+        'timeout': timeout,
+      });
+      return CallSession.fromJson(Map<String, dynamic>.from(result as Map));
+    }
     _log.info(
       'inviteeUserIDs=$inviteeUserIDs, callType=${callType.value}, timeout=$timeout',
       methodName: 'invite',
@@ -174,6 +186,10 @@ class CallManager {
   ///
   /// 返回 [CallSession]，包含 token 和 liveURL，调用方应连接到 LiveKit
   Future<CallSession> accept({required String roomID}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('call.accept', {'roomID': roomID});
+      return CallSession.fromJson(Map<String, dynamic>.from(result as Map));
+    }
     _log.info('roomID=$roomID', methodName: 'accept');
 
     final session = _currentSession;
@@ -215,6 +231,10 @@ class CallManager {
   ///
   /// [roomID] 要拒绝的通话房间ID
   Future<void> reject({required String roomID}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('call.reject', {'roomID': roomID});
+      return;
+    }
     _log.info('roomID=$roomID', methodName: 'reject');
 
     final session = _currentSession;
@@ -241,6 +261,10 @@ class CallManager {
 
   /// 取消通话（发起者在对方接听前取消）
   Future<void> cancel() async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('call.cancel', {});
+      return;
+    }
     _log.info('', methodName: 'cancel');
 
     final session = _currentSession;
@@ -275,6 +299,10 @@ class CallManager {
 
   /// 挂断通话
   Future<void> hangup() async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('call.hangup', {});
+      return;
+    }
     _log.info('', methodName: 'hangup');
 
     final session = _currentSession;

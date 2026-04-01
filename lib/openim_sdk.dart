@@ -14,6 +14,10 @@ export 'src/mangaer/favorite_manager.dart';
 export 'src/mangaer/call_manager.dart';
 export 'src/mangaer/red_packet_manager.dart';
 
+/// Isolate
+export 'src/isolate/sdk_isolate_manager.dart';
+export 'src/isolate/sdk_isolate_protocol.dart';
+
 /// Listeners
 export 'src/listener/advanced_msg_listener.dart';
 export 'src/listener/connect_listener.dart';

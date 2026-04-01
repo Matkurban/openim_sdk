@@ -3,5 +3,15 @@ targets:
     builders:
       json_serializable:
         generate_for:
-          # Only run `json_serializable` on source under `lib/models`.
-          - lib/src/models/*.dart
+          - lib/src/models/auth_cache_data.dart
+          - lib/src/models/conversation_info.dart
+          - lib/src/models/group_info.dart
+          - lib/src/models/input_status_changed_data.dart
+          - lib/src/models/message.dart
+          - lib/src/models/notification_info.dart
+          - lib/src/models/red_packet.dart
+          - lib/src/models/search_info.dart
+          - lib/src/models/set_group_member_info.dart
+          - lib/src/models/update_req.dart
+          - lib/src/models/user_full_info.dart
+          - lib/src/models/user_info.dart

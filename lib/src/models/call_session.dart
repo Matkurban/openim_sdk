@@ -183,6 +183,28 @@ class CallSession {
     'acceptedUserIDs': acceptedUserIDs.toList(),
     'rejectedUserIDs': rejectedUserIDs.toList(),
   };
+
+  factory CallSession.fromJson(Map<String, dynamic> json) {
+    final session = CallSession(
+      roomID: json['roomID'] as String? ?? '',
+      callType: CallType.fromValue(json['callType'] as String? ?? 'audio'),
+      inviterUserID: json['inviterUserID'] as String? ?? '',
+      inviteeUserIDs:
+          (json['inviteeUserIDs'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      liveURL: json['liveURL'] as String?,
+      state: CallState.values.firstWhere(
+        (e) => e.name == (json['state'] as String?),
+        orElse: () => CallState.idle,
+      ),
+      createTime: json['createTime'] as int?,
+      connectTime: json['connectTime'] as int?,
+    );
+    final accepted = json['acceptedUserIDs'] as List?;
+    if (accepted != null) session.acceptedUserIDs.addAll(accepted.cast<String>());
+    final rejected = json['rejectedUserIDs'] as List?;
+    if (rejected != null) session.rejectedUserIDs.addAll(rejected.cast<String>());
+    return session;
+  }
 }
 
 /// 后端创建会议的响应

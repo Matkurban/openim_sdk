@@ -1,5 +1,7 @@
 # OpenIM SDK for Dart/Flutter
 
+**Version: 1.9.0**
+
 A pure Dart implementation of the OpenIM client SDK, compatible with all Flutter platforms (iOS / Android / Web / macOS / Windows / Linux), providing complete instant messaging capabilities.
 
 >
@@ -32,7 +34,7 @@ Add dependency in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  openim_sdk: ^lasted
+  openim_sdk: ^1.9.0
 ```
 
 ### Initialization
@@ -254,6 +256,8 @@ final results = await OpenIM.iMManager.friendshipManager.searchFriends(
 | `UserManager`         | `OpenIM.iMManager.userManager`         | User info, online status, registration, verification code, chat user management |
 | `MomentsManager`      | `OpenIM.iMManager.momentsManager`      | Moments feed, likes, comments                                                   |
 | `FavoriteManager`     | `OpenIM.iMManager.favoriteManager`     | Favorites management                                                            |
+| `CallManager`         | `OpenIM.iMManager.callManager`         | Audio/video call invite, accept, reject, cancel, hangup                         |
+| `RedPacketManager`    | `OpenIM.iMManager.redPacketManager`    | Red packet send/grab, points balance and transactions                           |
 
 ### Listeners
 
@@ -269,6 +273,10 @@ final results = await OpenIM.iMManager.friendshipManager.searchFriends(
 | `OnUploadFileListener`      | File upload progress                               |
 | `OnCustomBusinessListener`  | Custom business messages                           |
 | `OnListenerForService`      | Background service listener                        |
+| `OnMomentsListener`         | Moments feed changes                               |
+| `OnFavoriteListener`        | Favorites changes                                  |
+| `OnCallListener`            | Call invite/accept/reject/cancel/hangup events     |
+| `OnRedPacketListener`       | Red packet expired, points balance changed         |
 
 ### Supported Message Types
 
@@ -299,6 +307,14 @@ final results = await OpenIM.iMManager.friendshipManager.searchFriends(
 | macOS    | ✅       |
 | Windows  | ✅       |
 | Linux    | ✅       |
+
+## Background Isolate (New in 1.9.0)
+
+All SDK Future methods (~160 methods across 10 managers) can now run in a dedicated background Isolate, keeping the UI thread completely free from database I/O, network serialization, and protobuf parsing.
+
+- **Transparent** — All existing API calls work unchanged; the Isolate boundary is handled internally
+- **Optional** — Omit `SdkIsolateManager.initialize()` to run entirely on the main thread as before
+- **Listener forwarding** — All listener callbacks are serialized across the Isolate boundary and re-dispatched on the main thread
 
 ## Requirements
 

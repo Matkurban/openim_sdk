@@ -120,26 +120,26 @@ Map<String, dynamic> _$MessageToJson(Message instance) => <String, dynamic>{
   'status': _$MessageStatusEnumMap[instance.status],
   'isReact': instance.isReact,
   'isExternalExtensions': instance.isExternalExtensions,
-  'offlinePush': instance.offlinePush,
+  'offlinePush': instance.offlinePush?.toJson(),
   'attachedInfo': instance.attachedInfo,
   'ex': instance.ex,
   'exMap': instance.exMap,
-  'pictureElem': instance.pictureElem,
-  'soundElem': instance.soundElem,
-  'videoElem': instance.videoElem,
-  'fileElem': instance.fileElem,
-  'atTextElem': instance.atTextElem,
-  'locationElem': instance.locationElem,
-  'customElem': instance.customElem,
-  'quoteElem': instance.quoteElem,
-  'mergeElem': instance.mergeElem,
-  'notificationElem': instance.notificationElem,
-  'faceElem': instance.faceElem,
-  'attachedInfoElem': instance.attachedInfoElem,
-  'textElem': instance.textElem,
-  'cardElem': instance.cardElem,
-  'advancedTextElem': instance.advancedTextElem,
-  'typingElem': instance.typingElem,
+  'pictureElem': instance.pictureElem?.toJson(),
+  'soundElem': instance.soundElem?.toJson(),
+  'videoElem': instance.videoElem?.toJson(),
+  'fileElem': instance.fileElem?.toJson(),
+  'atTextElem': instance.atTextElem?.toJson(),
+  'locationElem': instance.locationElem?.toJson(),
+  'customElem': instance.customElem?.toJson(),
+  'quoteElem': instance.quoteElem?.toJson(),
+  'mergeElem': instance.mergeElem?.toJson(),
+  'notificationElem': instance.notificationElem?.toJson(),
+  'faceElem': instance.faceElem?.toJson(),
+  'attachedInfoElem': instance.attachedInfoElem?.toJson(),
+  'textElem': instance.textElem?.toJson(),
+  'cardElem': instance.cardElem?.toJson(),
+  'advancedTextElem': instance.advancedTextElem?.toJson(),
+  'typingElem': instance.typingElem?.toJson(),
 };
 
 const _$ConversationTypeEnumMap = {
@@ -253,9 +253,9 @@ PictureElem _$PictureElemFromJson(Map<String, dynamic> json) => PictureElem(
 
 Map<String, dynamic> _$PictureElemToJson(PictureElem instance) => <String, dynamic>{
   'sourcePath': instance.sourcePath,
-  'sourcePicture': instance.sourcePicture,
-  'bigPicture': instance.bigPicture,
-  'snapshotPicture': instance.snapshotPicture,
+  'sourcePicture': instance.sourcePicture?.toJson(),
+  'bigPicture': instance.bigPicture?.toJson(),
+  'snapshotPicture': instance.snapshotPicture?.toJson(),
 };
 
 PictureInfo _$PictureInfoFromJson(Map<String, dynamic> json) => PictureInfo(
@@ -360,8 +360,8 @@ Map<String, dynamic> _$AtTextElemToJson(AtTextElem instance) => <String, dynamic
   'text': instance.text,
   'atUserList': instance.atUserList,
   'isAtSelf': instance.isAtSelf,
-  'atUsersInfo': instance.atUsersInfo,
-  'quoteMessage': instance.quoteMessage,
+  'atUsersInfo': instance.atUsersInfo?.map((e) => e.toJson()).toList(),
+  'quoteMessage': instance.quoteMessage?.toJson(),
 };
 
 LocationElem _$LocationElemFromJson(Map<String, dynamic> json) => LocationElem(
@@ -397,7 +397,7 @@ QuoteElem _$QuoteElemFromJson(Map<String, dynamic> json) => QuoteElem(
 
 Map<String, dynamic> _$QuoteElemToJson(QuoteElem instance) => <String, dynamic>{
   'text': instance.text,
-  'quoteMessage': instance.quoteMessage,
+  'quoteMessage': instance.quoteMessage?.toJson(),
 };
 
 MergeElem _$MergeElemFromJson(Map<String, dynamic> json) => MergeElem(
@@ -411,7 +411,7 @@ MergeElem _$MergeElemFromJson(Map<String, dynamic> json) => MergeElem(
 Map<String, dynamic> _$MergeElemToJson(MergeElem instance) => <String, dynamic>{
   'title': instance.title,
   'abstractList': instance.abstractList,
-  'multiMessage': instance.multiMessage,
+  'multiMessage': instance.multiMessage?.map((e) => e.toJson()).toList(),
 };
 
 NotificationElem _$NotificationElemFromJson(Map<String, dynamic> json) => NotificationElem(
@@ -446,12 +446,12 @@ AttachedInfoElem _$AttachedInfoElemFromJson(Map<String, dynamic> json) => Attach
 );
 
 Map<String, dynamic> _$AttachedInfoElemToJson(AttachedInfoElem instance) => <String, dynamic>{
-  'groupHasReadInfo': instance.groupHasReadInfo,
+  'groupHasReadInfo': instance.groupHasReadInfo?.toJson(),
   'isPrivateChat': instance.isPrivateChat,
   'hasReadTime': instance.hasReadTime,
   'burnDuration': instance.burnDuration,
   'notSenderNotificationPush': instance.notSenderNotificationPush,
-  'uploadProgress': instance.uploadProgress,
+  'uploadProgress': instance.uploadProgress?.toJson(),
 };
 
 UploadProgress _$UploadProgressFromJson(Map<String, dynamic> json) => UploadProgress(
@@ -505,7 +505,7 @@ AdvancedTextElem _$AdvancedTextElemFromJson(Map<String, dynamic> json) => Advanc
 
 Map<String, dynamic> _$AdvancedTextElemToJson(AdvancedTextElem instance) => <String, dynamic>{
   'text': instance.text,
-  'messageEntityList': instance.messageEntityList,
+  'messageEntityList': instance.messageEntityList?.map((e) => e.toJson()).toList(),
 };
 
 MessageEntity _$MessageEntityFromJson(Map<String, dynamic> json) => MessageEntity(
@@ -637,7 +637,7 @@ AdvancedMessage _$AdvancedMessageFromJson(Map<String, dynamic> json) => Advanced
 );
 
 Map<String, dynamic> _$AdvancedMessageToJson(AdvancedMessage instance) => <String, dynamic>{
-  'messageList': instance.messageList,
+  'messageList': instance.messageList?.map((e) => e.toJson()).toList(),
   'isEnd': instance.isEnd,
   'errCode': instance.errCode,
   'errMsg': instance.errMsg,

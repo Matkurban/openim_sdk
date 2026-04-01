@@ -1,18 +1,40 @@
 # Changelog
 
-## 1.8.2
+## 1.9.0
 
--- fix bugs
+### 🚀 Background Isolate Architecture
 
+All SDK Future methods (~160 methods across 10 managers) now run in a dedicated background Isolate, keeping the UI thread completely free from database I/O, network serialization, and protobuf parsing.
 
-## 1.7.9
+- **New Isolate infrastructure** — Added 4 core files:
+  - `SdkIsolateManager` — Singleton lifecycle manager, gates Isolate vs local execution via `isActive`
+  - `SdkIsolateEntry` — Background Isolate entry point, receives `(RootIsolateToken, SendPort)` tuple
+  - `SdkMethodDispatcher` — 1400+ line switch-based dispatcher routing all 10 managers' methods
+  - `SdkIsolateProtocol` — Request/response envelope types for cross-Isolate communication
+- **All 10 managers proxied** — IMManager, ConversationManager, MessageManager, GroupManager, UserManager, FriendshipManager, MomentsManager, FavoriteManager, CallManager, RedPacketManager
+- **Listener event forwarding** — All listener callbacks (connect, message, conversation, group, friendship, user, moments, favorite, call, red packet, custom business, upload progress) are serialized across the Isolate boundary and re-dispatched on the main Isolate
+- **Transparent activation** — Call `SdkIsolateManager.initialize()` before `initSDK` to enable; omit it to run entirely on the main thread as before
 
-- fix bug
+### 🐛 Bug Fixes
 
+- **Fixed `isInitialized` always returning `false` in Isolate mode** — Added `_initialized` field to track state across Isolate boundary
+- **Fixed `.toJson()` serialization crashes** — Manually fixed 55 nested `.toJson()` calls across 4 `.g.dart` files where generated code produced incorrect output
+- **Fixed `_currentUserID` `LateInitializationError`** — All 5 login paths (`login`, `loginByEmail`, `loginByPhone`, `loginByAccount`, `loadLoginConfig`) now properly initialize `_currentUserID` on every manager via `_setManagersUserID()`
+- **Fixed infinite Isolate recursion** — Background Isolate no longer recursively spawns itself when `SdkIsolateManager.isActive` is true inside the Isolate
+- **Fixed `BackgroundIsolateBinaryMessenger` crash** — Platform channel calls (path_provider) are resolved on the main Isolate before entering the background Isolate
+- **Fixed duplicate `ToStore` registration** — Removed `getDatabaseInstance()` as public API, added KV proxy methods (`getValue`/`setValue`/`removeValue`/`getSpaceInfo`) through the Isolate boundary
+- **Fixed video message display issues** — Video messages now show thumbnails and play correctly:
+  - Changed `enableHardwareAcceleration` to `true` on non-Linux platforms (fixes mpv software renderer crash)
+  - Fixed `createSnapshot` to reliably capture first frame by playing with volume 0 and waiting for stream dimensions
+  - Added try-catch to video upload branch in `_handleMediaUploadIfNeeded`
+- **Fixed `build.yaml`** — Changed from wildcard `generate_for` to explicit file list to work with analyzer 10.0.0
 
-## 1.7.8
+### 📦 New Models
 
-- Optimize the performance of a very small number of methods
+- `CallSession` — Call session model with `toJson()`/`fromJson()` support
+- `MomentCreateReq` — Moment creation request model with `toJson()`/`fromJson()` support
+- Added `fromJson` factories to `SendRedPacketRequest`, `RedPacketDetail`, and `PointsTransaction`
+
 
 ## 1.7.7
 

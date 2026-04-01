@@ -51,6 +51,16 @@ class FavoriteManager {
     required String targetID,
     String? data,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.addFavorite', {
+        'type': type.value,
+        'targetID': targetID,
+        'data': data,
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
     _log.info('type=${type.value}, id=$targetID', methodName: 'addFavorite');
     try {
       final resp = await HttpClient().chatPost(
@@ -79,6 +89,13 @@ class FavoriteManager {
 
   /// 移除收藏
   Future<bool> removeFavorite({required FavoriteType type, required String targetID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.removeFavorite', {
+            'type': type.value,
+            'targetID': targetID,
+          })
+          as bool;
+    }
     _log.info('type=${type.value}, id=$targetID', methodName: 'removeFavorite');
     try {
       final resp = await HttpClient().chatPost(
@@ -102,6 +119,13 @@ class FavoriteManager {
   ///
   /// 优先返回本地数据；同时后台拉取网络最新并更新本地。
   Future<FavoriteListResponse> getFavoriteList({int pageNumber = 1, int showNumber = 20}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.getFavoriteList', {
+        'pageNumber': pageNumber,
+        'showNumber': showNumber,
+      });
+      return FavoriteListResponse.fromJson(Map<String, dynamic>.from(result as Map));
+    }
     _log.info('page=$pageNumber, size=$showNumber', methodName: 'getFavoriteList');
     try {
       final offset = (pageNumber - 1) * showNumber;
@@ -122,6 +146,13 @@ class FavoriteManager {
     int pageNumber = 1,
     int showNumber = 20,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke(
+        'favorite.fetchFavoriteListFromServer',
+        {'pageNumber': pageNumber, 'showNumber': showNumber},
+      );
+      return FavoriteListResponse.fromJson(Map<String, dynamic>.from(result as Map));
+    }
     _log.info('page=$pageNumber, size=$showNumber', methodName: 'fetchFavoriteListFromServer');
     try {
       final resp = await HttpClient().chatPost(
@@ -161,6 +192,13 @@ class FavoriteManager {
 
   /// 检查是否已收藏
   Future<bool> isFavorited({required FavoriteType type, required String targetID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.isFavorited', {
+            'type': type.value,
+            'targetID': targetID,
+          })
+          as bool;
+    }
     _log.info('type=${type.value}, id=$targetID', methodName: 'isFavorited');
     try {
       final item = await _database.getFavoriteByTarget(type.value, targetID);
@@ -173,6 +211,12 @@ class FavoriteManager {
 
   /// 检查消息是否已收藏
   Future<bool> isMessageFavorited(String clientMsgID) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.isMessageFavorited', {
+            'clientMsgID': clientMsgID,
+          })
+          as bool;
+    }
     _log.info('clientMsgID=$clientMsgID', methodName: 'isMessageFavorited');
     try {
       return isFavorited(type: FavoriteType.message, targetID: clientMsgID);
@@ -184,6 +228,12 @@ class FavoriteManager {
 
   /// 检查朋友圈动态是否已收藏
   Future<bool> isMomentFavorited(String momentID) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.isMomentFavorited', {
+            'momentID': momentID,
+          })
+          as bool;
+    }
     _log.info('momentID=$momentID', methodName: 'isMomentFavorited');
     try {
       return isFavorited(type: FavoriteType.momentContent, targetID: momentID);
@@ -199,6 +249,14 @@ class FavoriteManager {
 
   /// 收藏一条聊天消息
   Future<FavoriteItem?> addMessage({required Message message}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.addMessage', {
+        'message': message.toJson(),
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
     _log.info('called', methodName: 'addMessage');
     try {
       final clientMsgID = message.clientMsgID;
@@ -213,6 +271,12 @@ class FavoriteManager {
 
   /// 取消收藏消息
   Future<bool> removeMessage({required String clientMsgID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.removeMessage', {
+            'clientMsgID': clientMsgID,
+          })
+          as bool;
+    }
     _log.info('clientMsgID=$clientMsgID', methodName: 'removeMessage');
     try {
       return removeFavorite(type: FavoriteType.message, targetID: clientMsgID);
@@ -224,6 +288,14 @@ class FavoriteManager {
 
   /// 收藏朋友圈动态
   Future<FavoriteItem?> addMoment({required MomentInfo moment}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.addMoment', {
+        'moment': moment.toJson(),
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
     _log.info('called', methodName: 'addMoment');
     try {
       final data = jsonEncode(moment.toJson());
@@ -236,6 +308,12 @@ class FavoriteManager {
 
   /// 取消收藏朋友圈动态
   Future<bool> removeMoment({required String momentID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.removeMoment', {
+            'momentID': momentID,
+          })
+          as bool;
+    }
     _log.info('momentID=$momentID', methodName: 'removeMoment');
     try {
       return removeFavorite(type: FavoriteType.momentContent, targetID: momentID);
@@ -247,6 +325,14 @@ class FavoriteManager {
 
   /// 收藏朋友圈评论
   Future<FavoriteItem?> addMomentComment({required MomentCommentWithUser comment}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.addMomentComment', {
+        'comment': comment.toJson(),
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
     _log.info('called', methodName: 'addMomentComment');
     try {
       final data = jsonEncode(comment.toJson());
@@ -259,6 +345,12 @@ class FavoriteManager {
 
   /// 取消收藏朋友圈评论
   Future<bool> removeMomentComment({required String commentID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.removeMomentComment', {
+            'commentID': commentID,
+          })
+          as bool;
+    }
     _log.info('commentID=$commentID', methodName: 'removeMomentComment');
     try {
       return removeFavorite(type: FavoriteType.momentComment, targetID: commentID);
@@ -270,6 +362,15 @@ class FavoriteManager {
 
   /// 添加笔记到收藏
   Future<FavoriteItem?> addNote({required String title, required String content}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.addNote', {
+        'title': title,
+        'content': content,
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
     _log.info('called', methodName: 'addNote');
     try {
       final noteID = 'note_${DateTime.now().millisecondsSinceEpoch}';
@@ -288,6 +389,14 @@ class FavoriteManager {
 
   /// 收藏链接
   Future<FavoriteItem?> addLink({required LinkInfo link}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.addLink', {
+        'link': link.toJson(),
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
     _log.info('called', methodName: 'addLink');
     try {
       final data = jsonEncode(link.toJson());
@@ -300,6 +409,12 @@ class FavoriteManager {
 
   /// 移除收藏项
   Future<bool> removeFavoriteItem(FavoriteItem item) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('favorite.removeFavoriteItem', {
+            'item': item.toJson(),
+          })
+          as bool;
+    }
     _log.info('called', methodName: 'removeFavoriteItem');
     try {
       return removeFavorite(type: item.favoriteType, targetID: item.targetID);
@@ -311,6 +426,13 @@ class FavoriteManager {
 
   /// 处理来自 WS 的收藏夹业务通知
   Future<void> handleNotification(String key, Map<String, dynamic> data) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('favorite.handleNotification', {
+        'key': key,
+        'data': data,
+      });
+      return;
+    }
     _log.info('key=$key', methodName: 'handleNotification');
     try {
       switch (key) {
@@ -336,6 +458,10 @@ class FavoriteManager {
 
   /// 全量同步到本地（由 MsgSyncer 在 doConnectedSync 中调用）
   Future<void> syncFromServer() async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('favorite.syncFromServer', {});
+      return;
+    }
     _log.info('开始同步收藏夹', methodName: 'syncFromServer');
     try {
       int page = 1;

@@ -52,6 +52,15 @@ class FriendshipManager {
     required List<String> userIDList,
     bool filterBlack = false,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('friendship.getFriendsInfo', {
+        'userIDList': userIDList,
+        'filterBlack': filterBlack,
+      });
+      return (result as List)
+          .map((e) => FriendInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('userIDList=$userIDList, filterBlack=$filterBlack', methodName: 'getFriendsInfo');
     try {
       if (userIDList.isEmpty) return [];
@@ -71,6 +80,13 @@ class FriendshipManager {
   /// [userID] 被邀请的用户ID
   /// [reason] 备注说明
   Future<void> addFriend({required String userID, String? reason}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('friendship.addFriend', {
+        'userID': userID,
+        'reason': reason,
+      });
+      return;
+    }
     _log.info('userID=$userID, reason=$reason', methodName: 'addFriend');
     try {
       // API-first: 先请求服务器，与 Go SDK 保持一致
@@ -94,6 +110,15 @@ class FriendshipManager {
   Future<List<FriendApplicationInfo>> getFriendApplicationListAsRecipient({
     GetFriendApplicationListAsRecipientReq? req,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke(
+        'friendship.getFriendApplicationListAsRecipient',
+        {'req': req?.toJson()},
+      );
+      return (result as List)
+          .map((e) => FriendApplicationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('req=$req', methodName: 'getFriendApplicationListAsRecipient');
     try {
       final offset = req?.offset ?? 0;
@@ -125,6 +150,15 @@ class FriendshipManager {
   Future<List<FriendApplicationInfo>> getFriendApplicationListAsApplicant({
     GetFriendApplicationListAsApplicantReq? req,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke(
+        'friendship.getFriendApplicationListAsApplicant',
+        {'req': req?.toJson()},
+      );
+      return (result as List)
+          .map((e) => FriendApplicationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('req=$req', methodName: 'getFriendApplicationListAsApplicant');
     try {
       final offset = req?.offset ?? 0;
@@ -154,6 +188,14 @@ class FriendshipManager {
   /// 获取好友列表（包含已加入黑名单的好友）
   /// [filterBlack] 是否过滤黑名单用户
   Future<List<FriendInfo>> getFriendList({bool filterBlack = false}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('friendship.getFriendList', {
+        'filterBlack': filterBlack,
+      });
+      return (result as List)
+          .map((e) => FriendInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('filterBlack=$filterBlack', methodName: 'getFriendList');
     try {
       var list = await _database.getAllFriends();
@@ -178,6 +220,16 @@ class FriendshipManager {
     int offset = 0,
     int count = 40,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('friendship.getFriendListPage', {
+        'filterBlack': filterBlack,
+        'offset': offset,
+        'count': count,
+      });
+      return (result as List)
+          .map((e) => FriendInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'filterBlack=$filterBlack, offset=$offset, count=$count',
       methodName: 'getFriendListPage',
@@ -198,6 +250,13 @@ class FriendshipManager {
   /// [userID] 要拉黑的用户ID
   /// [ex] 扩展信息
   Future<void> addBlacklist({required String userID, String? ex}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('friendship.addBlacklist', {
+        'userID': userID,
+        'ex': ex,
+      });
+      return;
+    }
     _log.info('userID=$userID, ex=$ex', methodName: 'addBlacklist');
     try {
       // API-first
@@ -226,6 +285,12 @@ class FriendshipManager {
 
   /// 获取黑名单列表
   Future<List<BlacklistInfo>> getBlacklist() async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('friendship.getBlacklist', {});
+      return (result as List)
+          .map((e) => BlacklistInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('called', methodName: 'getBlacklist');
     try {
       return await _database.getBlackList();
@@ -238,6 +303,10 @@ class FriendshipManager {
   /// 从黑名单中移除
   /// [userID] 要解除拉黑的用户ID
   Future<void> removeBlacklist({required String userID}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('friendship.removeBlacklist', {'userID': userID});
+      return;
+    }
     _log.info('userID=$userID', methodName: 'removeBlacklist');
     try {
       // API-first
@@ -257,6 +326,14 @@ class FriendshipManager {
   /// 检查好友关系
   /// [userIDList] 用户ID列表
   Future<List<FriendshipInfo>> checkFriend({required List<String> userIDList}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('friendship.checkFriend', {
+        'userIDList': userIDList,
+      });
+      return (result as List)
+          .map((e) => FriendshipInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('userIDList=$userIDList', methodName: 'checkFriend');
     try {
       if (userIDList.isEmpty) return [];
@@ -277,6 +354,10 @@ class FriendshipManager {
   /// 删除好友
   /// [userID] 用户ID
   Future<void> deleteFriend({required String userID}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('friendship.deleteFriend', {'userID': userID});
+      return;
+    }
     _log.info('userID=$userID', methodName: 'deleteFriend');
     try {
       await _database.deleteFriend(userID);
@@ -299,6 +380,13 @@ class FriendshipManager {
   /// [userID] 申请者用户ID
   /// [handleMsg] 处理消息
   Future<void> acceptFriendApplication({required String userID, String? handleMsg}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('friendship.acceptFriendApplication', {
+        'userID': userID,
+        'handleMsg': handleMsg,
+      });
+      return;
+    }
     _log.info('userID=$userID, handleMsg=$handleMsg', methodName: 'acceptFriendApplication');
     try {
       // API-first: 先请求服务器，与 Go SDK 保持一致
@@ -322,6 +410,13 @@ class FriendshipManager {
   /// [userID] 申请者用户ID
   /// [handleMsg] 拒绝理由
   Future<void> refuseFriendApplication({required String userID, String? handleMsg}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('friendship.refuseFriendApplication', {
+        'userID': userID,
+        'handleMsg': handleMsg,
+      });
+      return;
+    }
     _log.info('userID=$userID, handleMsg=$handleMsg', methodName: 'refuseFriendApplication');
     try {
       // API-first: 先请求服务器，与 Go SDK 保持一致
@@ -352,6 +447,17 @@ class FriendshipManager {
     bool isSearchNickname = false,
     bool isSearchRemark = false,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('friendship.searchFriends', {
+        'keywordList': keywordList,
+        'isSearchUserID': isSearchUserID,
+        'isSearchNickname': isSearchNickname,
+        'isSearchRemark': isSearchRemark,
+      });
+      return (result as List)
+          .map((e) => SearchFriendsInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'keywordList=$keywordList, isSearchUserID=$isSearchUserID, isSearchNickname=$isSearchNickname, isSearchRemark=$isSearchRemark',
       methodName: 'searchFriends',
@@ -390,6 +496,12 @@ class FriendshipManager {
   /// 更新好友信息（备注、扩展信息等）
   /// [updateFriendsReq] 更新请求
   Future<void> updateFriends({required UpdateFriendsReq updateFriendsReq}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('friendship.updateFriends', {
+        'updateFriendsReq': updateFriendsReq.toJson(),
+      });
+      return;
+    }
     _log.info(
       'friendUserIDs=${updateFriendsReq.friendUserIDs}, remark=${updateFriendsReq.remark}, isPinned=${updateFriendsReq.isPinned}',
       methodName: 'updateFriends',
@@ -461,6 +573,13 @@ class FriendshipManager {
 
   /// 获取未处理的好友申请数量（对齐 Go SDK: 从服务器获取）
   Future<int> getFriendApplicationUnhandledCount() async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke(
+            'friendship.getFriendApplicationUnhandledCount',
+            {},
+          )
+          as int;
+    }
     _log.info('called', methodName: 'getFriendApplicationUnhandledCount');
     try {
       final resp = await _api.getSelfUnhandledApplyCount(userID: _currentUserID);

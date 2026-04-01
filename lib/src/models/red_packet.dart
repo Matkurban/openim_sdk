@@ -57,6 +57,17 @@ class SendRedPacketRequest {
     'convID': convID,
     if (targetUserID != null) 'targetUserID': targetUserID,
   };
+
+  factory SendRedPacketRequest.fromJson(Map<String, dynamic> json) {
+    return SendRedPacketRequest(
+      packetType: json['packetType'] as int? ?? 0,
+      totalAmount: (json['totalAmount'] as num?)?.toDouble() ?? 0,
+      totalCount: json['totalCount'] as int? ?? 0,
+      greeting: json['greeting'] as String? ?? '',
+      convID: json['convID'] as String? ?? '',
+      targetUserID: json['targetUserID'] as String?,
+    );
+  }
 }
 
 // ─── 响应 / 展示模型 ──────────────────────────────────────────────────────────

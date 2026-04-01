@@ -29,6 +29,23 @@ class MomentCreateReq extends Equatable {
     };
   }
 
+  factory MomentCreateReq.fromJson(Map<String, dynamic> json) {
+    return MomentCreateReq(
+      content: json['content'] as String? ?? '',
+      media:
+          (json['media'] as List?)
+              ?.map((e) => MomentMedia.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
+      visibleType: VisibleType.values.firstWhere(
+        (v) => v.value == (json['visibleType'] as int? ?? 1),
+        orElse: () => VisibleType.friend,
+      ),
+      visibleGroupIDs: (json['visibleGroupIDs'] as List?)?.cast<String>() ?? const [],
+      extra: json['extra'] as String? ?? '',
+    );
+  }
+
   @override
   List<Object?> get props => [content, media, visibleType, visibleGroupIDs, extra];
 }

@@ -297,6 +297,14 @@ class GroupManager {
   /// 对齐 Go SDK GetSpecifiedGroupsInfoSafe：先查本地，缺失的从服务器拉取但不写入本地
   /// （local_groups 表仅存储已加入的群，由 sync 维护）
   Future<List<GroupInfo>> getGroupsInfo({required List<String> groupIDList}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getGroupsInfo', {
+        'groupIDList': groupIDList,
+      });
+      return (result as List)
+          .map((e) => GroupInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('groupIDList=$groupIDList', methodName: 'getGroupsInfo');
     try {
       if (groupIDList.isEmpty) return [];
@@ -335,6 +343,12 @@ class GroupManager {
 
   /// 获取已加入的群组列表
   Future<List<GroupInfo>> getJoinedGroupList() async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getJoinedGroupList', {});
+      return (result as List)
+          .map((e) => GroupInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('called', methodName: 'getJoinedGroupList');
     try {
       return await _database.getJoinedGroupList();
@@ -348,6 +362,15 @@ class GroupManager {
   /// [offset] 起始索引
   /// [count] 每页数量
   Future<List<GroupInfo>> getJoinedGroupListPage({int offset = 0, int count = 40}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getJoinedGroupListPage', {
+        'offset': offset,
+        'count': count,
+      });
+      return (result as List)
+          .map((e) => GroupInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('offset=$offset, count=$count', methodName: 'getJoinedGroupListPage');
     try {
       return await _database.getJoinedGroupListPage(offset, count);
@@ -361,6 +384,10 @@ class GroupManager {
   /// [groupID] 群组ID
   /// 通过服务器查询当前用户是否为群成员，避免本地 local_groups 表数据不准确
   Future<bool> isJoinedGroup({required String groupID}) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('group.isJoinedGroup', {'groupID': groupID})
+          as bool;
+    }
     _log.info('groupID=$groupID', methodName: 'isJoinedGroup');
     try {
       final resp = await _api.getGroupMembersInfo(groupID: groupID, userIDs: [_currentUserID]);
@@ -384,6 +411,15 @@ class GroupManager {
     List<String> adminUserIDs = const [],
     String? ownerUserID,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.createGroup', {
+        'groupInfo': groupInfo.toJson(),
+        'memberUserIDs': memberUserIDs,
+        'adminUserIDs': adminUserIDs,
+        'ownerUserID': ownerUserID,
+      });
+      return GroupInfo.fromJson(Map<String, dynamic>.from(result as Map));
+    }
     _log.info(
       'groupName=${groupInfo.groupName}, memberCount=${memberUserIDs.length}, adminCount=${adminUserIDs.length}, ownerUserID=$ownerUserID',
       methodName: 'createGroup',
@@ -441,6 +477,12 @@ class GroupManager {
   /// 修改群组信息（对齐 Go SDK: API → IncrSyncJoinGroup）
   /// [groupInfo] 群组信息（只更新非null字段）
   Future<void> setGroupInfo({required GroupInfo groupInfo}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.setGroupInfo', {
+        'groupInfo': groupInfo.toJson(),
+      });
+      return;
+    }
     _log.info(
       'groupID=${groupInfo.groupID}, groupName=${groupInfo.groupName}',
       methodName: 'setGroupInfo',
@@ -472,6 +514,14 @@ class GroupManager {
     required List<String> userIDList,
     String? reason,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.inviteUserToGroup', {
+        'groupID': groupID,
+        'userIDList': userIDList,
+        'reason': reason,
+      });
+      return;
+    }
     _log.info(
       'groupID=$groupID, userIDList=$userIDList, reason=$reason',
       methodName: 'inviteUserToGroup',
@@ -502,6 +552,14 @@ class GroupManager {
     required List<String> userIDList,
     String? reason,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.kickGroupMember', {
+        'groupID': groupID,
+        'userIDList': userIDList,
+        'reason': reason,
+      });
+      return;
+    }
     _log.info(
       'groupID=$groupID, userIDList=$userIDList, reason=$reason',
       methodName: 'kickGroupMember',
@@ -530,6 +588,15 @@ class GroupManager {
     required String groupID,
     required List<String> userIDList,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getGroupMembersInfo', {
+        'groupID': groupID,
+        'userIDList': userIDList,
+      });
+      return (result as List)
+          .map((e) => GroupMembersInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('groupID=$groupID, userIDList=$userIDList', methodName: 'getGroupMembersInfo');
     try {
       if (userIDList.isEmpty) return [];
@@ -573,6 +640,17 @@ class GroupManager {
     int offset = 0,
     int count = 40,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getGroupMemberList', {
+        'groupID': groupID,
+        'filter': filter,
+        'offset': offset,
+        'count': count,
+      });
+      return (result as List)
+          .map((e) => GroupMembersInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'groupID=$groupID, filter=$filter, offset=$offset, count=$count',
       methodName: 'getGroupMemberList',
@@ -643,6 +721,14 @@ class GroupManager {
   /// 获取群主和管理员列表
   /// [groupID] 群组ID
   Future<List<GroupMembersInfo>> getGroupOwnerAndAdmin({required String groupID}) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getGroupOwnerAndAdmin', {
+        'groupID': groupID,
+      });
+      return (result as List)
+          .map((e) => GroupMembersInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info('groupID=$groupID', methodName: 'getGroupOwnerAndAdmin');
     try {
       await _ensureGroupMembersSynced(groupID);
@@ -686,6 +772,19 @@ class GroupManager {
     int offset = 0,
     int count = 40,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.searchGroupMembers', {
+        'groupID': groupID,
+        'keywordList': keywordList,
+        'isSearchUserID': isSearchUserID,
+        'isSearchMemberNickname': isSearchMemberNickname,
+        'offset': offset,
+        'count': count,
+      });
+      return (result as List)
+          .map((e) => GroupMembersInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'groupID=$groupID, keywordList=$keywordList, isSearchUserID=$isSearchUserID, isSearchMemberNickname=$isSearchMemberNickname, offset=$offset, count=$count',
       methodName: 'searchGroupMembers',
@@ -712,6 +811,12 @@ class GroupManager {
   /// 修改群成员信息（对齐 Go SDK: API → IncrSyncGroupAndMember）
   /// [groupMembersInfo] 群成员信息
   Future<void> setGroupMemberInfo({required SetGroupMemberInfo groupMembersInfo}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.setGroupMemberInfo', {
+        'groupMembersInfo': groupMembersInfo.toJson(),
+      });
+      return;
+    }
     _log.info(
       'groupID=${groupMembersInfo.groupID}, userID=${groupMembersInfo.userID}, nickname=${groupMembersInfo.nickname}, roleLevel=${groupMembersInfo.roleLevel}',
       methodName: 'setGroupMemberInfo',
@@ -736,6 +841,13 @@ class GroupManager {
   /// [groupID] 群组ID
   /// [userID] 新群主用户ID
   Future<void> transferGroupOwner({required String groupID, required String userID}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.transferGroupOwner', {
+        'groupID': groupID,
+        'userID': userID,
+      });
+      return;
+    }
     _log.info('groupID=$groupID, userID=$userID', methodName: 'transferGroupOwner');
     try {
       final resp = await _api.transferGroup(
@@ -765,6 +877,15 @@ class GroupManager {
     int joinSource = 3,
     String? ex,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.joinGroup', {
+        'groupID': groupID,
+        'reason': reason,
+        'joinSource': joinSource,
+        'ex': ex,
+      });
+      return;
+    }
     _log.info('groupID=$groupID, reason=$reason, joinSource=$joinSource', methodName: 'joinGroup');
     try {
       final resp = await _api.joinGroup(
@@ -786,6 +907,10 @@ class GroupManager {
   /// 退出群组（对齐 Go SDK: API → IncrSyncJoinGroup）
   /// [groupID] 群组ID
   Future<void> quitGroup({required String groupID}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.quitGroup', {'groupID': groupID});
+      return;
+    }
     _log.info('groupID=$groupID', methodName: 'quitGroup');
     try {
       final resp = await _api.quitGroup(userID: _currentUserID, groupID: groupID);
@@ -808,6 +933,10 @@ class GroupManager {
   /// 解散群组（对齐 Go SDK: API → IncrSyncJoinGroup）
   /// [groupID] 群组ID
   Future<void> dismissGroup({required String groupID}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.dismissGroup', {'groupID': groupID});
+      return;
+    }
     _log.info('groupID=$groupID', methodName: 'dismissGroup');
     try {
       final resp = await _api.dismissGroup(groupID: groupID);
@@ -831,6 +960,13 @@ class GroupManager {
   /// [groupID] 群组ID
   /// [mute] true:禁言, false:解除禁言
   Future<void> changeGroupMute({required String groupID, required bool mute}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.changeGroupMute', {
+        'groupID': groupID,
+        'mute': mute,
+      });
+      return;
+    }
     _log.info('groupID=$groupID, mute=$mute', methodName: 'changeGroupMute');
     try {
       final resp = mute
@@ -856,6 +992,14 @@ class GroupManager {
     required String userID,
     int seconds = 0,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.changeGroupMemberMute', {
+        'groupID': groupID,
+        'userID': userID,
+        'seconds': seconds,
+      });
+      return;
+    }
     _log.info(
       'groupID=$groupID, userID=$userID, seconds=$seconds',
       methodName: 'changeGroupMemberMute',
@@ -878,6 +1022,15 @@ class GroupManager {
   Future<List<GroupApplicationInfo>> getGroupApplicationListAsRecipient({
     GetGroupApplicationListAsRecipientReq? req,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke(
+        'group.getGroupApplicationListAsRecipient',
+        {'req': req?.toJson()},
+      );
+      return (result as List)
+          .map((e) => GroupApplicationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'offset=${req?.offset}, count=${req?.count}',
       methodName: 'getGroupApplicationListAsRecipient',
@@ -912,6 +1065,15 @@ class GroupManager {
   Future<List<GroupApplicationInfo>> getGroupApplicationListAsApplicant({
     GetGroupApplicationListAsApplicantReq? req,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke(
+        'group.getGroupApplicationListAsApplicant',
+        {'req': req?.toJson()},
+      );
+      return (result as List)
+          .map((e) => GroupApplicationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'offset=${req?.offset}, count=${req?.count}',
       methodName: 'getGroupApplicationListAsApplicant',
@@ -950,6 +1112,14 @@ class GroupManager {
     required String userID,
     String? handleMsg,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.acceptGroupApplication', {
+        'groupID': groupID,
+        'userID': userID,
+        'handleMsg': handleMsg,
+      });
+      return;
+    }
     _log.info(
       'groupID=$groupID, userID=$userID, handleMsg=$handleMsg',
       methodName: 'acceptGroupApplication',
@@ -979,6 +1149,14 @@ class GroupManager {
     required String userID,
     String? handleMsg,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('group.refuseGroupApplication', {
+        'groupID': groupID,
+        'userID': userID,
+        'handleMsg': handleMsg,
+      });
+      return;
+    }
     _log.info(
       'groupID=$groupID, userID=$userID, handleMsg=$handleMsg',
       methodName: 'refuseGroupApplication',
@@ -1002,6 +1180,12 @@ class GroupManager {
   /// 获取未处理的入群申请数量（对齐 Go SDK: 从服务器获取）
   /// [req] 查询参数
   Future<int> getGroupApplicationUnhandledCount(GetGroupApplicationUnhandledCountReq req) async {
+    if (SdkIsolateManager.isActive) {
+      return await SdkIsolateManager.instance.invoke('group.getGroupApplicationUnhandledCount', {
+            'req': req.toJson(),
+          })
+          as int;
+    }
     _log.info('called', methodName: 'getGroupApplicationUnhandledCount');
     try {
       final resp = await _api.getGroupApplicationUnhandledCount(
@@ -1030,6 +1214,16 @@ class GroupManager {
     bool isSearchGroupID = false,
     bool isSearchGroupName = false,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.searchGroups', {
+        'keywordList': keywordList,
+        'isSearchGroupID': isSearchGroupID,
+        'isSearchGroupName': isSearchGroupName,
+      });
+      return (result as List)
+          .map((e) => GroupInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'keywordList=$keywordList, isSearchGroupID=$isSearchGroupID, isSearchGroupName=$isSearchGroupName',
       methodName: 'searchGroups',
@@ -1065,6 +1259,19 @@ class GroupManager {
     List<String> filterUserIDList = const [],
     String? operationID,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getGroupMemberListByJoinTime', {
+        'groupID': groupID,
+        'offset': offset,
+        'count': count,
+        'joinTimeBegin': joinTimeBegin,
+        'joinTimeEnd': joinTimeEnd,
+        'filterUserIDList': filterUserIDList,
+      });
+      return (result as List)
+          .map((e) => GroupMembersInfo.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    }
     _log.info(
       'groupID=$groupID, offset=$offset, count=$count, joinTimeBegin=$joinTimeBegin, joinTimeEnd=$joinTimeEnd, filterUserIDList=$filterUserIDList',
       methodName: 'getGroupMemberListByJoinTime',
@@ -1108,6 +1315,13 @@ class GroupManager {
     required String groupID,
     required List<String> userIDList,
   }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('group.getUsersInGroup', {
+        'groupID': groupID,
+        'userIDList': userIDList,
+      });
+      return (result as List).cast<String>();
+    }
     _log.info('groupID=$groupID, userIDList=$userIDList', methodName: 'getUsersInGroup');
     try {
       if (userIDList.isEmpty) return [];
