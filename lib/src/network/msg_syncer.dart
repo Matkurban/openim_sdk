@@ -421,7 +421,8 @@ class MsgSyncer {
         final serverSeqs = seqResp.data?['seqs'] as Map<String, dynamic>? ?? {};
         _log.info('服务端 seq 数: ${serverSeqs.length}', methodName: '_syncConversationsAndSeqs');
 
-        // 收集所有更新任务并并行执行，消除 N 次串行 DB 往返
+        // 收集所有更新任务，分批执行避免瞬间激活所有 isolate worker 导致 UI 卡顿
+        const int batchSize = 50;
         final updateFutures = <Future>[];
         for (final convID in localConvIDs) {
           final seqInfo = serverSeqs[convID];
@@ -445,8 +446,10 @@ class MsgSyncer {
             );
           }
         }
-        if (updateFutures.isNotEmpty) {
-          await Future.wait(updateFutures);
+        // 分批执行，每批之间让出事件循环避免阻塞 UI
+        for (int i = 0; i < updateFutures.length; i += batchSize) {
+          final end = (i + batchSize).clamp(0, updateFutures.length);
+          await Future.wait(updateFutures.sublist(i, end));
         }
       }
     } catch (e, s) {
