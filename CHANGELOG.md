@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.9.1
+
+- add `updateNote` method in `FavoriteManager` to update note content and refresh favorite item.
+
 ## 1.9.0
 
 ### 🚀 Background Isolate Architecture
