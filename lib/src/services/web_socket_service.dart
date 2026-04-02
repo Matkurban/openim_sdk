@@ -3,10 +3,10 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk/src/enums/web_socket_status.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 
+import '../enums/web_socket_status.dart';
 import '../models/web_socket_codec.dart';
 import '../models/web_socket_identifier.dart';
 // Web 热重启专用：JS interop 代码通过条件导入隔离，非 web 平台使用 stub。

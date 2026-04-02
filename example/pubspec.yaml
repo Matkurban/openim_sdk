@@ -11,8 +11,8 @@ dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
-  get: ^4.7.2
+  cupertino_icons: ^1.0.9
+  get: ^4.7.3
   openim_sdk:
     path: ../
 

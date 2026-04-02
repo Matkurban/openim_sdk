@@ -207,6 +207,7 @@ class IMManager {
         dbPath: dbPath ?? await OpenImUtils.defaultDbPath(),
         dbName: dbName ?? 'kurban_openim_sdk',
         schemas: [...DbSchema.allSchemas, ...schemas],
+        config: DataStoreConfig(yieldDurationMs: 16),
       );
     } catch (e, s) {
       _log.error('初始化数据库失败：${e.toString()}', error: e, stackTrace: s);
