@@ -387,6 +387,79 @@ class FavoriteManager {
     }
   }
 
+  /// 修改收藏的 data 字段
+  Future<FavoriteItem?> updateFavorite({
+    required FavoriteType type,
+    required String targetID,
+    required String data,
+  }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.updateFavorite', {
+        'type': type.value,
+        'targetID': targetID,
+        'data': data,
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
+    _log.info('type=${type.value}, id=$targetID', methodName: 'updateFavorite');
+    try {
+      final resp = await HttpClient().chatPost(
+        '/favorite/update',
+        data: {'targetType': type.value, 'targetID': targetID, 'data': data},
+      );
+      if (!resp.isSuccess) {
+        _log.warning('updateFavorite failed: ${resp.errMsg}');
+        return null;
+      }
+      if (resp.data is Map<String, dynamic>) {
+        final dataMap = resp.data as Map<String, dynamic>;
+        if (dataMap['favorite'] is Map<String, dynamic>) {
+          final item = FavoriteItem.fromJson(dataMap['favorite'] as Map<String, dynamic>);
+          await _database.upsertFavorite(item);
+          listener?.favoriteUpdated(item);
+          return item;
+        }
+      }
+      return null;
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateFavorite');
+      rethrow;
+    }
+  }
+
+  /// 修改笔记收藏
+  Future<FavoriteItem?> updateNote({
+    required String targetID,
+    required String title,
+    required String content,
+  }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('favorite.updateNote', {
+        'targetID': targetID,
+        'title': title,
+        'content': content,
+      });
+      return result != null
+          ? FavoriteItem.fromJson(Map<String, dynamic>.from(result as Map))
+          : null;
+    }
+    _log.info('targetID=$targetID', methodName: 'updateNote');
+    try {
+      final data = jsonEncode({
+        'noteID': targetID,
+        'summary': title,
+        'content': content,
+        'createdAt': DateTime.now().toIso8601String(),
+      });
+      return updateFavorite(type: FavoriteType.note, targetID: targetID, data: data);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateNote');
+      rethrow;
+    }
+  }
+
   /// 收藏链接
   Future<FavoriteItem?> addLink({required LinkInfo link}) async {
     if (SdkIsolateManager.isActive) {
@@ -448,6 +521,12 @@ class FavoriteManager {
           if (targetType.isNotEmpty && targetID.isNotEmpty) {
             await _database.deleteFavoriteByTarget(targetType, targetID);
             listener?.favoriteRemoved(targetType, targetID);
+          }
+        case 'favorite_updated':
+          if (data['favorite'] is Map<String, dynamic>) {
+            final item = FavoriteItem.fromJson(data['favorite'] as Map<String, dynamic>);
+            await _database.upsertFavorite(item);
+            listener?.favoriteUpdated(item);
           }
       }
     } catch (e, s) {

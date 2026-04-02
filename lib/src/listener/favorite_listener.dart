@@ -8,7 +8,10 @@ class OnFavoriteListener {
   /// 移除收藏
   void Function(String targetType, String targetID)? onFavoriteRemoved;
 
-  OnFavoriteListener({this.onFavoriteAdded, this.onFavoriteRemoved});
+  /// 更新收藏
+  void Function(FavoriteItem item)? onFavoriteUpdated;
+
+  OnFavoriteListener({this.onFavoriteAdded, this.onFavoriteRemoved, this.onFavoriteUpdated});
 
   void favoriteAdded(FavoriteItem item) {
     onFavoriteAdded?.call(item);
@@ -16,5 +19,9 @@ class OnFavoriteListener {
 
   void favoriteRemoved(String targetType, String targetID) {
     onFavoriteRemoved?.call(targetType, targetID);
+  }
+
+  void favoriteUpdated(FavoriteItem item) {
+    onFavoriteUpdated?.call(item);
   }
 }

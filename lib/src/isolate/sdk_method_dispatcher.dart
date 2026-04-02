@@ -1315,6 +1315,22 @@ class SdkMethodDispatcher {
         );
         return result?.toJson();
 
+      case 'updateFavorite':
+        final result = await _favorite.updateFavorite(
+          type: FavoriteType.fromValue(args['type'] as String?),
+          targetID: args['targetID'] as String,
+          data: args['data'] as String,
+        );
+        return result?.toJson();
+
+      case 'updateNote':
+        final result = await _favorite.updateNote(
+          targetID: args['targetID'] as String,
+          title: args['title'] as String,
+          content: args['content'] as String,
+        );
+        return result?.toJson();
+
       case 'addLink':
         final result = await _favorite.addLink(
           link: LinkInfo.fromJson(args['link'] as Map<String, dynamic>),
