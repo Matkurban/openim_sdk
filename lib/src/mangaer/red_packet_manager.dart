@@ -232,10 +232,12 @@ class RedPacketManager {
       }
       final resp = await HttpClient().chatPost('/points/transactions', data: data);
       if (!resp.isSuccess) throw Exception('getPointsTransactions failed: ${resp.errMsg}');
-      final total = (resp.data['total'] as num).toInt();
-      final list = (resp.data['transactions'] as List<dynamic>)
-          .map((e) => PointsTransaction.fromJson(e as Map<String, dynamic>))
-          .toList();
+      final total = (resp.data['total'] as num?)?.toInt() ?? 0;
+      final list =
+          (resp.data['transactions'] as List<dynamic>?)
+              ?.map((e) => PointsTransaction.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [];
       return (total, list);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getPointsTransactions');
