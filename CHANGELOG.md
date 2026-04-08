@@ -11,15 +11,6 @@
 
 * 修复文档发布 2.0.0版本呢 ([21f1144](https://github.com/Matkurban/openim_sdk/commit/21f1144486087ffcdca0a6cf2dbc1680e31a59f0))
 
-## 1.0.0 (2026-04-08)
-
-
-### Features
-
-* Resume sending pending messages on app restart, refactor media upload logic, and remove the tostore dependency. ([0cdfca3](https://github.com/Matkurban/openim_sdk/commit/0cdfca39da633e39df8e74d51de2fbd3d1173652))
-* 原代码开源，tostore 插件版本升级到 3.1.0 ([00efcf7](https://github.com/Matkurban/openim_sdk/commit/00efcf7c2c223456044ef4189307c2d459515d30))
-* 原代码开源，tostore 插件版本升级到 3.1.0 ([1bc31b0](https://github.com/Matkurban/openim_sdk/commit/1bc31b01cf0d56a2907f7eea5ee54e2995b0fa25))
-
 ## 1.9.1
 
 - add `updateNote` method in `FavoriteManager` to update note content and refresh favorite item.
