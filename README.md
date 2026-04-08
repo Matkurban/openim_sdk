@@ -1,7 +1,5 @@
 # OpenIM SDK for Dart/Flutter
 
-**Version: 1.9.0**
-
 A pure Dart implementation of the OpenIM client SDK, compatible with all Flutter platforms (iOS / Android / Web / macOS / Windows / Linux), providing complete instant messaging capabilities.
 
 >
@@ -34,7 +32,7 @@ Add dependency in `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  openim_sdk: ^1.9.0
+  openim_sdk: ^lasted
 ```
 
 ### Initialization
