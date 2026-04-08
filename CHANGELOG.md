@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/Matkurban/openim_sdk/compare/v1.0.0...v2.0.0) (2026-04-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* 修复文档发布 2.0.0版本呢
+
+### Features
+
+* 修复文档发布 2.0.0版本呢 ([21f1144](https://github.com/Matkurban/openim_sdk/commit/21f1144486087ffcdca0a6cf2dbc1680e31a59f0))
+
 ## 1.0.0 (2026-04-08)
 
 
