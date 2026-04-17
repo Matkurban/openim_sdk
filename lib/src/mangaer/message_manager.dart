@@ -744,6 +744,10 @@ class MessageManager {
                 newElem = newElem.copyWith(
                   snapshotUrl: url,
                   snapshotSize: pendingSnapshotBytes.length,
+                  snapshotType: snapContentType,
+                );
+                _log.info(
+                  'video snapshot uploaded (bytes): url=$url, size=${pendingSnapshotBytes.length}',
                 );
               } else if (elem.snapshotPath != null && elem.snapshotPath!.isNotEmpty) {
                 final file = File(elem.snapshotPath!);
@@ -756,8 +760,25 @@ class MessageManager {
                     contentType: snapContentType,
                     cause: 'msg-video-snapshot',
                   );
-                  newElem = newElem.copyWith(snapshotUrl: url, snapshotSize: fileSize);
+                  newElem = newElem.copyWith(
+                    snapshotUrl: url,
+                    snapshotSize: fileSize,
+                    snapshotType: snapContentType,
+                  );
+                  _log.info(
+                    'video snapshot uploaded (file): url=$url, size=$fileSize, path=${elem.snapshotPath}',
+                  );
+                } else {
+                  _log.warning(
+                    'video snapshot file not found, cover will be missing for receivers: ${elem.snapshotPath}',
+                  );
                 }
+              } else {
+                // 调用方未提供封面：接收端将看不到封面，提醒调用方
+                _log.warning(
+                  'video message has no snapshotPath/pendingSnapshotBytes; '
+                  'receivers will not see a cover image (clientMsgID=$clientMsgID)',
+                );
               }
             } catch (e) {
               // 对应 Go SDK: 缩略图上传失败只 warn 不 return error
