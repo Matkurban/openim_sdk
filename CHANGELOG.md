@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.2](https://github.com/Matkurban/openim_sdk/compare/v2.0.1...v2.0.2) (2026-04-17)
+
+
+### Bug Fixes
+
+* fix video message bugs ([f42f980](https://github.com/Matkurban/openim_sdk/commit/f42f980837e664166a3dcfeb5a7d454908ef291a))
+
 ## [2.0.1](https://github.com/Matkurban/openim_sdk/compare/v2.0.0...v2.0.1) (2026-04-08)
 
 
