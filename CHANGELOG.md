@@ -21,10 +21,6 @@
 
 * 修复文档发布 2.0.0版本呢
 
-### Features
-
-* 修复文档发布 2.0.0版本呢 ([21f1144](https://github.com/Matkurban/openim_sdk/commit/21f1144486087ffcdca0a6cf2dbc1680e31a59f0))
-
 ## 1.9.1
 
 - add `updateNote` method in `FavoriteManager` to update note content and refresh favorite item.

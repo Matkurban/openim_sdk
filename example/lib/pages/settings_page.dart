@@ -282,16 +282,7 @@ class SettingsPage extends GetView<SettingsController> {
           decoration: const InputDecoration(labelText: '未读数'),
           keyboardType: TextInputType.number,
         ),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('取消')),
-          FilledButton(
-            onPressed: () {
-              Get.back();
-              controller.setAppBadge(int.tryParse(ctrl.text) ?? 0);
-            },
-            child: const Text('设置'),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Get.back(), child: const Text('取消'))],
       ),
     );
   }

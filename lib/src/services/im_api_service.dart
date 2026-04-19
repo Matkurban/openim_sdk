@@ -1271,20 +1271,6 @@ class ImApiService {
     }
   }
 
-  /// 设置 App 角标
-  Future<ApiResponse> setAppBadge({required String userID, required int appUnreadCount}) async {
-    _log.info('userID=$userID, appUnreadCount=$appUnreadCount', methodName: 'setAppBadge');
-    try {
-      return await HttpClient().post(
-        ImApiUrl.setAppBadge,
-        data: {'userID': userID, 'appUnreadCount': appUnreadCount},
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setAppBadge');
-      rethrow;
-    }
-  }
-
   /// 获取分片上传限制参数
   /// 对应 Go SDK /object/part_limit
   Future<ApiResponse> getPartLimit() async {

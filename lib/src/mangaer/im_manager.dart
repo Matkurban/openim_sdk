@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
+import 'package:meta/meta.dart';
 import 'package:openim_sdk/src/utils/sdk_isolate.dart' as isolate_util;
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
@@ -63,6 +64,7 @@ class IMManager {
 
   /// 通知分发器（登录时创建，登出时清理）
   NotificationDispatcher? _notificationDispatcher;
+
   MsgSyncer? _msgSyncer;
 
   AuthCacheData? _authData;
@@ -238,7 +240,10 @@ class IMManager {
       return _loginStatus;
     }
     try {
-      String? value = await getDatabaseInstance().getValue(CacheKey.loginAuthData, isGlobal: true);
+      String? value = await getDatabaseInstance().getValue(
+        CacheKey.loginAuthData,
+        isGlobal: true,
+      );
       if (value != null) {
         try {
           AuthCacheData authCacheData = AuthCacheData.fromJson(jsonDecode(value));
@@ -304,40 +309,55 @@ class IMManager {
   /// [key] 键名
   /// [value] 值
   /// [isGlobal] 是否全局（跨用户空间）
-  Future<void> setValue(String key, dynamic value, {bool isGlobal = false}) async {
+  Future<bool> setValue(String key, dynamic value, {bool isGlobal = false}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('im.setValue', {
+      return await SdkIsolateManager.instance.invoke('im.setValue', {
         'key': key,
         'value': value,
         'isGlobal': isGlobal,
       });
-      return;
     }
-    await getDatabaseInstance().setValue(key, value, isGlobal: isGlobal);
+    return (await getDatabaseInstance().setValue(key, value, isGlobal: isGlobal)).isSuccess;
   }
 
   /// 移除键值
   /// [key] 键名
   /// [isGlobal] 是否全局（跨用户空间）
-  Future<void> removeValue(String key, {bool isGlobal = false}) async {
+  Future<bool> removeValue(String key, {bool isGlobal = false}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('im.removeValue', {'key': key, 'isGlobal': isGlobal});
-      return;
+      return await SdkIsolateManager.instance.invoke('im.removeValue', {
+        'key': key,
+        'isGlobal': isGlobal,
+      });
     }
-    await getDatabaseInstance().removeValue(key, isGlobal: isGlobal);
+    return (await getDatabaseInstance().removeValue(key, isGlobal: isGlobal)).isSuccess;
   }
 
   /// 获取当前数据库空间信息
-  Future<Map<String, dynamic>> getSpaceInfo() async {
+  Future<SpaceInfo> getSpaceInfo() async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('im.getSpaceInfo', {});
-      return Map<String, dynamic>.from(result as Map);
+      Map<String, dynamic> result =
+          await SdkIsolateManager.instance.invoke('im.getSpaceInfo', {}) as Map<String, dynamic>;
+      return SpaceInfo(
+        spaceName: result['spaceName'],
+        recordCount: result['recordCount'],
+        tableCount: result['tableCount'],
+        dataSizeBytes: result['dataSizeBytes'],
+        lastStatisticsTime: result['lastStatisticsTime'],
+        tables: result['tables'],
+      );
     }
-    final info = await getDatabaseInstance().getSpaceInfo();
-    return info.toJson();
+    return await getDatabaseInstance().getSpaceInfo();
   }
 
   /// 获取数据库实例（内部方法，仅在非 Isolate 模式下可用）
+  ///
+  /// 注意：ToStore 实例包含不可跨 Isolate 传递的对象（如 Completer），
+  /// 因此在后台 Isolate 模式下无法将其返回到主 Isolate，调用此方法将抛出异常。
+  /// 如需在后台 Isolate 模式下访问数据库，请使用：
+  /// - 代理方法：[getValue] / [setValue] / [removeValue] / [getSpaceInfo]
+  /// - 通用入口：[runInDatabase]（在后台 Isolate 内执行回调）
+  @internal
   ToStore getDatabaseInstance() {
     if (!_getIt.isRegistered<ToStore>(instanceName: InstanceName.toStore)) {
       throw OpenIMException(
@@ -346,6 +366,42 @@ class IMManager {
       );
     }
     return _getIt.get<ToStore>(instanceName: InstanceName.toStore);
+  }
+
+  /// 在数据库所在的 Isolate 内执行回调，并把（可序列化的）结果返回给调用方。
+  ///
+  /// - 在非 Isolate 模式下，回调直接在当前线程执行。
+  /// - 在后台 Isolate 模式下，回调会被发送到后台 Isolate 执行，
+  ///   因此 [callback] **必须是顶层函数或 `static` 方法**（不可以是捕获外部状态的闭包），
+  ///   且 [arg] 与返回值必须是 `SendPort.send()` 允许的可发送类型（基本类型、List、Map、
+  ///   TypedData，或由你自行 `toJson()` 化的对象）。
+  ///
+  /// 典型用法：
+  /// ```dart
+  /// // 顶层或静态函数
+  /// Future<int> _countMessages(ToStore db, String conversationID) async {
+  ///   final rows = await db.query('messages').where('conversationID', '=', conversationID).find();
+  ///   return rows.length;
+  /// }
+  ///
+  /// final count = await OpenIM.iMManager.runInDatabase<int, String>(
+  ///   _countMessages,
+  ///   arg: conversationID,
+  /// );
+  /// ```
+  Future<R> runInDatabase<R, A>(
+    FutureOr<R> Function(ToStore db, [A? arg]) callback, {
+    A? arg,
+  }) async {
+    if (SdkIsolateManager.isActive) {
+      final result = await SdkIsolateManager.instance.invoke('im.runInDatabase', {
+        'callback': callback,
+        'arg': arg,
+      });
+      return result as R;
+    }
+    final db = getDatabaseInstance();
+    return await callback(db, arg);
   }
 
   /// 反初始化 SDK
@@ -1264,28 +1320,6 @@ class IMManager {
       }
     } catch (e, s) {
       _log.error('设置 fcm Token 失败', error: e, stackTrace: s, methodName: 'updateFcmToken');
-    }
-  }
-
-  /// 设置 App 角标未读数
-  /// 对应 Go SDK SetAppBadge
-  /// [appUnreadCount] 角标显示的未读数量
-  Future<void> setAppBadge({required int appUnreadCount}) async {
-    if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('im.setAppBadge', {'appUnreadCount': appUnreadCount});
-      return;
-    }
-    _log.info('appUnreadCount=$appUnreadCount', methodName: 'setAppBadge');
-    try {
-      final ImApiService imApiService = _getIt.get<ImApiService>(
-        instanceName: InstanceName.imApiService,
-      );
-      final resp = await imApiService.setAppBadge(userID: userID, appUnreadCount: appUnreadCount);
-      if (resp.errCode != 0) {
-        _log.warning('设置 App 角标失败: ${resp.errMsg}');
-      }
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setAppBadge');
     }
   }
 

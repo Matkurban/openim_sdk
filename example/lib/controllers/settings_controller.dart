@@ -187,16 +187,6 @@ class SettingsController extends GetxController {
     }
   }
 
-  /// 设置应用角标数
-  Future<void> setAppBadge(int count) async {
-    try {
-      await OpenIM.iMManager.setAppBadge(appUnreadCount: count);
-      Get.snackbar('成功', '角标已设置为 $count', snackPosition: SnackPosition.BOTTOM);
-    } catch (e) {
-      Get.snackbar('失败', '$e', snackPosition: SnackPosition.BOTTOM);
-    }
-  }
-
   /// 更新 FCM Token
   Future<void> updateFcmToken(String token) async {
     try {

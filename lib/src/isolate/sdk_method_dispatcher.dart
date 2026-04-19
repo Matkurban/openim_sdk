@@ -18,14 +18,23 @@ class SdkMethodDispatcher {
 
   // SDK 管理器引用（Isolate 内独立实例）
   IMManager get _im => IMManager();
+
   ConversationManager get _conversation => _im.conversationManager;
+
   MessageManager get _message => _im.messageManager;
+
   GroupManager get _group => _im.groupManager;
+
   UserManager get _user => _im.userManager;
+
   FriendshipManager get _friendship => _im.friendshipManager;
+
   MomentsManager get _moments => _im.momentsManager;
+
   FavoriteManager get _favorite => _im.favoriteManager;
+
   CallManager get _call => _im.callManager;
+
   RedPacketManager get _redPacket => _im.redPacketManager;
 
   // --------------------------------------------------------------------------
@@ -283,23 +292,37 @@ class SdkMethodDispatcher {
         );
 
       case 'setValue':
-        await _im.getDatabaseInstance().setValue(
+        final r = await _im.getDatabaseInstance().setValue(
           args['key'] as String,
           args['value'],
           isGlobal: args['isGlobal'] as bool? ?? false,
         );
-        return null;
+        return r.isSuccess;
 
       case 'removeValue':
-        await _im.getDatabaseInstance().removeValue(
+        final r = await _im.getDatabaseInstance().removeValue(
           args['key'] as String,
           isGlobal: args['isGlobal'] as bool? ?? false,
         );
-        return null;
+        return r.isSuccess;
 
       case 'getSpaceInfo':
-        final info = await _im.getDatabaseInstance().getSpaceInfo();
-        return info.toJson();
+        return (await _im.getDatabaseInstance().getSpaceInfo()).toJson();
+
+      case 'runInDatabase':
+        // 在后台 Isolate 内部执行用户回调，只把可序列化结果回传
+        final callback = args['callback'];
+        final cbArg = args['arg'];
+        final db = _im.getDatabaseInstance();
+        if (callback is Function) {
+          // 支持 (db) => ... 与 (db, arg) => ... 两种签名
+          try {
+            return await Function.apply(callback, [db, cbArg]);
+          } on NoSuchMethodError {
+            return await Function.apply(callback, [db]);
+          }
+        }
+        throw ArgumentError('runInDatabase: callback 必须是顶层函数或静态方法');
 
       case 'unInitSDK':
         await _im.unInitSDK();
@@ -363,10 +386,6 @@ class SdkMethodDispatcher {
           fcmToken: args['fcmToken'] as String,
           expireTime: args['expireTime'] as int? ?? 0,
         );
-        return null;
-
-      case 'setAppBadge':
-        await _im.setAppBadge(appUnreadCount: args['appUnreadCount'] as int);
         return null;
 
       default:
