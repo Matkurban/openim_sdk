@@ -240,10 +240,7 @@ class IMManager {
       return _loginStatus;
     }
     try {
-      String? value = await getDatabaseInstance().getValue(
-        CacheKey.loginAuthData,
-        isGlobal: true,
-      );
+      String? value = await getDatabaseInstance().getValue(CacheKey.loginAuthData, isGlobal: true);
       if (value != null) {
         try {
           AuthCacheData authCacheData = AuthCacheData.fromJson(jsonDecode(value));
