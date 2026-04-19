@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/Matkurban/openim_sdk/compare/v2.0.2...v2.1.0) (2026-04-19)
+
+
+### Features
+
+* 添加 runInDatabase 方法，可以在数据库实例中运行自定义的查询修改。 ([a247276](https://github.com/Matkurban/openim_sdk/commit/a2472761e99eba2029c21787bba8b9d2f41b1c65))
+
 ## [2.0.2](https://github.com/Matkurban/openim_sdk/compare/v2.0.1...v2.0.2) (2026-04-17)
 
 
