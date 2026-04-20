@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/Matkurban/openim_sdk/compare/v2.1.0...v2.2.0) (2026-04-20)
+
+
+### Features
+
+* ### 🚀 Cross-platform multithreading via `isolate_manager` ([be079fc](https://github.com/Matkurban/openim_sdk/commit/be079fc0ec2ccde988cf3cddfe8668ee9d6311af))
+
 ## [2.1.0](https://github.com/Matkurban/openim_sdk/compare/v2.0.2...v2.1.0) (2026-04-19)
 
 
