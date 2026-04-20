@@ -177,6 +177,7 @@ class CallSession {
     'inviterUserID': inviterUserID,
     'inviteeUserIDs': inviteeUserIDs,
     'liveURL': liveURL,
+    'token': token,
     'state': state.name,
     'createTime': createTime,
     'connectTime': connectTime,
@@ -192,6 +193,7 @@ class CallSession {
       inviteeUserIDs:
           (json['inviteeUserIDs'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
       liveURL: json['liveURL'] as String?,
+      token: json['token'] as String?,
       state: CallState.values.firstWhere(
         (e) => e.name == (json['state'] as String?),
         orElse: () => CallState.idle,
