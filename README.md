@@ -314,6 +314,52 @@ All SDK Future methods (~160 methods across 10 managers) can now run in a dedica
 - **Optional** — Omit `SdkIsolateManager.initialize()` to run entirely on the main thread as before
 - **Listener forwarding** — All listener callbacks are serialized across the Isolate boundary and re-dispatched on the main thread
 
+## Cross-Platform Multithreading
+
+Since 2.2.0 the SDK uses the [`isolate_manager`](https://pub.dev/packages/isolate_manager) package to run CPU-bound helpers (MD5 hashing, image dimension decoding, message search filtering, history message filtering) off the UI thread on **all 6 platforms**:
+
+| Platform | Heavy SDK methods (L1) | CPU helpers (L2) |
+|----------|------------------------|-------------------|
+| Android / iOS / macOS / Windows / Linux | `dart:isolate` background Isolate | VM Isolate via `isolate_manager` |
+| Web | Main thread (database / platform channels must stay on main) | Real JS Web Worker (`$shared_worker.js`) |
+
+### Web Worker setup (required for Web apps)
+
+The L2 CPU helpers rely on a generated JavaScript worker. When you target Flutter Web you **must** build it once into your app's `web/` folder:
+
+1. Add the generator as a dev dependency in your app:
+
+   ```yaml
+   dev_dependencies:
+     isolate_manager_generator: ^0.4.1
+   ```
+
+2. From your app's root, point the generator at the SDK package and your `web/` folder:
+
+   ```bash
+   dart run isolate_manager:generate \
+     -i .dart_tool/package_config_resolved/openim_sdk/lib \
+     -o web \
+     --shared
+   ```
+
+   Or, if you develop from a path-dependency checkout of the SDK:
+
+   ```bash
+   # Inside the openim_sdk repo:
+   dart run isolate_manager:generate -i lib -o example/web --shared
+   ```
+
+   This produces `web/$shared_worker.js` alongside `index.html`. Flutter Web will serve it automatically.
+
+3. Commit `$shared_worker.js` (and `.deps`/`.map` if you want symbolication) to your repo, or add the step to your CI.
+
+If the worker file is missing at runtime, `isolate_manager` falls back to running helpers on the main thread — functional but not parallel.
+
+### Background Isolate on native
+
+On native platforms `SdkIsolateManager.initialize()` still spins up a dedicated `dart:isolate` that hosts the entire SDK engine (WebSocket, database, all managers). Reason: `ToStore` (IndexedDB) and `path_provider` (platform channels) are not usable from a Web Worker, so the whole-SDK-in-worker pattern is skipped on Web and only applies to native 5 platforms.
+
 ## Requirements
 
 - Dart SDK: `^3.10.0`

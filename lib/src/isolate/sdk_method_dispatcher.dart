@@ -5,16 +5,16 @@
 /// 同时设置转发监听器，将 SDK 事件发送回主线程。
 library;
 
-import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:openim_sdk/openim_sdk.dart';
 
 /// 后台 Isolate 方法分发器
 class SdkMethodDispatcher {
-  final SendPort mainSendPort;
+  /// 把监听器事件推送回主线程的回调（由上层的通信通道决定实现）。
+  final void Function(SdkListenerEvent event) sendEvent;
 
-  SdkMethodDispatcher({required this.mainSendPort});
+  SdkMethodDispatcher({required this.sendEvent});
 
   // SDK 管理器引用（Isolate 内独立实例）
   IMManager get _im => IMManager();
@@ -68,7 +68,7 @@ class SdkMethodDispatcher {
   // --------------------------------------------------------------------------
 
   void _sendEvent(String listenerType, String method, [dynamic data]) {
-    mainSendPort.send(SdkListenerEvent(listenerType: listenerType, method: method, data: data));
+    sendEvent(SdkListenerEvent(listenerType: listenerType, method: method, data: data));
   }
 
   List<Map<String, dynamic>>? _serializeList<T>(List<T>? list) {

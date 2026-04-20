@@ -1,8 +1,16 @@
-/// SDK 多线程管理器
+/// SDK 多线程管理器（L1 "大 Isolate"）
 ///
 /// 在 native 平台上将整个 SDK 引擎运行在独立的后台 Isolate 中，
 /// 所有 Future 方法通过消息传递调用，彻底避免 UI 卡顿。
-/// 在 Web 平台上直接在主线程执行（JS 单线程模型）。
+/// 在 Web 平台上直接在主线程执行（JS 单线程模型 + 数据库 / path_provider
+/// 等必须主线程运行）。
+///
+/// 这一层使用原生 `dart:isolate` 的双向 `SendPort` 通道：
+/// - 主线程 → 后台 Isolate：方法调用请求（序列化为 Map）
+/// - 后台 Isolate → 主线程：方法调用结果 + 任意时刻的监听器事件（带 envelope 标签）
+///
+/// 纯 CPU 型的辅助计算（MD5、图片尺寸解码、消息过滤等）则完整使用
+/// `isolate_manager` 插件，见 [SdkWorkers]，在 Web 端真正跑在 JS Worker 中。
 library;
 
 import 'dart:async';
@@ -10,10 +18,11 @@ import 'dart:isolate';
 import 'dart:ui' show RootIsolateToken;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:openim_sdk/src/isolate/sdk_workers.dart';
 import 'package:openim_sdk/src/models/openim_exception.dart';
 
-import 'sdk_isolate_protocol.dart';
 import 'sdk_isolate_entry.dart';
+import 'sdk_isolate_protocol.dart';
 
 /// SDK Isolate 管理器 — 单例
 class SdkIsolateManager {
@@ -97,10 +106,13 @@ class SdkIsolateManager {
         _sendPort = message;
         _running = true;
         readyCompleter.complete();
-      } else if (message is SdkMethodResult) {
-        _handleResult(message);
-      } else if (message is SdkListenerEvent) {
-        _eventController.add(message);
+      } else if (message is Map) {
+        final map = Map<String, dynamic>.from(message);
+        if (isSdkMethodResult(map)) {
+          _handleResult(SdkMethodResult.fromMap(map));
+        } else if (isSdkListenerEvent(map)) {
+          _eventController.add(SdkListenerEvent.fromMap(map));
+        }
       }
     });
 
@@ -138,7 +150,7 @@ class SdkIsolateManager {
     final completer = Completer<dynamic>();
     _completers[id] = completer;
 
-    _sendPort!.send(SdkMethodCall(id: id, method: method, args: args ?? const {}));
+    _sendPort!.send(SdkMethodCall(id: id, method: method, args: args ?? const {}).toMap());
 
     return completer.future;
   }
@@ -166,6 +178,9 @@ class SdkIsolateManager {
 
     await inst._eventController.close();
     _instance = null;
+
+    // L2 workers 也一并回收
+    await SdkWorkers.dispose();
   }
 }
 
