@@ -5,7 +5,15 @@
 
 ### Features
 
-* ### 🚀 Cross-platform multithreading via `isolate_manager` ([be079fc](https://github.com/Matkurban/openim_sdk/commit/be079fc0ec2ccde988cf3cddfe8668ee9d6311af))
+#### 🚀 Cross-platform multithreading via `isolate_manager`
+
+- Migrate all CPU-bound helpers (`computeMd5`, `computePartMd5s`, `computeCombinedMd5`, `computeImageDimensions`, `computeImageDimensionsFromFile`, `computeSearchFilter`, `computeHistoryFilter`, `readFilePart`) from Flutter `compute()` to the `isolate_manager: ^6.3.2` plugin. On Web they now run in a real JS Web Worker via the generated `$shared_worker.js`; on native they continue running in VM Isolates. Public API signatures are unchanged.
+- Split worker functions into a Flutter-free file (`lib/src/utils/sdk_isolate_workers_core.dart`) so dart2js can compile them. A companion native-only file (`lib/src/utils/sdk_isolate_workers_io.dart`) handles `dart:io`-based workers (file chunking).
+- New coordinator `SdkWorkers` (`lib/src/isolate/sdk_workers.dart`) manages the shared worker lifecycle and registers function → worker-name mappings.
+- `SdkMethodCall` / `SdkMethodResult` / `SdkListenerEvent` now carry `toMap` / `fromMap` and a type-tagged envelope so the L1 background-Isolate protocol is fully Map-based (future-proof for any transport).
+- Web build requires consumers to run `dart run isolate_manager:generate --shared` once to produce `web/$shared_worker.js` (see README for details). The example app ships the pre-built file.
+- L1 big-SDK-Isolate (`SdkIsolateManager`) keeps using `dart:isolate` internally because `isolate_manager`'s request-response `compute()` model cannot receive push listener events while idle; the public API (`initialize` / `isActive` / `invoke` / `events` / `dispose`) is unchanged.
+
 
 ## [2.1.0](https://github.com/Matkurban/openim_sdk/compare/v2.0.2...v2.1.0) (2026-04-19)
 
