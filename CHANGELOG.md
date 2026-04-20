@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.1](https://github.com/Matkurban/openim_sdk/compare/v2.2.0...v2.2.1) (2026-04-20)
+
+
+### Bug Fixes
+
+* the problem that the token field in the CallSession class is missed during serialization ([147b445](https://github.com/Matkurban/openim_sdk/commit/147b44577bd67eb1d2ae67b6184f292bc0147c53))
+
 ## [2.2.0](https://github.com/Matkurban/openim_sdk/compare/v2.1.0...v2.2.0) (2026-04-20)
 
 
