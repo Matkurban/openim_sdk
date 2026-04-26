@@ -15,6 +15,9 @@ class HttpClient {
   /// Chat 服务端 Dio 实例（独立于 IM API 的 Dio）
   Dio? _chatDio;
 
+  /// Admin 服务端 Dio 实例（用于 governance 公开端点：申诉验证码/提交/上传）
+  Dio? _adminDio;
+
   final AoiweLogger _log = AoiweLogger('HttpClient');
 
   String? _token;
@@ -286,9 +289,67 @@ class HttpClient {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // 内部方法
-  // ---------------------------------------------------------------------------
+  /// 初始化 Admin 服务端客户端（governance 公开端点）
+  void initAdmin({required String baseUrl}) {
+    _log.info('baseUrl=$baseUrl', methodName: 'initAdmin');
+    _adminDio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 60),
+        contentType: Headers.jsonContentType,
+        responseType: ResponseType.json,
+      ),
+    );
+    _adminDio!.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) {
+          options.headers['operationID'] = OpenImUtils.generateOperationID(
+            operationName: 'openim_sdk_admin_request',
+          );
+          handler.next(options);
+        },
+      ),
+    );
+  }
+
+  /// Admin POST（公开端点，无鉴权）
+  Future<ApiResponse> adminPost(
+    String path, {
+    dynamic data,
+    Options? options,
+    CancelToken? cancelToken,
+  }) async {
+    if (_adminDio == null) {
+      return ApiResponse(errCode: -1, errMsg: 'admin dio not initialized', errDlt: '', data: null);
+    }
+    return await _request(
+      () => _adminDio!.post(path, data: data, options: options, cancelToken: cancelToken),
+    );
+  }
+
+  /// Admin multipart 上传（申诉证据，需 appeal token）
+  Future<ApiResponse> adminMultipartPost(
+    String path, {
+    required FormData formData,
+    Map<String, dynamic>? headers,
+    CancelToken? cancelToken,
+    ProgressCallback? onSendProgress,
+  }) async {
+    if (_adminDio == null) {
+      return ApiResponse(errCode: -1, errMsg: 'admin dio not initialized', errDlt: '', data: null);
+    }
+    return await _request(
+      () => _adminDio!.post(
+        path,
+        data: formData,
+        options: Options(headers: headers, contentType: 'multipart/form-data'),
+        cancelToken: cancelToken,
+        onSendProgress: onSendProgress,
+      ),
+    );
+  }
 
   /// 统一请求处理 & 异常捕获
   Future<ApiResponse> _request(Future<Response> Function() request) async {

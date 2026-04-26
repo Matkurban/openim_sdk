@@ -56,6 +56,9 @@ class IMManager {
   /// 红包 & 积分管理
   final RedPacketManager redPacketManager = RedPacketManager();
 
+  /// 举报 & 申诉管理
+  final ReportAppealManager reportAppealManager = ReportAppealManager();
+
   /// 服务监听（可选）
   OnListenerForService? _listenerForService;
 
@@ -108,6 +111,7 @@ class IMManager {
     required String apiAddr,
     required String wsAddr,
     required String authAddr,
+    String? adminAddr,
     String? dataDir,
     required OnConnectListener listener,
     AoiweLoggerLevel logLevel = AoiweLoggerLevel.all,
@@ -125,6 +129,7 @@ class IMManager {
         'apiAddr': apiAddr,
         'wsAddr': wsAddr,
         'authAddr': authAddr,
+        'adminAddr': adminAddr,
         'dataDir': resolvedDbPath,
         'schemas': schemas,
       });
@@ -136,6 +141,7 @@ class IMManager {
       platformID: platformID,
       apiAddr: apiAddr,
       authAddr: authAddr,
+      adminAddr: adminAddr,
       wsAddr: wsAddr,
       dbPath: dataDir,
       schemas: schemas,
@@ -152,6 +158,14 @@ class IMManager {
       // 初始化 Chat 服务端 HTTP 客户端
       if (config.authAddr != null && config.authAddr!.isNotEmpty) {
         HttpClient().initChat(baseUrl: config.authAddr!);
+      }
+
+      // 初始化 Admin 服务端 HTTP 客户端（用于申诉公开端点；未设置时回退到 authAddr）
+      final adminUrl = (config.adminAddr != null && config.adminAddr!.isNotEmpty)
+          ? config.adminAddr!
+          : (config.authAddr ?? '');
+      if (adminUrl.isNotEmpty) {
+        HttpClient().initAdmin(baseUrl: adminUrl);
       }
 
       // 设置 API 错误回调（对应 Go SDK 的 apiErrCallback）

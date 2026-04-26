@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:aoiwe_logger/aoiwe_logger.dart';
+import 'package:dio/dio.dart';
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
@@ -1567,6 +1568,99 @@ class ImApiService {
       );
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'resetPaymentPassword');
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Report & Appeal
+  // ---------------------------------------------------------------------------
+
+  /// 提交举报（已登录用户）
+  Future<ApiResponse> createReport({
+    required String targetType,
+    required String targetID,
+    String? messageID,
+    required String category,
+    String? description,
+    List<String>? evidenceUrls,
+  }) async {
+    _log.info('createReport target=$targetID type=$targetType', methodName: 'createReport');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.createReport,
+        data: {
+          'targetType': targetType,
+          'targetID': targetID,
+          'messageID': ?messageID,
+          'category': category,
+          'description': description ?? '',
+          'evidenceUrls': evidenceUrls ?? <String>[],
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createReport');
+      rethrow;
+    }
+  }
+
+  /// 申请申诉验证码（无需登录）
+  Future<ApiResponse> requestAppealCaptcha() async {
+    _log.info('requestAppealCaptcha', methodName: 'requestAppealCaptcha');
+    try {
+      return await HttpClient().adminPost(ChatApiUrl.appealCaptcha, data: {});
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'requestAppealCaptcha');
+      rethrow;
+    }
+  }
+
+  /// 提交申诉（无需登录）
+  Future<ApiResponse> createAppeal({
+    required String account,
+    required String reason,
+    String? description,
+    String? contact,
+    required String captchaID,
+    required String captchaAnswer,
+  }) async {
+    _log.info('createAppeal account=$account', methodName: 'createAppeal');
+    try {
+      return await HttpClient().adminPost(
+        ChatApiUrl.appealCreate,
+        data: {
+          'account': account,
+          'reason': reason,
+          'description': description ?? '',
+          'contact': contact ?? '',
+          'captchaID': captchaID,
+          'captchaAnswer': captchaAnswer,
+        },
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createAppeal');
+      rethrow;
+    }
+  }
+
+  /// 上传申诉证据（需要 appealToken）
+  Future<ApiResponse> uploadAppealEvidence({
+    required String appealToken,
+    required String filePath,
+    String? fileName,
+  }) async {
+    _log.info('uploadAppealEvidence file=$filePath', methodName: 'uploadAppealEvidence');
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      });
+      return await HttpClient().adminMultipartPost(
+        ChatApiUrl.appealUpload,
+        formData: formData,
+        headers: {'Authorization': 'appeal $appealToken'},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'uploadAppealEvidence');
       rethrow;
     }
   }

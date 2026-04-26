@@ -31,6 +31,14 @@ sealed class ChatApiUrl {
   static const String verifyPaymentPassword = '/user/payment_password/verify';
   static const String checkPaymentPasswordSet = '/user/payment_password/check';
   static const String resetPaymentPassword = '/user/payment_password/reset';
+
+  // ---- Report (登录用户侧) ----
+  static const String createReport = '/report/create';
+
+  // ---- Appeal (公开端，登录前可用) ----
+  static const String appealCaptcha = '/public/appeal/captcha';
+  static const String appealCreate = '/public/appeal/create';
+  static const String appealUpload = '/public/appeal/upload';
 }
 
 /// OpenIM 核心服务端 API 路由（对应 openim-server）
