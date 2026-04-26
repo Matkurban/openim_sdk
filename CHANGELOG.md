@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0](https://github.com/Matkurban/openim_sdk/compare/v2.2.1...v2.3.0) (2026-04-26)
+
+
+### Features
+
+* 修复搜索不准确问题 ([8d96fc5](https://github.com/Matkurban/openim_sdk/commit/8d96fc523f44b0bfa7b9d65a5e8ecbdad104a6da))
+
 ## [2.2.1](https://github.com/Matkurban/openim_sdk/compare/v2.2.0...v2.2.1) (2026-04-20)
 
 
