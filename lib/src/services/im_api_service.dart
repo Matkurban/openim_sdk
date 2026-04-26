@@ -1477,6 +1477,20 @@ class ImApiService {
     }
   }
 
+  /// 注销当前登录账号（需要再次输入登录密码进行确认）
+  Future<ApiResponse> deleteAccount({required String currentPassword}) async {
+    _log.info('deleteAccount called', methodName: 'deleteAccount');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.deleteAccount,
+        data: {'currentPassword': OpenImUtils.generateMD5(currentPassword)},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteAccount');
+      rethrow;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Payment Password
   // ---------------------------------------------------------------------------
@@ -1661,6 +1675,30 @@ class ImApiService {
       );
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'uploadAppealEvidence');
+      rethrow;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Application Version
+  // ---------------------------------------------------------------------------
+
+  /// 获取指定平台的最新应用版本（公开接口）
+  ///
+  /// [platform] 取值：android / ios / windows / macos / linux
+  /// [version]  当前客户端版本号（可选，仅用于服务端日志/统计）
+  Future<ApiResponse> getLatestApplicationVersion({
+    required String platform,
+    String? version,
+  }) async {
+    _log.info('platform=$platform, version=$version', methodName: 'getLatestApplicationVersion');
+    try {
+      return await HttpClient().chatPost(
+        ChatApiUrl.latestApplicationVersion,
+        data: {'platform': platform, 'version': ?version},
+      );
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getLatestApplicationVersion');
       rethrow;
     }
   }

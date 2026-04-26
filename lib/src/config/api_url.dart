@@ -25,6 +25,10 @@ sealed class ChatApiUrl {
   static const String changePassword = '/account/password/change';
   static const String resetPassword = '/account/password/reset';
 
+  // ---- Account ----
+  /// 注销当前登录账号（删除 chat 端账号凭证 + 强制下线）
+  static const String deleteAccount = '/account/delete';
+
   // ---- Payment Password ----
   static const String setPaymentPassword = '/user/payment_password/set';
   static const String changePaymentPassword = '/user/payment_password/change';
@@ -39,6 +43,10 @@ sealed class ChatApiUrl {
   static const String appealCaptcha = '/public/appeal/captcha';
   static const String appealCreate = '/public/appeal/create';
   static const String appealUpload = '/public/appeal/upload';
+
+  // ---- Application Version ----
+  static const String latestApplicationVersion = '/application/latest_version';
+  static const String pageApplicationVersion = '/application/page_versions';
 }
 
 /// OpenIM 核心服务端 API 路由（对应 openim-server）

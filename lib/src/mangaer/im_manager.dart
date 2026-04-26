@@ -59,6 +59,9 @@ class IMManager {
   /// 举报 & 申诉管理
   final ReportAppealManager reportAppealManager = ReportAppealManager();
 
+  /// 应用版本管理
+  final ApplicationManager applicationManager = ApplicationManager();
+
   /// 服务监听（可选）
   OnListenerForService? _listenerForService;
 

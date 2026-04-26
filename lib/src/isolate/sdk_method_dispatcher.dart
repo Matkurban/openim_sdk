@@ -1040,6 +1040,10 @@ class SdkMethodDispatcher {
         );
         return null;
 
+      case 'deleteAccount':
+        await _user.deleteAccount(currentPassword: args['currentPassword'] as String);
+        return null;
+
       case 'setPaymentPassword':
         await _user.setPaymentPassword(
           paymentPassword: args['paymentPassword'] as String,

@@ -703,6 +703,30 @@ class UserManager {
     }
   }
 
+  /// 注销（删除）当前登录账号。
+  ///
+  /// - 需要再次输入登录密码进行二次确认；
+  /// - 调用成功后，服务端会清除当前用户的 chat 端账号凭证，
+  ///   并强制下线全部 IM 端会话，调用方应紧接着执行本地登出逻辑。
+  Future<void> deleteAccount({required String currentPassword}) async {
+    if (SdkIsolateManager.isActive) {
+      await SdkIsolateManager.instance.invoke('user.deleteAccount', {
+        'currentPassword': currentPassword,
+      });
+      return;
+    }
+    _log.info('deleteAccount called', methodName: 'deleteAccount');
+    try {
+      final resp = await _api.deleteAccount(currentPassword: currentPassword);
+      if (!resp.isSuccess) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteAccount');
+      rethrow;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Payment Password
   // ---------------------------------------------------------------------------

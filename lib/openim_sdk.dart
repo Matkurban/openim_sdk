@@ -14,6 +14,7 @@ export 'src/mangaer/favorite_manager.dart';
 export 'src/mangaer/call_manager.dart';
 export 'src/mangaer/red_packet_manager.dart';
 export 'src/mangaer/report_appeal_manager.dart';
+export 'src/mangaer/application_manager.dart';
 
 /// Isolate
 export 'src/isolate/sdk_isolate_manager.dart';
@@ -62,6 +63,7 @@ export 'src/models/link_info.dart';
 export 'src/models/report_info.dart';
 export 'src/models/appeal_info.dart';
 export 'src/models/note_info.dart';
+export 'src/models/application_version_info.dart';
 export 'src/models/user_full_info.dart';
 export 'src/models/auth_cache_data.dart';
 
