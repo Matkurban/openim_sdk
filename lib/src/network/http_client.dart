@@ -278,6 +278,9 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
   }) async {
+    if (_chatDio == null) {
+      return ApiResponse(errCode: -1, errMsg: 'chat dio not initialized', errDlt: '', data: null);
+    }
     return await _request(
       () => _chatDio!.post(
         path,

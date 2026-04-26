@@ -133,6 +133,14 @@ class IMManager {
         'dataDir': resolvedDbPath,
         'schemas': schemas,
       });
+      // 主 Isolate 也初始化 HTTP 客户端（治理/申诉等模块直接在主线程调用）
+      if (authAddr.isNotEmpty) {
+        HttpClient().initChat(baseUrl: authAddr);
+      }
+      final mainAdminUrl = (adminAddr != null && adminAddr.isNotEmpty) ? adminAddr : authAddr;
+      if (mainAdminUrl.isNotEmpty) {
+        HttpClient().initAdmin(baseUrl: mainAdminUrl);
+      }
       _startEventForwarding();
       _initialized = result as bool;
       return _initialized;
@@ -250,6 +258,11 @@ class IMManager {
         }
         _getIt.registerSingleton<UserInfo>(user, instanceName: InstanceName.loginUser);
         _setManagersUserID(user.userID);
+      }
+      // 同步 chatToken 到主 Isolate 的 HttpClient（用于治理/申诉等模块）
+      final chatToken = result['chatToken'] as String?;
+      if (chatToken != null && chatToken.isNotEmpty) {
+        HttpClient().setChatToken(chatToken);
       }
       return _loginStatus;
     }
@@ -643,7 +656,10 @@ class IMManager {
         'password': password,
         'verificationCode': verificationCode,
       });
-      final user = UserInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      final map = Map<String, dynamic>.from(result as Map);
+      final user = UserInfo.fromJson(Map<String, dynamic>.from(map['user'] as Map));
+      final chatToken = map['chatToken'] as String?;
+      if (chatToken != null) HttpClient().setChatToken(chatToken);
       if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
         await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
       }
@@ -688,7 +704,10 @@ class IMManager {
         'password': password,
         'verificationCode': verificationCode,
       });
-      final user = UserInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      final map = Map<String, dynamic>.from(result as Map);
+      final user = UserInfo.fromJson(Map<String, dynamic>.from(map['user'] as Map));
+      final chatToken = map['chatToken'] as String?;
+      if (chatToken != null) HttpClient().setChatToken(chatToken);
       if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
         await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
       }
@@ -729,7 +748,10 @@ class IMManager {
         'account': account,
         'password': password,
       });
-      final user = UserInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      final map = Map<String, dynamic>.from(result as Map);
+      final user = UserInfo.fromJson(Map<String, dynamic>.from(map['user'] as Map));
+      final chatToken = map['chatToken'] as String?;
+      if (chatToken != null) HttpClient().setChatToken(chatToken);
       if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
         await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
       }
@@ -766,6 +788,7 @@ class IMManager {
       _eventSubscription = null;
       await SdkIsolateManager.instance.invoke('im.logout', {});
       _loginStatus = LoginStatus.logout;
+      HttpClient().setChatToken(null);
       if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
         await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
       }

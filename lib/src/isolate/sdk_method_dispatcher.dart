@@ -278,7 +278,15 @@ class SdkMethodDispatcher {
       case 'loadLoginConfig':
         final status = await _im.loadLoginConfig();
         if (status == LoginStatus.logged) {
-          return {'status': status.index, 'userInfo': _im.getLoginUserInfo().toJson()};
+          String? chatToken;
+          try {
+            chatToken = _im.authData.chatToken;
+          } catch (_) {}
+          return {
+            'status': status.index,
+            'userInfo': _im.getLoginUserInfo().toJson(),
+            'chatToken': chatToken,
+          };
         }
         return {'status': status.index};
 
@@ -341,7 +349,7 @@ class SdkMethodDispatcher {
           password: args['password'] as String?,
           verificationCode: args['verificationCode'] as String?,
         );
-        return user.toJson();
+        return {'user': user.toJson(), 'chatToken': _im.authData.chatToken};
 
       case 'loginByPhone':
         final user = await _im.loginByPhone(
@@ -350,14 +358,14 @@ class SdkMethodDispatcher {
           password: args['password'] as String?,
           verificationCode: args['verificationCode'] as String?,
         );
-        return user.toJson();
+        return {'user': user.toJson(), 'chatToken': _im.authData.chatToken};
 
       case 'loginByAccount':
         final user = await _im.loginByAccount(
           account: args['account'] as String,
           password: args['password'] as String,
         );
-        return user.toJson();
+        return {'user': user.toJson(), 'chatToken': _im.authData.chatToken};
 
       case 'logout':
         await _im.logout();
