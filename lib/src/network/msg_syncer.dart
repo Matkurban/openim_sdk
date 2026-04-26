@@ -1200,7 +1200,6 @@ class MsgSyncer {
         final msgList = (pullMsgs['Msgs'] ?? pullMsgs['msgs']) as List? ?? [];
         for (final msg in msgList) {
           if (msg is Map<String, dynamic>) {
-            _decodeContentIfBase64(msg);
             final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
             final seq = (msg['seq'] as num?)?.toInt() ?? 0;
             if (seq > 0 && seq > (_syncedMaxSeqs[entry.key] ?? 0)) {
@@ -1245,7 +1244,6 @@ class MsgSyncer {
 
       for (final msg in msgList) {
         if (msg is Map<String, dynamic>) {
-          _decodeContentIfBase64(msg);
           final seq = (msg['seq'] as num?)?.toInt() ?? 0;
           if (seq > maxSeq) maxSeq = seq;
           msgMaps.add(msg);
@@ -1419,8 +1417,6 @@ class MsgSyncer {
 
         for (final msg in msgList) {
           if (msg is Map<String, dynamic>) {
-            _decodeContentIfBase64(msg);
-
             final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
             final seq = (msg['seq'] as num?)?.toInt() ?? 0;
             final sendTime = (msg['sendTime'] as num?)?.toInt() ?? 0;
@@ -1521,7 +1517,6 @@ class MsgSyncer {
 
         for (final msg in msgList) {
           if (msg is Map<String, dynamic>) {
-            _decodeContentIfBase64(msg);
             final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
             final content = msg['content'] as String? ?? '';
             final seq = (msg['seq'] as num?)?.toInt() ?? 0;
@@ -1821,34 +1816,6 @@ class MsgSyncer {
       'attachedInfo': msg.attachedInfo,
       'ex': msg.ex,
     };
-  }
-
-  /// 将 HTTP API 返回消息中 base64 编码的 content 解码为原始 JSON 字符串。
-  ///
-  /// proto3 JSON 将 `bytes` 字段编码为 base64，但下游代码和数据库期望
-  /// content 是可直接 jsonDecode 的原始 JSON 字符串。
-  /// 此方法原地修改 msg map。
-  void _decodeContentIfBase64(Map<String, dynamic> msg) {
-    try {
-      final content = msg['content'];
-      if (content is! String || content.isEmpty) return;
-
-      // 如果已经是合法 JSON，无需解码
-      try {
-        jsonDecode(content);
-        return;
-      } catch (_) {}
-
-      // 尝试 base64 解码
-      try {
-        final decoded = utf8.decode(base64Decode(content));
-        msg['content'] = decoded;
-      } catch (_) {
-        // 既非 JSON 也非 base64，保持原值
-      }
-    } catch (e, s) {
-      _log.error('解码失败: $e', error: e, stackTrace: s, methodName: '_decodeContentIfBase64');
-    }
   }
 
   /// 收集单条消息对会话的影响（纯内存操作，不写 DB）

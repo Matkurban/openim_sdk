@@ -36,6 +36,12 @@ enum MessageType {
   customMsgNotTriggerConversation(119),
   @JsonValue(120)
   customMsgOnlineOnly(120),
+  @JsonValue(124)
+  callSignal(124),
+  @JsonValue(125)
+  redPacket(125),
+  @JsonValue(126)
+  redPacketGrabNotify(126),
 
   @JsonValue(1000)
   notificationBegin(1000),

@@ -179,6 +179,11 @@ List<dynamic> searchFilterWorker(Map<String, dynamic> param) {
             searchText = (contentMap['description'] as String? ?? '').toLowerCase();
           case 114:
             searchText = (contentMap['text'] as String? ?? '').toLowerCase();
+          case 125:
+            searchText = (contentMap['greeting'] as String? ?? '').toLowerCase();
+          case 124:
+          case 126:
+            return false;
           default:
             searchText = rawContent.toLowerCase();
         }

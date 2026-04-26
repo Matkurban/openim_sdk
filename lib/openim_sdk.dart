@@ -68,6 +68,9 @@ export 'src/models/red_packet.dart';
 /// Call Models
 export 'src/models/call_session.dart';
 export 'src/models/call_record.dart';
+export 'src/models/call_signal_elem.dart';
+export 'src/models/red_packet_elem.dart';
+export 'src/models/red_packet_grab_notify_elem.dart';
 
 /// Enums
 export 'src/enums/allow_type.dart';

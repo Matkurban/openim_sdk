@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/models/api_response.dart';
@@ -1148,13 +1150,49 @@ class ImApiService {
       methodName: 'pullMsgBySeqs',
     );
     try {
-      return await HttpClient().post(
+      final resp = await HttpClient().post(
         ImApiUrl.pullMsgBySeqs,
         data: {'userID': userID, 'seqRanges': seqRanges, 'order': order},
       );
+      if (resp.errCode == 0) {
+        _decodePullMsgsContent(resp.data as Map<String, dynamic>?);
+      }
+      return resp;
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'pullMsgBySeqs');
       rethrow;
+    }
+  }
+
+  /// 将 pullMsgBySeqs 响应中 protojson 自动 base64 编码的 content 字段解码为原始 JSON 字符串。
+  ///
+  /// proto3 JSON 规范要求把 `bytes` 字段编码为 base64；服务端在 HTTP 回包时统一走 protojson，
+  /// 因此 msg.content 会以 base64 出现。WebSocket 路径直接用 protobuf 二进制，不需要此处理。
+  /// 此方法原地修改 resp.data，使下游统一面对明文 JSON。
+  void _decodePullMsgsContent(Map<String, dynamic>? data) {
+    if (data == null) return;
+    for (final key in const ['msgs', 'notificationMsgs']) {
+      final group = data[key];
+      if (group is! Map) continue;
+      for (final entry in group.entries) {
+        final pullMsgs = entry.value;
+        if (pullMsgs is! Map) continue;
+        final msgList = (pullMsgs['Msgs'] ?? pullMsgs['msgs']);
+        if (msgList is! List) continue;
+        for (final msg in msgList) {
+          if (msg is! Map) continue;
+          final content = msg['content'];
+          if (content is! String || content.isEmpty) continue;
+          // 已经是 JSON 文本则跳过（防御服务端日后改成直发明文）
+          final first = content.codeUnitAt(0);
+          if (first == 0x7B /* { */ || first == 0x5B /* [ */ ) continue;
+          try {
+            msg['content'] = utf8.decode(base64Decode(content));
+          } catch (_) {
+            // 既非 base64 也非 JSON，保留原值
+          }
+        }
+      }
     }
   }
 

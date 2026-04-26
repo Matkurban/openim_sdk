@@ -384,6 +384,31 @@ class MessageManager {
     }
   }
 
+  /// 创建通话信令消息（contentType=124）
+  Message createCallSignalMessage({required CallSignalElem elem}) {
+    _log.info(
+      'roomId=${elem.roomId}, signal=${elem.callSignalType}',
+      methodName: 'createCallSignalMessage',
+    );
+    try {
+      return _createMessage(contentType: MessageType.callSignal, callSignalElem: elem);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createCallSignalMessage');
+      rethrow;
+    }
+  }
+
+  /// 创建红包消息（contentType=125）
+  Message createRedPacketMessage({required RedPacketElem elem}) {
+    _log.info('packetID=${elem.packetID}', methodName: 'createRedPacketMessage');
+    try {
+      return _createMessage(contentType: MessageType.redPacket, redPacketElem: elem);
+    } catch (e, s) {
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createRedPacketMessage');
+      rethrow;
+    }
+  }
+
   /// 创建引用消息
   /// [text] 回复内容
   /// [quoteMsg] 被引用的消息
@@ -2151,6 +2176,11 @@ class MessageManager {
     if (msg.cardElem != null) return jsonEncode(msg.cardElem!.toJson());
     if (msg.atTextElem != null) return jsonEncode(msg.atTextElem!.toJson());
     if (msg.advancedTextElem != null) return jsonEncode(msg.advancedTextElem!.toJson());
+    if (msg.callSignalElem != null) return jsonEncode(msg.callSignalElem!.toJson());
+    if (msg.redPacketElem != null) return jsonEncode(msg.redPacketElem!.toJson());
+    if (msg.redPacketGrabNotifyElem != null) {
+      return jsonEncode(msg.redPacketGrabNotifyElem!.toJson());
+    }
     return '';
   }
 
@@ -2173,6 +2203,9 @@ class MessageManager {
     FaceElem? faceElem,
     CardElem? cardElem,
     AdvancedTextElem? advancedTextElem,
+    CallSignalElem? callSignalElem,
+    RedPacketElem? redPacketElem,
+    RedPacketGrabNotifyElem? redPacketGrabNotifyElem,
   }) {
     return Message(
       clientMsgID: OpenImUtils.generateClientMsgID(_currentUserID),
@@ -2195,6 +2228,9 @@ class MessageManager {
       faceElem: faceElem,
       cardElem: cardElem,
       advancedTextElem: advancedTextElem,
+      callSignalElem: callSignalElem,
+      redPacketElem: redPacketElem,
+      redPacketGrabNotifyElem: redPacketGrabNotifyElem,
     );
   }
 

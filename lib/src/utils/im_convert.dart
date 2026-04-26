@@ -10,11 +10,7 @@ Message convertMessage(Map<String, dynamic> data) {
   if (content != null && content.isNotEmpty) {
     try {
       contentMap = jsonDecode(content) as Map<String, dynamic>;
-    } catch (_) {
-      try {
-        contentMap = jsonDecode(utf8.decode(base64Decode(content))) as Map<String, dynamic>;
-      } catch (_) {}
-    }
+    } catch (_) {}
   }
 
   return Message(
@@ -79,6 +75,16 @@ Message convertMessage(Map<String, dynamic> data) {
         : null,
     atTextElem: contentTypeValue == MessageType.atText.value && contentMap != null
         ? AtTextElem.fromJson(contentMap)
+        : null,
+    callSignalElem: contentTypeValue == MessageType.callSignal.value && contentMap != null
+        ? CallSignalElem.fromJson(contentMap)
+        : null,
+    redPacketElem: contentTypeValue == MessageType.redPacket.value && contentMap != null
+        ? RedPacketElem.fromJson(contentMap)
+        : null,
+    redPacketGrabNotifyElem:
+        contentTypeValue == MessageType.redPacketGrabNotify.value && contentMap != null
+        ? RedPacketGrabNotifyElem.fromJson(contentMap)
         : null,
     notificationElem: contentTypeValue != null && contentTypeValue >= 1000 && contentMap != null
         ? _parseNotificationElem(contentMap)

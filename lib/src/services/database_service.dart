@@ -1224,6 +1224,12 @@ class DatabaseService {
       content = jsonEncode(msg.atTextElem!.toJson());
     } else if (msg.advancedTextElem != null) {
       content = jsonEncode(msg.advancedTextElem!.toJson());
+    } else if (msg.callSignalElem != null) {
+      content = jsonEncode(msg.callSignalElem!.toJson());
+    } else if (msg.redPacketElem != null) {
+      content = jsonEncode(msg.redPacketElem!.toJson());
+    } else if (msg.redPacketGrabNotifyElem != null) {
+      content = jsonEncode(msg.redPacketGrabNotifyElem!.toJson());
     }
 
     return {
@@ -1266,11 +1272,6 @@ class DatabaseService {
     try {
       contentMap = jsonDecode(rawContent) as Map<String, dynamic>;
     } catch (_) {}
-    if (contentMap == null) {
-      try {
-        contentMap = jsonDecode(utf8.decode(base64Decode(rawContent))) as Map<String, dynamic>;
-      } catch (_) {}
-    }
     if (contentMap == null) return msg;
     return {...msg, elemKey: contentMap};
   }
@@ -1306,6 +1307,12 @@ class DatabaseService {
         return 'faceElem';
       case 117:
         return 'advancedTextElem';
+      case 124:
+        return 'callSignalElem';
+      case 125:
+        return 'redPacketElem';
+      case 126:
+        return 'redPacketGrabNotifyElem';
       default:
         return null;
     }

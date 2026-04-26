@@ -131,6 +131,15 @@ class Message extends Equatable {
   /// Typing.
   final TypingElem? typingElem;
 
+  /// 通话信令 (contentType=124).
+  final CallSignalElem? callSignalElem;
+
+  /// 红包 (contentType=125).
+  final RedPacketElem? redPacketElem;
+
+  /// 红包领取提示 (contentType=126).
+  final RedPacketGrabNotifyElem? redPacketGrabNotifyElem;
+
   const Message({
     this.clientMsgID,
     this.serverMsgID,
@@ -172,6 +181,9 @@ class Message extends Equatable {
     this.cardElem,
     this.advancedTextElem,
     this.typingElem,
+    this.callSignalElem,
+    this.redPacketElem,
+    this.redPacketGrabNotifyElem,
   });
 
   factory Message.fromJson(Map<String, dynamic> json) => _$MessageFromJson(json);
@@ -227,6 +239,9 @@ class Message extends Equatable {
     CardElem? cardElem,
     AdvancedTextElem? advancedTextElem,
     TypingElem? typingElem,
+    CallSignalElem? callSignalElem,
+    RedPacketElem? redPacketElem,
+    RedPacketGrabNotifyElem? redPacketGrabNotifyElem,
   }) {
     return Message(
       clientMsgID: clientMsgID ?? this.clientMsgID,
@@ -269,6 +284,9 @@ class Message extends Equatable {
       cardElem: cardElem ?? this.cardElem,
       advancedTextElem: advancedTextElem ?? this.advancedTextElem,
       typingElem: typingElem ?? this.typingElem,
+      callSignalElem: callSignalElem ?? this.callSignalElem,
+      redPacketElem: redPacketElem ?? this.redPacketElem,
+      redPacketGrabNotifyElem: redPacketGrabNotifyElem ?? this.redPacketGrabNotifyElem,
     );
   }
 
@@ -314,6 +332,9 @@ class Message extends Equatable {
     cardElem,
     advancedTextElem,
     typingElem,
+    callSignalElem,
+    redPacketElem,
+    redPacketGrabNotifyElem,
   ];
 }
 
