@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.0](https://github.com/Matkurban/openim_sdk/compare/v2.3.0...v2.4.0) (2026-04-26)
+
+
+### Features
+
+* 添加举报和处理 ([3b94496](https://github.com/Matkurban/openim_sdk/commit/3b94496b79405c182bcc7857ad4352fd7ccb94ef))
+* 添加账号注销 ([e9cebbf](https://github.com/Matkurban/openim_sdk/commit/e9cebbfdf08acd687cd767fd13c9bad039723269))
+
+
+### Bug Fixes
+
+* 优化线程问题 ([de012a9](https://github.com/Matkurban/openim_sdk/commit/de012a982bf865d98cf14e0b8309d0ef79a23479))
+
 ## [2.3.0](https://github.com/Matkurban/openim_sdk/compare/v2.2.1...v2.3.0) (2026-04-26)
 
 
