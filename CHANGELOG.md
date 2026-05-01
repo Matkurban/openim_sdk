@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.2](https://github.com/Matkurban/openim_sdk/compare/v2.4.1...v2.4.2) (2026-05-01)
+
+
+### Bug Fixes
+
+* 优化未读消息计数逻辑并统一触发未读总数变更 ([0dd3fab](https://github.com/Matkurban/openim_sdk/commit/0dd3fab2b1b01a57c7a94ecd231c22f4e523ba88))
+
 ## [2.4.1](https://github.com/Matkurban/openim_sdk/compare/v2.4.0...v2.4.1) (2026-05-01)
 
 
