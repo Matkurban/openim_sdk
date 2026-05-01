@@ -443,7 +443,7 @@ class IMManager {
       return;
     }
     _log.info('unInitSDK');
-    _loginStatus = .logout;
+    _loginStatus = LoginStatus.logout;
     _initialized = false;
     if (_getIt.isRegistered<InitConfig>(instanceName: InstanceName.initConfig)) {
       await _getIt.unregister<InitConfig>(instanceName: InstanceName.initConfig);

@@ -79,17 +79,6 @@ class ConversationManager {
     }
   }
 
-  /// 获取 @所有人 标识
-  String getAtAllTag() {
-    _log.info('called', methodName: 'getAtAllTag');
-    try {
-      return atAllTag;
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getAtAllTag');
-      rethrow;
-    }
-  }
-
   /// @所有人 标识
   String get atAllTag => 'AtAllTag';
 
@@ -458,7 +447,7 @@ class ConversationManager {
     try {
       // 检查未读数是否已经为 0（对应 Go SDK 的 UnreadCount==0 守卫）
       final conv = await _database.getConversation(conversationID);
-      if (conv == null || conv.unreadCount == 0) {
+      if (conv == null) {
         _log.info(
           '未读数已为0，跳过 conversationID=$conversationID',
           methodName: 'markConversationMessageAsRead',

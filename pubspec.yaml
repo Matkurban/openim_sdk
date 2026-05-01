@@ -6,7 +6,7 @@ repository: https://github.com/Matkurban/openim_sdk
 topics: [ openim, im, sdk, flutter ]
 
 environment:
-  sdk: ^3.10.0
+  sdk: ^3.8.0
 
 dependencies:
   flutter:
@@ -17,7 +17,7 @@ dependencies:
   get_it: ^9.2.1
   crypto: ^3.0.7
   fixnum: ^1.1.1
-  tostore: ^3.1.0
+  tostore: ^3.1.1
   protobuf: ^6.0.0
   equatable: ^2.0.8
   aoiwe_logger: ^1.0.1
@@ -26,7 +26,6 @@ dependencies:
   protoc_plugin: ^25.0.0
   json_annotation: ^4.11.0
   universal_platform: ^1.1.0
-  talker_dio_logger: ^5.1.16
   web_socket_channel: ^3.0.3
   isolate_manager: ^6.3.2
 
