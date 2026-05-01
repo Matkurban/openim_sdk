@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.1](https://github.com/Matkurban/openim_sdk/compare/v2.4.0...v2.4.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* 优化未读消息计数逻辑并统一触发未读总数变更 ([4269f9a](https://github.com/Matkurban/openim_sdk/commit/4269f9a2ceb500c5f19848d05c12eda86e83bea7))
+* 优化未读消息计数逻辑并统一触发未读总数变更 ([da68641](https://github.com/Matkurban/openim_sdk/commit/da68641b86529a756c5376bad23b23a240849d55))
+* 移除未使用的 getAtAllTag 方法并更新依赖版本 ([83f13af](https://github.com/Matkurban/openim_sdk/commit/83f13af9ded8bf4750fbf40c695dcdf88fa9e608))
+* 移除未使用的 getAtAllTag 方法并更新依赖版本 ([df6d553](https://github.com/Matkurban/openim_sdk/commit/df6d5537359d3c02d7492acc4be88f9b705452bf))
+
 ## [2.4.0](https://github.com/Matkurban/openim_sdk/compare/v2.3.0...v2.4.0) (2026-04-26)
 
 
