@@ -449,7 +449,7 @@ class ConversationManager {
       final conv = await _database.getConversation(conversationID);
       if (conv == null) {
         _log.info(
-          '未读数已为0，跳过 conversationID=$conversationID',
+          '会话为空，跳过 conversationID=$conversationID',
           methodName: 'markConversationMessageAsRead',
         );
         return;
