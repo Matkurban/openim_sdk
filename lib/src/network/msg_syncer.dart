@@ -442,10 +442,7 @@ class MsgSyncer {
                 ? localHasReadSeq
                 : serverHasReadSeq;
             _serverMaxSeqs[convID] = maxSeq;
-            final updates = <String, dynamic>{
-              'maxSeq': maxSeq,
-              'hasReadSeq': effectiveHasReadSeq,
-            };
+            final updates = <String, dynamic>{'maxSeq': maxSeq, 'hasReadSeq': effectiveHasReadSeq};
             if (_reinstalled) {
               // 重装路径：本地尚无可信未读基线，估算一次（仍保留 clamp）。
               updates['unreadCount'] = (maxSeq - effectiveHasReadSeq).clamp(0, maxSeq);
