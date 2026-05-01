@@ -377,6 +377,7 @@ class MsgSyncer {
             conversationListener?.conversationChanged(
               toUpdate.map((m) => ConversationInfo.fromJson(m)).toList(),
             );
+            await _fireTotalUnreadCountChanged();
           }
 
           _log.info(
@@ -424,6 +425,11 @@ class MsgSyncer {
         // 收集所有更新任务，分批执行避免瞬间激活所有 isolate worker 导致 UI 卡顿
         const int batchSize = 50;
         final updateFutures = <Future>[];
+        // 仅在重装恢复路径或本地从未维护过未读时才用 (maxSeq - hasReadSeq) 估算未读。
+        // 常规登录/增量同步必须保留本地累加结果——OpenIM 的 seq 是会话级
+        // 全消息流（含自己发的、群系统消息、被撤回但占 seq 的消息），
+        // 直接用 maxSeq - hasReadSeq 作为未读会让数值长期偏高，且会覆盖
+        // 本地 markRead 后刚清零的 unreadCount。
         for (final convID in localConvIDs) {
           final seqInfo = serverSeqs[convID];
           if (seqInfo is Map<String, dynamic>) {
@@ -435,15 +441,16 @@ class MsgSyncer {
             final effectiveHasReadSeq = localHasReadSeq > serverHasReadSeq
                 ? localHasReadSeq
                 : serverHasReadSeq;
-            final unread = (maxSeq - effectiveHasReadSeq).clamp(0, maxSeq);
             _serverMaxSeqs[convID] = maxSeq;
-            updateFutures.add(
-              database.updateConversation(convID, {
-                'maxSeq': maxSeq,
-                'hasReadSeq': effectiveHasReadSeq,
-                'unreadCount': unread,
-              }),
-            );
+            final updates = <String, dynamic>{
+              'maxSeq': maxSeq,
+              'hasReadSeq': effectiveHasReadSeq,
+            };
+            if (_reinstalled) {
+              // 重装路径：本地尚无可信未读基线，估算一次（仍保留 clamp）。
+              updates['unreadCount'] = (maxSeq - effectiveHasReadSeq).clamp(0, maxSeq);
+            }
+            updateFutures.add(database.updateConversation(convID, updates));
           }
         }
         // 分批执行，每批之间让出事件循环避免阻塞 UI
@@ -451,6 +458,8 @@ class MsgSyncer {
           final end = (i + batchSize).clamp(0, updateFutures.length);
           await Future.wait(updateFutures.sublist(i, end));
         }
+        // 同步完成后刷新一次未读总数，让上层及时感知潜在变化
+        await _fireTotalUnreadCountChanged();
       }
     } catch (e, s) {
       _log.error('同步会话异常: $e', error: e, stackTrace: s, methodName: '_syncConversationsAndSeqs');
@@ -490,6 +499,13 @@ class MsgSyncer {
       serverSeqs = {};
     }
 
+    // 全量同步：先收集本地未读，新写入时尽量沿用，避免覆盖刚清零的会话。
+    final localConvsBefore = await database.getAllConversations();
+    final localUnreadByID = <String, int>{};
+    for (final c in localConvsBefore) {
+      localUnreadByID[c.conversationID] = c.unreadCount;
+    }
+
     for (final conv in convMaps) {
       final convID = conv['conversationID'] as String?;
       if (convID == null) continue;
@@ -497,7 +513,14 @@ class MsgSyncer {
       if (seqInfo is Map<String, dynamic>) {
         final maxSeq = (seqInfo['maxSeq'] as num?)?.toInt() ?? 0;
         final hasReadSeq = (seqInfo['hasReadSeq'] as num?)?.toInt() ?? 0;
-        conv['unreadCount'] = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+        // 仅在本地无记录或重装恢复时才用 (maxSeq - hasReadSeq) 估算未读，
+        // 否则保留本地累加结果（详见 _syncConversationsAndSeqs 注释）。
+        final localUnread = localUnreadByID[convID];
+        if (_reinstalled || localUnread == null) {
+          conv['unreadCount'] = (maxSeq - hasReadSeq).clamp(0, maxSeq);
+        } else {
+          conv['unreadCount'] = localUnread;
+        }
         conv['maxSeq'] = maxSeq;
         conv['hasReadSeq'] = hasReadSeq;
         _serverMaxSeqs[convID] = maxSeq;
@@ -1414,12 +1437,15 @@ class MsgSyncer {
         int maxSeq = 0;
         int batchLatestSendTime = 0;
         int batchLatestSeq = 0;
+        // 收集本批中可计入未读的 seq（去重，过滤自己发的、系统消息、unreadCount=false）
+        final unreadCandidateSeqs = <int>{};
 
         for (final msg in msgList) {
           if (msg is Map<String, dynamic>) {
             final contentType = (msg['contentType'] as num?)?.toInt() ?? 0;
             final seq = (msg['seq'] as num?)?.toInt() ?? 0;
             final sendTime = (msg['sendTime'] as num?)?.toInt() ?? 0;
+            final sendID = msg['sendID'] as String? ?? '';
 
             if (seq > maxSeq) maxSeq = seq;
 
@@ -1435,6 +1461,18 @@ class MsgSyncer {
               batchLatestSendTime = sendTime;
               batchLatestSeq = seq;
               batchLatestMsg = msg;
+            }
+
+            // 对齐 _collectMessageUpdate：仅当非自己发、seq>0、
+            // options.unreadCount != false、非通知消息时才计入未读。
+            // 通知消息（contentType >= 1000）不存入 chatLog 计数。
+            final options = msg['options'];
+            final isUnreadCountOpt = options is Map
+                ? (options['unreadCount'] is bool ? options['unreadCount'] as bool : true)
+                : true;
+            final isSelf = sendID == _userID;
+            if (!isSelf && seq > 0 && isUnreadCountOpt && contentType < 1000) {
+              unreadCandidateSeqs.add(seq);
             }
           }
         }
@@ -1465,13 +1503,13 @@ class MsgSyncer {
 
         // 与已有会话的 latestMsg 比较，只在本批消息更新时才写入
         // 避免分批拉取时旧消息覆盖新消息（对齐 _processPulledNotifications 逻辑）
+        final existingConv = await database.getConversation(convID);
         final updates = <String, dynamic>{};
         if (maxSeq > 0) {
           updates['maxSeq'] = maxSeq;
         }
 
         if (batchLatestMsg != null) {
-          final existingConv = await database.getConversation(convID);
           final existingLatestSendTime = existingConv?.latestMsgSendTime ?? 0;
           final existingLatestSeq = existingConv?.latestMsg?.seq ?? 0;
 
@@ -1480,6 +1518,20 @@ class MsgSyncer {
                   batchLatestSeq > existingLatestSeq)) {
             updates['latestMsg'] = jsonEncode(batchLatestMsg);
             updates['latestMsgSendTime'] = batchLatestSendTime;
+          }
+        }
+
+        // 累加未读数：补拉路径过去完全不写 unreadCount，
+        // 一旦推送出现 SEQ 缺口走补拉，未读就再也不会增加。
+        // 这里用 hasReadSeq 过滤已读、且只统计本批新拉到的 seq。
+        if (existingConv != null && unreadCandidateSeqs.isNotEmpty && !_reinstalled) {
+          final hasReadSeq = await database.getConversationHasReadSeq(convID);
+          int delta = 0;
+          for (final s in unreadCandidateSeqs) {
+            if (s > hasReadSeq) delta++;
+          }
+          if (delta > 0) {
+            updates['unreadCount'] = existingConv.unreadCount + delta;
           }
         }
 
@@ -1492,6 +1544,11 @@ class MsgSyncer {
         if (maxSeq > (_syncedMaxSeqs[convID] ?? 0)) {
           _syncedMaxSeqs[convID] = maxSeq;
         }
+      }
+      // 补拉完成后触发一次未读总数变更，避免 UI 端「只收到 conversationChanged
+      // 但未读数从未变」的体验问题。
+      if (updatedConvIDs.isNotEmpty) {
+        await _fireTotalUnreadCountChanged();
       }
     } catch (e, s) {
       _log.error('处理普通消息失败: $e', error: e, stackTrace: s, methodName: '_processPulledMsgs');
@@ -2115,6 +2172,9 @@ class MsgSyncer {
         if (updated != null) {
           conversationListener?.conversationChanged([updated]);
         }
+        // 新会话补充信息后未读总数可能变化（unreadCount 已在 upsertConversation
+        // 中写入），追加一次回调确保 UI 收敛。
+        await _fireTotalUnreadCountChanged();
       }
     } catch (e, s) {
       _log.error(
@@ -2247,10 +2307,14 @@ class MsgSyncer {
   }
 
   /// 计算总未读数并触发回调
+  ///
+  /// 对齐 Go SDK：免打扰（recvMsgOpt == notNotify）会话不计入总未读，
+  /// 与 DatabaseService.getTotalUnreadCount / 会话列表角标口径保持一致。
   Future<void> _fireTotalUnreadCountChanged() async {
     final conversations = await database.getAllConversations();
     int total = 0;
     for (final c in conversations) {
+      if (c.recvMsgOpt == ReceiveMessageOpt.notNotify) continue;
       total += c.unreadCount;
     }
     conversationListener?.totalUnreadMessageCountChanged(total);

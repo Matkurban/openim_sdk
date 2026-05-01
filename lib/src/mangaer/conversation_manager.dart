@@ -435,12 +435,14 @@ class ConversationManager {
       });
       return;
     }
-    // 防止重入：同一会话正在标记已读时跳过
+    // 防止重入：同一会话正在标记已读时跳过，但仍触发一次最新未读总数，
+    // 避免上层 UI 在并发调用下错失角标更新。
     if (_markingAsRead.contains(conversationID)) {
       _log.info(
         '跳过重入调用 conversationID=$conversationID',
         methodName: 'markConversationMessageAsRead',
       );
+      await _emitTotalUnread();
       return;
     }
 
@@ -452,17 +454,22 @@ class ConversationManager {
           '会话为空，跳过 conversationID=$conversationID',
           methodName: 'markConversationMessageAsRead',
         );
+        // 即使会话不存在，也对外广播一次最新未读总数，
+        // 防止调用方依赖 listener 但收不到回调。
+        await _emitTotalUnread();
         return;
       }
 
       _markingAsRead.add(conversationID);
       _log.info('conversationID=$conversationID', methodName: 'markConversationMessageAsRead');
 
-      // 优先从消息表取最大 seq（对齐 Go SDK GetConversationNormalMsgSeq），
-      // 回退到会话表 maxSeq
-      var hasReadSeq = await _database.getConversationNormalMsgMaxSeq(conversationID);
+      // 对齐 Go SDK：hasReadSeq 应推进到 conversation.MaxSeq（=「已读到会话最新一条」）。
+      // 不能用 chatLog 的最大 seq——本地缺消息时它会小于 conv.maxSeq，
+      // 上报后服务端回推 2200 已读回执，_handleSelfReadReceipt 又会基于
+      // (maxSeq - hasReadSeq) 把刚清零的未读复活。
+      var hasReadSeq = await _database.getConversationMaxSeq(conversationID);
       if (hasReadSeq <= 0) {
-        hasReadSeq = await _database.getConversationMaxSeq(conversationID);
+        hasReadSeq = await _database.getConversationNormalMsgMaxSeq(conversationID);
       }
 
       await _database.updateConversation(conversationID, {
@@ -474,8 +481,8 @@ class ConversationManager {
         methodName: 'markConversationMessageAsRead',
       );
 
-      final total = await getTotalUnreadMsgCount();
-      listener?.totalUnreadMessageCountChanged(total);
+      // _notifyConversationChanged 内部会基于最新 DB 状态触发
+      // conversationChanged + totalUnreadMessageCountChanged，无需在此重复触发。
       await _notifyConversationChanged([conversationID]);
 
       // 同步到服务器（即使 hasReadSeq 为 0 也要调用，确保服务端清零未读数）
@@ -521,6 +528,10 @@ class ConversationManager {
           );
         }
       }
+
+      // 即使 unreadConvs 为空（没有任何未读会话），也对外触发一次最新未读总数，
+      // 保证调用方在角标场景下能拿到 0 的最终值。
+      await _emitTotalUnread();
 
       _log.info(
         '所有会话已标记已读, count=${unreadConvs.length}',
@@ -607,9 +618,8 @@ class ConversationManager {
       // 6. 减少未读数
       await _database.decrConversationUnreadCount(conversationID, decrCount);
 
-      // 7. 触发未读数变更
-      final total = await getTotalUnreadMsgCount();
-      listener?.totalUnreadMessageCountChanged(total);
+      // 7. 触发会话变更与最新未读总数（_notifyConversationChanged 内部统一发出，
+      // 避免重复 emit）。
       await _notifyConversationChanged([conversationID]);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'markMessagesAsReadByMsgID');
@@ -822,13 +832,47 @@ class ConversationManager {
     }
   }
 
+  /// 仅触发一次最新未读总数（不带 conversationChanged）。
+  ///
+  /// 用于 markAsRead 早返回路径（会话不存在 / 重入跳过 / 无未读会话），
+  /// 保证上层 listener 始终能在 markAsRead 调用后拿到与 DB 一致的最新值。
+  Future<void> _emitTotalUnread() async {
+    try {
+      final total = await _database.getTotalUnreadCount();
+      listener?.totalUnreadMessageCountChanged(total);
+    } catch (e, s) {
+      _log.warning(
+        '触发 totalUnreadMessageCountChanged 失败: $e',
+        error: e,
+        stackTrace: s,
+        methodName: '_emitTotalUnread',
+      );
+    }
+  }
+
   /// 通知会话变更
+  ///
+  /// 任何可能导致会话/未读变化的路径都应该走这里。
+  /// 同时触发 totalUnreadMessageCountChanged：让 UI 可以在 conversationChanged
+  /// 回调里直接读到一致的总未读数（修复 markAll 后未读 > 0、收到新消息却没收到
+  /// totalUnread 通知的体验问题）。
   Future<void> _notifyConversationChanged(List<String> conversationIDs) async {
     _log.info('conversationIDs=$conversationIDs', methodName: '_notifyConversationChanged');
     try {
       final conversations = await getMultipleConversation(conversationIDList: conversationIDs);
       if (conversations.isNotEmpty) {
         listener?.conversationChanged(conversations);
+      }
+      try {
+        final total = await _database.getTotalUnreadCount();
+        listener?.totalUnreadMessageCountChanged(total);
+      } catch (e, s) {
+        _log.warning(
+          '触发 totalUnreadMessageCountChanged 失败: $e',
+          error: e,
+          stackTrace: s,
+          methodName: '_notifyConversationChanged',
+        );
       }
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: '_notifyConversationChanged');

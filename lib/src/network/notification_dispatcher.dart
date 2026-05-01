@@ -894,10 +894,20 @@ class NotificationDispatcher {
       try {
         final conv = await database.getConversation(conversationID);
         if (conv == null) return;
-        await database.markMessagesAsReadBySeqs(conversationID, seqs);
-        final maxSeq = await database.getConversationMaxSeq(conversationID);
-        final unread = (maxSeq - hasReadSeq).clamp(0, maxSeq);
-        await database.updateConversation(conversationID, {'unreadCount': unread});
+        // 先在 chatLog 中标记本批已读 seq，再用 chatLog 权威重算未读。
+        // 不再使用 (maxSeq - hasReadSeq) 公式：那会把本地刚清零的未读
+        // 重新写回正数（自己发的、群系统消息都被计入），导致 markRead
+        // 之后还能感知到未读 > 0。
+        if (seqs.isNotEmpty) {
+          await database.markMessagesAsReadBySeqs(conversationID, seqs);
+        }
+        // 用 chatLog 实际计数作为上界；同时不允许超过当前 DB 中已记录的
+        // unreadCount，防止本地 chatLog 不全时 count 偏小但仍触发 UI 抖动。
+        final chatLogUnread = await database.countUnreadInChatLog(conversationID, hasReadSeq);
+        final newUnread = chatLogUnread > conv.unreadCount ? conv.unreadCount : chatLogUnread;
+        if (newUnread != conv.unreadCount) {
+          await database.updateConversation(conversationID, {'unreadCount': newUnread});
+        }
         conversationListener?.conversationChanged([
           await database.getConversation(conversationID) ?? conv,
         ]);
@@ -1510,6 +1520,8 @@ class NotificationDispatcher {
           final convList = await database.getMultipleConversations(ids);
           if (convList.isNotEmpty) {
             conversationListener?.conversationChanged(convList);
+            final total = await database.getTotalUnreadCount();
+            conversationListener?.totalUnreadMessageCountChanged(total);
           }
         }
       }
@@ -1932,6 +1944,8 @@ class NotificationDispatcher {
 
           if (updated.isNotEmpty) {
             conversationListener?.conversationChanged(updated);
+            final total = await database.getTotalUnreadCount();
+            conversationListener?.totalUnreadMessageCountChanged(total);
           }
         }
       }

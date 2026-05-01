@@ -627,13 +627,46 @@ class DatabaseService {
         .whereEqual('conversationID', conversationID);
   }
 
-  /// 获取未读消息总数（使用聚合 sum 避免加载全部行）
+  /// 获取未读消息总数
+  ///
+  /// 对齐 Go SDK `GetTotalUnreadMsgCountDB`：仅累加 `recvMsgOpt != notNotify(2)`
+  /// 的会话（免打扰会话本身仍显示小红点，但不计入"总未读角标"）。
+  ///
+  /// 实现：先按 `unreadCount > 0` 过滤（行数极少），再仅取 unreadCount/recvMsgOpt
+  /// 两列在内存中跳过免打扰会话后求和，避开 tostore 对 NULL 列的
+  /// `<` / `!=` 语义不一致问题（recvMsgOpt 可为 null，应视作"接收"参与累加）。
   Future<int> getTotalUnreadCount() async {
-    final sum = await toStore
+    final result = await toStore
         .query(DbTableName.localConversation)
         .whereGreaterThan('unreadCount', 0)
-        .sum('unreadCount');
-    return sum?.toInt() ?? 0;
+        .select(['unreadCount', 'recvMsgOpt']);
+    var total = 0;
+    for (final row in result.data) {
+      final recvOpt = (row['recvMsgOpt'] as num?)?.toInt();
+      if (recvOpt == ReceiveMessageOpt.notNotify.value) {
+        continue;
+      }
+      total += (row['unreadCount'] as num?)?.toInt() ?? 0;
+    }
+    return total;
+  }
+
+  /// 统计 chatLog 中某会话的未读消息条数（权威重算入口）
+  ///
+  /// 规则：seq > hasReadSeq、seq > 0、sendID != 当前用户、isRead != true。
+  /// 用于自己已读回执 / 同步路径，避免使用 maxSeq-hasReadSeq 公式（会把
+  /// 自己发的、群系统消息计入未读，导致虚高或已读后复活）。
+  Future<int> countUnreadInChatLog(String conversationID, int hasReadSeq) async {
+    final selfID = _currentUserID;
+    var query = toStore
+        .query(DbTableName.localChatLog)
+        .whereEqual('conversationID', conversationID)
+        .whereGreaterThan('seq', hasReadSeq < 0 ? 0 : hasReadSeq)
+        .whereNotEqual('isRead', true);
+    if (selfID != null && selfID.isNotEmpty) {
+      query = query.whereNotEqual('sendID', selfID);
+    }
+    return query.count();
   }
 
   /// 获取黑名单用户ID集合
@@ -1051,6 +1084,15 @@ class DatabaseService {
         .whereEqual('conversationID', conversationID)
         .first();
     return (data?['maxSeq'] as num?)?.toInt() ?? 0;
+  }
+
+  /// 获取会话的 hasReadSeq（不在 ConversationInfo 模型中的 DB 字段）
+  Future<int> getConversationHasReadSeq(String conversationID) async {
+    final data = await toStore
+        .query(DbTableName.localConversation)
+        .whereEqual('conversationID', conversationID)
+        .first();
+    return (data?['hasReadSeq'] as num?)?.toInt() ?? 0;
   }
 
   /// 从消息表查询会话的最大 seq（对齐 Go SDK GetConversationNormalMsgSeq）
