@@ -463,6 +463,17 @@ class ConversationManager {
       _markingAsRead.add(conversationID);
       _log.info('conversationID=$conversationID', methodName: 'markConversationMessageAsRead');
 
+      // Go SDK 的 UnreadCount==0 守卫：未读已经为 0 时直接返回，不再写库 / 调接口 / 触发 listener。
+      // 否则会和上层 _onConversationChanged → 再次调用 markConversationMessageAsRead 形成回调风暴
+      // （一次进入聊天页能触发 7 次 onTotalUnreadMessageCountChanged）。
+      if (conv.unreadCount == 0) {
+        _log.info(
+          '未读已为0，跳过 conversationID=$conversationID',
+          methodName: 'markConversationMessageAsRead',
+        );
+        return;
+      }
+
       // 对齐 Go SDK：hasReadSeq 应推进到 conversation.MaxSeq（=「已读到会话最新一条」）。
       // 不能用 chatLog 的最大 seq——本地缺消息时它会小于 conv.maxSeq，
       // 上报后服务端回推 2200 已读回执，_handleSelfReadReceipt 又会基于

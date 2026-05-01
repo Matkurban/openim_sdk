@@ -905,9 +905,14 @@ class NotificationDispatcher {
         // unreadCount，防止本地 chatLog 不全时 count 偏小但仍触发 UI 抖动。
         final chatLogUnread = await database.countUnreadInChatLog(conversationID, hasReadSeq);
         final newUnread = chatLogUnread > conv.unreadCount ? conv.unreadCount : chatLogUnread;
-        if (newUnread != conv.unreadCount) {
-          await database.updateConversation(conversationID, {'unreadCount': newUnread});
+        if (newUnread == conv.unreadCount) {
+          // 未读数没有变化（常见于：自己刚 markAsRead 触发服务端回推 2200，
+          // 而本地早已把 unreadCount 置零）。此时再触发 conversationChanged /
+          // totalUnreadMessageCountChanged 只会让上层 UI 反复刷新，并和
+          // _onConversationChanged → markConversationMessageAsRead 形成回调风暴。
+          return;
         }
+        await database.updateConversation(conversationID, {'unreadCount': newUnread});
         conversationListener?.conversationChanged([
           await database.getConversation(conversationID) ?? conv,
         ]);
