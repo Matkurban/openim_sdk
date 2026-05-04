@@ -17,17 +17,17 @@ dependencies:
   get_it: ^9.2.1
   crypto: ^3.0.7
   fixnum: ^1.1.1
-  tostore: ^3.1.1
+  tostore: ^3.1.2
   protobuf: ^6.0.0
   equatable: ^2.0.8
   aoiwe_logger: ^1.0.1
   synchronized: ^3.4.0
   path_provider: ^2.1.5
   protoc_plugin: ^25.0.0
+  isolate_manager: ^6.3.2
   json_annotation: ^4.11.0
   universal_platform: ^1.1.0
   web_socket_channel: ^3.0.3
-  isolate_manager: ^6.3.2
 
 dev_dependencies:
   lints: ^6.1.0
