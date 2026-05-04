@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.0](https://github.com/Matkurban/openim_sdk/compare/v2.4.2...v2.5.0) (2026-05-04)
+
+
+### Features
+
+* 升级tostore 的版本到 3.1.2，以修复在 Linux 中闪退的问题 ([ae11d25](https://github.com/Matkurban/openim_sdk/commit/ae11d25a1193d2644c88cc5250d8e5b2898a4b7b))
+
 ## [2.4.2](https://github.com/Matkurban/openim_sdk/compare/v2.4.1...v2.4.2) (2026-05-01)
 
 
