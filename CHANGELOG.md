@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.5.1](https://github.com/Matkurban/openim_sdk/compare/v2.5.0...v2.5.1) (2026-06-04)
+
+
+### Bug Fixes
+
+* remove unused synchronized dependency from pubspec.yaml ([cf23214](https://github.com/Matkurban/openim_sdk/commit/cf232144c60d41315040dfcf99d730c472710a38))
+
 ## [2.5.0](https://github.com/Matkurban/openim_sdk/compare/v2.4.2...v2.5.0) (2026-05-04)
 
 
