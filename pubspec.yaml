@@ -21,7 +21,6 @@ dependencies:
   protobuf: ^6.0.0
   equatable: ^2.0.8
   aoiwe_logger: ^1.0.1
-  synchronized: ^3.4.0
   path_provider: ^2.1.5
   protoc_plugin: ^25.0.0
   isolate_manager: ^6.3.2
