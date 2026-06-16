@@ -61,7 +61,7 @@ class MessageManager {
     msgSendProgressListener = listener;
   }
 
-  void setAdvancedMsgListener(OnAdvancedMsgListener listener) {
+  void setMessageListener(OnAdvancedMsgListener listener) {
     msgListener = listener;
   }
 
@@ -297,14 +297,14 @@ class MessageManager {
   /// [messageList] 选中的消息列表
   /// [title] 摘要标题
   /// [summaryList] 摘要内容列表
-  Message createMergerMessage({
+  Message createMergeMessage({
     required List<Message> messageList,
     required String title,
     required List<String> summaryList,
   }) {
     _log.info(
       'title=$title, messageCount=${messageList.length}',
-      methodName: 'createMergerMessage',
+      methodName: 'createMergeMessage',
     );
     try {
       return _createMessage(
@@ -312,7 +312,7 @@ class MessageManager {
         mergeElem: MergeElem(title: title, abstractList: summaryList, multiMessage: messageList),
       );
     } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createMergerMessage');
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createMergeMessage');
       rethrow;
     }
   }
@@ -931,6 +931,7 @@ class MessageManager {
     String? groupID,
     bool isOnlineOnly = false,
     Map<String, bool>? messageOptions,
+    bool uploadMedia = true,
   }) async {
     if (SdkIsolateManager.isActive) {
       final result = await SdkIsolateManager.instance.invoke('message.sendMessage', {
@@ -1008,7 +1009,7 @@ class MessageManager {
 
     try {
       // 处理媒体文件上传并返回更新后的消息
-      final finalMsg = await _handleMediaUploadIfNeeded(sendMsg);
+      final finalMsg = uploadMedia ? await _handleMediaUploadIfNeeded(sendMsg) : sendMsg;
 
       if (!isOnlineOnly && !identical(finalMsg, sendMsg)) {
         // 仅在媒体上传后消息有变化时才更新本地DB（文本消息无需此步骤）
@@ -1089,6 +1090,7 @@ class MessageManager {
         userID: userID,
         groupID: groupID,
         isOnlineOnly: isOnlineOnly,
+        uploadMedia: false,
       );
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'sendMessageNotOss');
@@ -1421,23 +1423,13 @@ class MessageManager {
       methodName: 'revokeMessage',
     );
     try {
-      // 获取消息的 seq 用于服务端撤回
       final msg = await _database.getMessage(clientMsgID);
-      final seq = msg?.seq ?? 0;
+      if (msg == null) {
+        throw OpenIMException(code: 1, message: 'message not found');
+      }
+      final seq = msg.seq ?? 0;
 
-      await _database.updateMessage(clientMsgID, {
-        'contentType': MessageType.revokeMessageNotification.value,
-      });
-      _log.info('消息已撤回: $clientMsgID', methodName: 'revokeMessage');
-
-      msgListener?.newRecvMessageRevoked(
-        RevokedInfo(clientMsgID: clientMsgID, revokerID: _currentUserID, revokeTime: _nowMillis()),
-      );
-
-      // 如果撤回的消息是会话的最新消息，更新会话 latestMsg（对应 Go SDK revoke.go）
-      await _updateConversationIfLatestMsg(conversationID, clientMsgID);
-
-      // 同步到服务器
+      // 先同步服务器（对应 Go SDK revokeOneMessage → revokeMessageFromServer）
       if (seq > 0) {
         final resp = await _api.revokeMsg(
           userID: _currentUserID,
@@ -1445,7 +1437,67 @@ class MessageManager {
           seq: seq,
         );
         if (resp.errCode != 0) {
-          _log.warning('撤回消息同步服务器失败: ${resp.errMsg}');
+          throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+        }
+      }
+
+      final revokeTime = _nowMillis();
+      String? revokerNickname;
+      GroupRoleLevel? revokerRole;
+      final conv = await _database.getConversation(conversationID);
+      final sessionType = msg.sessionType ?? conv?.conversationType;
+
+      if (sessionType == ConversationType.single) {
+        final loginUser = await _database.getLoginUser();
+        revokerNickname = loginUser?.nickname;
+      } else if (sessionType == ConversationType.superGroup && conv?.groupID != null) {
+        final gm = await _database.getGroupMember(conv!.groupID!, _currentUserID);
+        revokerNickname = gm?.nickname ?? 'unknown';
+        revokerRole = gm?.roleLevel;
+      }
+
+      final revokedInfo = RevokedInfo(
+        revokerID: _currentUserID,
+        revokerRole: revokerRole,
+        revokerNickname: revokerNickname,
+        clientMsgID: clientMsgID,
+        revokeTime: revokeTime,
+        sourceMessageSendTime: msg.sendTime,
+        sourceMessageSendID: msg.sendID,
+        sourceMessageSenderNickname: msg.senderNickname,
+        sessionType: sessionType,
+      );
+
+      final revokedDetail = {
+        ...revokedInfo.toJson(),
+        'seq': seq,
+        'ex': msg.ex ?? '',
+        'isAdminRevoke': false,
+      };
+      final notificationContent = jsonEncode(
+        NotificationElem(detail: jsonEncode(revokedDetail)).toJson(),
+      );
+
+      await _database.updateMessage(clientMsgID, {
+        'contentType': MessageType.revokeMessageNotification.value,
+        'content': notificationContent,
+      });
+      _log.info('消息已撤回: $clientMsgID', methodName: 'revokeMessage');
+
+      msgListener?.newRecvMessageRevoked(revokedInfo);
+
+      // 如果撤回的是 latestMsg，刷新会话摘要（对应 Go SDK revoke.go）
+      if (conv?.latestMsg?.clientMsgID == clientMsgID) {
+        final msgs = await _database.getHistoryMessages(conversationID: conversationID, count: 1);
+        if (msgs.isNotEmpty) {
+          await _database.updateConversation(conversationID, {
+            'latestMsg': jsonEncode(msgs.first.toJson()),
+            'latestMsgSendTime': msgs.first.sendTime,
+          });
+        }
+        final updated = await _database.getConversation(conversationID);
+        if (updated != null) {
+          _conversationManager?.listener?.conversationChanged([updated]);
         }
       }
     } catch (e, s) {
@@ -1521,15 +1573,36 @@ class MessageManager {
       methodName: 'deleteMessageFromLocalAndSvr',
     );
     try {
-      // 获取消息的 seq 用于服务端删除
       final msg = await _database.getMessage(clientMsgID);
-      final seq = msg?.seq ?? 0;
+      if (msg == null) {
+        throw OpenIMException(code: 1, message: 'message not found');
+      }
+      final seq = msg.seq ?? 0;
+
+      // 对应 Go SDK delete.go：seq 为 0 或发送失败时仅删本地
+      if (seq == 0 || msg.status == MessageStatus.failed) {
+        await deleteMessageFromLocalStorage(
+          conversationID: conversationID,
+          clientMsgID: clientMsgID,
+        );
+        return;
+      }
+
+      // 先同步服务器
+      final resp = await _api.deleteMsgs(
+        userID: _currentUserID,
+        conversationID: conversationID,
+        seqs: [seq],
+      );
+      if (resp.errCode != 0) {
+        throw OpenIMException(code: resp.errCode, message: resp.errMsg);
+      }
 
       await _database.deleteMessage(clientMsgID);
       _log.info('消息已从本地和服务器删除: $clientMsgID', methodName: 'deleteMessageFromLocalAndSvr');
 
       // 如果删除的是未读消息（非自己发送），减少未读数
-      if (msg != null && !(msg.isRead ?? true) && msg.sendID != _currentUserID) {
+      if (!(msg.isRead ?? true) && msg.sendID != _currentUserID) {
         await _database.decrConversationUnreadCount(conversationID, 1);
         _notifyConversationAndUnread(conversationID);
       }
@@ -1537,21 +1610,7 @@ class MessageManager {
       // 如果删除的是会话最新消息，更新 latestMsg
       await _updateConversationIfLatestMsg(conversationID, clientMsgID);
 
-      if (msg != null) {
-        msgListener?.msgDeleted(msg);
-      }
-
-      // 同步到服务器
-      if (seq > 0) {
-        final resp = await _api.deleteMsgs(
-          userID: _currentUserID,
-          conversationID: conversationID,
-          seqs: [seq],
-        );
-        if (resp.errCode != 0) {
-          _log.warning('删除消息同步服务器失败: ${resp.errMsg}');
-        }
-      }
+      msgListener?.msgDeleted(msg);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'deleteMessageFromLocalAndSvr');
       rethrow;
@@ -1967,20 +2026,20 @@ class MessageManager {
   /// 创建图片消息（通过字节数据，Web 平台使用）
   /// [bytes] 图片文件的字节数据
   /// [fileName] 文件名（如 "photo.jpg"）
-  Future<Message> createImageMessageFromBytes({
+  Future<Message> createImageMessageByFile({
     required Uint8List bytes,
     required String fileName,
   }) async {
     if (SdkIsolateManager.isActive) {
       final result = await SdkIsolateManager.instance.invoke(
-        'message.createImageMessageFromBytes',
+        'message.createImageMessageByFile',
         {'bytes': bytes, 'fileName': fileName},
       );
       return Message.fromJson(Map<String, dynamic>.from(result as Map));
     }
     _log.info(
       'fileName=$fileName, size=${bytes.length}',
-      methodName: 'createImageMessageFromBytes',
+      methodName: 'createImageMessageByFile',
     );
     try {
       final ext = fileName.split('.').last.toLowerCase();
@@ -2000,7 +2059,7 @@ class MessageManager {
           '读取图片尺寸失败: $e',
           error: e,
           stackTrace: s,
-          methodName: 'createImageMessageFromBytes',
+          methodName: 'createImageMessageByFile',
         );
       }
 
@@ -2020,7 +2079,7 @@ class MessageManager {
       _pendingUploadBytes[message.clientMsgID!] = bytes;
       return message;
     } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createImageMessageFromBytes');
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createImageMessageByFile');
       rethrow;
     }
   }
@@ -2031,7 +2090,7 @@ class MessageManager {
   /// [duration] 时长（秒）
   /// [videoType] 视频 MIME 类型
   /// [snapshotBytes] 缩略图字节数据（可选）
-  Future<Message> createVideoMessageFromBytes({
+  Future<Message> createVideoMessageByFile({
     required Uint8List bytes,
     required String fileName,
     required int duration,
@@ -2040,7 +2099,7 @@ class MessageManager {
   }) async {
     if (SdkIsolateManager.isActive) {
       final result = await SdkIsolateManager.instance
-          .invoke('message.createVideoMessageFromBytes', {
+          .invoke('message.createVideoMessageByFile', {
             'bytes': bytes,
             'fileName': fileName,
             'duration': duration,
@@ -2051,7 +2110,7 @@ class MessageManager {
     }
     _log.info(
       'fileName=$fileName, size=${bytes.length}, duration=$duration',
-      methodName: 'createVideoMessageFromBytes',
+      methodName: 'createVideoMessageByFile',
     );
     try {
       final ext = fileName.split('.').last.toLowerCase();
@@ -2090,7 +2149,7 @@ class MessageManager {
       }
       return message;
     } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createVideoMessageFromBytes');
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createVideoMessageByFile');
       rethrow;
     }
   }
@@ -2098,8 +2157,8 @@ class MessageManager {
   /// 创建文件消息（通过字节数据，Web 平台使用）
   /// [bytes] 文件的字节数据
   /// [fileName] 文件名
-  Message createFileMessageFromBytes({required Uint8List bytes, required String fileName}) {
-    _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createFileMessageFromBytes');
+  Message createFileMessageByFile({required Uint8List bytes, required String fileName}) {
+    _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createFileMessageByFile');
     try {
       final message = _createMessage(
         contentType: MessageType.file,
@@ -2108,7 +2167,7 @@ class MessageManager {
       _pendingUploadBytes[message.clientMsgID!] = bytes;
       return message;
     } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createFileMessageFromBytes');
+      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'createFileMessageByFile');
       rethrow;
     }
   }

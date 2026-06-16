@@ -106,7 +106,7 @@ class SdkMethodDispatcher {
     );
 
     // Message
-    _message.setAdvancedMsgListener(
+    _message.setMessageListener(
       OnAdvancedMsgListener(
         onMsgDeleted: (msg) => _sendEvent('message', 'onMsgDeleted', msg.toJson()),
         onNewRecvMessageRevoked: (info) =>
@@ -671,15 +671,15 @@ class SdkMethodDispatcher {
         );
         return msg.toJson();
 
-      case 'createImageMessageFromBytes':
-        final msg = await _message.createImageMessageFromBytes(
+      case 'createImageMessageByFile':
+        final msg = await _message.createImageMessageByFile(
           bytes: args['bytes'] as Uint8List,
           fileName: args['fileName'] as String,
         );
         return msg.toJson();
 
-      case 'createVideoMessageFromBytes':
-        final msg = await _message.createVideoMessageFromBytes(
+      case 'createVideoMessageByFile':
+        final msg = await _message.createVideoMessageByFile(
           bytes: args['bytes'] as Uint8List,
           fileName: args['fileName'] as String,
           duration: args['duration'] as int,

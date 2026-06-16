@@ -63,7 +63,7 @@ class IMListenerService extends GetxService {
       ),
     );
 
-    OpenIM.iMManager.messageManager.setAdvancedMsgListener(
+    OpenIM.iMManager.messageManager.setMessageListener(
       OnAdvancedMsgListener(
         onRecvNewMessage: (msg) => recvNewMessage.add(msg),
         onRecvOfflineNewMessage: (msg) => recvNewMessage.add(msg),

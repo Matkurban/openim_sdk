@@ -308,7 +308,7 @@ class ChatController extends GetxController {
     required String title,
     required List<String> summaryList,
   }) async {
-    final msg = OpenIM.iMManager.messageManager.createMergerMessage(
+    final msg = OpenIM.iMManager.messageManager.createMergeMessage(
       messageList: msgList,
       title: title,
       summaryList: summaryList,
