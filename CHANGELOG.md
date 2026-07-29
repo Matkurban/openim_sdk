@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.5.2](https://github.com/Matkurban/openim_sdk/compare/v2.5.1...v2.5.2) (2026-07-30)
+
+
+### Bug Fixes
+
+* 修复 pub.dev 平台得分（支持 Android、iOS、Web、Windows、macOS、Linux 全部 6 大平台）
+* 隔离 Web 与 Native 平台的条件导入，解决 `dart:io` 与 `dart:js_interop` 的静态检测冲突
+* 在 `pubspec.yaml` 中添加显式 `platforms` 声明并修复依赖约束
+
 ## [2.5.1](https://github.com/Matkurban/openim_sdk/compare/v2.5.0...v2.5.1) (2026-06-04)
 
 
