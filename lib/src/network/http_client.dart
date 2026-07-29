@@ -400,6 +400,8 @@ class HttpClient {
         message = '网络连接异常，请检查网络';
       case DioExceptionType.unknown:
         message = '未知网络错误: ${e.message}';
+      case DioExceptionType.transformTimeout:
+        message = '响应转换超时: ${e.message}';
     }
     return ApiResponse(
       errCode: e.response?.statusCode ?? -1,

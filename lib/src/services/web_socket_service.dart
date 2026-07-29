@@ -10,8 +10,7 @@ import '../enums/web_socket_status.dart';
 import '../models/web_socket_codec.dart';
 import '../models/web_socket_identifier.dart';
 // Web 热重启专用：JS interop 代码通过条件导入隔离，非 web 平台使用 stub。
-import 'web_socket_js_interop_stub.dart'
-    if (dart.library.js_interop) 'web_socket_js_interop_web.dart';
+import 'web_socket_js_interop_stub.dart' if (dart.library.js_util) 'web_socket_js_interop_web.dart';
 
 /// WebSocket 长连接管理器
 class WebSocketService {

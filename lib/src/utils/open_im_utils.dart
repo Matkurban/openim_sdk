@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
@@ -30,7 +29,7 @@ sealed class OpenImUtils {
 
   static Future<String?> defaultDbPath() async {
     if (kIsWeb) return null;
-    Directory directory = await getApplicationSupportDirectory();
+    final directory = await getApplicationSupportDirectory();
     return '${directory.path}/kurban_open_im_sdk';
   }
 

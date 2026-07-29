@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
+import 'package:openim_sdk/src/utils/file_util.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:get_it/get_it.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
@@ -302,10 +302,7 @@ class MessageManager {
     required String title,
     required List<String> summaryList,
   }) {
-    _log.info(
-      'title=$title, messageCount=${messageList.length}',
-      methodName: 'createMergeMessage',
-    );
+    _log.info('title=$title, messageCount=${messageList.length}', methodName: 'createMergeMessage');
     try {
       return _createMessage(
         contentType: MessageType.merger,
@@ -666,9 +663,8 @@ class MessageManager {
           onProgress: reportProgress,
         );
       } else if (sourcePath != null && sourcePath.isNotEmpty) {
-        final file = File(sourcePath);
-        if (file.existsSync()) {
-          fileSize = file.lengthSync();
+        if (fileExistsSync(sourcePath)) {
+          fileSize = fileLengthSync(sourcePath);
           url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
             filePath: sourcePath,
@@ -717,9 +713,8 @@ class MessageManager {
 
       final soundPath = elem.soundPath;
       if (soundPath != null && soundPath.isNotEmpty) {
-        final file = File(soundPath);
-        if (file.existsSync()) {
-          final fileSize = file.lengthSync();
+        if (fileExistsSync(soundPath)) {
+          final fileSize = fileLengthSync(soundPath);
           final ext = filepathExt(elem.uuid, soundPath);
           // 对应 Go SDK: c.fileName("voice", s.ClientMsgID) + filepathExt(...)
           final name = '${uploadFileName("voice", clientMsgID)}$ext';
@@ -775,9 +770,8 @@ class MessageManager {
                   'video snapshot uploaded (bytes): url=$url, size=${pendingSnapshotBytes.length}',
                 );
               } else if (elem.snapshotPath != null && elem.snapshotPath!.isNotEmpty) {
-                final file = File(elem.snapshotPath!);
-                if (file.existsSync()) {
-                  final fileSize = file.lengthSync();
+                if (fileExistsSync(elem.snapshotPath!)) {
+                  final fileSize = fileLengthSync(elem.snapshotPath!);
                   final url = await OpenIM.iMManager.uploadFile(
                     id: '${clientMsgID}_snapshot',
                     filePath: elem.snapshotPath!,
@@ -835,9 +829,8 @@ class MessageManager {
                 );
                 newElem = newElem.copyWith(videoUrl: url, videoSize: pendingBytes.length);
               } else if (elem.videoPath != null && elem.videoPath!.isNotEmpty) {
-                final file = File(elem.videoPath!);
-                if (file.existsSync()) {
-                  final fileSize = file.lengthSync();
+                if (fileExistsSync(elem.videoPath!)) {
+                  final fileSize = fileLengthSync(elem.videoPath!);
                   final url = await OpenIM.iMManager.uploadFile(
                     id: clientMsgID,
                     filePath: elem.videoPath!,
@@ -893,9 +886,8 @@ class MessageManager {
           onProgress: reportProgress,
         );
       } else if (elem.filePath != null && elem.filePath!.isNotEmpty) {
-        final file = File(elem.filePath!);
-        if (file.existsSync()) {
-          fileSize = file.lengthSync();
+        if (fileExistsSync(elem.filePath!)) {
+          fileSize = fileLengthSync(elem.filePath!);
           url = await OpenIM.iMManager.uploadFile(
             id: clientMsgID,
             filePath: elem.filePath!,
@@ -1828,8 +1820,7 @@ class MessageManager {
     }
     _log.info('imagePath=$imagePath', methodName: 'createImageMessageFromFullPath');
     try {
-      final file = File(imagePath);
-      final fileSize = file.existsSync() ? file.lengthSync() : 0;
+      final fileSize = fileExistsSync(imagePath) ? fileLengthSync(imagePath) : 0;
       final ext = imagePath.split('.').last.toLowerCase();
       final imageType = 'image/$ext';
 
@@ -1883,8 +1874,7 @@ class MessageManager {
       methodName: 'createSoundMessageFromFullPath',
     );
     try {
-      final file = File(soundPath);
-      final fileSize = file.existsSync() ? file.lengthSync() : 0;
+      final fileSize = fileExistsSync(soundPath) ? fileLengthSync(soundPath) : 0;
       // 对应 Go SDK CreateSoundMessageFromFullPath: SoundType = ext (不带点)
       final ext = soundPath.split('.').last.toLowerCase();
       final soundType = ext.isNotEmpty ? 'audio/$ext' : null;
@@ -1939,16 +1929,14 @@ class MessageManager {
       methodName: 'createVideoMessageFromFullPath',
     );
     try {
-      final videoFile = File(videoPath);
-      final videoSize = videoFile.existsSync() ? videoFile.lengthSync() : 0;
+      final videoSize = fileExistsSync(videoPath) ? fileLengthSync(videoPath) : 0;
 
       int snapWidth = 0;
       int snapHeight = 0;
       int snapSize = 0;
       if (snapshotPath.isNotEmpty) {
-        final snapFile = File(snapshotPath);
-        if (snapFile.existsSync()) {
-          snapSize = snapFile.lengthSync();
+        if (fileExistsSync(snapshotPath)) {
+          snapSize = fileLengthSync(snapshotPath);
           // 在后台 Isolate 中解析缩略图尺寸
           try {
             final dims = await isolate_util.computeImageDimensionsFromFile(snapshotPath);
@@ -2005,8 +1993,7 @@ class MessageManager {
       methodName: 'createFileMessageFromFullPath',
     );
     try {
-      final file = File(filePath);
-      final fileSize = file.existsSync() ? file.lengthSync() : 0;
+      final fileSize = fileExistsSync(filePath) ? fileLengthSync(filePath) : 0;
 
       return _createMessage(
         contentType: MessageType.file,
@@ -2031,16 +2018,13 @@ class MessageManager {
     required String fileName,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
-        'message.createImageMessageByFile',
-        {'bytes': bytes, 'fileName': fileName},
-      );
+      final result = await SdkIsolateManager.instance.invoke('message.createImageMessageByFile', {
+        'bytes': bytes,
+        'fileName': fileName,
+      });
       return Message.fromJson(Map<String, dynamic>.from(result as Map));
     }
-    _log.info(
-      'fileName=$fileName, size=${bytes.length}',
-      methodName: 'createImageMessageByFile',
-    );
+    _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createImageMessageByFile');
     try {
       final ext = fileName.split('.').last.toLowerCase();
       final imageType = 'image/$ext';
@@ -2098,14 +2082,13 @@ class MessageManager {
     Uint8List? snapshotBytes,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance
-          .invoke('message.createVideoMessageByFile', {
-            'bytes': bytes,
-            'fileName': fileName,
-            'duration': duration,
-            'videoType': videoType,
-            'snapshotBytes': snapshotBytes,
-          });
+      final result = await SdkIsolateManager.instance.invoke('message.createVideoMessageByFile', {
+        'bytes': bytes,
+        'fileName': fileName,
+        'duration': duration,
+        'videoType': videoType,
+        'snapshotBytes': snapshotBytes,
+      });
       return Message.fromJson(Map<String, dynamic>.from(result as Map));
     }
     _log.info(

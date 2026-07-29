@@ -2,7 +2,7 @@ import 'dart:developer' as dev;
 
 import 'package:get/get.dart';
 import 'package:openim_sdk/openim_sdk.dart';
-import 'package:openim_sdk_example/config/host.dart';
+import '../config/host.dart';
 import '../routes/app_routes.dart';
 
 class SplashController extends GetxController {

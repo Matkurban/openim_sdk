@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
+
+import 'package:openim_sdk/src/utils/file_util.dart';
 
 import 'package:dio/dio.dart';
 import 'package:get_it/get_it.dart';
@@ -925,14 +926,13 @@ class IMManager {
     if (fileBytes != null) {
       fileSize = fileBytes.length;
     } else {
-      final file = File(filePath!);
-      if (!await file.exists()) {
+      if (!await fileExists(filePath!)) {
         throw OpenIMException(
           code: SDKErrorCode.uploadFileNotExist.code,
           message: SDKErrorCode.uploadFileNotExist.message,
         );
       }
-      fileSize = await file.length();
+      fileSize = await fileLength(filePath);
     }
 
     _uploadFileListener?.open(id, fileSize);

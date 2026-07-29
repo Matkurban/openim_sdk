@@ -1,8 +1,8 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
+import '../utils/gzip_util.dart';
 
 /// 通用 WebSocket 请求
 /// 对应 JS SDK 的 GeneralWsReq
@@ -79,7 +79,7 @@ class WebSocketCodecs {
     };
     final jsonBytes = utf8.encode(jsonEncode(map));
     if (enableCompression) {
-      return Uint8List.fromList(gzip.encode(jsonBytes));
+      return Uint8List.fromList(gzipEncode(jsonBytes));
     }
     return Uint8List.fromList(jsonBytes);
   }
@@ -90,7 +90,7 @@ class WebSocketCodecs {
   WebSocketResponse decodeResponse(Uint8List data) {
     Uint8List decompressed;
     if (enableCompression) {
-      decompressed = Uint8List.fromList(gzip.decode(data));
+      decompressed = Uint8List.fromList(gzipDecode(data));
     } else {
       decompressed = data;
     }

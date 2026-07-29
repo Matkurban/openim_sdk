@@ -5,13 +5,21 @@ homepage: https://jsontodart.cn
 repository: https://github.com/Matkurban/openim_sdk
 topics: [ openim, im, sdk, flutter ]
 
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
 environment:
   sdk: ^3.8.0
 
 dependencies:
   flutter:
     sdk: flutter
-  meta: any
+  meta: ^1.16.0
   dio: ^5.9.2
   path: ^1.9.1
   get_it: ^9.2.1

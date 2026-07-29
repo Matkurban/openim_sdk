@@ -18,7 +18,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../isolate/sdk_workers.dart';
 import 'sdk_isolate_workers_core.dart' as core;
-import 'sdk_isolate_workers_io.dart' as io_workers;
+import 'sdk_isolate_workers_stub.dart'
+    if (dart.library.io) 'sdk_isolate_workers_io.dart'
+    as io_workers;
 
 // ============================================================
 // 1. MD5 哈希计算
