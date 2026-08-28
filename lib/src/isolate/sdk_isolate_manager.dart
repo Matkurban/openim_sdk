@@ -9,8 +9,8 @@
 /// - 主线程 → 后台 Isolate：方法调用请求（序列化为 Map）
 /// - 后台 Isolate → 主线程：方法调用结果 + 任意时刻的监听器事件（带 envelope 标签）
 ///
-/// 纯 CPU 型的辅助计算（MD5、图片尺寸解码、消息过滤等）则完整使用
-/// `isolate_manager` 插件，见 [SdkWorkers]，在 Web 端真正跑在 JS Worker 中。
+/// 纯 CPU 型的辅助计算（MD5、图片尺寸解码、消息过滤等）则使用
+/// `worker_manager` 插件，见 [SdkWorkers]。
 library;
 
 import 'dart:async';
@@ -18,7 +18,6 @@ import 'dart:isolate';
 import 'dart:ui' show RootIsolateToken;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:openim_sdk/src/isolate/sdk_workers.dart';
 import 'package:openim_sdk/src/models/openim_exception.dart';
 
 import 'sdk_isolate_entry.dart';
@@ -164,6 +163,14 @@ class SdkIsolateManager {
     final inst = _instance;
     if (inst == null) return;
 
+    // L2 池活在 L1 Isolate 自己的 workerManager 单例里，kill 之前先拆掉，避免孤儿 Isolate。
+    // 主 Isolate 上的池只在 [IMManager.unInitSDK] 里拆，避免热重启重建 Isolate 时误伤。
+    if (inst._running) {
+      try {
+        await inst.invoke('im.disposeWorkers').timeout(const Duration(seconds: 2));
+      } catch (_) {}
+    }
+
     inst._running = false;
     inst._isolate?.kill(priority: Isolate.beforeNextEvent);
     inst._isolate = null;
@@ -178,9 +185,6 @@ class SdkIsolateManager {
 
     await inst._eventController.close();
     _instance = null;
-
-    // L2 workers 也一并回收
-    await SdkWorkers.dispose();
   }
 }
 

@@ -1,8 +1,7 @@
 /// 使用 `dart:io` 的 Worker 函数（仅 native 5 端可用）
 ///
-/// 这里的函数**不加** `@isolateManagerSharedWorker` 注解，避免被生成器编译到
-/// JS 共享 Worker 中（dart2js 无法编译 `dart:io`）。它们在 native 平台通过
-/// `IsolateManager.runFunction` 一次性派发到 VM Isolate 执行。
+/// 这些函数依赖 `dart:io`，不能在 Web 上派发。native 平台通过
+/// [SdkWorkers.run] 进入 worker_manager 池执行。
 library;
 
 import 'dart:io';

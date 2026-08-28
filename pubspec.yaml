@@ -31,7 +31,7 @@ dependencies:
   aoiwe_logger: ^1.0.1
   path_provider: ^2.1.5
   protoc_plugin: ^25.0.0
-  isolate_manager: ^6.3.2
+  worker_manager: ^7.2.9
   json_annotation: ^4.11.0
   universal_platform: ^1.1.0
   web_socket_channel: ^3.0.3
@@ -41,4 +41,3 @@ dev_dependencies:
   test: ^1.31.0
   build_runner: ^2.13.1
   json_serializable: ^6.13.1
-  isolate_manager_generator: ^0.4.1

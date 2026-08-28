@@ -1,8 +1,7 @@
 /// SDK 多线程通信协议
 ///
 /// 定义主线程 ↔ 后台 Isolate 之间的消息类型。
-/// 所有消息都可与 `Map<String, dynamic>` 双向转换，便于通过 `isolate_manager`
-/// 在 VM Isolate / JS Worker 之间透明传输。
+/// 所有消息都可与 `Map<String, dynamic>` 双向转换，便于通过 `SendPort` 传输。
 library;
 
 /// 消息信封标签，区分方法调用结果 vs 后台 Isolate 推送的监听器事件。

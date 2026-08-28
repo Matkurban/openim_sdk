@@ -7,6 +7,7 @@ import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_bridge.dart';
 import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
@@ -85,8 +86,7 @@ class MessageManager {
   /// Go SDK 参考：open_im_sdk/userRelated.go handlerSendingMsg
   Future<void> recoverSendingMessages() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('message.recoverSendingMessages', {});
-      return;
+      return sdkInvokeVoid('message.recoverSendingMessages');
     }
     _log.info('Recovering sending messages...', methodName: 'recoverSendingMessages');
     try {
@@ -926,15 +926,18 @@ class MessageManager {
     bool uploadMedia = true,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('message.sendMessage', {
-        'message': message.toJson(),
-        'offlinePushInfo': offlinePushInfo.toJson(),
-        'userID': userID,
-        'groupID': groupID,
-        'isOnlineOnly': isOnlineOnly,
-        'messageOptions': messageOptions,
-      });
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.sendMessage',
+        args: {
+          'message': message.toJson(),
+          'offlinePushInfo': offlinePushInfo.toJson(),
+          'userID': userID,
+          'groupID': groupID,
+          'isOnlineOnly': isOnlineOnly,
+          'messageOptions': messageOptions,
+        },
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
+      );
     }
     _log.info(
       'clientMsgID=${message.clientMsgID}, contentType=${message.contentType}, userID=$userID, groupID=$groupID, isOnlineOnly=$isOnlineOnly',
@@ -1065,14 +1068,17 @@ class MessageManager {
     bool isOnlineOnly = false,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('message.sendMessageNotOss', {
-        'message': message.toJson(),
-        'offlinePushInfo': offlinePushInfo.toJson(),
-        'userID': userID,
-        'groupID': groupID,
-        'isOnlineOnly': isOnlineOnly,
-      });
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.sendMessageNotOss',
+        args: {
+          'message': message.toJson(),
+          'offlinePushInfo': offlinePushInfo.toJson(),
+          'userID': userID,
+          'groupID': groupID,
+          'isOnlineOnly': isOnlineOnly,
+        },
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
+      );
     }
     _log.info('isOnlineOnly=$isOnlineOnly', methodName: 'sendMessageNotOss');
     try {
@@ -1106,14 +1112,16 @@ class MessageManager {
     int? count,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance
-          .invoke('message.getAdvancedHistoryMessageList', {
-            'conversationID': conversationID,
-            'startMsg': startMsg?.toJson(),
-            'viewType': viewType.value,
-            'count': count,
-          });
-      return AdvancedMessage.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.getAdvancedHistoryMessageList',
+        args: {
+          'conversationID': conversationID,
+          'startMsg': startMsg?.toJson(),
+          'viewType': viewType.value,
+          'count': count,
+        },
+        decode: (raw) => sdkDecodeJson(raw, AdvancedMessage.fromJson),
+      );
     }
     _log.info(
       'conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, viewType=$viewType, count=$count',
@@ -1257,14 +1265,16 @@ class MessageManager {
     int? count,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance
-          .invoke('message.getAdvancedHistoryMessageListReverse', {
-            'conversationID': conversationID,
-            'startMsg': startMsg?.toJson(),
-            'viewType': viewType.value,
-            'count': count,
-          });
-      return AdvancedMessage.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.getAdvancedHistoryMessageListReverse',
+        args: {
+          'conversationID': conversationID,
+          'startMsg': startMsg?.toJson(),
+          'viewType': viewType.value,
+          'count': count,
+        },
+        decode: (raw) => sdkDecodeJson(raw, AdvancedMessage.fromJson),
+      );
     }
     _log.info(
       'conversationID=$conversationID, startMsgID=${startMsg?.clientMsgID}, count=$count',
@@ -1293,10 +1303,11 @@ class MessageManager {
   /// [searchParams] 搜索参数列表
   Future<SearchResult> findMessageList({required List<SearchParams> searchParams}) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('message.findMessageList', {
-        'searchParams': searchParams.map((e) => e.toJson()).toList(),
-      });
-      return SearchResult.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.findMessageList',
+        args: {'searchParams': searchParams.map((e) => e.toJson()).toList()},
+        decode: (raw) => sdkDecodeJson(raw, SearchResult.fromJson),
+      );
     }
     _log.info('searchParamsCount=${searchParams.length}', methodName: 'findMessageList');
     try {
@@ -1347,18 +1358,21 @@ class MessageManager {
     int count = 40,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('message.searchLocalMessages', {
-        'conversationID': conversationID,
-        'keywordList': keywordList,
-        'keywordListMatchType': keywordListMatchType,
-        'senderUserIDList': senderUserIDList,
-        'messageTypeList': messageTypeList,
-        'searchTimePosition': searchTimePosition,
-        'searchTimePeriod': searchTimePeriod,
-        'pageIndex': pageIndex,
-        'count': count,
-      });
-      return SearchResult.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.searchLocalMessages',
+        args: {
+          'conversationID': conversationID,
+          'keywordList': keywordList,
+          'keywordListMatchType': keywordListMatchType,
+          'senderUserIDList': senderUserIDList,
+          'messageTypeList': messageTypeList,
+          'searchTimePosition': searchTimePosition,
+          'searchTimePeriod': searchTimePeriod,
+          'pageIndex': pageIndex,
+          'count': count,
+        },
+        decode: (raw) => sdkDecodeJson(raw, SearchResult.fromJson),
+      );
     }
     _log.info(
       'conversationID=$conversationID, keywordList=$keywordList, pageIndex=$pageIndex, count=$count',
@@ -1404,11 +1418,10 @@ class MessageManager {
   /// [clientMsgID] 消息ID
   Future<void> revokeMessage({required String conversationID, required String clientMsgID}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('message.revokeMessage', {
+      return sdkInvokeVoid('message.revokeMessage', {
         'conversationID': conversationID,
         'clientMsgID': clientMsgID,
       });
-      return;
     }
     _log.info(
       'conversationID=$conversationID, clientMsgID=$clientMsgID',
@@ -1506,11 +1519,10 @@ class MessageManager {
     required String clientMsgID,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('message.deleteMessageFromLocalStorage', {
+      return sdkInvokeVoid('message.deleteMessageFromLocalStorage', {
         'conversationID': conversationID,
         'clientMsgID': clientMsgID,
       });
-      return;
     }
     _log.info(
       'conversationID=$conversationID, clientMsgID=$clientMsgID',
@@ -1554,11 +1566,10 @@ class MessageManager {
     required String clientMsgID,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('message.deleteMessageFromLocalAndSvr', {
+      return sdkInvokeVoid('message.deleteMessageFromLocalAndSvr', {
         'conversationID': conversationID,
         'clientMsgID': clientMsgID,
       });
-      return;
     }
     _log.info(
       'conversationID=$conversationID, clientMsgID=$clientMsgID',
@@ -1612,8 +1623,7 @@ class MessageManager {
   /// 删除所有本地消息
   Future<void> deleteAllMsgFromLocal() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('message.deleteAllMsgFromLocal', {});
-      return;
+      return sdkInvokeVoid('message.deleteAllMsgFromLocal');
     }
     _log.info('called', methodName: 'deleteAllMsgFromLocal');
     try {
@@ -1643,8 +1653,7 @@ class MessageManager {
   /// 删除所有消息（本地和服务器）
   Future<void> deleteAllMsgFromLocalAndSvr() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('message.deleteAllMsgFromLocalAndSvr', {});
-      return;
+      return sdkInvokeVoid('message.deleteAllMsgFromLocalAndSvr');
     }
     _log.info('called', methodName: 'deleteAllMsgFromLocalAndSvr');
     try {
@@ -1676,12 +1685,11 @@ class MessageManager {
     required String localEx,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('message.setMessageLocalEx', {
+      return sdkInvokeVoid('message.setMessageLocalEx', {
         'conversationID': conversationID,
         'clientMsgID': clientMsgID,
         'localEx': localEx,
       });
-      return;
     }
     _log.info(
       'conversationID=$conversationID, clientMsgID=$clientMsgID',
@@ -1718,11 +1726,11 @@ class MessageManager {
     Message? message,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
+      return sdkInvoke(
         'message.insertSingleMessageToLocalStorage',
-        {'receiverID': receiverID, 'senderID': senderID, 'message': message?.toJson()},
+        args: {'receiverID': receiverID, 'senderID': senderID, 'message': message?.toJson()},
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
       );
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
     }
     _log.info(
       'receiverID=$receiverID, senderID=$senderID',
@@ -1767,11 +1775,11 @@ class MessageManager {
     Message? message,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
+      return sdkInvoke(
         'message.insertGroupMessageToLocalStorage',
-        {'groupID': groupID, 'senderID': senderID, 'message': message?.toJson()},
+        args: {'groupID': groupID, 'senderID': senderID, 'message': message?.toJson()},
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
       );
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
     }
     _log.info(
       'groupID=$groupID, senderID=$senderID',
@@ -1812,11 +1820,11 @@ class MessageManager {
     String? operationID,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
+      return sdkInvoke(
         'message.createImageMessageFromFullPath',
-        {'imagePath': imagePath},
+        args: {'imagePath': imagePath},
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
       );
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
     }
     _log.info('imagePath=$imagePath', methodName: 'createImageMessageFromFullPath');
     try {
@@ -1913,16 +1921,16 @@ class MessageManager {
     String? operationID,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
+      return sdkInvoke(
         'message.createVideoMessageFromFullPath',
-        {
+        args: {
           'videoPath': videoPath,
           'videoType': videoType,
           'duration': duration,
           'snapshotPath': snapshotPath,
         },
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
       );
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
     }
     _log.info(
       'videoPath=$videoPath, videoType=$videoType, duration=$duration',
@@ -2018,11 +2026,11 @@ class MessageManager {
     required String fileName,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('message.createImageMessageByFile', {
-        'bytes': bytes,
-        'fileName': fileName,
-      });
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.createImageMessageByFile',
+        args: {'bytes': bytes, 'fileName': fileName},
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
+      );
     }
     _log.info('fileName=$fileName, size=${bytes.length}', methodName: 'createImageMessageByFile');
     try {
@@ -2082,14 +2090,17 @@ class MessageManager {
     Uint8List? snapshotBytes,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('message.createVideoMessageByFile', {
-        'bytes': bytes,
-        'fileName': fileName,
-        'duration': duration,
-        'videoType': videoType,
-        'snapshotBytes': snapshotBytes,
-      });
-      return Message.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'message.createVideoMessageByFile',
+        args: {
+          'bytes': bytes,
+          'fileName': fileName,
+          'duration': duration,
+          'videoType': videoType,
+          'snapshotBytes': snapshotBytes,
+        },
+        decode: (raw) => sdkDecodeJson(raw, Message.fromJson),
+      );
     }
     _log.info(
       'fileName=$fileName, size=${bytes.length}, duration=$duration',

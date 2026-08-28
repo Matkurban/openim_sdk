@@ -316,49 +316,18 @@ All SDK Future methods (~160 methods across 10 managers) can now run in a dedica
 
 ## Cross-Platform Multithreading
 
-Since 2.2.0 the SDK uses the [`isolate_manager`](https://pub.dev/packages/isolate_manager) package to run CPU-bound helpers (MD5 hashing, image dimension decoding, message search filtering, history message filtering) off the UI thread on **all 6 platforms**:
+CPU-bound helpers (MD5 hashing, image dimension decoding, message search filtering, history message filtering, native file chunking) run on a [`worker_manager`](https://pub.dev/packages/worker_manager) isolate pool (`isolatesCount: 2`, `dynamicSpawning: true`). Public helper signatures (`computeMd5`, `computePartMd5s`, etc.) are unchanged.
 
 | Platform | Heavy SDK methods (L1) | CPU helpers (L2) |
 |----------|------------------------|-------------------|
-| Android / iOS / macOS / Windows / Linux | `dart:isolate` background Isolate | VM Isolate via `isolate_manager` |
-| Web | Main thread (database / platform channels must stay on main) | Real JS Web Worker (`$shared_worker.js`) |
+| Android / iOS / macOS / Windows / Linux | `dart:isolate` background Isolate | Reusable VM Isolate pool via `worker_manager` |
+| Web | Main thread (database / platform channels must stay on main) | `worker_manager` (wasm Isolates when available; otherwise may fall back to the current isolate, same as Flutter `compute`) |
 
-### Web Worker setup (required for Web apps)
-
-The L2 CPU helpers rely on a generated JavaScript worker. When you target Flutter Web you **must** build it once into your app's `web/` folder:
-
-1. Add the generator as a dev dependency in your app:
-
-   ```yaml
-   dev_dependencies:
-     isolate_manager_generator: ^0.4.1
-   ```
-
-2. From your app's root, point the generator at the SDK package and your `web/` folder:
-
-   ```bash
-   dart run isolate_manager:generate \
-     -i .dart_tool/package_config_resolved/openim_sdk/lib \
-     -o web \
-     --shared
-   ```
-
-   Or, if you develop from a path-dependency checkout of the SDK:
-
-   ```bash
-   # Inside the openim_sdk repo:
-   dart run isolate_manager:generate -i lib -o example/web --shared
-   ```
-
-   This produces `web/$shared_worker.js` alongside `index.html`. Flutter Web will serve it automatically.
-
-3. Commit `$shared_worker.js` (and `.deps`/`.map` if you want symbolication) to your repo, or add the step to your CI.
-
-If the worker file is missing at runtime, `isolate_manager` falls back to running helpers on the main thread — functional but not parallel.
+No generated `$shared_worker.js` is required. The pool is created during `initSDK` (native L1 isolate) or on the first CPU helper call, and is destroyed in `unInitSDK`. Host apps that already called `workerManager.init()` keep their pool size — this SDK skips re-init if the pool is already warm.
 
 ### Background Isolate on native
 
-On native platforms `SdkIsolateManager.initialize()` still spins up a dedicated `dart:isolate` that hosts the entire SDK engine (WebSocket, database, all managers). Reason: `ToStore` (IndexedDB) and `path_provider` (platform channels) are not usable from a Web Worker, so the whole-SDK-in-worker pattern is skipped on Web and only applies to native 5 platforms.
+On native platforms `SdkIsolateManager.initialize()` still spins up a dedicated `dart:isolate` that hosts the entire SDK engine (WebSocket, database, all managers). `worker_manager` is a task pool and cannot receive listener push events while idle, so L1 keeps using a bidirectional `SendPort` channel. The whole-SDK-in-isolate pattern is skipped on Web because `ToStore` and `path_provider` are not usable from a worker.
 
 ## Requirements
 

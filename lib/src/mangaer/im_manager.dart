@@ -11,6 +11,8 @@ import 'package:openim_sdk/src/utils/sdk_isolate.dart' as isolate_util;
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/cache_key.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_bridge.dart';
+import 'package:openim_sdk/src/isolate/sdk_workers.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/network/msg_syncer.dart';
 import 'package:openim_sdk/src/network/notification_dispatcher.dart';
@@ -300,7 +302,7 @@ class IMManager {
   ///检验登录的 token 是否有效
   Future<bool> checkToken({required String token}) async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('im.checkToken', {'token': token}) as bool;
+      return sdkInvoke<bool>('im.checkToken', args: {'token': token});
     }
     _log.info('检查 Token', methodName: 'checkToken');
     final ImApiService imApiService = _getIt.get<ImApiService>(
@@ -325,10 +327,7 @@ class IMManager {
   /// [isGlobal] 是否全局（跨用户空间）
   Future<dynamic> getValue(String key, {bool isGlobal = false}) async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('im.getValue', {
-        'key': key,
-        'isGlobal': isGlobal,
-      });
+      return sdkInvoke('im.getValue', args: {'key': key, 'isGlobal': isGlobal});
     }
     return getDatabaseInstance().getValue(key, isGlobal: isGlobal);
   }
@@ -339,11 +338,7 @@ class IMManager {
   /// [isGlobal] 是否全局（跨用户空间）
   Future<bool> setValue(String key, dynamic value, {bool isGlobal = false}) async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('im.setValue', {
-        'key': key,
-        'value': value,
-        'isGlobal': isGlobal,
-      });
+      return sdkInvoke('im.setValue', args: {'key': key, 'value': value, 'isGlobal': isGlobal});
     }
     return (await getDatabaseInstance().setValue(key, value, isGlobal: isGlobal)).isSuccess;
   }
@@ -353,10 +348,7 @@ class IMManager {
   /// [isGlobal] 是否全局（跨用户空间）
   Future<bool> removeValue(String key, {bool isGlobal = false}) async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('im.removeValue', {
-        'key': key,
-        'isGlobal': isGlobal,
-      });
+      return sdkInvoke('im.removeValue', args: {'key': key, 'isGlobal': isGlobal});
     }
     return (await getDatabaseInstance().removeValue(key, isGlobal: isGlobal)).isSuccess;
   }
@@ -364,15 +356,19 @@ class IMManager {
   /// 获取当前数据库空间信息
   Future<SpaceInfo> getSpaceInfo() async {
     if (SdkIsolateManager.isActive) {
-      Map<String, dynamic> result =
-          await SdkIsolateManager.instance.invoke('im.getSpaceInfo', {}) as Map<String, dynamic>;
-      return SpaceInfo(
-        spaceName: result['spaceName'],
-        recordCount: result['recordCount'],
-        tableCount: result['tableCount'],
-        dataSizeBytes: result['dataSizeBytes'],
-        lastStatisticsTime: result['lastStatisticsTime'],
-        tables: result['tables'],
+      return sdkInvoke(
+        'im.getSpaceInfo',
+        decode: (raw) {
+          Map<String, dynamic> result = raw as Map<String, dynamic>;
+          return SpaceInfo(
+            spaceName: result['spaceName'],
+            recordCount: result['recordCount'],
+            tableCount: result['tableCount'],
+            dataSizeBytes: result['dataSizeBytes'],
+            lastStatisticsTime: result['lastStatisticsTime'],
+            tables: result['tables'],
+          );
+        },
       );
     }
     return await getDatabaseInstance().getSpaceInfo();
@@ -441,6 +437,7 @@ class IMManager {
       await SdkIsolateManager.dispose();
       _loginStatus = LoginStatus.logout;
       _initialized = false;
+      await SdkWorkers.dispose();
       return;
     }
     _log.info('unInitSDK');
@@ -463,6 +460,7 @@ class IMManager {
     if (_getIt.isRegistered<UserInfo>(instanceName: InstanceName.loginUser)) {
       await _getIt.unregister<UserInfo>(instanceName: InstanceName.loginUser);
     }
+    await SdkWorkers.dispose();
   }
 
   /// Chat 服务端登录（内部方法）
@@ -850,8 +848,7 @@ class IMManager {
   /// 每次应用回到前台时主动做一次缺口补偿同步。
   Future<void> triggerWakeupSync() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('im.triggerWakeupSync', {});
-      return;
+      return sdkInvokeVoid('im.triggerWakeupSync');
     }
     if (_loginStatus != LoginStatus.logged) return;
     final syncer = _msgSyncer;
@@ -898,15 +895,17 @@ class IMManager {
     void Function(int sent, int total)? onProgress,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('im.uploadFile', {
-        'id': id,
-        'filePath': filePath,
-        'fileBytes': fileBytes,
-        'fileName': fileName,
-        'contentType': contentType,
-        'cause': cause,
-      });
-      return result as String;
+      return sdkInvoke<String>(
+        'im.uploadFile',
+        args: {
+          'id': id,
+          'filePath': filePath,
+          'fileBytes': fileBytes,
+          'fileName': fileName,
+          'contentType': contentType,
+          'cause': cause,
+        },
+      );
     }
     assert(filePath != null || fileBytes != null, 'filePath 和 fileBytes 必须提供其中一个');
     _log.info(
@@ -1315,8 +1314,7 @@ class IMManager {
   /// 对应 Go SDK NetworkStatusChanged —— 关闭长连接触发自动重连
   Future<void> networkStatusChanged() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('im.networkStatusChanged', {});
-      return;
+      return sdkInvokeVoid('im.networkStatusChanged');
     }
     _log.info('', methodName: 'networkStatusChanged');
     try {
@@ -1335,11 +1333,7 @@ class IMManager {
   /// [expireTime] 过期时间（秒级时间戳）
   Future<void> updateFcmToken({required String fcmToken, int expireTime = 0}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('im.updateFcmToken', {
-        'fcmToken': fcmToken,
-        'expireTime': expireTime,
-      });
-      return;
+      return sdkInvokeVoid('im.updateFcmToken', {'fcmToken': fcmToken, 'expireTime': expireTime});
     }
     _log.info('fcmToken=$fcmToken', methodName: 'updateFcmToken');
     try {

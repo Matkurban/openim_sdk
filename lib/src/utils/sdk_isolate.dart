@@ -1,13 +1,12 @@
 /// OpenIM SDK Isolate 工具：将 CPU 密集型操作从主线程卸载到后台线程。
 ///
 /// 设计原则：
-/// - 使用 `isolate_manager` 插件跨平台运行（native VM Isolate + Web JS Worker）。
-/// - 纯 Dart 的 worker 函数位于 [sdk_isolate_workers_core.dart]，用
-///   `@isolateManagerSharedWorker` 注解，被生成器编译到单一的 `$shared_worker.js`，
-///   在 Web 上真正以 Web Worker 运行。
-/// - 涉及 `dart:io` 的 worker 函数位于 [sdk_isolate_workers_io.dart]，不加注解，
-///   仅在 native 侧通过 `IsolateManager.runFunction` 运行；Web 侧通过 `fileBytes`
-///   分支绕开，或在公共入口直接抛出 [UnsupportedError]。
+/// - 使用 `worker_manager` 在可复用 Isolate 池中执行（native VM Isolate；
+///   Web 在 wasm Isolate 可用时并行，否则可能落回当前 Isolate）。
+/// - 纯 Dart 的 worker 函数位于 [sdk_isolate_workers_core.dart]。
+/// - 涉及 `dart:io` 的 worker 函数位于 [sdk_isolate_workers_io.dart]，
+///   仅在 native 侧派发；Web 侧通过 `fileBytes` 分支绕开，或在公共入口
+///   直接抛出 [UnsupportedError]。
 /// - 对外公开的 API（`computeMd5`、`computePartMd5s` 等）签名保持不变。
 library;
 
@@ -15,6 +14,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:worker_manager/worker_manager.dart';
 
 import '../isolate/sdk_workers.dart';
 import 'sdk_isolate_workers_core.dart' as core;
@@ -28,12 +28,15 @@ import 'sdk_isolate_workers_stub.dart'
 
 /// 计算 bytes 的 MD5 哈希，返回 hex 字符串
 Future<String> computeMd5(Uint8List bytes) {
-  return SdkWorkers.shared.compute<String, Uint8List>(core.md5Worker, bytes);
+  return SdkWorkers.run<String>(() => core.md5Worker(bytes), priority: WorkPriority.high);
 }
 
 /// 计算组合 MD5：所有分片 MD5 用逗号拼接后再取 MD5
 Future<String> computeCombinedMd5(List<String> partMd5s) {
-  return SdkWorkers.shared.compute<String, List<String>>(core.combinedMd5Worker, partMd5s);
+  return SdkWorkers.run<String>(
+    () => core.combinedMd5Worker(partMd5s),
+    priority: WorkPriority.high,
+  );
 }
 
 // ============================================================
@@ -59,14 +62,15 @@ class ComputePartMd5sParam {
 /// 批量计算多个分片的 MD5（上传流程用）
 Future<List<String>> computePartMd5s(ComputePartMd5sParam param) {
   if (param.fileBytes != null) {
-    return SdkWorkers.shared.compute<List<String>, Map<String, dynamic>>(
-      core.partMd5sFromBytesWorker,
-      <String, dynamic>{
-        'fileBytes': param.fileBytes,
-        'partSize': param.partSize,
-        'partNum': param.partNum,
-        'fileSize': param.fileSize,
-      },
+    final payload = <String, dynamic>{
+      'fileBytes': param.fileBytes,
+      'partSize': param.partSize,
+      'partNum': param.partNum,
+      'fileSize': param.fileSize,
+    };
+    return SdkWorkers.run<List<String>>(
+      () => core.partMd5sFromBytesWorker(payload),
+      priority: WorkPriority.high,
     );
   }
   if (param.filePath == null) {
@@ -75,14 +79,15 @@ Future<List<String>> computePartMd5s(ComputePartMd5sParam param) {
   if (kIsWeb) {
     throw UnsupportedError('Web 平台不支持通过 filePath 计算分片 MD5，请传入 fileBytes');
   }
-  return SdkWorkers.runNative<List<String>, Map<String, dynamic>>(
-    io_workers.partMd5sFromFileWorker,
-    <String, dynamic>{
-      'filePath': param.filePath,
-      'partSize': param.partSize,
-      'partNum': param.partNum,
-      'fileSize': param.fileSize,
-    },
+  final payload = <String, dynamic>{
+    'filePath': param.filePath,
+    'partSize': param.partSize,
+    'partNum': param.partNum,
+    'fileSize': param.fileSize,
+  };
+  return SdkWorkers.run<List<String>>(
+    () => io_workers.partMd5sFromFileWorker(payload),
+    priority: WorkPriority.high,
   );
 }
 
@@ -103,9 +108,14 @@ Future<Uint8List> readFilePart(ReadFilePartParam param) {
   if (kIsWeb) {
     throw UnsupportedError('Web 平台不支持通过文件路径读取分片，请在主线程使用 fileBytes 切片');
   }
-  return SdkWorkers.runNative<Uint8List, Map<String, dynamic>>(
-    io_workers.readFilePartWorker,
-    <String, dynamic>{'filePath': param.filePath, 'start': param.start, 'length': param.length},
+  final payload = <String, dynamic>{
+    'filePath': param.filePath,
+    'start': param.start,
+    'length': param.length,
+  };
+  return SdkWorkers.run<Uint8List>(
+    () => io_workers.readFilePartWorker(payload),
+    priority: WorkPriority.high,
   );
 }
 
@@ -130,10 +140,7 @@ class ImageDimensions {
 
 /// 从字节解码图片尺寸（纯 Dart，6 端通用）
 Future<ImageDimensions?> computeImageDimensions(Uint8List bytes) async {
-  final map = await SdkWorkers.shared.compute<Map<String, dynamic>?, Uint8List>(
-    core.imageDimensionsWorker,
-    bytes,
-  );
+  final map = await SdkWorkers.run<Map<String, dynamic>?>(() => core.imageDimensionsWorker(bytes));
   return ImageDimensions.fromMap(map);
 }
 
@@ -142,9 +149,8 @@ Future<ImageDimensions?> computeImageDimensionsFromFile(String filePath) async {
   if (kIsWeb) {
     throw UnsupportedError('Web 平台不支持通过 filePath 解码图片尺寸');
   }
-  final map = await SdkWorkers.runNative<Map<String, dynamic>?, String>(
-    io_workers.imageDimensionsFromFileWorker,
-    filePath,
+  final map = await SdkWorkers.run<Map<String, dynamic>?>(
+    () => io_workers.imageDimensionsFromFileWorker(filePath),
   );
   return ImageDimensions.fromMap(map);
 }
@@ -181,16 +187,16 @@ class SearchFilterResult {
 
 /// 在后台线程执行消息搜索过滤
 Future<SearchFilterResult> computeSearchFilter(SearchFilterParam param) async {
-  final list = await SdkWorkers.shared
-      .compute<List<dynamic>, Map<String, dynamic>>(core.searchFilterWorker, <String, dynamic>{
-        'data': param.data,
-        'keyword': param.keyword,
-        'messageTypes': param.messageTypes,
-        'startTime': param.startTime,
-        'endTime': param.endTime,
-        'offset': param.offset,
-        'count': param.count,
-      });
+  final payload = <String, dynamic>{
+    'data': param.data,
+    'keyword': param.keyword,
+    'messageTypes': param.messageTypes,
+    'startTime': param.startTime,
+    'endTime': param.endTime,
+    'offset': param.offset,
+    'count': param.count,
+  };
+  final list = await SdkWorkers.run<List<dynamic>>(() => core.searchFilterWorker(payload));
   return SearchFilterResult(list.map((e) => Map<String, dynamic>.from(e as Map)).toList());
 }
 
@@ -216,13 +222,13 @@ class HistoryFilterParam {
 
 /// 在后台线程过滤历史消息列表
 Future<List<Map<String, dynamic>>> computeHistoryFilter(HistoryFilterParam param) async {
-  final list = await SdkWorkers.shared
-      .compute<List<dynamic>, Map<String, dynamic>>(core.historyFilterWorker, <String, dynamic>{
-        'data': param.data,
-        'startTime': param.startTime,
-        'startSeq': param.startSeq,
-        'startClientMsgID': param.startClientMsgID,
-        'count': param.count,
-      });
+  final payload = <String, dynamic>{
+    'data': param.data,
+    'startTime': param.startTime,
+    'startSeq': param.startSeq,
+    'startClientMsgID': param.startClientMsgID,
+    'count': param.count,
+  };
+  final list = await SdkWorkers.run<List<dynamic>>(() => core.historyFilterWorker(payload));
   return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:get_it/get_it.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_bridge.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/models/web_socket_identifier.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
@@ -85,13 +86,10 @@ class ConversationManager {
   /// 获取所有会话列表
   Future<List<ConversationInfo>> getAllConversationList() async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
+      return sdkInvoke(
         'conversation.getAllConversationList',
-        {},
+        decode: (raw) => sdkDecodeList(raw, ConversationInfo.fromJson),
       );
-      return (result as List)
-          .map((e) => ConversationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
     }
     _log.info('called', methodName: 'getAllConversationList');
     try {
@@ -112,13 +110,11 @@ class ConversationManager {
   /// [count] 每页数量
   Future<List<ConversationInfo>> getConversationListSplit({int offset = 0, int count = 20}) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
+      return sdkInvoke(
         'conversation.getConversationListSplit',
-        {'offset': offset, 'count': count},
+        args: {'offset': offset, 'count': count},
+        decode: (raw) => sdkDecodeList(raw, ConversationInfo.fromJson),
       );
-      return (result as List)
-          .map((e) => ConversationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
     }
     _log.info('offset=$offset, count=$count', methodName: 'getConversationListSplit');
     try {
@@ -137,11 +133,11 @@ class ConversationManager {
     required int sessionType,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('conversation.getOneConversation', {
-        'sourceID': sourceID,
-        'sessionType': sessionType,
-      });
-      return ConversationInfo.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'conversation.getOneConversation',
+        args: {'sourceID': sourceID, 'sessionType': sessionType},
+        decode: (raw) => sdkDecodeJson(raw, ConversationInfo.fromJson),
+      );
     }
     _log.info('sourceID=$sourceID, sessionType=$sessionType', methodName: 'getOneConversation');
     try {
@@ -216,13 +212,11 @@ class ConversationManager {
     required List<String> conversationIDList,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke(
+      return sdkInvoke(
         'conversation.getMultipleConversation',
-        {'conversationIDList': conversationIDList},
+        args: {'conversationIDList': conversationIDList},
+        decode: (raw) => sdkDecodeList(raw, ConversationInfo.fromJson),
       );
-      return (result as List)
-          .map((e) => ConversationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
     }
     _log.info('conversationIDList=$conversationIDList', methodName: 'getMultipleConversation');
     try {
@@ -237,12 +231,11 @@ class ConversationManager {
   /// [name] 搜索关键字
   Future<List<ConversationInfo>> searchConversations(String name) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('conversation.searchConversations', {
-        'name': name,
-      });
-      return (result as List)
-          .map((e) => ConversationInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'conversation.searchConversations',
+        args: {'name': name},
+        decode: (raw) => sdkDecodeList(raw, ConversationInfo.fromJson),
+      );
     }
     _log.info('name=$name', methodName: 'searchConversations');
     try {
@@ -294,11 +287,10 @@ class ConversationManager {
     required ConversationReq req,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.setConversation', {
+      return sdkInvokeVoid('conversation.setConversation', {
         'conversationID': conversationID,
         'req': req.toJson(),
       });
-      return;
     }
     _log.info('conversationID=$conversationID, req=$req', methodName: 'setConversation');
     try {
@@ -327,11 +319,10 @@ class ConversationManager {
   /// [isPinned] true: 置顶, false: 取消置顶
   Future<void> pinConversation({required String conversationID, required bool isPinned}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.pinConversation', {
+      return sdkInvokeVoid('conversation.pinConversation', {
         'conversationID': conversationID,
         'isPinned': isPinned,
       });
-      return;
     }
     _log.info('conversationID=$conversationID, isPinned=$isPinned', methodName: 'pinConversation');
     try {
@@ -347,10 +338,7 @@ class ConversationManager {
   /// [conversationID] 会话ID
   Future<void> hideConversation({required String conversationID}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.hideConversation', {
-        'conversationID': conversationID,
-      });
-      return;
+      return sdkInvokeVoid('conversation.hideConversation', {'conversationID': conversationID});
     }
     _log.info('conversationID=$conversationID', methodName: 'hideConversation');
     try {
@@ -366,8 +354,7 @@ class ConversationManager {
   /// 隐藏所有会话（对齐 Go SDK HideAllConversations）
   Future<void> hideAllConversations() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.hideAllConversations', {});
-      return;
+      return sdkInvokeVoid('conversation.hideAllConversations');
     }
     _log.info('called', methodName: 'hideAllConversations');
     try {
@@ -391,11 +378,10 @@ class ConversationManager {
     required String draftText,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.setConversationDraft', {
+      return sdkInvokeVoid('conversation.setConversationDraft', {
         'conversationID': conversationID,
         'draftText': draftText,
       });
-      return;
     }
     _log.info(
       'conversationID=$conversationID, draftText=$draftText',
@@ -414,8 +400,10 @@ class ConversationManager {
   /// 获取未读消息总数
   Future<int> getTotalUnreadMsgCount() async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('conversation.getTotalUnreadMsgCount', {})
-          as int;
+      return sdkInvoke(
+        'conversation.getTotalUnreadMsgCount',
+        decode: (raw) => (raw as num).toInt(),
+      );
     }
     _log.info('called', methodName: 'getTotalUnreadMsgCount');
     try {
@@ -430,10 +418,9 @@ class ConversationManager {
   /// [conversationID] 会话ID
   Future<void> markConversationMessageAsRead({required String conversationID}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.markConversationMessageAsRead', {
+      return sdkInvokeVoid('conversation.markConversationMessageAsRead', {
         'conversationID': conversationID,
       });
-      return;
     }
     // 防止重入：同一会话正在标记已读时跳过，但仍触发一次最新未读总数，
     // 避免上层 UI 在并发调用下错失角标更新。
@@ -521,8 +508,7 @@ class ConversationManager {
   /// 标记所有会话消息已读
   Future<void> markAllConversationMessageAsRead() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.markAllConversationMessageAsRead', {});
-      return;
+      return sdkInvokeVoid('conversation.markAllConversationMessageAsRead');
     }
     _log.info('called', methodName: 'markAllConversationMessageAsRead');
     try {
@@ -568,11 +554,10 @@ class ConversationManager {
     required List<String> clientMsgIDs,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.markMessagesAsReadByMsgID', {
+      return sdkInvokeVoid('conversation.markMessagesAsReadByMsgID', {
         'conversationID': conversationID,
         'clientMsgIDs': clientMsgIDs,
       });
-      return;
     }
     _log.info(
       'conversationID=$conversationID, clientMsgIDs=$clientMsgIDs',
@@ -645,10 +630,9 @@ class ConversationManager {
   /// 但保留会话记录供增量同步使用。
   Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.deleteConversationAndDeleteAllMsg', {
+      return sdkInvokeVoid('conversation.deleteConversationAndDeleteAllMsg', {
         'conversationID': conversationID,
       });
-      return;
     }
     _log.info('conversationID=$conversationID', methodName: 'deleteConversationAndDeleteAllMsg');
     try {
@@ -693,10 +677,9 @@ class ConversationManager {
   /// - 使用 ClearConversation（不重置 latestMsgSendTime），会话仍显示在列表中
   Future<void> clearConversationAndDeleteAllMsg({required String conversationID}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.clearConversationAndDeleteAllMsg', {
+      return sdkInvokeVoid('conversation.clearConversationAndDeleteAllMsg', {
         'conversationID': conversationID,
       });
-      return;
     }
     _log.info('conversationID=$conversationID', methodName: 'clearConversationAndDeleteAllMsg');
     try {
@@ -738,11 +721,10 @@ class ConversationManager {
   /// [focus] 是否正在输入
   Future<void> changeInputStates({required String conversationID, required bool focus}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('conversation.changeInputStates', {
+      return sdkInvokeVoid('conversation.changeInputStates', {
         'conversationID': conversationID,
         'focus': focus,
       });
-      return;
     }
     _log.info('conversationID=$conversationID, focus=$focus', methodName: 'changeInputStates');
     try {
@@ -798,11 +780,11 @@ class ConversationManager {
   /// [userID] 对方用户ID
   Future<List<int>?> getInputStates(String conversationID, String userID) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('conversation.getInputStates', {
-        'conversationID': conversationID,
-        'userID': userID,
-      });
-      return (result as List?)?.cast<int>();
+      return sdkInvoke(
+        'conversation.getInputStates',
+        args: {'conversationID': conversationID, 'userID': userID},
+        decode: (raw) => (raw as List?)?.cast<int>(),
+      );
     }
     _log.info('conversationID=$conversationID, userID=$userID', methodName: 'getInputStates');
     try {

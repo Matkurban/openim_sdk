@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
-import 'package:openim_sdk/src/isolate/sdk_isolate_manager.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_bridge.dart';
 import 'package:openim_sdk/src/listener/red_packet_listener.dart';
 import 'package:openim_sdk/src/models/red_packet.dart';
 import 'package:openim_sdk/src/network/http_client.dart';
@@ -54,10 +54,7 @@ class RedPacketManager {
   /// 预加载已领取红包 ID 到内存缓存（批量查询，供消息列表使用）
   Future<void> preloadGrabbedStatus(List<String> packetIDs) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('redPacket.preloadGrabbedStatus', {
-        'packetIDs': packetIDs,
-      });
-      return;
+      return sdkInvokeVoid('redPacket.preloadGrabbedStatus', {'packetIDs': packetIDs});
     }
     if (packetIDs.isEmpty || _database == null) return;
     // 过滤掉已在缓存中的
@@ -73,8 +70,7 @@ class RedPacketManager {
   /// 标记红包已领取（写入内存缓存 + 持久化到本地数据库）
   Future<void> markGrabbed(String packetID) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('redPacket.markGrabbed', {'packetID': packetID});
-      return;
+      return sdkInvokeVoid('redPacket.markGrabbed', {'packetID': packetID});
     }
     _grabbedPacketIDs.add(packetID);
     await _database?.markRedPacketGrabbed(packetID);
@@ -87,10 +83,7 @@ class RedPacketManager {
   /// 成功后：客户端再通过 [MessageManager.sendCustomMessage] 将红包消息发到会话。
   Future<String> sendRedPacket(SendRedPacketRequest req) async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('redPacket.sendRedPacket', {
-            'req': req.toJson(),
-          })
-          as String;
+      return sdkInvoke<String>('redPacket.sendRedPacket', args: {'req': req.toJson()});
     }
     _log.info(
       'packetType=${req.packetType}, amount=${req.totalAmount}',
@@ -117,11 +110,11 @@ class RedPacketManager {
   /// 抢红包，返回实际领取积分数量。
   Future<double> grabRedPacket(String packetID) async {
     if (SdkIsolateManager.isActive) {
-      return (await SdkIsolateManager.instance.invoke('redPacket.grabRedPacket', {
-                'packetID': packetID,
-              })
-              as num)
-          .toDouble();
+      return sdkInvoke(
+        'redPacket.grabRedPacket',
+        args: {'packetID': packetID},
+        decode: (raw) => (raw as num).toDouble(),
+      );
     }
     _log.info('packetID=$packetID', methodName: 'grabRedPacket');
     try {
@@ -146,10 +139,11 @@ class RedPacketManager {
 
   Future<RedPacketDetail> getRedPacketDetail(String packetID) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('redPacket.getRedPacketDetail', {
-        'packetID': packetID,
-      });
-      return RedPacketDetail.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'redPacket.getRedPacketDetail',
+        args: {'packetID': packetID},
+        decode: (raw) => sdkDecodeJson(raw, RedPacketDetail.fromJson),
+      );
     }
     _log.info('packetID=$packetID', methodName: 'getRedPacketDetail');
     try {
@@ -169,8 +163,7 @@ class RedPacketManager {
   /// 拉取当前用户积分余额（同时更新本地缓存）
   Future<double> getPointsBalance() async {
     if (SdkIsolateManager.isActive) {
-      return (await SdkIsolateManager.instance.invoke('redPacket.getPointsBalance', {}) as num)
-          .toDouble();
+      return sdkInvoke('redPacket.getPointsBalance', decode: (raw) => (raw as num).toDouble());
     }
     try {
       final resp = await HttpClient().chatPost('/points/balance', data: {});
@@ -201,20 +194,23 @@ class RedPacketManager {
     String? keyword,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('redPacket.getPointsTransactions', {
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-        'txType': txType,
-        'startTime': startTime?.millisecondsSinceEpoch,
-        'endTime': endTime?.millisecondsSinceEpoch,
-        'keyword': keyword,
-      });
-      final map = Map<String, dynamic>.from(result as Map);
-      final total = map['total'] as int;
-      final items = (map['items'] as List)
-          .map((e) => PointsTransaction.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
-      return (total, items);
+      return sdkInvoke(
+        'redPacket.getPointsTransactions',
+        args: {
+          'pageNumber': pageNumber,
+          'showNumber': showNumber,
+          'txType': txType,
+          'startTime': startTime?.millisecondsSinceEpoch,
+          'endTime': endTime?.millisecondsSinceEpoch,
+          'keyword': keyword,
+        },
+        decode: (raw) {
+          final map = Map<String, dynamic>.from(raw as Map);
+          final total = map['total'] as int;
+          final items = sdkDecodeList(map['items'], PointsTransaction.fromJson);
+          return (total, items);
+        },
+      );
     }
     try {
       final data = <String, dynamic>{'pageNumber': pageNumber, 'showNumber': showNumber};
@@ -251,16 +247,16 @@ class RedPacketManager {
     int showNumber = 20,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('redPacket.getIncomeTransactions', {
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
-      final map = Map<String, dynamic>.from(result as Map);
-      final total = map['total'] as int;
-      final items = (map['items'] as List)
-          .map((e) => PointsTransaction.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
-      return (total, items);
+      return sdkInvoke(
+        'redPacket.getIncomeTransactions',
+        args: {'pageNumber': pageNumber, 'showNumber': showNumber},
+        decode: (raw) {
+          final map = Map<String, dynamic>.from(raw as Map);
+          final total = map['total'] as int;
+          final items = sdkDecodeList(map['items'], PointsTransaction.fromJson);
+          return (total, items);
+        },
+      );
     }
     // 收入类型无单一 txType，拉取全部后客户端过滤
     final (total, items) = await getPointsTransactions(
@@ -277,16 +273,16 @@ class RedPacketManager {
     int showNumber = 20,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('redPacket.getExpenseTransactions', {
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
-      final map = Map<String, dynamic>.from(result as Map);
-      final total = map['total'] as int;
-      final items = (map['items'] as List)
-          .map((e) => PointsTransaction.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
-      return (total, items);
+      return sdkInvoke(
+        'redPacket.getExpenseTransactions',
+        args: {'pageNumber': pageNumber, 'showNumber': showNumber},
+        decode: (raw) {
+          final map = Map<String, dynamic>.from(raw as Map);
+          final total = map['total'] as int;
+          final items = sdkDecodeList(map['items'], PointsTransaction.fromJson);
+          return (total, items);
+        },
+      );
     }
     final (total, items) = await getPointsTransactions(
       pageNumber: pageNumber,

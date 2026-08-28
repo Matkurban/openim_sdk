@@ -3,6 +3,7 @@ import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_bridge.dart';
 import 'package:openim_sdk/src/services/database_service.dart';
 import 'package:openim_sdk/src/services/im_api_service.dart';
 
@@ -42,12 +43,11 @@ class UserManager {
   /// [userIDList] 用户ID列表
   Future<List<UserInfo>> getUsersInfo({required List<String> userIDList}) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getUsersInfo', {
-        'userIDList': userIDList,
-      });
-      return (result as List)
-          .map((e) => UserInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.getUsersInfo',
+        args: {'userIDList': userIDList},
+        decode: (raw) => sdkDecodeList(raw, UserInfo.fromJson),
+      );
     }
     _log.info('userIDList=$userIDList', methodName: 'getUsersInfo');
     try {
@@ -61,12 +61,11 @@ class UserManager {
   /// 从缓存获取用户信息，缺失部分从服务器获取并回写本地
   Future<List<UserInfo>> getUsersInfoWithCache({required List<String> userIDList}) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getUsersInfoWithCache', {
-        'userIDList': userIDList,
-      });
-      return (result as List)
-          .map((e) => UserInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.getUsersInfoWithCache',
+        args: {'userIDList': userIDList},
+        decode: (raw) => sdkDecodeList(raw, UserInfo.fromJson),
+      );
     }
     _log.info('userIDList=$userIDList', methodName: 'getUsersInfoWithCache');
     try {
@@ -98,12 +97,11 @@ class UserManager {
   /// 强制从服务器获取用户信息
   Future<List<UserInfo>> getUsersInfoFromSrv({required List<String> userIDList}) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getUsersInfoFromSrv', {
-        'userIDList': userIDList,
-      });
-      return (result as List)
-          .map((e) => UserInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.getUsersInfoFromSrv',
+        args: {'userIDList': userIDList},
+        decode: (raw) => sdkDecodeList(raw, UserInfo.fromJson),
+      );
     }
     _log.info('userIDList=$userIDList', methodName: 'getUsersInfoFromSrv');
     try {
@@ -125,8 +123,10 @@ class UserManager {
   /// 获取当前登录用户信息
   Future<UserInfo?> getSelfUserInfo() async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getSelfUserInfo', {});
-      return result != null ? UserInfo.fromJson(Map<String, dynamic>.from(result as Map)) : null;
+      return sdkInvoke(
+        'user.getSelfUserInfo',
+        decode: (raw) => raw != null ? sdkDecodeJson(raw, UserInfo.fromJson) : null,
+      );
     }
     _log.info('called', methodName: 'getSelfUserInfo');
     try {
@@ -149,13 +149,12 @@ class UserManager {
     String? ex,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.setSelfInfo', {
+      return sdkInvokeVoid('user.setSelfInfo', {
         'nickname': nickname,
         'faceURL': faceURL,
         'globalRecvMsgOpt': globalRecvMsgOpt,
         'ex': ex,
       });
-      return;
     }
     _log.info(
       'nickname=$nickname, faceURL=$faceURL, globalRecvMsgOpt=$globalRecvMsgOpt',
@@ -213,12 +212,11 @@ class UserManager {
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> subscribeUsersStatus(List<String> userIDs) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.subscribeUsersStatus', {
-        'userIDs': userIDs,
-      });
-      return (result as List)
-          .map((e) => UserStatusInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.subscribeUsersStatus',
+        args: {'userIDs': userIDs},
+        decode: (raw) => sdkDecodeList(raw, UserStatusInfo.fromJson),
+      );
     }
     _log.info('userIDs=$userIDs', methodName: 'subscribeUsersStatus');
     try {
@@ -245,8 +243,7 @@ class UserManager {
   /// [userIDs] 用户ID列表
   Future<void> unsubscribeUsersStatus(List<String> userIDs) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.unsubscribeUsersStatus', {'userIDs': userIDs});
-      return;
+      return sdkInvokeVoid('user.unsubscribeUsersStatus', {'userIDs': userIDs});
     }
     _log.info('userIDs=$userIDs', methodName: 'unsubscribeUsersStatus');
     try {
@@ -267,10 +264,10 @@ class UserManager {
   /// 获取已订阅用户的在线状态
   Future<List<UserStatusInfo>> getSubscribeUsersStatus() async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getSubscribeUsersStatus', {});
-      return (result as List)
-          .map((e) => UserStatusInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.getSubscribeUsersStatus',
+        decode: (raw) => sdkDecodeList(raw, UserStatusInfo.fromJson),
+      );
     }
     _log.info('called', methodName: 'getSubscribeUsersStatus');
     try {
@@ -293,12 +290,11 @@ class UserManager {
   /// [userIDs] 用户ID列表
   Future<List<UserStatusInfo>> getUserStatus(List<String> userIDs) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getUserStatus', {
-        'userIDs': userIDs,
-      });
-      return (result as List)
-          .map((e) => UserStatusInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.getUserStatus',
+        args: {'userIDs': userIDs},
+        decode: (raw) => sdkDecodeList(raw, UserStatusInfo.fromJson),
+      );
     }
     _log.info('userIDs=$userIDs', methodName: 'getUserStatus');
     try {
@@ -322,8 +318,10 @@ class UserManager {
   /// 返回服务端下发的配置 KV 对
   Future<Map<String, String>> getUserClientConfig() async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getUserClientConfig', {});
-      return (result as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? ''));
+      return sdkInvoke(
+        'user.getUserClientConfig',
+        decode: (raw) => (raw as Map).map((k, v) => MapEntry(k.toString(), v?.toString() ?? '')),
+      );
     }
     _log.info('called', methodName: 'getUserClientConfig');
     try {
@@ -356,14 +354,11 @@ class UserManager {
     int showNumber = 10,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.searchFriendInfo', {
-        'keyword': keyword,
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
-      return (result as List)
-          .map((e) => FriendInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.searchFriendInfo',
+        args: {'keyword': keyword, 'pageNumber': pageNumber, 'showNumber': showNumber},
+        decode: (raw) => sdkDecodeList(raw, FriendInfo.fromJson),
+      );
     }
     _log.info('keyword=$keyword', methodName: 'searchFriendInfo');
     try {
@@ -395,14 +390,11 @@ class UserManager {
     int showNumber = 10,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.searchUserFullInfo', {
-        'keyword': keyword,
-        'pageNumber': pageNumber,
-        'showNumber': showNumber,
-      });
-      return (result as List)
-          .map((e) => UserFullInfo.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList();
+      return sdkInvoke(
+        'user.searchUserFullInfo',
+        args: {'keyword': keyword, 'pageNumber': pageNumber, 'showNumber': showNumber},
+        decode: (raw) => sdkDecodeList(raw, UserFullInfo.fromJson),
+      );
     }
     _log.info('keyword=$keyword', methodName: 'searchUserFullInfo');
     try {
@@ -428,12 +420,11 @@ class UserManager {
   /// [userID] 用户ID
   Future<UserFullInfo?> getUserFullInfo({required String userID}) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.getUserFullInfo', {
-        'userID': userID,
-      });
-      return result != null
-          ? UserFullInfo.fromJson(Map<String, dynamic>.from(result as Map))
-          : null;
+      return sdkInvoke(
+        'user.getUserFullInfo',
+        args: {'userID': userID},
+        decode: (raw) => raw != null ? sdkDecodeJson(raw, UserFullInfo.fromJson) : null,
+      );
     }
     _log.info('userID=$userID', methodName: 'getUserFullInfo');
     try {
@@ -469,7 +460,7 @@ class UserManager {
     int? birth,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.updateChatUserInfo', {
+      return sdkInvokeVoid('user.updateChatUserInfo', {
         'account': account,
         'phoneNumber': phoneNumber,
         'areaCode': areaCode,
@@ -479,7 +470,6 @@ class UserManager {
         'gender': gender,
         'birth': birth,
       });
-      return;
     }
     _log.info('nickname=$nickname, faceURL=$faceURL', methodName: 'updateChatUserInfo');
     try {
@@ -508,11 +498,7 @@ class UserManager {
   /// [userId] 用户ID
   Future<String?> getRtcToken({required String roomId, required String userId}) async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('user.getRtcToken', {
-            'roomId': roomId,
-            'userId': userId,
-          })
-          as String?;
+      return sdkInvoke<String?>('user.getRtcToken', args: {'roomId': roomId, 'userId': userId});
     }
     _log.info('roomId=$roomId, userId=$userId', methodName: 'getRtcToken');
     try {
@@ -546,24 +532,25 @@ class UserManager {
     required String deviceID,
   }) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('user.register', {
-        'nickname': nickname,
-        'password': password,
-        'faceURL': faceURL,
-        'areaCode': areaCode,
-        'phoneNumber': phoneNumber,
-        'email': email,
-        'account': account,
-        'birth': birth,
-        'gender': gender,
-        'verificationCode': verificationCode,
-        'invitationCode': invitationCode,
-        'autoLogin': autoLogin,
-        'deviceID': deviceID,
-      });
-      return result != null
-          ? AuthCacheData.fromJson(Map<String, dynamic>.from(result as Map))
-          : null;
+      return sdkInvoke(
+        'user.register',
+        args: {
+          'nickname': nickname,
+          'password': password,
+          'faceURL': faceURL,
+          'areaCode': areaCode,
+          'phoneNumber': phoneNumber,
+          'email': email,
+          'account': account,
+          'birth': birth,
+          'gender': gender,
+          'verificationCode': verificationCode,
+          'invitationCode': invitationCode,
+          'autoLogin': autoLogin,
+          'deviceID': deviceID,
+        },
+        decode: (raw) => raw != null ? sdkDecodeJson(raw, AuthCacheData.fromJson) : null,
+      );
     }
     _log.info('nickname=$nickname, email=$email, phone=$phoneNumber', methodName: 'register');
     try {
@@ -605,14 +592,13 @@ class UserManager {
     String? invitationCode,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.sendVerificationCode', {
+      return sdkInvokeVoid('user.sendVerificationCode', {
         'areaCode': areaCode,
         'phoneNumber': phoneNumber,
         'email': email,
         'usedFor': usedFor,
         'invitationCode': invitationCode,
       });
-      return;
     }
     _log.info(
       'email=$email, phone=$phoneNumber, usedFor=$usedFor',
@@ -645,11 +631,10 @@ class UserManager {
     required String newPassword,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.changePassword', {
+      return sdkInvokeVoid('user.changePassword', {
         'currentPassword': currentPassword,
         'newPassword': newPassword,
       });
-      return;
     }
     _log.info('changePassword called', methodName: 'changePassword');
     try {
@@ -676,14 +661,13 @@ class UserManager {
     required String newPassword,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.resetPassword', {
+      return sdkInvokeVoid('user.resetPassword', {
         'areaCode': areaCode,
         'phoneNumber': phoneNumber,
         'email': email,
         'verifyCode': verifyCode,
         'newPassword': newPassword,
       });
-      return;
     }
     _log.info('resetPassword called', methodName: 'resetPassword');
     try {
@@ -710,10 +694,7 @@ class UserManager {
   ///   并强制下线全部 IM 端会话，调用方应紧接着执行本地登出逻辑。
   Future<void> deleteAccount({required String currentPassword}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.deleteAccount', {
-        'currentPassword': currentPassword,
-      });
-      return;
+      return sdkInvokeVoid('user.deleteAccount', {'currentPassword': currentPassword});
     }
     _log.info('deleteAccount called', methodName: 'deleteAccount');
     try {
@@ -737,11 +718,10 @@ class UserManager {
     required String loginPassword,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.setPaymentPassword', {
+      return sdkInvokeVoid('user.setPaymentPassword', {
         'paymentPassword': paymentPassword,
         'loginPassword': loginPassword,
       });
-      return;
     }
     _log.info('setPaymentPassword called', methodName: 'setPaymentPassword');
     try {
@@ -764,11 +744,10 @@ class UserManager {
     required String newPaymentPassword,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.changePaymentPassword', {
+      return sdkInvokeVoid('user.changePaymentPassword', {
         'currentPaymentPassword': currentPaymentPassword,
         'newPaymentPassword': newPaymentPassword,
       });
-      return;
     }
     _log.info('changePaymentPassword called', methodName: 'changePaymentPassword');
     try {
@@ -788,10 +767,10 @@ class UserManager {
   /// 验证支付密码
   Future<bool> verifyPaymentPassword({required String paymentPassword}) async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('user.verifyPaymentPassword', {
-            'paymentPassword': paymentPassword,
-          })
-          as bool;
+      return sdkInvoke<bool>(
+        'user.verifyPaymentPassword',
+        args: {'paymentPassword': paymentPassword},
+      );
     }
     _log.info('verifyPaymentPassword called', methodName: 'verifyPaymentPassword');
     try {
@@ -809,7 +788,7 @@ class UserManager {
   /// 检查是否已设置支付密码
   Future<bool> checkPaymentPasswordSet() async {
     if (SdkIsolateManager.isActive) {
-      return await SdkIsolateManager.instance.invoke('user.checkPaymentPasswordSet', {}) as bool;
+      return sdkInvoke<bool>('user.checkPaymentPasswordSet');
     }
     _log.info('checkPaymentPasswordSet called', methodName: 'checkPaymentPasswordSet');
     try {
@@ -836,14 +815,13 @@ class UserManager {
     required String newPaymentPassword,
   }) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('user.resetPaymentPassword', {
+      return sdkInvokeVoid('user.resetPaymentPassword', {
         'areaCode': areaCode,
         'phoneNumber': phoneNumber,
         'email': email,
         'verifyCode': verifyCode,
         'newPaymentPassword': newPaymentPassword,
       });
-      return;
     }
     _log.info('resetPaymentPassword called', methodName: 'resetPaymentPassword');
     try {

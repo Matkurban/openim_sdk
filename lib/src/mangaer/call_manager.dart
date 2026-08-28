@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:openim_sdk/src/config/api_url.dart';
 import 'package:openim_sdk/src/enums/call_state.dart';
 import 'package:openim_sdk/src/enums/call_type.dart';
-import 'package:openim_sdk/src/isolate/sdk_isolate_manager.dart';
+import 'package:openim_sdk/src/isolate/sdk_isolate_bridge.dart';
 import 'package:openim_sdk/src/listener/call_listener.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
 import 'package:openim_sdk/src/models/call_session.dart';
@@ -104,80 +104,79 @@ class CallManager {
     required CallType callType,
     int timeout = 60,
   }) async {
-    if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('call.invite', {
-        'inviteeUserIDs': inviteeUserIDs,
-        'callType': callType.value,
-        'timeout': timeout,
-      });
-      return CallSession.fromJson(Map<String, dynamic>.from(result as Map));
-    }
-    _log.info(
-      'inviteeUserIDs=$inviteeUserIDs, callType=${callType.value}, timeout=$timeout',
-      methodName: 'invite',
+    return sdkRun(
+      method: 'call.invite',
+      args: {'inviteeUserIDs': inviteeUserIDs, 'callType': callType.value, 'timeout': timeout},
+      decode: (raw) => sdkDecodeJson(raw, CallSession.fromJson),
+      local: () async {
+        _log.info(
+          'inviteeUserIDs=$inviteeUserIDs, callType=${callType.value}, timeout=$timeout',
+          methodName: 'invite',
+        );
+
+        // 等待上一次通话的后端清理完成
+        if (_pendingCleanup != null) {
+          await _pendingCleanup;
+          _pendingCleanup = null;
+        }
+
+        if (_currentSession != null) {
+          throw StateError('已在通话中，请先结束当前通话');
+        }
+        if (inviteeUserIDs.isEmpty) {
+          throw ArgumentError('inviteeUserIDs 不能为空');
+        }
+        if (inviteeUserIDs.length > 8) {
+          throw ArgumentError('最多邀请 8 人（总共 9 人）');
+        }
+
+        // 1. 调用后端创建会议房间
+        final result = await _createMeeting(
+          creatorUserID: _currentUserID,
+          callType: callType.value,
+          inviteeUserIDs: inviteeUserIDs,
+        );
+
+        // 2. 创建通话会话
+        final session = CallSession(
+          roomID: result.roomID,
+          callType: callType,
+          inviterUserID: _currentUserID,
+          inviteeUserIDs: inviteeUserIDs,
+          liveURL: result.liveURL,
+          token: result.token,
+          state: CallState.calling,
+        );
+        _currentSession = session;
+
+        // 3. 发送邀请信令给所有被邀请者
+        final signaling = CallSignaling(
+          action: SignalAction.invite,
+          roomID: result.roomID,
+          callType: callType,
+          inviterUserID: _currentUserID,
+          inviteeUserIDs: inviteeUserIDs,
+          liveURL: result.liveURL,
+          timeout: timeout,
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+        );
+
+        for (final userID in inviteeUserIDs) {
+          _sendSignaling(signaling, userID);
+        }
+
+        // 4. 设置超时定时器
+        _startInviteTimer(timeout);
+
+        // 5. 通知忙线用户
+        for (final busyUserID in result.busyUsers) {
+          _callListener?.onCallBusy?.call(session, busyUserID);
+        }
+
+        _log.info('通话邀请已发送, roomID=${result.roomID}', methodName: 'invite');
+        return session;
+      },
     );
-
-    // 等待上一次通话的后端清理完成
-    if (_pendingCleanup != null) {
-      await _pendingCleanup;
-      _pendingCleanup = null;
-    }
-
-    if (_currentSession != null) {
-      throw StateError('已在通话中，请先结束当前通话');
-    }
-    if (inviteeUserIDs.isEmpty) {
-      throw ArgumentError('inviteeUserIDs 不能为空');
-    }
-    if (inviteeUserIDs.length > 8) {
-      throw ArgumentError('最多邀请 8 人（总共 9 人）');
-    }
-
-    // 1. 调用后端创建会议房间
-    final result = await _createMeeting(
-      creatorUserID: _currentUserID,
-      callType: callType.value,
-      inviteeUserIDs: inviteeUserIDs,
-    );
-
-    // 2. 创建通话会话
-    final session = CallSession(
-      roomID: result.roomID,
-      callType: callType,
-      inviterUserID: _currentUserID,
-      inviteeUserIDs: inviteeUserIDs,
-      liveURL: result.liveURL,
-      token: result.token,
-      state: CallState.calling,
-    );
-    _currentSession = session;
-
-    // 3. 发送邀请信令给所有被邀请者
-    final signaling = CallSignaling(
-      action: SignalAction.invite,
-      roomID: result.roomID,
-      callType: callType,
-      inviterUserID: _currentUserID,
-      inviteeUserIDs: inviteeUserIDs,
-      liveURL: result.liveURL,
-      timeout: timeout,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-    );
-
-    for (final userID in inviteeUserIDs) {
-      _sendSignaling(signaling, userID);
-    }
-
-    // 4. 设置超时定时器
-    _startInviteTimer(timeout);
-
-    // 5. 通知忙线用户
-    for (final busyUserID in result.busyUsers) {
-      _callListener?.onCallBusy?.call(session, busyUserID);
-    }
-
-    _log.info('通话邀请已发送, roomID=${result.roomID}', methodName: 'invite');
-    return session;
   }
 
   /// 接受通话
@@ -187,8 +186,11 @@ class CallManager {
   /// 返回 [CallSession]，包含 token 和 liveURL，调用方应连接到 LiveKit
   Future<CallSession> accept({required String roomID}) async {
     if (SdkIsolateManager.isActive) {
-      final result = await SdkIsolateManager.instance.invoke('call.accept', {'roomID': roomID});
-      return CallSession.fromJson(Map<String, dynamic>.from(result as Map));
+      return sdkInvoke(
+        'call.accept',
+        args: {'roomID': roomID},
+        decode: (raw) => sdkDecodeJson(raw, CallSession.fromJson),
+      );
     }
     _log.info('roomID=$roomID', methodName: 'accept');
 
@@ -232,8 +234,7 @@ class CallManager {
   /// [roomID] 要拒绝的通话房间ID
   Future<void> reject({required String roomID}) async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('call.reject', {'roomID': roomID});
-      return;
+      return sdkInvokeVoid('call.reject', {'roomID': roomID});
     }
     _log.info('roomID=$roomID', methodName: 'reject');
 
@@ -262,8 +263,7 @@ class CallManager {
   /// 取消通话（发起者在对方接听前取消）
   Future<void> cancel() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('call.cancel', {});
-      return;
+      return sdkInvokeVoid('call.cancel');
     }
     _log.info('', methodName: 'cancel');
 
@@ -300,8 +300,7 @@ class CallManager {
   /// 挂断通话
   Future<void> hangup() async {
     if (SdkIsolateManager.isActive) {
-      await SdkIsolateManager.instance.invoke('call.hangup', {});
-      return;
+      return sdkInvokeVoid('call.hangup');
     }
     _log.info('', methodName: 'hangup');
 

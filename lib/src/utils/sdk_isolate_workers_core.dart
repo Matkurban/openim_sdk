@@ -1,42 +1,35 @@
-/// 纯 Dart Worker 函数（6 端通用，可编译为 Web JS Worker）
+/// 纯 Dart Worker 函数（由 [SdkWorkers] 派发到 worker_manager 池）
 ///
-/// **不允许** 导入 `package:flutter/*`、`dart:io`、`dart:ui`；否则 dart2js 无法
-/// 编译到 `$shared_worker.js`。所有需要 Flutter / 文件 I/O 的 worker 请放到
-/// [sdk_isolate_workers_io.dart]。
+/// **不允许** 导入 `package:flutter/*`、`dart:io`、`dart:ui`。
+/// 所有需要 Flutter / 文件 I/O 的 worker 请放到 [sdk_isolate_workers_io.dart]。
 ///
 /// 所有函数必须是：
 /// - 顶层函数（不在 class 里）
 /// - 加 `@pragma('vm:entry-point')`（防止 tree-shaking）
-/// - 加 `@isolateManagerSharedWorker`（生成器扫描这个注解）
-/// - 参数/返回值只能是 `num`/`String`/`bool`/`null`/`Uint8List`/`List`/`Map`，
-///   以满足 Web Worker `postMessage` 的结构化克隆限制。
+/// - 参数/返回值可发送过 Isolate（`num`/`String`/`bool`/`null`/`Uint8List`/`List`/`Map`）
 library;
 
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
-import 'package:isolate_manager/isolate_manager.dart';
 
 // ============================================================
 // MD5 / 哈希
 // ============================================================
 
 @pragma('vm:entry-point')
-@isolateManagerSharedWorker
 String md5Worker(Uint8List bytes) {
   return md5.convert(bytes).toString();
 }
 
 @pragma('vm:entry-point')
-@isolateManagerSharedWorker
 String combinedMd5Worker(List<String> partMd5s) {
   final combined = partMd5s.join(',');
   return md5.convert(utf8.encode(combined)).toString();
 }
 
 @pragma('vm:entry-point')
-@isolateManagerSharedWorker
 List<String> partMd5sFromBytesWorker(Map<String, dynamic> param) {
   final Uint8List fileBytes = param['fileBytes'] as Uint8List;
   final int partSize = (param['partSize'] as num).toInt();
@@ -59,7 +52,6 @@ List<String> partMd5sFromBytesWorker(Map<String, dynamic> param) {
 // ============================================================
 
 @pragma('vm:entry-point')
-@isolateManagerSharedWorker
 Map<String, dynamic>? imageDimensionsWorker(Uint8List bytes) {
   return decodeImageDimensions(bytes);
 }
@@ -141,7 +133,6 @@ Map<String, dynamic>? decodeImageDimensions(Uint8List bytes) {
 // ============================================================
 
 @pragma('vm:entry-point')
-@isolateManagerSharedWorker
 List<dynamic> searchFilterWorker(Map<String, dynamic> param) {
   final data = (param['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   final String? keyword = param['keyword'] as String?;
@@ -223,7 +214,6 @@ List<dynamic> searchFilterWorker(Map<String, dynamic> param) {
 // ============================================================
 
 @pragma('vm:entry-point')
-@isolateManagerSharedWorker
 List<dynamic> historyFilterWorker(Map<String, dynamic> param) {
   var data = (param['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
   final int startTime = (param['startTime'] as num).toInt();

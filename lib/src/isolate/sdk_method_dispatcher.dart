@@ -8,6 +8,7 @@ library;
 import 'dart:typed_data';
 
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:openim_sdk/src/isolate/sdk_workers.dart';
 
 /// 后台 Isolate 方法分发器
 class SdkMethodDispatcher {
@@ -318,7 +319,8 @@ class SdkMethodDispatcher {
         return (await _im.getDatabaseInstance().getSpaceInfo()).toJson();
 
       case 'runInDatabase':
-        // 在后台 Isolate 内部执行用户回调，只把可序列化结果回传
+        // 闭包无法可靠地跨 Isolate 传递：只有顶层函数 / 静态方法 tear-off 才能发送。
+        // 普通 lambda 会在发送时失败；调用方应优先在非 Isolate 模式使用，或传入顶层函数。
         final callback = args['callback'];
         final cbArg = args['arg'];
         final db = _im.getDatabaseInstance();
@@ -331,6 +333,10 @@ class SdkMethodDispatcher {
           }
         }
         throw ArgumentError('runInDatabase: callback 必须是顶层函数或静态方法');
+
+      case 'disposeWorkers':
+        await SdkWorkers.dispose();
+        return null;
 
       case 'unInitSDK':
         await _im.unInitSDK();
