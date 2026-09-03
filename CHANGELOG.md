@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.7.1](https://github.com/Matkurban/openim_sdk/compare/v2.7.0...v2.7.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* await asynchronous calls in FavoriteManager for message and moment favoriting checks ([f50430c](https://github.com/Matkurban/openim_sdk/commit/f50430ca00027fc6d8c7b6c86a284ea3f5793936))
+
 ## [2.7.0](https://github.com/Matkurban/openim_sdk/compare/v2.6.0...v2.7.0) (2026-09-03)
 
 
