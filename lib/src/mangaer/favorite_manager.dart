@@ -212,7 +212,7 @@ class FavoriteManager {
     }
     _log.info('clientMsgID=$clientMsgID', methodName: 'isMessageFavorited');
     try {
-      return isFavorited(type: FavoriteType.message, targetID: clientMsgID);
+      return await isFavorited(type: FavoriteType.message, targetID: clientMsgID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'isMessageFavorited');
       rethrow;
@@ -226,7 +226,7 @@ class FavoriteManager {
     }
     _log.info('momentID=$momentID', methodName: 'isMomentFavorited');
     try {
-      return isFavorited(type: FavoriteType.momentContent, targetID: momentID);
+      return await isFavorited(type: FavoriteType.momentContent, targetID: momentID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'isMomentFavorited');
       rethrow;

@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
-import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
+import 'default_db_path_stub.dart' if (dart.library.io) 'default_db_path_io.dart';
 
 sealed class OpenImUtils {
   // 复用同一个 Random 实例，避免每次 generateOperationID 时分配新对象
@@ -28,9 +27,7 @@ sealed class OpenImUtils {
   }
 
   static Future<String?> defaultDbPath() async {
-    if (kIsWeb) return null;
-    final directory = await getApplicationSupportDirectory();
-    return '${directory.path}/kurban_open_im_sdk';
+    return resolveDefaultDbPath();
   }
 
   /// 生成单聊会话ID
