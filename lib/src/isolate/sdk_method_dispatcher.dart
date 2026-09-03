@@ -306,14 +306,14 @@ class SdkMethodDispatcher {
           args['value'],
           isGlobal: args['isGlobal'] as bool? ?? false,
         );
-        return r.isSuccess;
+        return !r.hasErrors;
 
       case 'removeValue':
         final r = await _im.getDatabaseInstance().removeValue(
           args['key'] as String,
           isGlobal: args['isGlobal'] as bool? ?? false,
         );
-        return r.isSuccess;
+        return !r.hasErrors;
 
       case 'getSpaceInfo':
         return (await _im.getDatabaseInstance().getSpaceInfo()).toJson();

@@ -340,7 +340,7 @@ class IMManager {
     if (SdkIsolateManager.isActive) {
       return sdkInvoke('im.setValue', args: {'key': key, 'value': value, 'isGlobal': isGlobal});
     }
-    return (await getDatabaseInstance().setValue(key, value, isGlobal: isGlobal)).isSuccess;
+    return !(await getDatabaseInstance().setValue(key, value, isGlobal: isGlobal)).hasErrors;
   }
 
   /// 移除键值
@@ -350,7 +350,7 @@ class IMManager {
     if (SdkIsolateManager.isActive) {
       return sdkInvoke('im.removeValue', args: {'key': key, 'isGlobal': isGlobal});
     }
-    return (await getDatabaseInstance().removeValue(key, isGlobal: isGlobal)).isSuccess;
+    return !(await getDatabaseInstance().removeValue(key, isGlobal: isGlobal)).hasErrors;
   }
 
   /// 获取当前数据库空间信息
@@ -362,11 +362,9 @@ class IMManager {
           Map<String, dynamic> result = raw as Map<String, dynamic>;
           return SpaceInfo(
             spaceName: result['spaceName'],
-            recordCount: result['recordCount'],
-            tableCount: result['tableCount'],
-            dataSizeBytes: result['dataSizeBytes'],
+            totalRecordCount: result['recordCount'],
+            totalTableDataSizeBytes: result['dataSizeBytes'],
             lastStatisticsTime: result['lastStatisticsTime'],
-            tables: result['tables'],
           );
         },
       );
