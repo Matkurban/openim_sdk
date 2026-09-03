@@ -6,6 +6,13 @@
 
 * L2 CPU helpers (`computeMd5`, `computePartMd5s`, image dimensions, message filters, native file chunking) now run on a `worker_manager: ^7.2.9` isolate pool instead of `isolate_manager`. Native L1 SDK Isolate is unchanged. Web no longer needs a generated `$shared_worker.js`.
 
+## [2.7.0](https://github.com/Matkurban/openim_sdk/compare/v2.6.0...v2.7.0) (2026-09-03)
+
+
+### Features
+
+* update dependencies in pubspec.yaml to latest versions ([06cb5c2](https://github.com/Matkurban/openim_sdk/commit/06cb5c2aa0bdd1492ae89269d014c388ea86d09a))
+
 ## [2.6.0](https://github.com/Matkurban/openim_sdk/compare/v2.5.1...v2.6.0) (2026-08-28)
 
 
