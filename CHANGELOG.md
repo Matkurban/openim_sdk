@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.8.0](https://github.com/Matkurban/openim_sdk/compare/v2.7.1...v2.8.0) (2026-09-29)
+
+
+### Features
+
+* clean up analysis_options.yaml by removing commented-out sections and unnecessary exclusions ([16e72cb](https://github.com/Matkurban/openim_sdk/commit/16e72cb1db059f100a1fd6910b11aa258b75e659))
+
 ## [2.7.2](https://github.com/Matkurban/openim_sdk/compare/v2.7.1...v2.7.2) (2026-09-30)
 
 
