@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:get_it/get_it.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
+import 'package:get_it/get_it.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -251,7 +251,7 @@ class FavoriteManager {
       final clientMsgID = message.clientMsgID;
       if (clientMsgID == null || clientMsgID.isEmpty) return null;
       final data = jsonEncode(message.toJson());
-      return addFavorite(type: FavoriteType.message, targetID: clientMsgID, data: data);
+      return await addFavorite(type: FavoriteType.message, targetID: clientMsgID, data: data);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addMessage');
       rethrow;
@@ -265,7 +265,7 @@ class FavoriteManager {
     }
     _log.info('clientMsgID=$clientMsgID', methodName: 'removeMessage');
     try {
-      return removeFavorite(type: FavoriteType.message, targetID: clientMsgID);
+      return await removeFavorite(type: FavoriteType.message, targetID: clientMsgID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'removeMessage');
       rethrow;
@@ -284,7 +284,11 @@ class FavoriteManager {
     _log.info('called', methodName: 'addMoment');
     try {
       final data = jsonEncode(moment.toJson());
-      return addFavorite(type: FavoriteType.momentContent, targetID: moment.momentID, data: data);
+      return await addFavorite(
+        type: FavoriteType.momentContent,
+        targetID: moment.momentID,
+        data: data,
+      );
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addMoment');
       rethrow;
@@ -298,7 +302,7 @@ class FavoriteManager {
     }
     _log.info('momentID=$momentID', methodName: 'removeMoment');
     try {
-      return removeFavorite(type: FavoriteType.momentContent, targetID: momentID);
+      return await removeFavorite(type: FavoriteType.momentContent, targetID: momentID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'removeMoment');
       rethrow;
@@ -317,7 +321,11 @@ class FavoriteManager {
     _log.info('called', methodName: 'addMomentComment');
     try {
       final data = jsonEncode(comment.toJson());
-      return addFavorite(type: FavoriteType.momentComment, targetID: comment.commentID, data: data);
+      return await addFavorite(
+        type: FavoriteType.momentComment,
+        targetID: comment.commentID,
+        data: data,
+      );
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addMomentComment');
       rethrow;
@@ -331,7 +339,7 @@ class FavoriteManager {
     }
     _log.info('commentID=$commentID', methodName: 'removeMomentComment');
     try {
-      return removeFavorite(type: FavoriteType.momentComment, targetID: commentID);
+      return await removeFavorite(type: FavoriteType.momentComment, targetID: commentID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'removeMomentComment');
       rethrow;
@@ -356,7 +364,7 @@ class FavoriteManager {
         'content': content,
         'createdAt': DateTime.now().toIso8601String(),
       });
-      return addFavorite(type: FavoriteType.note, targetID: noteID, data: data);
+      return await addFavorite(type: FavoriteType.note, targetID: noteID, data: data);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addNote');
       rethrow;
@@ -423,7 +431,7 @@ class FavoriteManager {
         'content': content,
         'createdAt': DateTime.now().toIso8601String(),
       });
-      return updateFavorite(type: FavoriteType.note, targetID: targetID, data: data);
+      return await updateFavorite(type: FavoriteType.note, targetID: targetID, data: data);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'updateNote');
       rethrow;
@@ -442,7 +450,7 @@ class FavoriteManager {
     _log.info('called', methodName: 'addLink');
     try {
       final data = jsonEncode(link.toJson());
-      return addFavorite(type: FavoriteType.link, targetID: link.url, data: data);
+      return await addFavorite(type: FavoriteType.link, targetID: link.url, data: data);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addLink');
       rethrow;
@@ -456,7 +464,7 @@ class FavoriteManager {
     }
     _log.info('called', methodName: 'removeFavoriteItem');
     try {
-      return removeFavorite(type: item.favoriteType, targetID: item.targetID);
+      return await removeFavorite(type: item.favoriteType, targetID: item.targetID);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'removeFavoriteItem');
       rethrow;

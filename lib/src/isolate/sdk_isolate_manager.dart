@@ -2,26 +2,25 @@
 ///
 /// 在 native 平台上将整个 SDK 引擎运行在独立的后台 Isolate 中，
 /// 所有 Future 方法通过消息传递调用，彻底避免 UI 卡顿。
-/// 在 Web 平台上直接在主线程执行（JS 单线程模型 + 数据库 / path_provider
-/// 等必须主线程运行）。
+/// 在 Web / WASM 上直接在主线程执行（数据库与 `path_provider`
+/// 必须主线程运行，且 `dart:isolate` 不能进入 WASM 编译图）。
 ///
-/// 这一层使用原生 `dart:isolate` 的双向 `SendPort` 通道：
+/// 后台通道由条件导入的传输层提供：
 /// - 主线程 → 后台 Isolate：方法调用请求（序列化为 Map）
 /// - 后台 Isolate → 主线程：方法调用结果 + 任意时刻的监听器事件（带 envelope 标签）
+/// - Web / WASM：[sdkIsolateSupportsBackground] 为 false，本管理器不启动
 ///
 /// 纯 CPU 型的辅助计算（MD5、图片尺寸解码、消息过滤等）则使用
 /// `worker_manager` 插件，见 [SdkWorkers]。
 library;
 
 import 'dart:async';
-import 'dart:isolate';
-import 'dart:ui' show RootIsolateToken;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:openim_sdk/src/models/openim_exception.dart';
 
-import 'sdk_isolate_entry.dart';
 import 'sdk_isolate_protocol.dart';
+import 'sdk_isolate_transport.dart';
+import 'sdk_isolate_transport_stub.dart' if (dart.library.io) 'sdk_isolate_transport_io.dart';
 
 /// SDK Isolate 管理器 — 单例
 class SdkIsolateManager {
@@ -32,7 +31,7 @@ class SdkIsolateManager {
   /// 标记当前是否运行在后台 Isolate 中，防止嵌套 spawn
   static bool _isBackgroundIsolate = false;
 
-  /// 由 [sdkIsolateEntry] 在后台 Isolate 启动时调用
+  /// 由后台 Isolate 入口在启动时调用，防止嵌套 spawn
   static void markAsBackgroundIsolate() => _isBackgroundIsolate = true;
 
   /// 后台 Isolate 是否正在运行
@@ -44,9 +43,7 @@ class SdkIsolateManager {
     return _instance!;
   }
 
-  Isolate? _isolate;
-  SendPort? _sendPort;
-  ReceivePort? _receivePort;
+  SdkIsolateTransport? _transport;
   bool _running = false;
   int _nextId = 0;
 
@@ -64,7 +61,7 @@ class SdkIsolateManager {
 
   /// 初始化 SDK Isolate
   ///
-  /// 在 Web 上自动降级为主线程模式。
+  /// 在 Web / WASM 上自动降级为主线程模式。
   /// 多次调用是安全的，只有首次会创建 Isolate。
   static Future<void> initialize() async {
     // 后台 Isolate 中不允许再 spawn 子 Isolate，防止无限递归
@@ -76,46 +73,26 @@ class SdkIsolateManager {
       await dispose();
     }
 
-    _instance = SdkIsolateManager._();
-
-    if (kIsWeb) {
-      // Web 平台无 Isolate 支持，isActive 保持 false，Manager 直接执行
-      _instance = null;
+    if (!sdkIsolateSupportsBackground) {
+      // Web / WASM 无后台 Isolate，isActive 保持 false，Manager 直接执行
       return;
     }
 
-    await _instance!._spawn();
+    _instance = SdkIsolateManager._();
+    await _instance!._connect();
   }
 
-  Future<void> _spawn() async {
-    _receivePort = ReceivePort();
-
-    final rootToken = RootIsolateToken.instance!;
-    _isolate = await Isolate.spawn(
-      sdkIsolateEntry,
-      (rootToken, _receivePort!.sendPort),
-      debugName: 'openim-sdk-engine',
-      errorsAreFatal: false,
-    );
-
-    final readyCompleter = Completer<void>();
-
-    _receivePort!.listen((message) {
-      if (message is SendPort) {
-        _sendPort = message;
-        _running = true;
-        readyCompleter.complete();
-      } else if (message is Map) {
-        final map = Map<String, dynamic>.from(message);
-        if (isSdkMethodResult(map)) {
-          _handleResult(SdkMethodResult.fromMap(map));
-        } else if (isSdkListenerEvent(map)) {
-          _eventController.add(SdkListenerEvent.fromMap(map));
-        }
+  Future<void> _connect() async {
+    final transport = createSdkIsolateTransport();
+    _transport = transport;
+    await transport.start((map) {
+      if (isSdkMethodResult(map)) {
+        _handleResult(SdkMethodResult.fromMap(map));
+      } else if (isSdkListenerEvent(map)) {
+        _eventController.add(SdkListenerEvent.fromMap(map));
       }
     });
-
-    await readyCompleter.future;
+    _running = true;
   }
 
   void _handleResult(SdkMethodResult result) {
@@ -149,7 +126,7 @@ class SdkIsolateManager {
     final completer = Completer<dynamic>();
     _completers[id] = completer;
 
-    _sendPort!.send(SdkMethodCall(id: id, method: method, args: args ?? const {}).toMap());
+    _transport!.send(SdkMethodCall(id: id, method: method, args: args ?? const {}).toMap());
 
     return completer.future;
   }
@@ -172,11 +149,8 @@ class SdkIsolateManager {
     }
 
     inst._running = false;
-    inst._isolate?.kill(priority: Isolate.beforeNextEvent);
-    inst._isolate = null;
-    inst._sendPort = null;
-    inst._receivePort?.close();
-    inst._receivePort = null;
+    inst._transport?.kill();
+    inst._transport = null;
 
     for (final c in inst._completers.values) {
       c.completeError(StateError('SDK Isolate 已销毁'));

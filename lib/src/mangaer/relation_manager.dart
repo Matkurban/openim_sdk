@@ -1,5 +1,5 @@
-import 'package:get_it/get_it.dart';
 import 'package:aoiwe_logger/aoiwe_logger.dart';
+import 'package:get_it/get_it.dart';
 import 'package:meta/meta.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:openim_sdk/src/config/instance_name.dart';
@@ -224,9 +224,9 @@ class FriendshipManager {
     try {
       if (filterBlack) {
         final blackIDs = await _database.getBlackUserIDSet();
-        return _database.getFriendsPageExcluding(offset, count, blackIDs);
+        return await _database.getFriendsPageExcluding(offset, count, blackIDs);
       }
-      return _database.getFriendsPage(offset, count);
+      return await _database.getFriendsPage(offset, count);
     } catch (e, s) {
       _log.error(e.toString(), error: e, stackTrace: s, methodName: 'getFriendListPage');
       rethrow;

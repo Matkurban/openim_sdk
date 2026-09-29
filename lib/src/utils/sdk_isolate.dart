@@ -1,8 +1,8 @@
 /// OpenIM SDK Isolate 工具：将 CPU 密集型操作从主线程卸载到后台线程。
 ///
 /// 设计原则：
-/// - 使用 `worker_manager` 在可复用 Isolate 池中执行（native VM Isolate；
-///   Web 在 wasm Isolate 可用时并行，否则可能落回当前 Isolate）。
+/// - 使用 `worker_manager` 在可复用 Isolate 池中执行。Native 走 VM Isolate；
+///   Web / WASM 在当前 Isolate 内执行，不提供并行。
 /// - 纯 Dart 的 worker 函数位于 [sdk_isolate_workers_core.dart]。
 /// - 涉及 `dart:io` 的 worker 函数位于 [sdk_isolate_workers_io.dart]，
 ///   仅在 native 侧派发；Web 侧通过 `fileBytes` 分支绕开，或在公共入口

@@ -12,7 +12,8 @@
 ///   主线程只在某个任务活跃时才能接收后台消息，而 L1 需要在任意时刻
 ///   （WebSocket 推送到达时）向主线程推 onRecvNewMessage 等监听器事件。
 ///   L2 纯 CPU 任务则使用 `worker_manager` 获得可复用 Isolate 池（见 [SdkWorkers]）。
-/// - 后台 Isolate 本身只在 native 5 端启用；Web 端全部降级主线程（`ToStore`
+/// - 本文件只由 IO 传输层导入。Web / WASM 的编译图不包含它。
+/// - 后台 Isolate 本身只在 native 5 端启用；Web / WASM 全部降级主线程（`ToStore`
 ///   数据库与 `path_provider` 平台通道不支持 Web Worker）。
 library;
 
@@ -28,7 +29,7 @@ import 'sdk_method_dispatcher.dart';
 
 /// 后台 Isolate 入口函数
 ///
-/// 由 [SdkIsolateManager._spawn] 通过 `Isolate.spawn` 调用。
+/// 由 IO 传输层通过 `Isolate.spawn` 调用。
 void sdkIsolateEntry((RootIsolateToken, SendPort) params) {
   final (rootToken, mainSendPort) = params;
 

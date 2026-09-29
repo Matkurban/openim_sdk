@@ -6,7 +6,7 @@
 /// - 池大小限制为 2，避免作为库默认占满宿主 App 的全部 CPU 核。
 /// - `dynamicSpawning: true`：空闲时回收 Isolate。
 /// - 若宿主已经调用过 `workerManager.init()`，本库的 init 会被插件忽略。
-/// - Web：wasm Isolate 可用时并行；否则与 Flutter `compute` 一样可能落回当前 Isolate。
+/// - Web / WASM：`worker_manager` 在当前 Isolate 内执行，不提供并行。
 library;
 
 import 'dart:async';

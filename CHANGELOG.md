@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.7.2](https://github.com/Matkurban/openim_sdk/compare/v2.7.1...v2.7.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* 用条件导入把 `dart:isolate` 移出公开库依赖图，插件可以编译到 WebAssembly。Native 仍在后台 Isolate 运行引擎；Web 与 WASM 在主线程执行
+* WebSocket 热重启清理改为检测 `dart.library.js_interop`，WASM 构建会编入真正的释放回调
+* 补齐 FavoriteManager 与好友分页查询中的 `await`，异步失败会沿调用栈抛出
+* 将 `meta` 约束更新到 ^1.18.3，`equatable` 约束更新到 ^3.0.0
+
 ## [2.7.1](https://github.com/Matkurban/openim_sdk/compare/v2.7.0...v2.7.1) (2026-09-03)
 
 
