@@ -48,7 +48,7 @@ class MomentCommentWithUser extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    return <String, dynamic>{
       'commentID': commentID,
       'momentID': momentID,
       'userID': userID,
@@ -63,7 +63,7 @@ class MomentCommentWithUser extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     commentID,
     momentID,
     userID,

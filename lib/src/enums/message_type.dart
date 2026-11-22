@@ -1,6 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
-/// Message Types based on openim-sdk-core Go constants
+/// Message Types based on openim-sdk-core & xue_hua_sdk constants.
 enum MessageType {
   @JsonValue(101)
   text(101),
@@ -42,6 +42,12 @@ enum MessageType {
   redPacket(125),
   @JsonValue(126)
   redPacketGrabNotify(126),
+  @JsonValue(127)
+  conference(127),
+  @JsonValue(128)
+  meetingReminder(128),
+  @JsonValue(129)
+  meetingScheduleNotify(129),
 
   @JsonValue(1000)
   notificationBegin(1000),
@@ -156,7 +162,12 @@ enum MessageType {
 
   final int value;
 
+  /// value -> enum 的 O(1) 静态查表，避免线性扫描。
+  static final Map<int, MessageType> _byValue = <int, MessageType>{
+    for (final MessageType item in values) item.value: item,
+  };
+
   factory MessageType.fromValue(int value) {
-    return values.firstWhere((item) => item.value == value, orElse: () => text);
+    return _byValue[value] ?? text;
   }
 }

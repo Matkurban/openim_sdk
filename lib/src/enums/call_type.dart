@@ -18,10 +18,10 @@ enum CallType {
   final String label;
 
   factory CallType.fromValue(String value) {
-    return values.firstWhere((item) => item.value == value, orElse: () => audio);
+    return values.firstWhere((CallType item) => item.value == value, orElse: () => audio);
   }
 
   factory CallType.fromIntValue(int value) {
-    return values.firstWhere((item) => item.intValue == value, orElse: () => audio);
+    return values.firstWhere((CallType item) => item.intValue == value, orElse: () => audio);
   }
 }

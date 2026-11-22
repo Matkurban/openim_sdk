@@ -23,6 +23,6 @@ enum CallSignalType {
   final int value;
 
   factory CallSignalType.fromValue(int value) {
-    return values.firstWhere((e) => e.value == value, orElse: () => invite);
+    return values.firstWhere((CallSignalType e) => e.value == value, orElse: () => invite);
   }
 }

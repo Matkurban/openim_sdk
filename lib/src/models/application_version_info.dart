@@ -59,7 +59,7 @@ class ApplicationVersionInfo extends Equatable {
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
     'platform': platform,
     'version': version,
@@ -72,5 +72,15 @@ class ApplicationVersionInfo extends Equatable {
   };
 
   @override
-  List<Object?> get props => [id, platform, version, url, text, force, latest, hot, createTime];
+  List<Object?> get props => <Object?>[
+    id,
+    platform,
+    version,
+    url,
+    text,
+    force,
+    latest,
+    hot,
+    createTime,
+  ];
 }

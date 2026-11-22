@@ -56,31 +56,33 @@ class CallSignalElem {
     duration: duration,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'conversation': conversation.toJson(),
     'roomId': roomId,
     'callType': callType.intValue,
     'callRoomType': callRoomType.value,
     'callSignalType': callSignalType.value,
     'senderUser': senderUser.toJson(),
-    'recvUser': recvUser.map((u) => u.toJson()).toList(),
+    'recvUser': recvUser.map((CallRecordUser u) => u.toJson()).toList(),
     'duration': duration,
   };
 
   factory CallSignalElem.fromJson(Map<String, dynamic> json) => CallSignalElem(
     conversation: CallRecordConversation.fromJson(
-      json['conversation'] as Map<String, dynamic>? ?? {},
+      json['conversation'] as Map<String, dynamic>? ?? <String, dynamic>{},
     ),
     roomId: json['roomId'] as String? ?? '',
     callType: CallType.fromIntValue(json['callType'] as int? ?? 1),
     callRoomType: CallRoomType.fromValue(json['callRoomType'] as int? ?? 1),
     callSignalType: CallSignalType.fromValue(json['callSignalType'] as int? ?? 1),
-    senderUser: CallRecordUser.fromJson(json['senderUser'] as Map<String, dynamic>? ?? {}),
+    senderUser: CallRecordUser.fromJson(
+      json['senderUser'] as Map<String, dynamic>? ?? <String, dynamic>{},
+    ),
     recvUser:
         (json['recvUser'] as List<dynamic>?)
-            ?.map((e) => CallRecordUser.fromJson(e as Map<String, dynamic>))
+            ?.map<CallRecordUser>((dynamic e) => CallRecordUser.fromJson(e as Map<String, dynamic>))
             .toList() ??
-        const [],
+        const <CallRecordUser>[],
     duration: json['duration'] as int?,
   );
 }

@@ -41,7 +41,7 @@ class MomentMedia extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    return <String, dynamic>{
       'type': type,
       'url': url,
       if (coverUrl != null) 'coverURL': coverUrl,
@@ -71,7 +71,15 @@ class MomentMedia extends Equatable {
   }
 
   @override
-  List<Object?> get props => [type, url, localPath, localCoverPath, coverUrl, duration, extra];
+  List<Object?> get props => <Object?>[
+    type,
+    url,
+    localPath,
+    localCoverPath,
+    coverUrl,
+    duration,
+    extra,
+  ];
 }
 
 int? _toInt(dynamic value) {

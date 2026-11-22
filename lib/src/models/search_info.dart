@@ -29,7 +29,7 @@ class SearchResult extends Equatable {
   }
 
   @override
-  List<Object?> get props => [totalCount, searchResultItems, findResultItems];
+  List<Object?> get props => <Object?>[totalCount, searchResultItems, findResultItems];
 }
 
 @JsonSerializable()
@@ -77,7 +77,7 @@ class SearchResultItems extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     conversationID,
     conversationType,
     showName,
@@ -106,7 +106,7 @@ class SearchParams extends Equatable {
   }
 
   @override
-  List<Object?> get props => [conversationID, clientMsgIDList];
+  List<Object?> get props => <Object?>[conversationID, clientMsgIDList];
 }
 
 @JsonSerializable()
@@ -160,5 +160,5 @@ class SearchFriendsInfo extends FriendInfo {
   }
 
   @override
-  List<Object?> get props => [...super.props, relationship];
+  List<Object?> get props => <Object?>[...super.props, relationship];
 }

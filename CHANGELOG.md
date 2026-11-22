@@ -1,5 +1,37 @@
 # Changelog
 
+## [3.0.0] (2026-11-22)
+
+### ⚠ BREAKING CHANGES
+
+* **日志框架全面迁移至 `package:logging`**：移除 `aoiwe_logger` 依赖及 `AoiweLoggerLevel` 导出，`InitConfig.logLevel` 与 `IMManager.initSDK(logLevel: ...)` 类型改为 `package:logging` 的 `Level`（默认 `Level.INFO`）；SDK 内外不再包含任何日志胶水代码，全部模块直接使用 `Logger('openim_sdk.<ClassName>')` 且成员变量统一命名为 `_logger`
+* **并发架构彻底重构**：移除 `worker_manager`、`get_it` 及 `lib/src/isolate/`（`SdkIsolateManager`、`SdkMethodDispatcher` 等 L1 大 Isolate 代理与 1,400+ 行 switch 路由表），改为单一清晰并发模型：主 Isolate 运行异步 I/O 引擎 + `AsyncSemaphore` / `SerialTaskQueue` / `KeyedAsyncLock` 并发原语 + `SdkComputeExecutor`（Native 使用 Dart 3 原生 `Isolate.run`，Web 零开销直执行）
+* **目录与架构规范化**：修复拼写错误的 `lib/src/mangaer/` 目录并重构为 `lib/src/manager/`；所有 Manager 统一继承 `BaseManager`，API 客户端继承 `BaseApiClient`，数据仓储继承 `BaseRepository`，同步器继承 `BaseSyncer`，通知处理器继承 `BaseNotificationHandler`
+
+### Features
+
+* **补齐 `MessageType` 枚举**：新增 `conference(127)`、`meetingReminder(128)`、`meetingScheduleNotify(129)`，对齐 `xue_hua_sdk`，并将 `fromValue()` 升级为 O(1) 静态查表
+* **全量启用显式类型声明规范**：在 `analysis_options.yaml` 启用 `always_specify_types` 与 `avoid_print`
+* **面向对象继承与大文件拆解**：消除全部超过 1,000 行的业务巨石文件（原 `message_manager.dart` 2,625 行拆分为 `MessageManager` + `MessageSender` + `MessageFactory`，`im_manager.dart` 1,561 行拆出 `FileUploader`，`database_service.dart` 2,000+ 行拆分为 `DbEngine` + 7 个领域 Repository，`im_api_service.dart` 1,574 行拆分为 8 个 `BaseApiClient` 子类，`msg_syncer.dart` / `notification_dispatcher.dart` 拆分为 `SyncCoordinator` + 4 个 `BaseSyncer` + 5 个 `BaseNotificationHandler`）
+
+### Performance (ToStore 3.6.3 深度优化)
+
+* **零卡顿配置与日志桥接**：启用 `DataStoreConfig(yieldDurationMs: 8, defaultQueryLimit: 500, enableJournal: true, defaultRecoveryDurability: RecoveryDurability.standard)`，并通过 `ToStore.setLogConfig` 将数据库日志桥接至 `Logger('openim_sdk.ToStore')`
+* **确定性复合主键与复合索引**：为 `local_blacks`、`local_group_members`、`local_friend_requests`、`local_group_requests`、`local_version_sync` 采用 `PrimaryKeyType.none` + `DbSchema.compositeKey` 实现 O(1) `upsert`；新增会话排序、消息时序/Seq/状态/未读、群成员角色/入群时间等复合索引及 BM25 `IndexType.text` 全文索引
+* **原子事务与读写热点优化**：关键多表同步与群成员替换接入 `toStore.transaction(..., rollbackOnError: true)`；改用 `peekFirst()`、`exists()`、字段裁剪 `select([...])`、`batchUpsert`/`batchUpdate`、`Expr` 原子未读递减与 `switchSpace(..., keepActive: true)`
+
+### Bug Fixes (与 `xue_hua_sdk` 逐行比对核查修复)
+
+* **B-01**：修复全量同步群成员先清表再分批写导致的空窗期数据丢失，改为原子事务替换与增量 `batchUpsert`
+* **B-02**：修复消息发送 ACK 未解析 `sdkws.UserSendMsgResp` 导致刚发出消息丢失 `serverMsgID` 和准确 `sendTime`、无法立即撤回或云端删除的问题
+* **B-03 / B-04**：实现 `TypingStateTracker` 补齐 `getInputStates()`，并将 `setConversation` 未读数变更同步更新本地 DB 并广播 `totalUnreadMessageCountChanged`
+* **B-05 / B-06 / B-07 / B-14 / B-15**：修复 `IMManager` 登录并发重入、`logout()` 与 `unInitSDK()` 资源清理、`networkStatusChanged` 触发重连以及 `setAppBackgroundStatus` 同步状态至 WebSocket
+* **B-08 / B-09 / B-19 / B-20 / B-26**：修复 `getAdvancedHistoryMessageListReverse` 未真正正向拉取、`revokeMessage` 未更新本地会话 `latestMsg`、`searchLocalMessages` 忽略多关键词/发送者/时间窗口、以及消息入库缺少 `conversationID` 字段的问题
+* **B-10 / B-11**：移除跨 Isolate 屏障修复 `pendingUploadBytes` 内存丢失；完善 `CallManager` 群呼/单呼状态机与超时清理
+* **B-12 / B-13**：`WebSocketService` 引入连接代际 `_connGeneration` 过滤陈旧 Socket 回调，重连退避上限收敛至 16 秒，心跳超时主动关闭陈旧传输
+* **B-16 / B-17 / B-27**：`SyncCoordinator` 使用 `SerialTaskQueue` 串行化同步、事务提交后再触发 UI 回调、在 `finally` 中检查挂起同步请求，对齐 `xue_hua_sdk` 通知分类并移除生产环境调试校验查询
+* **B-18 / B-21 / B-22 / B-23 / B-24**：修复 `ConversationManager` 空草稿误刷 `draftTextTime` 与 `markConversationMessageAsRead` 顺序、HTTP 错误响应解析 OpenIM JSON `errCode`、分页除零风险与 `GroupManager` 成员/退群本地缓存一致性
+
 ## [2.8.0](https://github.com/Matkurban/openim_sdk/compare/v2.7.1...v2.8.0) (2026-09-29)
 
 

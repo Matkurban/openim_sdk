@@ -33,5 +33,5 @@ class InputStatusChangedData extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, conversationID, platformIDs];
+  List<Object?> get props => <Object?>[userID, conversationID, platformIDs];
 }

@@ -48,7 +48,7 @@ class CallSignaling {
     required this.roomID,
     required this.callType,
     required this.inviterUserID,
-    this.inviteeUserIDs = const [],
+    this.inviteeUserIDs = const <String>[],
     this.liveURL,
     this.timeout = 60,
     int? timestamp,
@@ -79,7 +79,7 @@ class CallSignaling {
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'action': action,
     'roomID': roomID,
     'callType': callType.value,
@@ -98,7 +98,10 @@ class CallSignaling {
       callType: CallType.fromValue(json['callType'] as String? ?? 'audio'),
       inviterUserID: json['inviterUserID'] as String? ?? '',
       inviteeUserIDs:
-          (json['inviteeUserIDs'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+          (json['inviteeUserIDs'] as List<dynamic>?)
+              ?.map<String>((dynamic e) => e.toString())
+              .toList() ??
+          <String>[],
       liveURL: json['liveURL'] as String?,
       timeout: json['timeout'] as int? ?? 60,
       timestamp: json['timestamp'] as int? ?? 0,
@@ -110,7 +113,7 @@ class CallSignaling {
 
   static CallSignaling? decode(String json) {
     try {
-      final map = jsonDecode(json) as Map<String, dynamic>;
+      final Map<String, dynamic> map = jsonDecode(json) as Map<String, dynamic>;
       return CallSignaling.fromJson(map);
     } catch (_) {
       return null;
@@ -154,10 +157,10 @@ class CallSession {
   bool get isGroupCall => inviteeUserIDs.length > 1;
 
   /// 已接受的用户列表（多人通话用）
-  final Set<String> acceptedUserIDs = {};
+  final Set<String> acceptedUserIDs = <String>{};
 
   /// 已拒绝的用户列表（多人通话用）
-  final Set<String> rejectedUserIDs = {};
+  final Set<String> rejectedUserIDs = <String>{};
 
   CallSession({
     required this.roomID,
@@ -171,7 +174,7 @@ class CallSession {
     this.connectTime,
   }) : createTime = createTime ?? DateTime.now().millisecondsSinceEpoch;
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'roomID': roomID,
     'callType': callType.value,
     'inviterUserID': inviterUserID,
@@ -186,24 +189,27 @@ class CallSession {
   };
 
   factory CallSession.fromJson(Map<String, dynamic> json) {
-    final session = CallSession(
+    final CallSession session = CallSession(
       roomID: json['roomID'] as String? ?? '',
       callType: CallType.fromValue(json['callType'] as String? ?? 'audio'),
       inviterUserID: json['inviterUserID'] as String? ?? '',
       inviteeUserIDs:
-          (json['inviteeUserIDs'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+          (json['inviteeUserIDs'] as List<dynamic>?)
+              ?.map<String>((dynamic e) => e.toString())
+              .toList() ??
+          <String>[],
       liveURL: json['liveURL'] as String?,
       token: json['token'] as String?,
       state: CallState.values.firstWhere(
-        (e) => e.name == (json['state'] as String?),
+        (CallState e) => e.name == (json['state'] as String?),
         orElse: () => CallState.idle,
       ),
       createTime: json['createTime'] as int?,
       connectTime: json['connectTime'] as int?,
     );
-    final accepted = json['acceptedUserIDs'] as List?;
+    final List<dynamic>? accepted = json['acceptedUserIDs'] as List<dynamic>?;
     if (accepted != null) session.acceptedUserIDs.addAll(accepted.cast<String>());
-    final rejected = json['rejectedUserIDs'] as List?;
+    final List<dynamic>? rejected = json['rejectedUserIDs'] as List<dynamic>?;
     if (rejected != null) session.rejectedUserIDs.addAll(rejected.cast<String>());
     return session;
   }
@@ -220,7 +226,7 @@ class CreateMeetingResult {
     required this.roomID,
     required this.token,
     required this.liveURL,
-    this.busyUsers = const [],
+    this.busyUsers = const <String>[],
   });
 
   factory CreateMeetingResult.fromJson(Map<String, dynamic> json) {
@@ -228,7 +234,11 @@ class CreateMeetingResult {
       roomID: json['roomID'] as String? ?? '',
       token: json['token'] as String? ?? '',
       liveURL: json['liveURL'] as String? ?? '',
-      busyUsers: (json['busyUsers'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      busyUsers:
+          (json['busyUsers'] as List<dynamic>?)
+              ?.map<String>((dynamic e) => e.toString())
+              .toList() ??
+          <String>[],
     );
   }
 }
@@ -246,7 +256,7 @@ class JoinMeetingResult {
     required this.liveURL,
     required this.roomID,
     required this.callType,
-    this.participants = const [],
+    this.participants = const <MeetingParticipant>[],
   });
 
   factory JoinMeetingResult.fromJson(Map<String, dynamic> json) {
@@ -257,9 +267,11 @@ class JoinMeetingResult {
       callType: json['callType'] as String? ?? '',
       participants:
           (json['participants'] as List<dynamic>?)
-              ?.map((e) => MeetingParticipant.fromJson(e as Map<String, dynamic>))
+              ?.map<MeetingParticipant>(
+                (dynamic e) => MeetingParticipant.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
-          [],
+          <MeetingParticipant>[],
     );
   }
 }

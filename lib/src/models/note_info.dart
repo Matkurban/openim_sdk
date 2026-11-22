@@ -24,9 +24,14 @@ class NoteInfo extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {'noteID': noteID, 'summary': summary, 'content': content, 'createdAt': createdAt};
+    return <String, dynamic>{
+      'noteID': noteID,
+      'summary': summary,
+      'content': content,
+      'createdAt': createdAt,
+    };
   }
 
   @override
-  List<Object?> get props => [noteID, summary, content, createdAt];
+  List<Object?> get props => <Object?>[noteID, summary, content, createdAt];
 }

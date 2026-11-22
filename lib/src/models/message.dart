@@ -164,7 +164,7 @@ class Message extends Equatable {
     this.offlinePush,
     this.attachedInfo,
     this.ex,
-    this.exMap = const {},
+    this.exMap = const <String, dynamic>{},
     this.pictureElem,
     this.soundElem,
     this.videoElem,
@@ -291,7 +291,7 @@ class Message extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     clientMsgID,
     serverMsgID,
     createTime,
@@ -367,7 +367,7 @@ class PictureElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [sourcePath, sourcePicture, bigPicture, snapshotPicture];
+  List<Object?> get props => <Object?>[sourcePath, sourcePicture, bigPicture, snapshotPicture];
 }
 
 /// Image information
@@ -405,7 +405,7 @@ class PictureInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [uuid, type, size, width, height, url];
+  List<Object?> get props => <Object?>[uuid, type, size, width, height, url];
 }
 
 /// Voice message content
@@ -450,7 +450,7 @@ class SoundElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [uuid, soundPath, sourceUrl, dataSize, duration, soundType];
+  List<Object?> get props => <Object?>[uuid, soundPath, sourceUrl, dataSize, duration, soundType];
 }
 
 /// Video message content
@@ -523,7 +523,7 @@ class VideoElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     videoPath,
     videoUUID,
     videoUrl,
@@ -582,7 +582,7 @@ class FileElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [filePath, uuid, sourceUrl, fileName, fileSize, fileType];
+  List<Object?> get props => <Object?>[filePath, uuid, sourceUrl, fileName, fileSize, fileType];
 }
 
 /// @ Message Content
@@ -623,7 +623,7 @@ class AtTextElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [text, atUserList, isAtSelf, atUsersInfo, quoteMessage];
+  List<Object?> get props => <Object?>[text, atUserList, isAtSelf, atUsersInfo, quoteMessage];
 }
 
 /// Location Message
@@ -648,7 +648,7 @@ class LocationElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [description, longitude, latitude];
+  List<Object?> get props => <Object?>[description, longitude, latitude];
 }
 
 /// Custom Message
@@ -673,7 +673,7 @@ class CustomElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [data, extension, description];
+  List<Object?> get props => <Object?>[data, extension, description];
 }
 
 /// Quoted Message (Reply to a message)
@@ -693,7 +693,7 @@ class QuoteElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [text, quoteMessage];
+  List<Object?> get props => <Object?>[text, quoteMessage];
 }
 
 /// Merged Message Body
@@ -718,7 +718,7 @@ class MergeElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [title, abstractList, multiMessage];
+  List<Object?> get props => <Object?>[title, abstractList, multiMessage];
 }
 
 /// Notification
@@ -741,7 +741,7 @@ class NotificationElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [detail, defaultTips];
+  List<Object?> get props => <Object?>[detail, defaultTips];
 }
 
 /// Emoticon
@@ -761,7 +761,7 @@ class FaceElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [index, data];
+  List<Object?> get props => <Object?>[index, data];
 }
 
 /// Additional Information
@@ -806,7 +806,7 @@ class AttachedInfoElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     groupHasReadInfo,
     isPrivateChat,
     hasReadTime,
@@ -839,7 +839,7 @@ class UploadProgress extends Equatable {
   }
 
   @override
-  List<Object?> get props => [total, save, current, uploadID];
+  List<Object?> get props => <Object?>[total, save, current, uploadID];
 }
 
 @JsonSerializable()
@@ -857,7 +857,7 @@ class TextElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [content];
+  List<Object?> get props => <Object?>[content];
 }
 
 @JsonSerializable()
@@ -883,7 +883,7 @@ class CardElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, nickname, faceURL, ex];
+  List<Object?> get props => <Object?>[userID, nickname, faceURL, ex];
 }
 
 @JsonSerializable()
@@ -901,7 +901,7 @@ class TypingElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [msgTips];
+  List<Object?> get props => <Object?>[msgTips];
 }
 
 @JsonSerializable()
@@ -923,7 +923,7 @@ class AdvancedTextElem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [text, messageEntityList];
+  List<Object?> get props => <Object?>[text, messageEntityList];
 }
 
 @JsonSerializable()
@@ -951,7 +951,7 @@ class MessageEntity extends Equatable {
   }
 
   @override
-  List<Object?> get props => [type, offset, length, url, ex];
+  List<Object?> get props => <Object?>[type, offset, length, url, ex];
 }
 
 /// Group message read information
@@ -974,7 +974,7 @@ class GroupHasReadInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [hasReadCount, unreadCount];
+  List<Object?> get props => <Object?>[hasReadCount, unreadCount];
 }
 
 /// Message read receipt information
@@ -1027,7 +1027,7 @@ class ReadReceiptInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     userID,
     groupID,
     msgIDList,
@@ -1070,7 +1070,7 @@ class OfflinePushInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [title, desc, ex, iOSPushSound, iOSBadgeCount];
+  List<Object?> get props => <Object?>[title, desc, ex, iOSPushSound, iOSBadgeCount];
 }
 
 /// @ message user ID and nickname relationship object
@@ -1093,7 +1093,7 @@ class AtUserInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [atUserID, groupNickname];
+  List<Object?> get props => <Object?>[atUserID, groupNickname];
 }
 
 /// Message revocation details
@@ -1155,7 +1155,7 @@ class RevokedInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     revokerID,
     revokerRole,
     revokerNickname,
@@ -1199,7 +1199,7 @@ class AdvancedMessage extends Equatable {
   }
 
   @override
-  List<Object?> get props => [messageList, isEnd, errCode, errMsg, lastMinSeq];
+  List<Object?> get props => <Object?>[messageList, isEnd, errCode, errMsg, lastMinSeq];
 }
 
 @JsonSerializable()
@@ -1227,7 +1227,7 @@ class RichMessageInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [type, offset, length, url, info];
+  List<Object?> get props => <Object?>[type, offset, length, url, info];
 }
 
 @JsonSerializable()
@@ -1246,5 +1246,5 @@ class UserExInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, ex];
+  List<Object?> get props => <Object?>[userID, ex];
 }

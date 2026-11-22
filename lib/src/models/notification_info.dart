@@ -69,7 +69,7 @@ class OANotification extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     notificationName,
     notificationFaceURL,
     notificationType,
@@ -98,7 +98,7 @@ class BaseGroupNotification extends Equatable {
   Map<String, dynamic> toJson() => _$BaseGroupNotificationToJson(this);
 
   @override
-  List<Object?> get props => [group, opUser];
+  List<Object?> get props => <Object?>[group, opUser];
 }
 
 /// Group Event Notification
@@ -130,7 +130,7 @@ class GroupNotification extends BaseGroupNotification {
   }
 
   @override
-  List<Object?> get props => [group, opUser, groupOwnerUser, memberList];
+  List<Object?> get props => <Object?>[group, opUser, groupOwnerUser, memberList];
 }
 
 /// User Invited to Join Group Notification
@@ -167,7 +167,7 @@ class InvitedJoinGroupNotification extends BaseGroupNotification {
   }
 
   @override
-  List<Object?> get props => [group, opUser, inviterUser, invitedUserList];
+  List<Object?> get props => <Object?>[group, opUser, inviterUser, invitedUserList];
 }
 
 /// Group Member Kicked Notification
@@ -196,7 +196,7 @@ class KickedGroupMemeberNotification extends BaseGroupNotification {
   }
 
   @override
-  List<Object?> get props => [group, opUser, kickedUserList];
+  List<Object?> get props => <Object?>[group, opUser, kickedUserList];
 }
 
 /// Quit Group Notification
@@ -217,7 +217,7 @@ class QuitGroupNotification extends Equatable {
   }
 
   @override
-  List<Object?> get props => [group, quitUser];
+  List<Object?> get props => <Object?>[group, quitUser];
 }
 
 /// Enter Group Notification
@@ -241,7 +241,7 @@ class EnterGroupNotification extends Equatable {
   }
 
   @override
-  List<Object?> get props => [group, entrantUser];
+  List<Object?> get props => <Object?>[group, entrantUser];
 }
 
 /// Group Rights Transfer Notification
@@ -270,7 +270,7 @@ class GroupRightsTransferNoticication extends BaseGroupNotification {
   }
 
   @override
-  List<Object?> get props => [group, opUser, newGroupOwner];
+  List<Object?> get props => <Object?>[group, opUser, newGroupOwner];
 }
 
 /// Mute Member Notification
@@ -302,7 +302,7 @@ class MuteMemberNotification extends BaseGroupNotification {
   }
 
   @override
-  List<Object?> get props => [group, opUser, mutedUser, mutedSeconds];
+  List<Object?> get props => <Object?>[group, opUser, mutedUser, mutedSeconds];
 }
 
 /// Burn After Reading Notification
@@ -328,7 +328,7 @@ class BurnAfterReadingNotification extends Equatable {
   }
 
   @override
-  List<Object?> get props => [recvID, sendID, isPrivate];
+  List<Object?> get props => <Object?>[recvID, sendID, isPrivate];
 }
 
 /// Group Member Information Changed Notification
@@ -357,5 +357,5 @@ class GroupMemberInfoChangedNotification extends BaseGroupNotification {
   }
 
   @override
-  List<Object?> get props => [group, opUser, changedUser];
+  List<Object?> get props => <Object?>[group, opUser, changedUser];
 }

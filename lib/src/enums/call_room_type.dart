@@ -11,6 +11,6 @@ enum CallRoomType {
   final int value;
 
   factory CallRoomType.fromValue(int value) {
-    return values.firstWhere((e) => e.value == value, orElse: () => single);
+    return values.firstWhere((CallRoomType e) => e.value == value, orElse: () => single);
   }
 }

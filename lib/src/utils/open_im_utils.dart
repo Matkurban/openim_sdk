@@ -16,8 +16,8 @@ sealed class OpenImUtils {
   ///生成md5
   static String? generateMD5(String? data) {
     if (null == data) return null;
-    var content = const Utf8Encoder().convert(data);
-    var digest = md5.convert(content);
+    final List<int> content = const Utf8Encoder().convert(data);
+    final Digest digest = md5.convert(content);
     return digest.toString();
   }
 
@@ -32,7 +32,7 @@ sealed class OpenImUtils {
 
   /// 生成单聊会话ID
   static String genSingleConversationID(String userID1, String userID2) {
-    final sorted = [userID1, userID2]..sort();
+    final List<String> sorted = <String>[userID1, userID2]..sort();
     return 'si_${sorted[0]}_${sorted[1]}';
   }
 
@@ -43,15 +43,15 @@ sealed class OpenImUtils {
 
   /// 生成通知会话ID
   static String genNotificationConversationID(String userID1, String userID2) {
-    final sorted = [userID1, userID2]..sort();
+    final List<String> sorted = <String>[userID1, userID2]..sort();
     return 'sn_${sorted[0]}_${sorted[1]}';
   }
 
   /// 生成唯一消息 ID
   static String generateClientMsgID(String currentUserID) {
-    final timestamp = DateTime.now().microsecondsSinceEpoch;
-    final random = Random.secure().nextInt(999999999);
-    final raw = '$timestamp-$random-$currentUserID';
+    final int timestamp = DateTime.now().microsecondsSinceEpoch;
+    final int random = Random.secure().nextInt(999999999);
+    final String raw = '$timestamp-$random-$currentUserID';
     return md5.convert(utf8.encode(raw)).toString();
   }
 }

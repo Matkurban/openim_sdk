@@ -45,5 +45,5 @@ class SetGroupMemberInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [groupID, userID, roleLevel, nickname, faceURL, ex];
+  List<Object?> get props => <Object?>[groupID, userID, roleLevel, nickname, faceURL, ex];
 }

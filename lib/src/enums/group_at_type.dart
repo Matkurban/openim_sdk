@@ -27,6 +27,6 @@ enum GroupAtType {
   final int value;
 
   factory GroupAtType.fromValue(int value) {
-    return values.firstWhere((item) => item.value == value, orElse: () => atNormal);
+    return values.firstWhere((GroupAtType item) => item.value == value, orElse: () => atNormal);
   }
 }

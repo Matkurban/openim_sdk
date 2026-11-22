@@ -26,9 +26,14 @@ class LinkInfo extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {'url': url, 'title': title, 'description': description, 'imageUrl': imageUrl};
+    return <String, dynamic>{
+      'url': url,
+      'title': title,
+      'description': description,
+      'imageUrl': imageUrl,
+    };
   }
 
   @override
-  List<Object?> get props => [url, title, description, imageUrl];
+  List<Object?> get props => <Object?>[url, title, description, imageUrl];
 }

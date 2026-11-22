@@ -40,7 +40,7 @@ class UpdateFriendsReq extends Equatable {
   }
 
   @override
-  List<Object?> get props => [ownerUserID, friendUserIDs, isPinned, remark, ex];
+  List<Object?> get props => <Object?>[ownerUserID, friendUserIDs, isPinned, remark, ex];
 }
 
 @JsonSerializable()
@@ -100,7 +100,7 @@ class ConversationReq extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     userID,
     groupID,
     recvMsgOpt,

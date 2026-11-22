@@ -15,7 +15,7 @@ class OpenIMException implements Exception {
 
   /// 匹配的 [SDKErrorCode] 枚举值，未匹配时返回 null
   SDKErrorCode? get sdkErrorCode {
-    for (final e in SDKErrorCode.values) {
+    for (final SDKErrorCode e in SDKErrorCode.values) {
       if (e.code == code) return e;
     }
     return null;

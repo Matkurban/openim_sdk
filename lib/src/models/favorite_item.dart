@@ -59,11 +59,11 @@ class FavoriteItem extends Equatable {
   }
 
   factory FavoriteItem.fromJson(Map<String, dynamic> json) {
-    final type = FavoriteType.fromValue(
+    final FavoriteType type = FavoriteType.fromValue(
       json['targetType']?.toString() ?? json['favoriteType']?.toString(),
     );
-    final rawData = _parseData(json['data']);
-    final dataMap = _tryDecodeJson(rawData);
+    final String rawData = _parseData(json['data']);
+    final Map<String, dynamic>? dataMap = _tryDecodeJson(rawData);
 
     return FavoriteItem(
       favoriteID: json['favoriteID']?.toString() ?? '',
@@ -90,7 +90,7 @@ class FavoriteItem extends Equatable {
     required String userID,
     required Message msg,
   }) {
-    final dataJson = jsonEncode(msg.toJson());
+    final String dataJson = jsonEncode(msg.toJson());
     return FavoriteItem(
       favoriteID: favoriteID,
       userID: userID,
@@ -108,7 +108,7 @@ class FavoriteItem extends Equatable {
     required String userID,
     required MomentInfo moment,
   }) {
-    final dataJson = jsonEncode(moment.toJson());
+    final String dataJson = jsonEncode(moment.toJson());
     return FavoriteItem(
       favoriteID: favoriteID,
       userID: userID,
@@ -126,7 +126,7 @@ class FavoriteItem extends Equatable {
     required String userID,
     required MomentCommentWithUser comment,
   }) {
-    final dataJson = jsonEncode(comment.toJson());
+    final String dataJson = jsonEncode(comment.toJson());
     return FavoriteItem(
       favoriteID: favoriteID,
       userID: userID,
@@ -144,7 +144,7 @@ class FavoriteItem extends Equatable {
     required String userID,
     required NoteInfo note,
   }) {
-    final dataJson = jsonEncode(note.toJson());
+    final String dataJson = jsonEncode(note.toJson());
     return FavoriteItem(
       favoriteID: favoriteID,
       userID: userID,
@@ -162,7 +162,7 @@ class FavoriteItem extends Equatable {
     required String userID,
     required LinkInfo link,
   }) {
-    final dataJson = jsonEncode(link.toJson());
+    final String dataJson = jsonEncode(link.toJson());
     return FavoriteItem(
       favoriteID: favoriteID,
       userID: userID,
@@ -188,9 +188,9 @@ class FavoriteItem extends Equatable {
     if (value is int) return value;
     if (value is num) return value.toInt();
     if (value is String) {
-      final intValue = int.tryParse(value);
+      final int? intValue = int.tryParse(value);
       if (intValue != null) return intValue;
-      final dateTime = DateTime.tryParse(value);
+      final DateTime? dateTime = DateTime.tryParse(value);
       if (dateTime != null) return dateTime.millisecondsSinceEpoch;
     }
     return 0;
@@ -199,7 +199,7 @@ class FavoriteItem extends Equatable {
   static Map<String, dynamic>? _tryDecodeJson(String data) {
     if (data.isEmpty) return null;
     try {
-      final decoded = jsonDecode(data);
+      final Object? decoded = jsonDecode(data);
       if (decoded is Map<String, dynamic>) return decoded;
     } catch (_) {}
     return null;
@@ -208,7 +208,7 @@ class FavoriteItem extends Equatable {
   static Message? _tryParseMessage(Map<String, dynamic> map) {
     try {
       // data 中可能直接是 Message JSON，也可能包裹在 messageData 字段中
-      final msgData = map['messageData'] as Map<String, dynamic>? ?? map;
+      final Map<String, dynamic> msgData = map['messageData'] as Map<String, dynamic>? ?? map;
       return Message.fromJson(msgData);
     } catch (_) {
       return null;
@@ -240,7 +240,7 @@ class FavoriteItem extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    return <String, dynamic>{
       'favoriteID': favoriteID,
       'userID': userID,
       'targetType': favoriteType.value,
@@ -251,7 +251,7 @@ class FavoriteItem extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     favoriteID,
     userID,
     favoriteType,

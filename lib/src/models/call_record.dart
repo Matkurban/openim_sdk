@@ -45,9 +45,9 @@ class CallRecord {
 
   /// 格式化通话时长 mm:ss
   String get formattedDuration {
-    final d = duration ?? 0;
-    final m = (d ~/ 60).toString().padLeft(2, '0');
-    final s = (d % 60).toString().padLeft(2, '0');
+    final int d = duration ?? 0;
+    final String m = (d ~/ 60).toString().padLeft(2, '0');
+    final String s = (d % 60).toString().padLeft(2, '0');
     return '$m:$s';
   }
 
@@ -72,32 +72,36 @@ class CallRecord {
     };
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'conversation': conversation.toJson(),
     'roomId': roomId,
     'callType': callType.intValue,
     'callRoomType': callRoomType.value,
     'callSignalType': callSignalType.value,
     'senderUser': senderUser.toJson(),
-    'recvUser': recvUser.map((u) => u.toJson()).toList(),
+    'recvUser': recvUser.map((CallRecordUser u) => u.toJson()).toList(),
     'duration': duration,
   };
 
   factory CallRecord.fromJson(Map<String, dynamic> json) {
     return CallRecord(
       conversation: CallRecordConversation.fromJson(
-        json['conversation'] as Map<String, dynamic>? ?? {},
+        json['conversation'] as Map<String, dynamic>? ?? <String, dynamic>{},
       ),
       roomId: json['roomId'] as String? ?? '',
       callType: CallType.fromIntValue(json['callType'] as int? ?? 1),
       callRoomType: CallRoomType.fromValue(json['callRoomType'] as int? ?? 1),
       callSignalType: CallSignalType.fromValue(json['callSignalType'] as int? ?? 1),
-      senderUser: CallRecordUser.fromJson(json['senderUser'] as Map<String, dynamic>? ?? {}),
+      senderUser: CallRecordUser.fromJson(
+        json['senderUser'] as Map<String, dynamic>? ?? <String, dynamic>{},
+      ),
       recvUser:
           (json['recvUser'] as List<dynamic>?)
-              ?.map((e) => CallRecordUser.fromJson(e as Map<String, dynamic>))
+              ?.map<CallRecordUser>(
+                (dynamic e) => CallRecordUser.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
-          [],
+          <CallRecordUser>[],
       duration: json['duration'] as int?,
     );
   }
@@ -147,7 +151,11 @@ class CallRecordUser {
     return CallRecordUser(userID: info.userID, nickname: info.nickname, faceURL: info.faceURL);
   }
 
-  Map<String, dynamic> toJson() => {'userID': userID, 'nickname': nickname, 'faceURL': faceURL};
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'userID': userID,
+    'nickname': nickname,
+    'faceURL': faceURL,
+  };
 
   factory CallRecordUser.fromJson(Map<String, dynamic> json) {
     return CallRecordUser(
@@ -185,7 +193,7 @@ class CallRecordConversation {
     );
   }
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'conversationID': conversationID,
     'userID': userID,
     'groupID': groupID,

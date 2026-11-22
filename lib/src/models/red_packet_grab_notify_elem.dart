@@ -31,7 +31,7 @@ class RedPacketGrabNotifyElem {
     amount: (json['amount'] as num?)?.toDouble() ?? 0,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'packetID': packetID,
     'grabberID': grabberID,
     'grabberName': grabberName,

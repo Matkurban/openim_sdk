@@ -21,18 +21,23 @@ class MomentListResponse extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {'total': total, 'moments': moments.map((item) => item.toJson()).toList()};
+    return <String, dynamic>{
+      'total': total,
+      'moments': moments.map((MomentInfo item) => item.toJson()).toList(),
+    };
   }
 
   @override
-  List<Object?> get props => [total, moments];
+  List<Object?> get props => <Object?>[total, moments];
 }
 
 List<MomentInfo> _parseMoments(dynamic value) {
-  if (value is List) {
+  if (value is List<dynamic>) {
     return value
-        .whereType<Map>()
-        .map((item) => MomentInfo.fromJson(item.cast<String, dynamic>()))
+        .whereType<Map<dynamic, dynamic>>()
+        .map<MomentInfo>(
+          (Map<dynamic, dynamic> item) => MomentInfo.fromJson(item.cast<String, dynamic>()),
+        )
         .toList();
   }
   return <MomentInfo>[];

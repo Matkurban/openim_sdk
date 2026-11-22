@@ -64,7 +64,7 @@ class UserInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     userID,
     nickname,
     faceURL,
@@ -107,7 +107,7 @@ class PublicUserInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, nickname, faceURL, appManagerLevel, ex];
+  List<Object?> get props => <Object?>[userID, nickname, faceURL, appManagerLevel, ex];
 }
 
 @JsonSerializable()
@@ -170,7 +170,7 @@ class FriendInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     ownerUserID,
     nickname,
     faceURL,
@@ -237,7 +237,7 @@ class BlacklistInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     nickname,
     ownerUserID,
     blockUserID,
@@ -266,7 +266,7 @@ class FriendshipInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, result];
+  List<Object?> get props => <Object?>[userID, result];
 }
 
 @JsonSerializable()
@@ -348,7 +348,7 @@ class FriendApplicationInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     fromUserID,
     fromNickname,
     fromFaceURL,
@@ -386,7 +386,7 @@ class UserStatusInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, status, platformIDs];
+  List<Object?> get props => <Object?>[userID, status, platformIDs];
 }
 
 @JsonSerializable()
@@ -396,7 +396,7 @@ class GetFriendApplicationListAsRecipientReq extends Equatable {
   final int count;
 
   const GetFriendApplicationListAsRecipientReq({
-    this.handleResults = const [],
+    this.handleResults = const <int>[],
     required this.offset,
     required this.count,
   });
@@ -419,7 +419,7 @@ class GetFriendApplicationListAsRecipientReq extends Equatable {
   }
 
   @override
-  List<Object?> get props => [handleResults, offset, count];
+  List<Object?> get props => <Object?>[handleResults, offset, count];
 }
 
 @JsonSerializable()
@@ -442,5 +442,5 @@ class GetFriendApplicationListAsApplicantReq extends Equatable {
   }
 
   @override
-  List<Object?> get props => [offset, count];
+  List<Object?> get props => <Object?>[offset, count];
 }

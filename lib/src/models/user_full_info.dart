@@ -135,7 +135,7 @@ class UserFullInfo extends Equatable {
   Map<String, dynamic> toJson() => _$UserFullInfoToJson(this);
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     userID,
     password,
     account,

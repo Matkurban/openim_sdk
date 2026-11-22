@@ -12,9 +12,9 @@ external JSObject get globalThis;
 /// Call and remove any previously registered dispose callback on JS global.
 void disposeOldWsFromJsGlobal() {
   try {
-    final fn = globalThis.getProperty<JSAny?>('__openimSdkWsDispose'.toJS);
-    if (fn != null && fn.isA<JSFunction>()) {
-      (fn as JSFunction).callAsFunction(globalThis);
+    final JSAny? fn = globalThis.getProperty<JSAny?>('__openimSdkWsDispose'.toJS);
+    if (fn != null && fn.isA<JSFunction<Function>>()) {
+      (fn as JSFunction<Function>).callAsFunction(globalThis);
     }
     globalThis.delete('__openimSdkWsDispose'.toJS);
   } catch (_) {}

@@ -28,7 +28,7 @@ class MomentLikeWithUser extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    return <String, dynamic>{
       'momentID': momentID,
       'userID': userID,
       'createTime': createTime,
@@ -37,5 +37,5 @@ class MomentLikeWithUser extends Equatable {
   }
 
   @override
-  List<Object?> get props => [momentID, userID, createTime, userInfo];
+  List<Object?> get props => <Object?>[momentID, userID, createTime, userInfo];
 }

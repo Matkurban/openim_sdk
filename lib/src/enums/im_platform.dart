@@ -36,6 +36,6 @@ enum IMPlatform {
   final int value;
 
   factory IMPlatform.fromValue(int value) {
-    return values.firstWhere((item) => item.value == value, orElse: () => web);
+    return values.firstWhere((IMPlatform item) => item.value == value, orElse: () => web);
   }
 }

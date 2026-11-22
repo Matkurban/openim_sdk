@@ -21,11 +21,11 @@ class InitConfig extends Equatable {
     this.adminAddr,
     this.dbPath,
     this.dbName,
-    this.schemas = const [],
+    this.schemas = const <TableSchema>[],
   });
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     platformID,
     apiAddr,
     wsAddr,
@@ -36,7 +36,7 @@ class InitConfig extends Equatable {
     schemas,
   ];
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'platformID': platformID,
     'apiAddr': apiAddr,
     'wsAddr': wsAddr,

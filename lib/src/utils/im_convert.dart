@@ -98,7 +98,7 @@ Message convertMessage(Map<String, dynamic> data) {
 /// {"detail": "{\"text\":\"...\",\"pictureElem\":{...},\"mixType\":0,...}"}
 /// 提取 detail 字段作为 NotificationElem.detail
 NotificationElem _parseNotificationElem(Map<String, dynamic> contentMap) {
-  final detailRaw = contentMap['detail'];
+  final Object? detailRaw = contentMap['detail'];
   if (detailRaw is String && detailRaw.isNotEmpty) {
     return NotificationElem(detail: detailRaw);
   }

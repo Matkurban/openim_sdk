@@ -83,11 +83,11 @@ class MomentInfo extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {
+    return <String, dynamic>{
       'momentID': momentID,
       'userID': userID,
       'content': content,
-      'media': media.map((item) => item.toJson()).toList(),
+      'media': media.map((MomentMedia item) => item.toJson()).toList(),
       'visibleType': visibleType.value,
       'visibleGroupIDs': visibleGroupIDs,
       'status': status,
@@ -96,13 +96,13 @@ class MomentInfo extends Equatable {
       'likeCount': likeCount,
       'commentCount': commentCount,
       'extra': extra,
-      'likes': likes.map((item) => item.toJson()).toList(),
-      'comments': comments.map((item) => item.toJson()).toList(),
+      'likes': likes.map((MomentLikeWithUser item) => item.toJson()).toList(),
+      'comments': comments.map((MomentCommentWithUser item) => item.toJson()).toList(),
     };
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     momentID,
     userID,
     content,
@@ -123,7 +123,7 @@ class MomentInfo extends Equatable {
 VisibleType _parseVisibleType(dynamic value) {
   if (value is int) {
     return VisibleType.values.firstWhere(
-      (item) => item.value == value,
+      (VisibleType item) => item.value == value,
       orElse: () => VisibleType.friend,
     );
   }
@@ -131,38 +131,45 @@ VisibleType _parseVisibleType(dynamic value) {
 }
 
 List<MomentMedia> _parseMedia(dynamic value) {
-  if (value is List) {
+  if (value is List<dynamic>) {
     return value
-        .whereType<Map>()
-        .map((item) => MomentMedia.fromJson(item.cast<String, dynamic>()))
+        .whereType<Map<dynamic, dynamic>>()
+        .map<MomentMedia>(
+          (Map<dynamic, dynamic> item) => MomentMedia.fromJson(item.cast<String, dynamic>()),
+        )
         .toList();
   }
   return <MomentMedia>[];
 }
 
 List<MomentLikeWithUser> _parseLikes(dynamic value) {
-  if (value is List) {
+  if (value is List<dynamic>) {
     return value
-        .whereType<Map>()
-        .map((item) => MomentLikeWithUser.fromJson(item.cast<String, dynamic>()))
+        .whereType<Map<dynamic, dynamic>>()
+        .map<MomentLikeWithUser>(
+          (Map<dynamic, dynamic> item) => MomentLikeWithUser.fromJson(item.cast<String, dynamic>()),
+        )
         .toList();
   }
   return <MomentLikeWithUser>[];
 }
 
 List<MomentCommentWithUser> _parseComments(dynamic value) {
-  if (value is List) {
+  if (value is List<dynamic>) {
     return value
-        .whereType<Map>()
-        .map((item) => MomentCommentWithUser.fromJson(item.cast<String, dynamic>()))
+        .whereType<Map<dynamic, dynamic>>()
+        .map<MomentCommentWithUser>(
+          (Map<dynamic, dynamic> item) =>
+              MomentCommentWithUser.fromJson(item.cast<String, dynamic>()),
+        )
         .toList();
   }
   return <MomentCommentWithUser>[];
 }
 
 List<String> _parseStringList(dynamic value) {
-  if (value is List) {
-    return value.map((item) => item.toString()).toList();
+  if (value is List<dynamic>) {
+    return value.map<String>((dynamic item) => item.toString()).toList();
   }
   return <String>[];
 }

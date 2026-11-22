@@ -1,6 +1,6 @@
 name: openim_sdk_example
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  cupertino_icons: ^1.0.9
+  cupertino_icons: ^2.0.0
   get: ^4.7.3
   openim_sdk:
     path: ../

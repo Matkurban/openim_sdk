@@ -17,7 +17,7 @@ enum ReceiveMessageOpt {
 
   factory ReceiveMessageOpt.fromValue(int value) {
     return ReceiveMessageOpt.values.firstWhere(
-      (e) => e.value == value,
+      (ReceiveMessageOpt e) => e.value == value,
       orElse: () => ReceiveMessageOpt.receive,
     );
   }

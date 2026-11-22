@@ -28,7 +28,7 @@ class RedPacketElem {
     targetUserID: json['targetUserID'] as String?,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'packetID': packetID,
     'packetType': packetType,
     'totalAmount': totalAmount,

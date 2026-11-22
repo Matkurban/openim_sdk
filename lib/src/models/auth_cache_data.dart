@@ -27,5 +27,5 @@ class AuthCacheData extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, imToken, chatToken];
+  List<Object?> get props => <Object?>[userID, imToken, chatToken];
 }

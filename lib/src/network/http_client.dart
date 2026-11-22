@@ -1,30 +1,29 @@
 import 'package:dio/dio.dart';
-import 'package:aoiwe_logger/aoiwe_logger.dart';
-import 'package:openim_sdk/src/utils/open_im_utils.dart';
+import 'package:logging/logging.dart';
 
 import '../models/api_response.dart';
+import '../utils/open_im_utils.dart';
 
-/// 封装 Dio 的单例网络请求类
+/// 封装 Dio 的统一 HTTP 客户端，管理 IM / Chat / Admin 三条通道。
+///
+/// 修复 B-22：
+/// - 重复调用 `init()` 不再叠加 `operationID` 拦截器；
+/// - HTTP 非 2xx 响应体若包含 OpenIM 业务 `errCode`（如 1501），正确解析并触发 `onApiError`。
 class HttpClient {
   static final HttpClient _instance = HttpClient._internal();
 
   factory HttpClient() => _instance;
 
+  final Logger _logger = Logger('openim_sdk.HttpClient');
   late final Dio _dio;
-
-  /// Chat 服务端 Dio 实例（独立于 IM API 的 Dio）
   Dio? _chatDio;
-
-  /// Admin 服务端 Dio 实例（用于 governance 公开端点：申诉验证码/提交/上传）
   Dio? _adminDio;
-
-  final AoiweLogger _log = AoiweLogger('HttpClient');
+  bool _imInterceptorInstalled = false;
 
   String? _token;
   String? _chatToken;
 
-  /// API 错误回调（用于拦截 token 过期等全局错误）
-  /// 对应 Go SDK 的 apiErrCallback.OnError
+  /// 全局业务错误回调（拦截 1501–1507 Token 失效与被踢下线）。
   void Function(int errCode, String errMsg)? onApiError;
 
   HttpClient._internal() {
@@ -36,26 +35,30 @@ class HttpClient {
         responseType: ResponseType.json,
       ),
     );
-    // _dio.interceptors.add(TalkerDioLogger());
   }
 
-  /// 初始化，设置 baseUrl 及可选参数
+  /// 初始化 IM API 基础配置（幂等安装拦截器）。
   void init({
     required String baseUrl,
     Duration? connectTimeout,
     Duration? receiveTimeout,
     Map<String, dynamic>? headers,
   }) {
-    _log.info('baseUrl=$baseUrl', methodName: 'init');
-    try {
-      _dio.options.baseUrl = baseUrl;
-      if (connectTimeout != null) _dio.options.connectTimeout = connectTimeout;
-      if (receiveTimeout != null) _dio.options.receiveTimeout = receiveTimeout;
-      if (headers != null) _dio.options.headers.addAll(headers);
-      // 每次请求动态生成 operationID，便于服务端日志追踪
+    _logger.info('init baseUrl=$baseUrl');
+    _dio.options.baseUrl = baseUrl;
+    if (connectTimeout != null) {
+      _dio.options.connectTimeout = connectTimeout;
+    }
+    if (receiveTimeout != null) {
+      _dio.options.receiveTimeout = receiveTimeout;
+    }
+    if (headers != null) {
+      _dio.options.headers.addAll(headers);
+    }
+    if (!_imInterceptorInstalled) {
       _dio.interceptors.add(
         InterceptorsWrapper(
-          onRequest: (options, handler) {
+          onRequest: (RequestOptions options, RequestInterceptorHandler handler) {
             options.headers['operationID'] = OpenImUtils.generateOperationID(
               operationName: 'openim_sdk_network_request',
             );
@@ -63,110 +66,83 @@ class HttpClient {
           },
         ),
       );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'init');
-      rethrow;
+      _imInterceptorInstalled = true;
     }
   }
 
-  /// 设置 IM Token
+  /// 设置 IM Token。
   void setToken(String? token) {
-    _log.info('token=${token != null ? "***" : "null"}', methodName: 'setToken');
-    try {
-      _token = token;
-      if (token != null) {
-        _dio.options.headers['token'] = token;
-      } else {
-        _dio.options.headers.remove('token');
-      }
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setToken');
-      rethrow;
+    _logger.fine('setToken(${token != null && token.isNotEmpty ? "***" : "null"})');
+    _token = token;
+    if (token != null && token.isNotEmpty) {
+      _dio.options.headers['token'] = token;
+    } else {
+      _dio.options.headers.remove('token');
     }
   }
 
-  /// 获取当前 IM Token
   String? get token => _token;
 
-  /// 初始化 Chat 服务端客户端
+  /// 初始化 Chat 服务端客户端。
   void initChat({required String baseUrl}) {
-    _log.info('baseUrl=$baseUrl', methodName: 'initChat');
-    try {
-      _chatDio = Dio(
-        BaseOptions(
-          baseUrl: baseUrl,
-          connectTimeout: const Duration(seconds: 30),
-          receiveTimeout: const Duration(seconds: 30),
-          sendTimeout: const Duration(seconds: 30),
-          contentType: Headers.jsonContentType,
-          responseType: ResponseType.json,
-        ),
-      );
-      // _chatDio!.interceptors.add(TalkerDioLogger());
-      _chatDio!.interceptors.add(
-        InterceptorsWrapper(
-          onRequest: (options, handler) {
-            options.headers['operationID'] = OpenImUtils.generateOperationID(
-              operationName: 'openim_sdk_chat_request',
-            );
-            handler.next(options);
-          },
-        ),
-      );
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'initChat');
-      rethrow;
+    _logger.info('initChat baseUrl=$baseUrl');
+    _chatDio?.close();
+    final Dio chatDio = Dio(
+      BaseOptions(
+        baseUrl: baseUrl,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
+        contentType: Headers.jsonContentType,
+        responseType: ResponseType.json,
+      ),
+    );
+    chatDio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (RequestOptions options, RequestInterceptorHandler handler) {
+          options.headers['operationID'] = OpenImUtils.generateOperationID(
+            operationName: 'openim_sdk_chat_request',
+          );
+          handler.next(options);
+        },
+      ),
+    );
+    if (_chatToken != null && _chatToken!.isNotEmpty) {
+      chatDio.options.headers['token'] = _chatToken;
     }
+    _chatDio = chatDio;
   }
 
-  /// 设置 Chat Token
+  /// 设置 Chat Token。
   void setChatToken(String? token) {
-    _log.info('token=${token != null ? "***" : "null"}', methodName: 'setChatToken');
-    try {
-      _chatToken = token;
-      if (_chatDio != null) {
-        if (token != null) {
-          _chatDio!.options.headers['token'] = token;
-        } else {
-          _chatDio!.options.headers.remove('token');
-        }
+    _logger.fine('setChatToken(${token != null && token.isNotEmpty ? "***" : "null"})');
+    _chatToken = token;
+    final Dio? chatDio = _chatDio;
+    if (chatDio != null) {
+      if (token != null && token.isNotEmpty) {
+        chatDio.options.headers['token'] = token;
+      } else {
+        chatDio.options.headers.remove('token');
       }
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'setChatToken');
-      rethrow;
     }
   }
 
-  /// 获取当前 Chat Token
   String? get chatToken => _chatToken;
 
-  /// 获取底层 Dio 实例（用于高级自定义场景）
   Dio get dio => _dio;
 
-  /// 添加自定义拦截器
   void addInterceptor(Interceptor interceptor) {
-    _log.info('called', methodName: 'addInterceptor');
-    try {
-      _dio.interceptors.add(interceptor);
-    } catch (e, s) {
-      _log.error(e.toString(), error: e, stackTrace: s, methodName: 'addInterceptor');
-      rethrow;
-    }
+    _dio.interceptors.add(interceptor);
   }
 
-  // ---------------------------------------------------------------------------
-  // HTTP 请求方法
-  // ---------------------------------------------------------------------------
-
-  /// GET 请求
   Future<ApiResponse> get(
     String path, {
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-  }) async {
+  }) {
     return _request(
-      () => _dio.get(
+      () => _dio.get<dynamic>(
         path,
         queryParameters: queryParameters,
         options: options,
@@ -175,16 +151,15 @@ class HttpClient {
     );
   }
 
-  /// POST 请求
   Future<ApiResponse> post(
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-  }) async {
+  }) {
     return _request(
-      () => _dio.post(
+      () => _dio.post<dynamic>(
         path,
         data: data,
         queryParameters: queryParameters,
@@ -194,7 +169,6 @@ class HttpClient {
     );
   }
 
-  /// PUT 请求
   Future<ApiResponse> put(
     String path, {
     dynamic data,
@@ -202,9 +176,9 @@ class HttpClient {
     Options? options,
     CancelToken? cancelToken,
     void Function(int, int)? onSendProgress,
-  }) async {
+  }) {
     return _request(
-      () => _dio.put(
+      () => _dio.put<dynamic>(
         path,
         data: data,
         queryParameters: queryParameters,
@@ -215,16 +189,15 @@ class HttpClient {
     );
   }
 
-  /// DELETE 请求
   Future<ApiResponse> delete(
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-  }) async {
+  }) {
     return _request(
-      () => _dio.delete(
+      () => _dio.delete<dynamic>(
         path,
         data: data,
         queryParameters: queryParameters,
@@ -234,16 +207,15 @@ class HttpClient {
     );
   }
 
-  /// 上传文件
   Future<ApiResponse> upload(
     String path, {
     required FormData formData,
     Options? options,
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
-  }) async {
+  }) {
     return _request(
-      () => _dio.post(
+      () => _dio.post<dynamic>(
         path,
         data: formData,
         options: options,
@@ -253,8 +225,7 @@ class HttpClient {
     );
   }
 
-  /// 下载文件
-  Future<Response> download(
+  Future<Response<dynamic>> download(
     String urlPath,
     dynamic savePath, {
     Map<String, dynamic>? queryParameters,
@@ -270,19 +241,21 @@ class HttpClient {
     );
   }
 
-  /// Chat 服务端 POST 请求
   Future<ApiResponse> chatPost(
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
     Options? options,
     CancelToken? cancelToken,
-  }) async {
-    if (_chatDio == null) {
-      return ApiResponse(errCode: -1, errMsg: 'chat dio not initialized', errDlt: '', data: null);
+  }) {
+    final Dio? chatDio = _chatDio;
+    if (chatDio == null) {
+      return Future<ApiResponse>.value(
+        ApiResponse(errCode: -1, errMsg: 'chat dio not initialized', errDlt: '', data: null),
+      );
     }
-    return await _request(
-      () => _chatDio!.post(
+    return _request(
+      () => chatDio.post<dynamic>(
         path,
         data: data,
         queryParameters: queryParameters,
@@ -292,10 +265,11 @@ class HttpClient {
     );
   }
 
-  /// 初始化 Admin 服务端客户端（governance 公开端点）
+  /// 初始化 Admin 服务端客户端（governance 公开端点）。
   void initAdmin({required String baseUrl}) {
-    _log.info('baseUrl=$baseUrl', methodName: 'initAdmin');
-    _adminDio = Dio(
+    _logger.info('initAdmin baseUrl=$baseUrl');
+    _adminDio?.close();
+    final Dio adminDio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
         connectTimeout: const Duration(seconds: 30),
@@ -305,9 +279,9 @@ class HttpClient {
         responseType: ResponseType.json,
       ),
     );
-    _adminDio!.interceptors.add(
+    adminDio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
+        onRequest: (RequestOptions options, RequestInterceptorHandler handler) {
           options.headers['operationID'] = OpenImUtils.generateOperationID(
             operationName: 'openim_sdk_admin_request',
           );
@@ -315,36 +289,41 @@ class HttpClient {
         },
       ),
     );
+    _adminDio = adminDio;
   }
 
-  /// Admin POST（公开端点，无鉴权）
   Future<ApiResponse> adminPost(
     String path, {
     dynamic data,
     Options? options,
     CancelToken? cancelToken,
-  }) async {
-    if (_adminDio == null) {
-      return ApiResponse(errCode: -1, errMsg: 'admin dio not initialized', errDlt: '', data: null);
+  }) {
+    final Dio? adminDio = _adminDio;
+    if (adminDio == null) {
+      return Future<ApiResponse>.value(
+        ApiResponse(errCode: -1, errMsg: 'admin dio not initialized', errDlt: '', data: null),
+      );
     }
-    return await _request(
-      () => _adminDio!.post(path, data: data, options: options, cancelToken: cancelToken),
+    return _request(
+      () => adminDio.post<dynamic>(path, data: data, options: options, cancelToken: cancelToken),
     );
   }
 
-  /// Admin multipart 上传（申诉证据，需 appeal token）
   Future<ApiResponse> adminMultipartPost(
     String path, {
     required FormData formData,
     Map<String, dynamic>? headers,
     CancelToken? cancelToken,
     ProgressCallback? onSendProgress,
-  }) async {
-    if (_adminDio == null) {
-      return ApiResponse(errCode: -1, errMsg: 'admin dio not initialized', errDlt: '', data: null);
+  }) {
+    final Dio? adminDio = _adminDio;
+    if (adminDio == null) {
+      return Future<ApiResponse>.value(
+        ApiResponse(errCode: -1, errMsg: 'admin dio not initialized', errDlt: '', data: null),
+      );
     }
-    return await _request(
-      () => _adminDio!.post(
+    return _request(
+      () => adminDio.post<dynamic>(
         path,
         data: formData,
         options: Options(headers: headers, contentType: 'multipart/form-data'),
@@ -354,24 +333,27 @@ class HttpClient {
     );
   }
 
-  /// 统一请求处理 & 异常捕获
-  Future<ApiResponse> _request(Future<Response> Function() request) async {
+  Future<ApiResponse> _request(Future<Response<dynamic>> Function() request) async {
     try {
-      final response = await request();
+      final Response<dynamic> response = await request();
       return _handleResponse(response);
-    } on DioException catch (e) {
-      return _handleDioException(e);
-    } catch (e, s) {
-      _log.error('Unknown error', error: e, stackTrace: s, methodName: '_request');
-      return ApiResponse(errCode: -1, errMsg: e.toString(), errDlt: s.toString(), data: null);
+    } on DioException catch (error) {
+      return _handleDioException(error);
+    } on Object catch (error, stackTrace) {
+      _logger.severe('HTTP request failed', error, stackTrace);
+      return ApiResponse(
+        errCode: -1,
+        errMsg: error.toString(),
+        errDlt: stackTrace.toString(),
+        data: null,
+      );
     }
   }
 
-  /// 解析响应数据为 [ApiResponse]
-  ApiResponse _handleResponse(Response response) {
-    final data = response.data;
+  ApiResponse _handleResponse(Response<dynamic> response) {
+    final dynamic data = response.data;
     if (data is Map<String, dynamic>) {
-      final resp = ApiResponse.fromJson(data);
+      final ApiResponse resp = ApiResponse.fromJson(data);
       if (resp.errCode != 0) {
         onApiError?.call(resp.errCode, resp.errMsg);
       }
@@ -380,33 +362,31 @@ class HttpClient {
     return ApiResponse(errCode: 0, errMsg: '', errDlt: '', data: data);
   }
 
-  /// 处理 Dio 异常
-  ApiResponse _handleDioException(DioException e) {
-    final String message;
-    switch (e.type) {
-      case DioExceptionType.connectionTimeout:
-        message = '连接超时';
-      case DioExceptionType.sendTimeout:
-        message = '请求发送超时';
-      case DioExceptionType.receiveTimeout:
-        message = '响应接收超时';
-      case DioExceptionType.badCertificate:
-        message = '证书验证失败';
-      case DioExceptionType.badResponse:
-        message = '服务器响应异常 (${e.response?.statusCode})';
-      case DioExceptionType.cancel:
-        message = '请求已取消';
-      case DioExceptionType.connectionError:
-        message = '网络连接异常，请检查网络';
-      case DioExceptionType.unknown:
-        message = '未知网络错误: ${e.message}';
-      case DioExceptionType.transformTimeout:
-        message = '响应转换超时: ${e.message}';
+  ApiResponse _handleDioException(DioException error) {
+    final dynamic responseData = error.response?.data;
+    if (responseData is Map<String, dynamic> && responseData.containsKey('errCode')) {
+      final ApiResponse parsed = ApiResponse.fromJson(responseData);
+      if (parsed.errCode != 0) {
+        onApiError?.call(parsed.errCode, parsed.errMsg);
+      }
+      return parsed;
     }
+
+    final String message = switch (error.type) {
+      DioExceptionType.connectionTimeout => '连接超时',
+      DioExceptionType.sendTimeout => '请求发送超时',
+      DioExceptionType.receiveTimeout => '响应接收超时',
+      DioExceptionType.badCertificate => '证书验证失败',
+      DioExceptionType.badResponse => '服务器响应异常 (${error.response?.statusCode})',
+      DioExceptionType.cancel => '请求已取消',
+      DioExceptionType.connectionError => '网络连接异常，请检查网络',
+      DioExceptionType.unknown => '未知网络错误: ${error.message}',
+      DioExceptionType.transformTimeout => '响应转换超时: ${error.message}',
+    };
     return ApiResponse(
-      errCode: e.response?.statusCode ?? -1,
+      errCode: error.response?.statusCode ?? -1,
       errMsg: message,
-      errDlt: e.message ?? '',
+      errDlt: error.message ?? '',
       data: null,
     );
   }

@@ -23,7 +23,7 @@ enum MessageStatus {
   final int value;
 
   factory MessageStatus.fromValue(int value) {
-    return values.firstWhere((item) => item.value == value, orElse: () => failed);
+    return values.firstWhere((MessageStatus item) => item.value == value, orElse: () => failed);
   }
 }
 

@@ -1,4 +1,4 @@
-import 'package:openim_sdk/src/mangaer/im_manager.dart';
+import 'package:openim_sdk/src/manager/im_manager.dart';
 
 class OpenIM {
   OpenIM._();

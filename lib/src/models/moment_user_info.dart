@@ -17,9 +17,9 @@ class MomentUserInfo extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {'userID': userID, 'nickname': nickname, 'faceURL': faceURL};
+    return <String, dynamic>{'userID': userID, 'nickname': nickname, 'faceURL': faceURL};
   }
 
   @override
-  List<Object?> get props => [userID, nickname, faceURL];
+  List<Object?> get props => <Object?>[userID, nickname, faceURL];
 }

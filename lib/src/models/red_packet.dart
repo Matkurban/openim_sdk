@@ -13,8 +13,10 @@ enum RedPacketType {
   const RedPacketType(this.value);
   final int value;
 
-  static RedPacketType fromValue(int v) =>
-      RedPacketType.values.firstWhere((e) => e.value == v, orElse: () => RedPacketType.luck);
+  static RedPacketType fromValue(int v) => RedPacketType.values.firstWhere(
+    (RedPacketType e) => e.value == v,
+    orElse: () => RedPacketType.luck,
+  );
 }
 
 /// 红包状态
@@ -26,8 +28,10 @@ enum RedPacketStatus {
   const RedPacketStatus(this.value);
   final int value;
 
-  static RedPacketStatus fromValue(int v) =>
-      RedPacketStatus.values.firstWhere((e) => e.value == v, orElse: () => RedPacketStatus.active);
+  static RedPacketStatus fromValue(int v) => RedPacketStatus.values.firstWhere(
+    (RedPacketStatus e) => e.value == v,
+    orElse: () => RedPacketStatus.active,
+  );
 }
 
 // ─── 请求类 ───────────────────────────────────────────────────────────────────
@@ -49,7 +53,7 @@ class SendRedPacketRequest {
     this.targetUserID,
   });
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'packetType': packetType,
     'totalAmount': totalAmount,
     'totalCount': totalCount,
@@ -167,7 +171,7 @@ enum PointsTxType {
   final int value;
 
   static PointsTxType? fromValue(int v) {
-    for (final e in values) {
+    for (final PointsTxType e in values) {
       if (e.value == v) return e;
     }
     return null;
@@ -244,7 +248,7 @@ class RedPacketMessageData {
     targetUserID: json['targetUserID'] as String?,
   );
 
-  Map<String, dynamic> toJson() => {
+  Map<String, dynamic> toJson() => <String, dynamic>{
     'packetID': packetID,
     'packetType': packetType,
     'totalAmount': totalAmount,

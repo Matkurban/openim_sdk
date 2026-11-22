@@ -2,6 +2,17 @@ include: package:lints/recommended.yaml
 
 formatter:
   page_width: 100
+
 analyzer:
   exclude:
     - build/**
+    - '**/*.g.dart'
+    - '**/*.pb.dart'
+    - '**/*.pbenum.dart'
+    - '**/*.pbjson.dart'
+    - '**/*.pbserver.dart'
+
+linter:
+  rules:
+    - always_specify_types
+    - avoid_print

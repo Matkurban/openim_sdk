@@ -19,6 +19,6 @@ enum ConversationType {
   final int value;
 
   factory ConversationType.fromValue(int value) {
-    return values.firstWhere((item) => item.value == value, orElse: () => single);
+    return values.firstWhere((ConversationType item) => item.value == value, orElse: () => single);
   }
 }

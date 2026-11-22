@@ -20,9 +20,9 @@ class MomentCreateReq extends Equatable {
   final String extra;
 
   Map<String, dynamic> toJson() {
-    return {
+    return <String, dynamic>{
       'content': content,
-      if (media.isNotEmpty) 'media': media.map((m) => m.toJson()).toList(),
+      if (media.isNotEmpty) 'media': media.map((MomentMedia m) => m.toJson()).toList(),
       'visibleType': visibleType.value,
       if (visibleGroupIDs.isNotEmpty) 'visibleGroupIDs': visibleGroupIDs,
       'extra': extra,
@@ -33,19 +33,20 @@ class MomentCreateReq extends Equatable {
     return MomentCreateReq(
       content: json['content'] as String? ?? '',
       media:
-          (json['media'] as List?)
-              ?.map((e) => MomentMedia.fromJson(e as Map<String, dynamic>))
+          (json['media'] as List<dynamic>?)
+              ?.map<MomentMedia>((dynamic e) => MomentMedia.fromJson(e as Map<String, dynamic>))
               .toList() ??
-          const [],
+          const <MomentMedia>[],
       visibleType: VisibleType.values.firstWhere(
-        (v) => v.value == (json['visibleType'] as int? ?? 1),
+        (VisibleType v) => v.value == (json['visibleType'] as int? ?? 1),
         orElse: () => VisibleType.friend,
       ),
-      visibleGroupIDs: (json['visibleGroupIDs'] as List?)?.cast<String>() ?? const [],
+      visibleGroupIDs:
+          (json['visibleGroupIDs'] as List<dynamic>?)?.cast<String>() ?? const <String>[],
       extra: json['extra'] as String? ?? '',
     );
   }
 
   @override
-  List<Object?> get props => [content, media, visibleType, visibleGroupIDs, extra];
+  List<Object?> get props => <Object?>[content, media, visibleType, visibleGroupIDs, extra];
 }

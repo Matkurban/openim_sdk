@@ -2,23 +2,28 @@ library;
 
 export 'src/open_im.dart';
 
-/// Managers
-export 'src/mangaer/im_manager.dart';
-export 'src/mangaer/conversation_manager.dart';
-export 'src/mangaer/group_manager.dart';
-export 'src/mangaer/message_manager.dart';
-export 'src/mangaer/relation_manager.dart';
-export 'src/mangaer/user_manager.dart';
-export 'src/mangaer/moments_manager.dart';
-export 'src/mangaer/favorite_manager.dart';
-export 'src/mangaer/call_manager.dart';
-export 'src/mangaer/red_packet_manager.dart';
-export 'src/mangaer/report_appeal_manager.dart';
-export 'src/mangaer/application_manager.dart';
+/// Core Base Classes
+export 'src/core/base_manager.dart';
 
-/// Isolate
-export 'src/isolate/sdk_isolate_manager.dart';
-export 'src/isolate/sdk_isolate_protocol.dart';
+/// Managers
+export 'src/manager/im_manager.dart';
+export 'src/manager/conversation_manager.dart';
+export 'src/manager/group_manager.dart';
+export 'src/manager/message/message_manager.dart';
+export 'src/manager/relation_manager.dart';
+export 'src/manager/user_manager.dart';
+export 'src/manager/moments_manager.dart';
+export 'src/manager/favorite_manager.dart';
+export 'src/manager/call_manager.dart';
+export 'src/manager/red_packet_manager.dart';
+export 'src/manager/report_appeal_manager.dart';
+export 'src/manager/application_manager.dart';
+
+/// Concurrency Utilities
+export 'src/concurrency/async_semaphore.dart';
+export 'src/concurrency/keyed_async_lock.dart';
+export 'src/concurrency/sdk_compute_executor.dart';
+export 'src/concurrency/serial_task_queue.dart';
 
 /// Listeners
 export 'src/listener/advanced_msg_listener.dart';
@@ -66,11 +71,7 @@ export 'src/models/note_info.dart';
 export 'src/models/application_version_info.dart';
 export 'src/models/user_full_info.dart';
 export 'src/models/auth_cache_data.dart';
-
-/// Red Packet Models
 export 'src/models/red_packet.dart';
-
-/// Call Models
 export 'src/models/call_session.dart';
 export 'src/models/call_record.dart';
 export 'src/models/call_signal_elem.dart';
@@ -100,8 +101,7 @@ export 'src/enums/call_type.dart';
 export 'src/enums/call_signal_type.dart';
 export 'src/enums/call_room_type.dart';
 
-///utils
+/// Utils & Third-party re-exports
 export 'src/utils/open_im_utils.dart';
-export 'package:aoiwe_logger/aoiwe_logger.dart' show AoiweLoggerLevel;
-
-export 'package:tostore/tostore.dart';
+export 'package:logging/logging.dart' show Level, LogRecord;
+export 'package:tostore/tostore.dart' hide LogRecord;

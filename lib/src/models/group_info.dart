@@ -99,7 +99,7 @@ class GroupInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     groupID,
     groupName,
     notification,
@@ -193,7 +193,7 @@ class GroupMembersInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     groupID,
     userID,
     nickname,
@@ -228,7 +228,7 @@ class GroupMemberRole extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, roleLevel];
+  List<Object?> get props => <Object?>[userID, roleLevel];
 }
 
 /// Group Application Information
@@ -355,7 +355,7 @@ class GroupApplicationInfo extends Equatable {
   }
 
   @override
-  List<Object?> get props => [
+  List<Object?> get props => <Object?>[
     groupID,
     groupName,
     notification,
@@ -401,7 +401,7 @@ class GroupInviteResult extends Equatable {
   }
 
   @override
-  List<Object?> get props => [userID, result];
+  List<Object?> get props => <Object?>[userID, result];
 }
 
 @JsonSerializable()
@@ -412,8 +412,8 @@ class GetGroupApplicationListAsRecipientReq extends Equatable {
   final int count;
 
   const GetGroupApplicationListAsRecipientReq({
-    this.groupIDs = const [],
-    this.handleResults = const [],
+    this.groupIDs = const <String>[],
+    this.handleResults = const <int>[],
     required this.offset,
     required this.count,
   });
@@ -438,7 +438,7 @@ class GetGroupApplicationListAsRecipientReq extends Equatable {
   }
 
   @override
-  List<Object?> get props => [groupIDs, handleResults, offset, count];
+  List<Object?> get props => <Object?>[groupIDs, handleResults, offset, count];
 }
 
 @JsonSerializable()
@@ -449,8 +449,8 @@ class GetGroupApplicationListAsApplicantReq extends Equatable {
   final int count;
 
   const GetGroupApplicationListAsApplicantReq({
-    this.groupIDs = const [],
-    this.handleResults = const [],
+    this.groupIDs = const <String>[],
+    this.handleResults = const <int>[],
     this.offset = 0,
     this.count = 40,
   });
@@ -475,7 +475,7 @@ class GetGroupApplicationListAsApplicantReq extends Equatable {
   }
 
   @override
-  List<Object?> get props => [groupIDs, handleResults, offset, count];
+  List<Object?> get props => <Object?>[groupIDs, handleResults, offset, count];
 }
 
 @JsonSerializable()
@@ -494,5 +494,5 @@ class GetGroupApplicationUnhandledCountReq extends Equatable {
   }
 
   @override
-  List<Object?> get props => [time];
+  List<Object?> get props => <Object?>[time];
 }

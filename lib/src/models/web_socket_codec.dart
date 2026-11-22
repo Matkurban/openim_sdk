@@ -69,7 +69,7 @@ class WebSocketCodecs {
   ///
   /// data 字段使用 base64 编码，与 JS SDK 协议一致。
   Uint8List encodeRequest(WebSocketRequest request) {
-    final map = <String, dynamic>{
+    final Map<String, dynamic> map = <String, dynamic>{
       'reqIdentifier': request.reqIdentifier,
       'token': request.token,
       'sendID': request.sendID,
@@ -77,7 +77,7 @@ class WebSocketCodecs {
       'msgIncr': request.msgIncr,
       'data': request.data.isNotEmpty ? base64Encode(request.data) : '',
     };
-    final jsonBytes = utf8.encode(jsonEncode(map));
+    final List<int> jsonBytes = utf8.encode(jsonEncode(map));
     if (enableCompression) {
       return Uint8List.fromList(gzipEncode(jsonBytes));
     }
@@ -94,11 +94,13 @@ class WebSocketCodecs {
     } else {
       decompressed = data;
     }
-    final jsonStr = utf8.decode(decompressed);
-    final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+    final String jsonStr = utf8.decode(decompressed);
+    final Map<String, dynamic> map = jsonDecode(jsonStr) as Map<String, dynamic>;
 
-    final dataStr = map['data'] as String? ?? '';
-    final dataBytes = dataStr.isNotEmpty ? Uint8List.fromList(base64Decode(dataStr)) : Uint8List(0);
+    final String dataStr = map['data'] as String? ?? '';
+    final Uint8List dataBytes = dataStr.isNotEmpty
+        ? Uint8List.fromList(base64Decode(dataStr))
+        : Uint8List(0);
 
     return WebSocketResponse(
       reqIdentifier: map['reqIdentifier'] as int? ?? 0,

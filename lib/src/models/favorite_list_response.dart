@@ -21,18 +21,23 @@ class FavoriteListResponse extends Equatable {
   }
 
   Map<String, dynamic> toJson() {
-    return {'total': total, 'favorites': favorites.map((item) => item.toJson()).toList()};
+    return <String, dynamic>{
+      'total': total,
+      'favorites': favorites.map((FavoriteItem item) => item.toJson()).toList(),
+    };
   }
 
   @override
-  List<Object?> get props => [total, favorites];
+  List<Object?> get props => <Object?>[total, favorites];
 }
 
 List<FavoriteItem> _parseFavorites(dynamic value) {
-  if (value is List) {
+  if (value is List<dynamic>) {
     return value
-        .whereType<Map>()
-        .map((item) => FavoriteItem.fromJson(item.cast<String, dynamic>()))
+        .whereType<Map<dynamic, dynamic>>()
+        .map<FavoriteItem>(
+          (Map<dynamic, dynamic> item) => FavoriteItem.fromJson(item.cast<String, dynamic>()),
+        )
         .toList();
   }
   return <FavoriteItem>[];
