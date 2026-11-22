@@ -1,6 +1,6 @@
 # `openim_sdk` 全面架构重构、缺陷修复与性能优化计划
 
-> **状态**：待审核（尚未修改任何业务代码，审核确认后按阶段实施）
+> **状态**：已完成（v3.0.0，已通过 `dart analyze lib test` 0 问题与 `flutter test` 全绿验证）
 > **基线版本**：`openim_sdk` v2.8.0（Dart 3.12+ / Flutter >= 3.44.0 / `tostore: ^3.6.3`）
 > **比对基准**：`xue_hua_sdk`（Rust + Dart 跨端实现）与 [ToStore 3.6.3 官方文档](https://pub.dev/packages/tostore)
 
