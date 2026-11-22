@@ -30,10 +30,15 @@ Future<void> main() async {
           center: true,
           title: 'OpenIM 聊天',
           titleBarStyle: TitleBarStyle.hidden,
+          trafficLightsOffset: Offset(14, 13),
+          trafficLightsVisible: true,
           backgroundColor: AppColors.lightBackground,
+          alwaysOnTop: false,
+          resizable: true,
           preventClose: true,
+          hasShadow: true,
+          resizeBorderWidth: 6.0,
           showWhenReady: true,
-          trafficLightsOffset: Offset(14, 12),
         ),
       );
     } on Object catch (error) {
