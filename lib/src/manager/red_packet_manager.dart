@@ -250,9 +250,12 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
           String packetID = data;
           try {
             final Map<String, dynamic> decoded = jsonDecode(data) as Map<String, dynamic>;
-            packetID = decoded['packetID']?.toString() ?? data;
+            packetID = decoded['packetID']?.toString() ?? decoded['value']?.toString() ?? data;
           } catch (_) {}
           listener?.redPacketExpired(packetID);
+        case 'red_packet_grabbed':
+          final Map<String, dynamic> map = jsonDecode(data) as Map<String, dynamic>;
+          listener?.redPacketGrabbed(map);
         case 'points_adjusted':
           final Map<String, dynamic> map = jsonDecode(data) as Map<String, dynamic>;
           _cachedBalance = ((map['balance'] as num).toDouble() * 100).roundToDouble() / 100;

@@ -318,7 +318,9 @@ final class GroupManager extends BaseManager<OnGroupListener> {
   /// - [groupMembersInfo] 群组成员列表信息 / Group members info.
   Future<void> setGroupMemberInfo({required SetGroupMemberInfo groupMembersInfo}) async {
     final ApiResponse resp = await _context.apis.group.setGroupMemberInfo(
-      req: groupMembersInfo.toJson(),
+      req: <String, dynamic>{
+        'members': <Map<String, dynamic>>[groupMembersInfo.toJson()],
+      },
     );
     if (resp.errCode != 0) {
       throw OpenIMException(code: resp.errCode, message: resp.errMsg);

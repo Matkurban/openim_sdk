@@ -390,21 +390,6 @@ final class UserManager extends BaseManager<OnUserListener> {
     }
   }
 
-  /// 获取实时音视频令牌。
-  ///
-  /// Get RTC token.
-  ///
-  /// - [roomId] 房间ID / Room ID.
-  /// - [userId] 用户ID / User ID.
-  /// - Returns: 字符串结果 / String result.
-  Future<String> getRtcToken({required String roomId, required String userId}) async {
-    final ApiResponse resp = await _context.apis.user.getRtcToken(roomId: roomId, userId: userId);
-    if (resp.errCode != 0) {
-      throw OpenIMException(code: resp.errCode, message: resp.errMsg);
-    }
-    return resp.data?['token']?.toString() ?? '';
-  }
-
   /// 注册。
   ///
   /// Register.

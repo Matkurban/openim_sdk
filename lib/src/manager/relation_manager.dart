@@ -92,7 +92,9 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
         count: req?.count ?? 40,
       );
     }
-    final List<dynamic> list = resp.data?['friendRequests'] as List<dynamic>? ?? const <dynamic>[];
+    final List<dynamic> list =
+        (resp.data?['FriendRequests'] ?? resp.data?['friendRequests']) as List<dynamic>? ??
+        const <dynamic>[];
     return list
         .whereType<Map<String, dynamic>>()
         .map<FriendApplicationInfo>(FriendApplicationInfo.fromJson)

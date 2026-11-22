@@ -747,7 +747,7 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
     required int order,
   }) async {
     try {
-      // 优先走已建立的 WebSocket 长连接（1002 PullMsgByRange），毫秒级响应；未连接时回退 HTTP。
+      // 优先走已建立的 WebSocket 长连接（1002 WSPullMsgBySeqList），毫秒级响应；未连接时回退 HTTP。
       if (_context.ws.isConnected) {
         final sdkws.PullMessageBySeqsReq req = sdkws.PullMessageBySeqsReq(
           userID: currentUserID,
@@ -762,7 +762,7 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
           order: sdkws.PullOrder.valueOf(order),
         );
         final WebSocketResponse wsResp = await _context.ws.sendRequestWaitResponse(
-          reqIdentifier: WebSocketIdentifier.pullMsgByRange,
+          reqIdentifier: WebSocketIdentifier.pullMsgBySeqList,
           data: req.writeToBuffer(),
         );
         if (wsResp.errCode == 0 && wsResp.data.isNotEmpty) {

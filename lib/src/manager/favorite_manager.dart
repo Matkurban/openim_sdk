@@ -319,9 +319,15 @@ final class FavoriteManager extends BaseManager<OnFavoriteListener> {
   Future<void> handleNotification(String key, Map<String, dynamic> data) async {
     try {
       if (key == 'favorite_added') {
-        final FavoriteItem item = FavoriteItem.fromJson(data);
+        final Map<String, dynamic> rawItem = (data['favorite'] as Map<String, dynamic>?) ?? data;
+        final FavoriteItem item = FavoriteItem.fromJson(rawItem);
         await _context.db.social.upsertFavorite(item);
         listener?.favoriteAdded(item);
+      } else if (key == 'favorite_updated') {
+        final Map<String, dynamic> rawItem = (data['favorite'] as Map<String, dynamic>?) ?? data;
+        final FavoriteItem item = FavoriteItem.fromJson(rawItem);
+        await _context.db.social.upsertFavorite(item);
+        listener?.favoriteUpdated(item);
       } else if (key == 'favorite_removed') {
         final String targetType = data['targetType']?.toString() ?? '';
         final String targetID = data['targetID']?.toString() ?? '';

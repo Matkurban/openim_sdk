@@ -197,18 +197,4 @@ final class UserApi extends BaseApiClient {
       },
     );
   }
-
-  /// 获取实时音视频令牌。
-  ///
-  /// Get RTC token.
-  ///
-  /// - [roomId] 房间ID / Room ID.
-  /// - [userId] 用户ID / User ID.
-  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
-  Future<ApiResponse> getRtcToken({required String roomId, required String userId}) {
-    return postChat(
-      ChatApiUrl.getRtcToken,
-      data: <String, dynamic>{'roomId': roomId, 'userId': userId},
-    );
-  }
 }

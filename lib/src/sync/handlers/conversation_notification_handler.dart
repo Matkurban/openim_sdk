@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../core/base_notification_handler.dart';
 import '../../db/db_engine.dart';
 import '../../listener/conversation_listener.dart';
@@ -106,9 +108,39 @@ final class ConversationNotificationHandler extends BaseNotificationHandler {
       case 2001: // businessNotification
         final String key = detail['key']?.toString() ?? '';
         final dynamic rawData = detail['data'];
-        if (key.isNotEmpty && rawData is Map<String, dynamic>) {
-          onBusinessNotification?.call(key, rawData);
+        if (key.isNotEmpty) {
+          final Map<String, dynamic>? payload = _decodeBusinessPayload(rawData);
+          if (payload != null) {
+            onBusinessNotification?.call(key, payload);
+          }
         }
     }
+  }
+
+  Map<String, dynamic>? _decodeBusinessPayload(dynamic rawData) {
+    if (rawData is Map<String, dynamic>) {
+      return rawData;
+    }
+    if (rawData is Map<dynamic, dynamic>) {
+      return Map<String, dynamic>.from(rawData);
+    }
+    if (rawData is String) {
+      if (rawData.isEmpty) {
+        return <String, dynamic>{};
+      }
+      try {
+        final Object? decoded = jsonDecode(rawData);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        if (decoded is Map<dynamic, dynamic>) {
+          return Map<String, dynamic>.from(decoded);
+        }
+        return <String, dynamic>{'value': rawData};
+      } catch (_) {
+        return <String, dynamic>{'value': rawData};
+      }
+    }
+    return null;
   }
 }

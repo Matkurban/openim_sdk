@@ -836,7 +836,9 @@ class IMManager {
       unawaited(momentsManager.handleNotification(key, data));
     } else if (key.startsWith('favorite_')) {
       unawaited(favoriteManager.handleNotification(key, data));
-    } else if (key == 'red_packet_expired' || key == 'points_adjusted') {
+    } else if (key == 'red_packet_expired' ||
+        key == 'red_packet_grabbed' ||
+        key == 'points_adjusted') {
       redPacketManager.dispatchBusinessNotification(key, jsonEncode(data));
     }
     messageManager.customBusinessListener?.recvCustomBusinessMessage(

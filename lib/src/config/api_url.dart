@@ -31,11 +31,6 @@ sealed class ChatApiUrl {
   /// Update user.
   static const String updateUser = '/user/update';
 
-  /// 获取实时音视频令牌。
-  ///
-  /// Get RTC token.
-  static const String getRtcToken = '/user/rtc/get_rtc_token';
-
   // ---- Friend ----
   /// 搜索好友。
   ///
@@ -136,16 +131,22 @@ sealed class ChatApiUrl {
   /// Appeal upload.
   static const String appealUpload = '/public/appeal/upload';
 
+  // ---- Moments ----
+  /// 朋友圈时间线游标分页。
+  ///
+  /// Moments cursor-based timeline.
+  static const String momentTimeline = '/moment/timeline';
+
+  /// 朋友圈增量同步。
+  ///
+  /// Moments incremental sync.
+  static const String momentSync = '/moment/sync';
+
   // ---- Application Version ----
   /// 最新申请版本。
   ///
   /// Latest application version.
   static const String latestApplicationVersion = '/application/latest_version';
-
-  /// 分页申请版本。
-  ///
-  /// Paged application version.
-  static const String pageApplicationVersion = '/application/page_versions';
 }
 
 /// OpenIM 核心服务端 API 路由（对应 openim-server）

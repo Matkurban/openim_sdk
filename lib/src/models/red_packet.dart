@@ -756,6 +756,7 @@ class RedPacketExpiredNotify {
   ///
   /// - [json] JSON / JSON.
   /// - Returns: `RedPacketExpiredNotify` 结果 / Resulting `RedPacketExpiredNotify`.
-  factory RedPacketExpiredNotify.fromJson(Map<String, dynamic> json) =>
-      RedPacketExpiredNotify(packetID: json['packetID'] as String? ?? json as String);
+  factory RedPacketExpiredNotify.fromJson(Map<String, dynamic> json) => RedPacketExpiredNotify(
+    packetID: json['packetID']?.toString() ?? json['value']?.toString() ?? '',
+  );
 }

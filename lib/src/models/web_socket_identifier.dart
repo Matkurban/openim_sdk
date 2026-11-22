@@ -7,10 +7,10 @@ sealed class WebSocketIdentifier {
   /// 获取最新 seq
   static const int getNewestSeq = 1001;
 
-  /// 按范围拉取消息
+  /// 按 seq 列表/范围拉取消息（对应服务端 WSPullMsgBySeqList = 1002）
   ///
-  /// Pull message by range.
-  static const int pullMsgByRange = 1002;
+  /// Pull message by sequence list/ranges.
+  static const int pullMsgBySeqList = 1002;
 
   /// 发送消息
   ///
@@ -22,8 +22,10 @@ sealed class WebSocketIdentifier {
   /// Send signaling message.
   static const int sendSignalMsg = 1004;
 
-  /// 按 seq 列表拉取消息
-  static const int pullMsgBySeqList = 1005;
+  /// 按会话 seq 拉取消息（对应服务端 WSPullMsg = 1005）
+  ///
+  /// Pull message by sequence.
+  static const int pullMsg = 1005;
 
   /// 获取会话最大已读 seq
   static const int getConvMaxReadSeq = 1006;

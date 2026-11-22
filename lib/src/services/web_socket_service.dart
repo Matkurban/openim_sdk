@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import '../../protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import '../enums/sdk_error_code.dart';
 import '../enums/web_socket_status.dart';
 import '../listener/connect_listener.dart';
@@ -152,7 +153,7 @@ class WebSocketService {
     }
     try {
       final Uint8List payload = Uint8List.fromList(
-        utf8.encode(jsonEncode(<String, dynamic>{'isBackground': isBackground})),
+        sdkws.SetAppBackgroundStatusReq(userID: _userID, isBackground: isBackground).writeToBuffer(),
       );
       await sendRequestWaitResponse(
         reqIdentifier: WebSocketIdentifier.setBackgroundStatus,
@@ -383,8 +384,8 @@ class WebSocketService {
       case WebSocketIdentifier.wsSubUserOnlineStatus:
         onUserOnlineStatusChanged?.call(resp);
       case WebSocketIdentifier.getNewestSeq:
-      case WebSocketIdentifier.pullMsgByRange:
       case WebSocketIdentifier.pullMsgBySeqList:
+      case WebSocketIdentifier.pullMsg:
       case WebSocketIdentifier.getConvMaxReadSeq:
       case WebSocketIdentifier.pullConvLastMessage:
       case WebSocketIdentifier.sendMsg:
