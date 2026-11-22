@@ -4,33 +4,35 @@
 
 ### ⚠ BREAKING CHANGES
 
-* **日志框架全面迁移至 `package:logging`**：移除 `aoiwe_logger` 依赖及 `AoiweLoggerLevel` 导出，`InitConfig.logLevel` 与 `IMManager.initSDK(logLevel: ...)` 类型改为 `package:logging` 的 `Level`（默认 `Level.INFO`）；SDK 内外不再包含任何日志胶水代码，全部模块直接使用 `Logger('openim_sdk.<ClassName>')` 且成员变量统一命名为 `_logger`
-* **并发架构彻底重构**：移除 `worker_manager`、`get_it` 及 `lib/src/isolate/`（`SdkIsolateManager`、`SdkMethodDispatcher` 等 L1 大 Isolate 代理与 1,400+ 行 switch 路由表），改为单一清晰并发模型：主 Isolate 运行异步 I/O 引擎 + `AsyncSemaphore` / `SerialTaskQueue` / `KeyedAsyncLock` 并发原语 + `SdkComputeExecutor`（Native 使用 Dart 3 原生 `Isolate.run`，Web 零开销直执行）
-* **目录与架构规范化**：修复拼写错误的 `lib/src/mangaer/` 目录并重构为 `lib/src/manager/`；所有 Manager 统一继承 `BaseManager`，API 客户端继承 `BaseApiClient`，数据仓储继承 `BaseRepository`，同步器继承 `BaseSyncer`，通知处理器继承 `BaseNotificationHandler`
+* **Migrated logging to `package:logging`**: Removed the `aoiwe_logger` dependency and `AoiweLoggerLevel` export. `InitConfig.logLevel` and `IMManager.initSDK(logLevel: ...)` now accept `Level` from `package:logging` (default `Level.INFO`). All internal modules use `Logger('openim_sdk.<ClassName>')` directly without custom logging wrappers.
+* **Rebuilt concurrency architecture**: Removed `worker_manager`, `get_it`, and `lib/src/isolate/` (`SdkIsolateManager`, `SdkMethodDispatcher`, and the 1,400+ line switch router). Replaced them with a streamlined concurrency model: async I/O on the main isolate, `AsyncSemaphore` / `SerialTaskQueue` / `KeyedAsyncLock` primitives, and `SdkComputeExecutor` (Dart 3 `Isolate.run` on native platforms, zero-overhead direct execution on Web).
+* **Standardized directory and class hierarchy**: Renamed the misspelled `lib/src/mangaer/` directory to `lib/src/manager/`. All managers extend `BaseManager`, API clients extend `BaseApiClient`, repositories extend `BaseRepository`, syncers extend `BaseSyncer`, and notification handlers extend `BaseNotificationHandler`.
 
 ### Features
 
-* **补齐 `MessageType` 枚举**：新增 `conference(127)`、`meetingReminder(128)`、`meetingScheduleNotify(129)`，对齐 `xue_hua_sdk`，并将 `fromValue()` 升级为 O(1) 静态查表
-* **全量启用显式类型声明规范**：在 `analysis_options.yaml` 启用 `always_specify_types` 与 `avoid_print`
-* **面向对象继承与大文件拆解**：消除全部超过 1,000 行的业务巨石文件（原 `message_manager.dart` 2,625 行拆分为 `MessageManager` + `MessageSender` + `MessageFactory`，`im_manager.dart` 1,561 行拆出 `FileUploader`，`database_service.dart` 2,000+ 行拆分为 `DbEngine` + 7 个领域 Repository，`im_api_service.dart` 1,574 行拆分为 8 个 `BaseApiClient` 子类，`msg_syncer.dart` / `notification_dispatcher.dart` 拆分为 `SyncCoordinator` + 4 个 `BaseSyncer` + 5 个 `BaseNotificationHandler`）
+* **Extended `MessageType` enum**: Added `conference(127)`, `meetingReminder(128)`, and `meetingScheduleNotify(129)`, and upgraded `fromValue()` to O(1) static map lookup.
+* **Stricter static analysis**: Enabled `always_specify_types` and `avoid_print` in `analysis_options.yaml` across the codebase.
+* **Modularized large files**: Split all 1,000+ line monolithic files into focused components (`MessageManager` + `MessageSender` + `MessageFactory`; `FileUploader` extracted from `IMManager`; `DbEngine` + 7 domain repositories; 8 `BaseApiClient` subclasses; `SyncCoordinator` + 4 `BaseSyncer` + 5 `BaseNotificationHandler` classes).
 
-### Performance (ToStore 3.6.3 深度优化)
+### Performance (ToStore 3.6.3 Optimization)
 
-* **零卡顿配置与日志桥接**：启用 `DataStoreConfig(yieldDurationMs: 8, defaultQueryLimit: 500, enableJournal: true, defaultRecoveryDurability: RecoveryDurability.standard)`，并通过 `ToStore.setLogConfig` 将数据库日志桥接至 `Logger('openim_sdk.ToStore')`
-* **确定性复合主键与复合索引**：为 `local_blacks`、`local_group_members`、`local_friend_requests`、`local_group_requests`、`local_version_sync` 采用 `PrimaryKeyType.none` + `DbSchema.compositeKey` 实现 O(1) `upsert`；新增会话排序、消息时序/Seq/状态/未读、群成员角色/入群时间等复合索引及 BM25 `IndexType.text` 全文索引
-* **原子事务与读写热点优化**：关键多表同步与群成员替换接入 `toStore.transaction(..., rollbackOnError: true)`；改用 `peekFirst()`、`exists()`、字段裁剪 `select([...])`、`batchUpsert`/`batchUpdate`、`Expr` 原子未读递减与 `switchSpace(..., keepActive: true)`
+* **Low-jank storage configuration and log bridging**: Configured `DataStoreConfig(yieldDurationMs: 8, defaultQueryLimit: 500, enableJournal: true, defaultRecoveryDurability: RecoveryDurability.standard)` and bridged database logs to `Logger('openim_sdk.ToStore')` via `ToStore.setLogConfig`.
+* **Deterministic composite keys and indexes**: Adopted `PrimaryKeyType.none` + `DbSchema.compositeKey` for O(1) `upsert` on `local_blacks`, `local_group_members`, `local_friend_requests`, `local_group_requests`, and `local_version_sync`; added composite indexes for conversation sorting, message timeline/seq/status/unread queries, group member roles/join times, and BM25 `IndexType.text` full-text search.
+* **Atomic transactions and hot-path I/O improvements**: Wrapped multi-table syncs and group member replacements in `toStore.transaction(..., rollbackOnError: true)`; adopted `peekFirst()`, `exists()`, field projection `select([...])`, `batchUpsert`/`batchUpdate`, atomic `Expr` unread decrements, and `switchSpace(..., keepActive: true)`.
+* **Faster chat history loading**: `MessageManager.getAdvancedHistoryMessageList` now prefers WebSocket `1002` (`pullMsgByRange`) when connected, respects conversation `minSeq` bounds via `ConversationRepository.getConversationSeqBounds`, caches exhausted conversations, and seeds missing local history from `conversation.latestMsg`.
+* **Local-first user info cache**: `UserManager.getUsersInfoWithCache` now checks `local_users` and `local_friends` before falling back to network requests, avoiding redundant HTTP calls for synced friends.
 
-### Bug Fixes (与 `xue_hua_sdk` 逐行比对核查修复)
+### Bug Fixes
 
-* **B-01**：修复全量同步群成员先清表再分批写导致的空窗期数据丢失，改为原子事务替换与增量 `batchUpsert`
-* **B-02**：修复消息发送 ACK 未解析 `sdkws.UserSendMsgResp` 导致刚发出消息丢失 `serverMsgID` 和准确 `sendTime`、无法立即撤回或云端删除的问题
-* **B-03 / B-04**：实现 `TypingStateTracker` 补齐 `getInputStates()`，并将 `setConversation` 未读数变更同步更新本地 DB 并广播 `totalUnreadMessageCountChanged`
-* **B-05 / B-06 / B-07 / B-14 / B-15**：修复 `IMManager` 登录并发重入、`logout()` 与 `unInitSDK()` 资源清理、`networkStatusChanged` 触发重连以及 `setAppBackgroundStatus` 同步状态至 WebSocket
-* **B-08 / B-09 / B-19 / B-20 / B-26**：修复 `getAdvancedHistoryMessageListReverse` 未真正正向拉取、`revokeMessage` 未更新本地会话 `latestMsg`、`searchLocalMessages` 忽略多关键词/发送者/时间窗口、以及消息入库缺少 `conversationID` 字段的问题
-* **B-10 / B-11**：移除跨 Isolate 屏障修复 `pendingUploadBytes` 内存丢失；完善 `CallManager` 群呼/单呼状态机与超时清理
-* **B-12 / B-13**：`WebSocketService` 引入连接代际 `_connGeneration` 过滤陈旧 Socket 回调，重连退避上限收敛至 16 秒，心跳超时主动关闭陈旧传输
-* **B-16 / B-17 / B-27**：`SyncCoordinator` 使用 `SerialTaskQueue` 串行化同步、事务提交后再触发 UI 回调、在 `finally` 中检查挂起同步请求，对齐 `xue_hua_sdk` 通知分类并移除生产环境调试校验查询
-* **B-18 / B-21 / B-22 / B-23 / B-24**：修复 `ConversationManager` 空草稿误刷 `draftTextTime` 与 `markConversationMessageAsRead` 顺序、HTTP 错误响应解析 OpenIM JSON `errCode`、分页除零风险与 `GroupManager` 成员/退群本地缓存一致性
+* **Atomic group member full sync**: Replaced clear-then-insert with atomic transactional replacement and incremental `batchUpsert` to prevent transient empty member lists during sync.
+* **Message send ACK & conversation update**: Parsed `sdkws.UserSendMsgResp` on send ACK so newly sent messages receive `serverMsgID` and accurate `sendTime` immediately (enabling instant revoke/delete); initialized `sendTime` prior to sending and populated `showName`/`faceURL` when creating local conversations on send.
+* **Typing indicator & unread count sync**: Implemented `TypingStateTracker` for `getInputStates()`, and persisted `setConversation` unread changes locally while broadcasting `totalUnreadMessageCountChanged`.
+* **Lifecycle & connection resilience**: Fixed concurrent `IMManager.login()` re-entrancy, `logout()` / `unInitSDK()` resource cleanup, `networkStatusChanged` reconnect handling, and `setAppBackgroundStatus` WebSocket state sync.
+* **History, revocation, and local search**: Fixed `getAdvancedHistoryMessageListReverse` forward pulling, updated conversation `latestMsg` on `revokeMessage`, honored multi-keyword/sender/time-window filters in `searchLocalMessages`, and ensured persisted messages always include `conversationID`.
+* **Media uploads & call signaling**: Fixed `pendingUploadBytes` loss across isolate boundaries and improved `CallManager` 1-on-1/group call state machine and timeout cleanup.
+* **WebSocket generation tracking**: Added `_connGeneration` in `WebSocketService` to discard stale socket callbacks, capped reconnect backoff at 16 seconds, and closed stale transports on heartbeat timeout.
+* **Sync coordinator & notification handling**: Serialized sync runs via `SerialTaskQueue`, fired UI callbacks only after transaction commits, drained pending sync requests in `finally`, included `friendSyncer.syncBlackList` during connected sync, persisted `oaNotification (1400)` messages in chat logs while preserving `notificationElem` payloads, and removed debug verification queries.
+* **Conversation, HTTP, and group edge cases**: Prevented empty drafts from bumping `draftTextTime`, fixed `markConversationMessageAsRead` ordering, parsed OpenIM JSON `errCode` from HTTP error responses, guarded against division-by-zero in pagination, and kept `GroupManager` local member/quit caches consistent.
 
 ## [2.8.0](https://github.com/Matkurban/openim_sdk/compare/v2.7.1...v2.8.0) (2026-09-29)
 
@@ -44,10 +46,10 @@
 
 ### Bug Fixes
 
-* 用条件导入把 `dart:isolate` 移出公开库依赖图，插件可以编译到 WebAssembly。Native 仍在后台 Isolate 运行引擎；Web 与 WASM 在主线程执行
-* WebSocket 热重启清理改为检测 `dart.library.js_interop`，WASM 构建会编入真正的释放回调
-* 补齐 FavoriteManager 与好友分页查询中的 `await`，异步失败会沿调用栈抛出
-* 将 `meta` 约束更新到 ^1.18.3，`equatable` 约束更新到 ^3.0.0
+* Moved `dart:isolate` behind conditional imports so the package compiles to WebAssembly; native platforms continue running the engine in a background isolate while Web and WASM run on the main thread.
+* Switched WebSocket hot-restart cleanup detection to `dart.library.js_interop` so WASM builds include the real disposal callback.
+* Added missing `await` calls in `FavoriteManager` and paginated friend queries so asynchronous errors propagate properly.
+* Updated dependency constraints to `meta: ^1.18.3` and `equatable: ^3.0.0`.
 
 ## [2.7.1](https://github.com/Matkurban/openim_sdk/compare/v2.7.0...v2.7.1) (2026-09-03)
 
@@ -75,9 +77,9 @@
 
 ### Bug Fixes
 
-* 修复 pub.dev 平台得分（支持 Android、iOS、Web、Windows、macOS、Linux 全部 6 大平台）
-* 隔离 Web 与 Native 平台的条件导入，解决 `dart:io` 与 `dart:js_interop` 的静态检测冲突
-* 在 `pubspec.yaml` 中添加显式 `platforms` 声明并修复依赖约束
+* Fixed pub.dev platform score to support all 6 platforms (Android, iOS, Web, Windows, macOS, and Linux).
+* Isolated Web and Native conditional imports to resolve static analysis conflicts between `dart:io` and `dart:js_interop`.
+* Added explicit `platforms` declaration and fixed dependency constraints in `pubspec.yaml`.
 
 ## [2.5.1](https://github.com/Matkurban/openim_sdk/compare/v2.5.0...v2.5.1) (2026-06-04)
 
@@ -91,42 +93,42 @@
 
 ### Features
 
-* 升级tostore 的版本到 3.1.2，以修复在 Linux 中闪退的问题 ([ae11d25](https://github.com/Matkurban/openim_sdk/commit/ae11d25a1193d2644c88cc5250d8e5b2898a4b7b))
+* Upgraded `tostore` to 3.1.2 to fix a crash on Linux ([ae11d25](https://github.com/Matkurban/openim_sdk/commit/ae11d25a1193d2644c88cc5250d8e5b2898a4b7b))
 
 ## [2.4.2](https://github.com/Matkurban/openim_sdk/compare/v2.4.1...v2.4.2) (2026-05-01)
 
 
 ### Bug Fixes
 
-* 优化未读消息计数逻辑并统一触发未读总数变更 ([0dd3fab](https://github.com/Matkurban/openim_sdk/commit/0dd3fab2b1b01a57c7a94ecd231c22f4e523ba88))
+* Improved unread message count calculation and unified total unread count change notifications ([0dd3fab](https://github.com/Matkurban/openim_sdk/commit/0dd3fab2b1b01a57c7a94ecd231c22f4e523ba88))
 
 ## [2.4.1](https://github.com/Matkurban/openim_sdk/compare/v2.4.0...v2.4.1) (2026-05-01)
 
 
 ### Bug Fixes
 
-* 优化未读消息计数逻辑并统一触发未读总数变更 ([4269f9a](https://github.com/Matkurban/openim_sdk/commit/4269f9a2ceb500c5f19848d05c12eda86e83bea7))
-* 移除未使用的 getAtAllTag 方法并更新依赖版本 ([df6d553](https://github.com/Matkurban/openim_sdk/commit/df6d5537359d3c02d7492acc4be88f9b705452bf))
+* Improved unread message count calculation and unified total unread count change notifications ([4269f9a](https://github.com/Matkurban/openim_sdk/commit/4269f9a2ceb500c5f19848d05c12eda86e83bea7))
+* Removed unused `getAtAllTag` method and updated dependency versions ([df6d553](https://github.com/Matkurban/openim_sdk/commit/df6d5537359d3c02d7492acc4be88f9b705452bf))
 
 ## [2.4.0](https://github.com/Matkurban/openim_sdk/compare/v2.3.0...v2.4.0) (2026-04-26)
 
 
 ### Features
 
-* 添加举报和处理 ([3b94496](https://github.com/Matkurban/openim_sdk/commit/3b94496b79405c182bcc7857ad4352fd7ccb94ef))
-* 添加账号注销 ([e9cebbf](https://github.com/Matkurban/openim_sdk/commit/e9cebbfdf08acd687cd767fd13c9bad039723269))
+* Added content reporting and handling support ([3b94496](https://github.com/Matkurban/openim_sdk/commit/3b94496b79405c182bcc7857ad4352fd7ccb94ef))
+* Added account deletion support ([e9cebbf](https://github.com/Matkurban/openim_sdk/commit/e9cebbfdf08acd687cd767fd13c9bad039723269))
 
 
 ### Bug Fixes
 
-* 优化线程问题 ([de012a9](https://github.com/Matkurban/openim_sdk/commit/de012a982bf865d98cf14e0b8309d0ef79a23479))
+* Improved multithreading stability ([de012a9](https://github.com/Matkurban/openim_sdk/commit/de012a982bf865d98cf14e0b8309d0ef79a23479))
 
 ## [2.3.0](https://github.com/Matkurban/openim_sdk/compare/v2.2.1...v2.3.0) (2026-04-26)
 
 
 ### Features
 
-* 修复搜索不准确问题 ([8d96fc5](https://github.com/Matkurban/openim_sdk/commit/8d96fc523f44b0bfa7b9d65a5e8ecbdad104a6da))
+* Fixed inaccurate local message search results ([8d96fc5](https://github.com/Matkurban/openim_sdk/commit/8d96fc523f44b0bfa7b9d65a5e8ecbdad104a6da))
 
 ## [2.2.1](https://github.com/Matkurban/openim_sdk/compare/v2.2.0...v2.2.1) (2026-04-20)
 
@@ -155,7 +157,7 @@
 
 ### Features
 
-* 添加 runInDatabase 方法，可以在数据库实例中运行自定义的查询修改。 ([a247276](https://github.com/Matkurban/openim_sdk/commit/a2472761e99eba2029c21787bba8b9d2f41b1c65))
+* Added `runInDatabase` method to run custom queries and updates directly on the database instance. ([a247276](https://github.com/Matkurban/openim_sdk/commit/a2472761e99eba2029c21787bba8b9d2f41b1c65))
 
 ## [2.0.2](https://github.com/Matkurban/openim_sdk/compare/v2.0.1...v2.0.2) (2026-04-17)
 
@@ -169,14 +171,14 @@
 
 ### Bug Fixes
 
-* 修复文档发布 2.0.0版本 ([8536303](https://github.com/Matkurban/openim_sdk/commit/8536303d5f24ffd45150b4450eec12793dcadbfd))
+* Fixed documentation for the 2.0.0 release ([8536303](https://github.com/Matkurban/openim_sdk/commit/8536303d5f24ffd45150b4450eec12793dcadbfd))
 
 ## [2.0.0](https://github.com/Matkurban/openim_sdk/compare/v1.0.0...v2.0.0) (2026-04-08)
 
 
 ### ⚠ BREAKING CHANGES
 
-* 修复文档发布 2.0.0版本呢
+* Updated documentation and released version 2.0.0
 
 ## 1.9.1
 
