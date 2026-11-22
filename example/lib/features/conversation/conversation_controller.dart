@@ -7,6 +7,7 @@ import 'package:signal_wire/signal_wire.dart';
 
 import '../../core/events/im_conversation_event.dart';
 import '../../core/events/im_event_bus.dart';
+import '../../core/utils/message_summary_parser.dart';
 
 /// 会话列表控制器（订阅 [ImEventBus] 实时刷新会话排序与未读数）。
 ///
@@ -162,48 +163,12 @@ class ConversationController extends WireController {
     }
   }
 
-  /// 解析会话最后一条消息摘要文本。
+  /// 解析会话最后一条消息摘要文本（委托给全类型 [MessageSummaryParser]）。
   static String formatLatestSummary(ConversationInfo conv) {
-    final String draft = (conv.draftText ?? '').trim();
-    if (draft.isNotEmpty) {
-      return '[草稿] $draft';
-    }
-    final Message? msg = conv.latestMsg;
-    if (msg == null) {
-      return '';
-    }
-    switch (msg.contentType) {
-      case MessageType.text:
-        return msg.textElem?.content ?? '';
-      case MessageType.atText:
-        return msg.atTextElem?.text ?? '[@消息]';
-      case MessageType.quote:
-        return msg.quoteElem?.text ?? '[引用消息]';
-      case MessageType.picture:
-        return '[图片]';
-      case MessageType.voice:
-        return '[语音]';
-      case MessageType.video:
-        return '[视频]';
-      case MessageType.file:
-        return '[文件] ${msg.fileElem?.fileName ?? ''}';
-      case MessageType.location:
-        return '[位置] ${msg.locationElem?.description ?? ''}';
-      case MessageType.card:
-        return '[名片] ${msg.cardElem?.nickname ?? ''}';
-      case MessageType.merger:
-        return '[聊天记录] ${msg.mergeElem?.title ?? ''}';
-      case MessageType.customFace:
-        return '[动画表情]';
-      case MessageType.redPacket:
-        return '[红包] ${msg.redPacketElem?.greeting ?? '恭喜发财'}';
-      case MessageType.callSignal:
-        return '[音视频通话]';
-      case MessageType.revokeMessageNotification:
-        return '撤回了一条消息';
-      default:
-        return '[系统消息]';
-    }
+    return MessageSummaryParser.formatConversationSummary(
+      conv,
+      selfUserId: OpenIM.iMManager.userID,
+    );
   }
 
   @override

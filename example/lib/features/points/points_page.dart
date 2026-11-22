@@ -84,10 +84,8 @@ class _PointsPageState extends State<PointsPage> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: <Color>[AppColors.primary, AppColors.primaryDark],
-                    ),
-                    borderRadius: BorderRadius.circular(14),
+                    color: AppColors.surfaceTile1,
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

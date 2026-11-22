@@ -1,9 +1,12 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 
-/// 引用回复消息气泡。
+import '../../../app/theme/app_colors.dart';
+import '../../../core/utils/message_summary_parser.dart';
+
+/// 引用回复消息气泡（复用统一消息摘要解析器解析任意类型被引用消息）。
 ///
-/// Quoted-reply message bubble showing original message preview and reply text.
+/// Quoted-reply message bubble showing full summary for any quoted message type.
 class QuoteMessageBubble extends StatelessWidget {
   /// 消息对象。
   final Message message;
@@ -20,16 +23,16 @@ class QuoteMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     final QuoteElem? quote = message.quoteElem;
     final Message? quotedMsg = quote?.quoteMessage;
     final String quotedSummary = quotedMsg == null
         ? '引用消息'
         : '${quotedMsg.senderNickname ?? quotedMsg.sendID ?? ''}: '
-              '${quotedMsg.textElem?.content ?? '[${quotedMsg.contentType?.name ?? '消息'}]'}';
-    final Color textColor =
-        isSelf && Theme.of(context).brightness == Brightness.light
-        ? const Color(0xFF191919)
-        : Theme.of(context).colorScheme.onSurface;
+              '${MessageSummaryParser.summarizeMessage(quotedMsg, selfUserId: OpenIM.iMManager.userID)}';
+    final Color textColor = isSelf
+        ? AppColors.bodyOnDark
+        : theme.colorScheme.onSurface;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,20 +40,32 @@ class QuoteMessageBubble extends StatelessWidget {
       children: <Widget>[
         Text(
           quote?.text ?? '',
-          style: TextStyle(fontSize: 15, height: 1.4, color: textColor),
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.44,
+            letterSpacing: -0.32,
+            color: textColor,
+          ),
         ),
         const SizedBox(height: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(4),
+            color: isSelf
+                ? Colors.white.withValues(alpha: 0.16)
+                : theme.colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             quotedSummary,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+            style: TextStyle(
+              fontSize: 12,
+              color: isSelf
+                  ? Colors.white.withValues(alpha: 0.85)
+                  : theme.hintColor,
+            ),
           ),
         ),
       ],

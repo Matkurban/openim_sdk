@@ -4,6 +4,7 @@ import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
+import '../../app/theme/app_colors.dart';
 import '../../core/events/im_social_event.dart';
 import '../../core/services/auth_session_service.dart';
 import '../../shared/widgets/cached_avatar.dart';
@@ -182,15 +183,7 @@ class _MomentsCoverHeader extends StatelessWidget {
         children: <Widget>[
           Positioned.fill(
             bottom: 24,
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: <Color>[Color(0xFF1F3B4D), Color(0xFF07C160)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-            ),
+            child: const ColoredBox(color: AppColors.surfaceTile1),
           ),
           Positioned(
             right: 16,

@@ -134,8 +134,13 @@ class ConversationTile extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: summary.startsWith('[草稿]')
+                                  color:
+                                      summary.startsWith('[草稿]') ||
+                                          summary.startsWith('[发送失败]') ||
+                                          summary.startsWith('[有人@我]')
                                       ? AppColors.danger
+                                      : summary.startsWith('[@所有人]')
+                                      ? theme.colorScheme.primary
                                       : theme.hintColor,
                                 ),
                               ),

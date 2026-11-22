@@ -5,15 +5,21 @@ import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.
 
 import '../../../app/router/app_routes.dart';
 import '../../../app/theme/app_colors.dart';
+import '../../../core/utils/message_summary_parser.dart';
 import '../../../shared/widgets/cached_avatar.dart';
+import 'at_text_message_bubble.dart';
 import 'call_signal_bubble.dart';
 import 'card_message_bubble.dart';
+import 'conference_message_bubble.dart';
 import 'custom_message_bubble.dart';
 import 'face_message_bubble.dart';
 import 'file_message_bubble.dart';
+import 'group_announcement_bubble.dart';
 import 'image_message_bubble.dart';
 import 'location_message_bubble.dart';
+import 'meeting_notice_bubble.dart';
 import 'merge_message_bubble.dart';
+import 'oa_notification_bubble.dart';
 import 'quote_message_bubble.dart';
 import 'red_packet_message_bubble.dart';
 import 'system_notice_bubble.dart';
@@ -23,7 +29,7 @@ import 'voice_message_bubble.dart';
 
 /// 统一消息气泡外框（分发全类型气泡 + 移动端长按 / 桌面端右键 `chat_context_menu` 操作面板）。
 ///
-/// Unified message bubble shell dispatching all message types with long-press and right-click menu.
+/// Unified message bubble shell dispatching all OpenIM message types with Apple styling.
 class MessageBubbleShell extends StatelessWidget {
   /// 消息对象。
   final Message message;
@@ -101,26 +107,39 @@ class MessageBubbleShell extends StatelessWidget {
     return message.contentType == MessageType.picture ||
         message.contentType == MessageType.video ||
         message.contentType == MessageType.customFace ||
-        message.contentType == MessageType.redPacket;
+        message.contentType == MessageType.redPacket ||
+        message.contentType == MessageType.file ||
+        message.contentType == MessageType.card ||
+        message.contentType == MessageType.location ||
+        message.contentType == MessageType.merger;
   }
 
   @override
   Widget build(BuildContext context) {
+    if (message.contentType == MessageType.oaNotification) {
+      return OaNotificationBubble(message: message);
+    }
+    if (message.contentType ==
+        MessageType.groupInfoSetAnnouncementNotification) {
+      return GroupAnnouncementBubble(message: message);
+    }
     if (_isSystemMessage()) {
       return SystemNoticeBubble(message: message);
     }
 
     final bool isSelf = message.sendID == OpenIM.iMManager.userID;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isBurn = MessageSummaryParser.isBurnAfterReading(message);
     final Color bubbleColor = isSelf
         ? (isDark ? AppColors.selfBubbleDark : AppColors.selfBubbleLight)
         : (isDark ? AppColors.peerBubbleDark : AppColors.peerBubbleLight);
+    final Color hairline = isDark ? AppColors.hairlineDark : AppColors.hairline;
     final AdaptiveRouter router = AdaptiveRouter.of(context);
 
     return InkWell(
       onTap: multiSelectMode ? onToggleSelect : null,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: isSelf
@@ -162,7 +181,7 @@ class MessageBubbleShell extends StatelessWidget {
                       padding: const EdgeInsets.only(bottom: 4, left: 2),
                       child: Text(
                         message.senderNickname ?? message.sendID ?? '',
-                        style: Theme.of(context).textTheme.labelSmall
+                        style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: Theme.of(context).hintColor),
                       ),
                     ),
@@ -188,11 +207,20 @@ class MessageBubbleShell extends StatelessWidget {
                             size: 18,
                           ),
                         ),
+                      if (isBurn)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6, bottom: 8),
+                          child: Icon(
+                            Icons.local_fire_department_outlined,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
                       Flexible(
                         child: ChatContextMenuWrapper(
                           barrierColor: Colors.black26,
                           excludeAnchorFromBarrier: true,
-                          barrierAnchorBorderRadius: BorderRadius.circular(10),
+                          barrierAnchorBorderRadius: BorderRadius.circular(14),
                           widgetBuilder:
                               (
                                 BuildContext _,
@@ -207,24 +235,45 @@ class MessageBubbleShell extends StatelessWidget {
                                       ? null
                                       : showMenu,
                                   child: _usesRawCard()
-                                      ? _BubbleContentDispatcher(
-                                          message: message,
-                                          conversationId: conversationId,
-                                          isSelf: isSelf,
+                                      ? _RawCardContainer(
+                                          isCardStyled:
+                                              message.contentType ==
+                                                  MessageType.file ||
+                                              message.contentType ==
+                                                  MessageType.card ||
+                                              message.contentType ==
+                                                  MessageType.location ||
+                                              message.contentType ==
+                                                  MessageType.merger,
+                                          backgroundColor: isDark
+                                              ? AppColors.surfaceTile1
+                                              : AppColors.canvas,
+                                          hairline: hairline,
+                                          child: _BubbleContentDispatcher(
+                                            message: message,
+                                            conversationId: conversationId,
+                                            isSelf: isSelf,
+                                          ),
                                         )
                                       : Container(
                                           constraints: const BoxConstraints(
-                                            maxWidth: 280,
+                                            maxWidth: 290,
                                           ),
                                           padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 9,
+                                            horizontal: 14,
+                                            vertical: 10,
                                           ),
                                           decoration: BoxDecoration(
                                             color: bubbleColor,
                                             borderRadius: BorderRadius.circular(
-                                              8,
+                                              16,
                                             ),
+                                            border: isSelf
+                                                ? null
+                                                : Border.all(
+                                                    color: hairline,
+                                                    width: 1,
+                                                  ),
                                           ),
                                           child: _BubbleContentDispatcher(
                                             message: message,
@@ -307,6 +356,36 @@ class MessageBubbleShell extends StatelessWidget {
   }
 }
 
+class _RawCardContainer extends StatelessWidget {
+  final bool isCardStyled;
+  final Color backgroundColor;
+  final Color hairline;
+  final Widget child;
+
+  const _RawCardContainer({
+    required this.isCardStyled,
+    required this.backgroundColor,
+    required this.hairline,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isCardStyled) {
+      return child;
+    }
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: hairline, width: 1),
+      ),
+      child: child,
+    );
+  }
+}
+
 class _BubbleContentDispatcher extends StatelessWidget {
   final Message message;
   final String conversationId;
@@ -321,6 +400,8 @@ class _BubbleContentDispatcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     switch (message.contentType) {
+      case MessageType.atText:
+        return AtTextMessageBubble(message: message, isSelf: isSelf);
       case MessageType.picture:
         return ImageMessageBubble(message: message);
       case MessageType.voice:
@@ -348,12 +429,16 @@ class _BubbleContentDispatcher extends StatelessWidget {
           conversationId: conversationId,
         );
       case MessageType.callSignal:
-        return CallSignalBubble(message: message);
-      case MessageType.custom:
+        return CallSignalBubble(message: message, isSelf: isSelf);
       case MessageType.conference:
+        return ConferenceMessageBubble(message: message, isSelf: isSelf);
       case MessageType.meetingReminder:
       case MessageType.meetingScheduleNotify:
-        return CustomMessageBubble(message: message);
+        return MeetingNoticeBubble(message: message, isSelf: isSelf);
+      case MessageType.custom:
+      case MessageType.customMsgNotTriggerConversation:
+      case MessageType.customMsgOnlineOnly:
+        return CustomMessageBubble(message: message, isSelf: isSelf);
       default:
         return TextMessageBubble(message: message, isSelf: isSelf);
     }
@@ -390,9 +475,9 @@ class _MessageActionMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: const Color(0xFF2E2E30),
-      elevation: 8,
-      borderRadius: BorderRadius.circular(10),
+      color: AppColors.surfaceTile1,
+      elevation: 0,
+      borderRadius: BorderRadius.circular(14),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 280),
         child: Padding(
@@ -447,14 +532,14 @@ class _MenuChip extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.color = Colors.white,
+    this.color = AppColors.bodyOnDark,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: SizedBox(
         width: 50,
         child: Padding(

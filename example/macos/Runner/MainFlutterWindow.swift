@@ -4,10 +4,10 @@ import xue_hua_navite_window_manager
 
 class MainFlutterWindow: NSWindow {
   override func awakeFromNib() {
-    // Zero-flash startup: conceal window & sync backing color before first frame.
+    // Zero-flash startup: conceal window & sync Apple Parchment (#F5F5F7) backing color.
     XueHuaNaviteWindowManagerPlugin.prepareZeroFlashWindow(
       self,
-      backgroundColor: NSColor(srgbRed: 0.93, green: 0.93, blue: 0.93, alpha: 1.0)
+      backgroundColor: NSColor(srgbRed: 0.961, green: 0.961, blue: 0.969, alpha: 1.0)
     )
 
     let flutterViewController = FlutterViewController()

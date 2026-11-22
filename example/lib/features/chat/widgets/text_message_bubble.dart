@@ -4,9 +4,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
 import 'package:xue_hua_navite_clipboard/xue_hua_navite_clipboard.dart';
 
-/// 文本 / `@` 文本 / 富文本消息气泡（集成 `ChatSelectableText` 划词复制）。
+import '../../../app/theme/app_colors.dart';
+
+/// 文本 / 富文本 / Markdown 消息气泡（集成 `ChatSelectableText` 划词复制）。
 ///
-/// Text, `@`-mention, and rich-text message bubble with `ChatSelectableText`.
+/// Plain text, rich text, and Markdown message bubble with `ChatSelectableText`.
 class TextMessageBubble extends StatelessWidget {
   /// 消息对象。
   final Message message;
@@ -23,10 +25,12 @@ class TextMessageBubble extends StatelessWidget {
 
   String _extractText() {
     switch (message.contentType) {
-      case MessageType.atText:
-        return message.atTextElem?.text ?? '';
       case MessageType.advancedText:
         return message.advancedTextElem?.text ?? '';
+      case MessageType.markdownText:
+        return message.textElem?.content ??
+            message.advancedTextElem?.text ??
+            '';
       default:
         return message.textElem?.content ?? '';
     }
@@ -35,14 +39,18 @@ class TextMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final String content = _extractText();
-    final Color textColor =
-        isSelf && Theme.of(context).brightness == Brightness.light
-        ? const Color(0xFF191919)
+    final Color textColor = isSelf
+        ? AppColors.bodyOnDark
         : Theme.of(context).colorScheme.onSurface;
     return ChatSelectableText(
       content,
       useRootOverlay: true,
-      style: TextStyle(fontSize: 15, height: 1.4, color: textColor),
+      style: TextStyle(
+        fontSize: 16,
+        height: 1.44,
+        letterSpacing: -0.32,
+        color: textColor,
+      ),
       menuBuilder:
           (
             BuildContext ctx,
@@ -51,9 +59,9 @@ class TextMessageBubble extends StatelessWidget {
             VoidCallback selectAll,
           ) {
             return Material(
-              color: const Color(0xFF2C2C2E),
-              elevation: 6,
-              borderRadius: BorderRadius.circular(8),
+              color: AppColors.surfaceTile1,
+              elevation: 0,
+              borderRadius: BorderRadius.circular(11),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
@@ -67,14 +75,14 @@ class TextMessageBubble extends StatelessWidget {
                     },
                     child: const Text(
                       '复制',
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppColors.bodyOnDark),
                     ),
                   ),
                   TextButton(
                     onPressed: selectAll,
                     child: const Text(
                       '全选',
-                      style: TextStyle(color: Colors.white),
+                      style: TextStyle(color: AppColors.bodyOnDark),
                     ),
                   ),
                 ],

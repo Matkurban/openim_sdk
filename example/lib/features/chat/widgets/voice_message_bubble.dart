@@ -94,6 +94,9 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
         child: SignalBuilder(
           builder: (BuildContext _) {
             final bool playing = _playing.value;
+            final Color fg = widget.isSelf
+                ? Colors.white
+                : Theme.of(context).colorScheme.onSurface;
             return Row(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: widget.isSelf
@@ -104,15 +107,17 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                   Icon(
                     playing ? Icons.graphic_eq : Icons.volume_up_outlined,
                     size: 20,
+                    color: fg,
                   ),
                   const SizedBox(width: 8),
                 ],
-                Text('$duration"'),
+                Text('$duration"', style: TextStyle(color: fg)),
                 if (widget.isSelf) ...<Widget>[
                   const SizedBox(width: 8),
                   Icon(
                     playing ? Icons.graphic_eq : Icons.volume_up_outlined,
                     size: 20,
+                    color: fg,
                   ),
                 ],
               ],
