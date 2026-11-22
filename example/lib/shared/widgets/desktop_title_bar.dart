@@ -24,22 +24,20 @@ class DesktopTitleBar extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final ThemeData theme = Theme.of(context);
-    return SizedBox(
-      height: 36,
-      child: WindowCaption(
-        backgroundColor: theme.appBarTheme.backgroundColor,
-        title: DragArea(
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: defaultTargetPlatform == TargetPlatform.macOS ? 76 : 12,
-              ),
-              child: Text(
-                title,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+    return WindowCaption(
+      backgroundColor: theme.appBarTheme.backgroundColor,
+      height: 72,
+      title: DragArea(
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: defaultTargetPlatform == TargetPlatform.macOS ? 76 : 12,
+            ),
+            child: Text(
+              title,
+              style: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

@@ -41,7 +41,10 @@ class _OpenImExampleAppState extends State<OpenImExampleApp> {
           darkTheme: AppTheme.dark(),
           themeMode: settings.themeMode.value,
           locale: settings.locale.value.toLocale(),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: <LocalizationsDelegate<dynamic>>[
+            ...GlobalMaterialLocalizations.delegates,
+            ...AppLocalizations.localizationsDelegates,
+          ],
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: _router,
           builder: (BuildContext _, Widget? child) {
