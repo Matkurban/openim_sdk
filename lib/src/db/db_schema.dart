@@ -462,15 +462,32 @@ sealed class DbSchema {
       FieldSchema(name: 'visibleGroupIDs', type: DataType.text, nullable: true),
       FieldSchema(name: 'status', type: DataType.integer, nullable: true),
       FieldSchema(name: 'createTime', type: DataType.text, nullable: true, createIndex: true),
+      FieldSchema(
+        name: 'createTimeMs',
+        type: DataType.integer,
+        nullable: true,
+        defaultValue: 0,
+        createIndex: true,
+      ),
       FieldSchema(name: 'updateTime', type: DataType.text, nullable: true),
       FieldSchema(name: 'likeCount', type: DataType.integer, nullable: true),
       FieldSchema(name: 'commentCount', type: DataType.integer, nullable: true),
       FieldSchema(name: 'extra', type: DataType.text, nullable: true),
       FieldSchema(name: 'likes', type: DataType.array, nullable: true),
       FieldSchema(name: 'comments', type: DataType.array, nullable: true),
+      FieldSchema(
+        name: 'timelineSeq',
+        type: DataType.integer,
+        nullable: true,
+        defaultValue: 0,
+        createIndex: true,
+      ),
+      FieldSchema(name: 'updateSeq', type: DataType.integer, nullable: true, defaultValue: 0),
+      FieldSchema(name: 'userInfo', type: DataType.text, nullable: true),
     ],
     indexes: const <IndexSchema>[
       IndexSchema(indexName: 'idx_moment_user_time', fields: <String>['userID', 'createTime']),
+      IndexSchema(indexName: 'idx_moment_user_seq', fields: <String>['userID', 'timelineSeq']),
     ],
   );
 

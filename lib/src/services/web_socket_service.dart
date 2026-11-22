@@ -153,7 +153,10 @@ class WebSocketService {
     }
     try {
       final Uint8List payload = Uint8List.fromList(
-        sdkws.SetAppBackgroundStatusReq(userID: _userID, isBackground: isBackground).writeToBuffer(),
+        sdkws.SetAppBackgroundStatusReq(
+          userID: _userID,
+          isBackground: isBackground,
+        ).writeToBuffer(),
       );
       await sendRequestWaitResponse(
         reqIdentifier: WebSocketIdentifier.setBackgroundStatus,
