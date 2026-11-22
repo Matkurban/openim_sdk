@@ -116,11 +116,17 @@ class _ChatPageState extends State<ChatPage>
   Widget build(BuildContext context) {
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     return NativeDropRegion(
-      onDragEnter: (NativeDragEvent _) => controller.draggingOver.value = true,
+      onDragEnter: (NativeDragEvent _) {
+        if (!controller.isNotification) {
+          controller.draggingOver.value = true;
+        }
+      },
       onDragExit: () => controller.draggingOver.value = false,
       onPerformDrop: (NativeDropEvent event) async {
         controller.draggingOver.value = false;
-        await controller.handleDroppedItems(event.items);
+        if (!controller.isNotification) {
+          await controller.handleDroppedItems(event.items);
+        }
       },
       child: SignalBuilder(
         builder: (BuildContext _) {
@@ -162,7 +168,7 @@ class _ChatPageState extends State<ChatPage>
                     },
                     child: const Text('取消'),
                   )
-                else
+                else if (!controller.isNotification)
                   IconButton(
                     tooltip: '聊天详情',
                     icon: const Icon(Icons.more_horiz),
@@ -326,7 +332,7 @@ class _ChatPageState extends State<ChatPage>
                           controller.selectedMsgIDs.value = <String>{};
                         },
                       )
-                    else
+                    else if (!controller.isNotification)
                       ChatInputBar(
                         textController: _inputController,
                         quotingMessage: controller.quotingMessage.value,

@@ -112,6 +112,9 @@ class ChatController extends WireController {
   /// 是否群聊。
   bool get isGroup => conversation.value?.isGroupChat ?? false;
 
+  /// 是否系统通知只读会话（`ConversationType.notification`）。
+  bool get isNotification => conversation.value?.isNotificationChat ?? false;
+
   /// 单聊目标用户 ID。
   String? get peerUserID => isGroup ? null : conversation.value?.userID;
 

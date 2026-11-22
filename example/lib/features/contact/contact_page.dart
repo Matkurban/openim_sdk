@@ -40,9 +40,6 @@ class ContactPage extends WireView<ContactController> {
       ),
       body: SignalBuilder(
         builder: (BuildContext _) {
-          if (controller.loading.value) {
-            return const Center(child: CircularProgressIndicator());
-          }
           final List<FriendInfo> friends = controller.friends.value;
           final int friendBadge = controller.unhandledFriendCount.value;
           final int groupBadge = controller.unhandledGroupCount.value;
@@ -141,7 +138,7 @@ class _FixedContactEntryTile extends StatelessWidget {
         ),
         child: Icon(icon, color: Colors.white, size: 22),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
       trailing: badgeCount > 0 ? UnreadBadge(count: badgeCount) : null,
       onTap: onTap,
     );

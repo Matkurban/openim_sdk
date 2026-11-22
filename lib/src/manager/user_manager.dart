@@ -64,8 +64,34 @@ final class UserManager extends BaseManager<OnUserListener> {
       return <UserInfo>[];
     }
     final List<UserInfo> cached = await _context.db.users.getUsersByIDs(userIDList);
-    final Set<String> cachedIDs = cached.map<String>((UserInfo u) => u.userID).toSet();
-    final List<String> missing = userIDList.where((String id) => !cachedIDs.contains(id)).toList();
+    final Set<String> foundIDs = cached.map<String>((UserInfo u) => u.userID).toSet();
+    final List<String> missingFromUsers = userIDList
+        .where((String id) => !foundIDs.contains(id))
+        .toList();
+    if (missingFromUsers.isEmpty) {
+      return cached;
+    }
+
+    // 好友信息在登录同步时已落库到 local_friends，优先命中本地好友缓存避免无谓网络请求。
+    final List<FriendInfo> cachedFriends = await _context.db.friends.getFriendsByUserIDs(
+      missingFromUsers,
+    );
+    for (final FriendInfo friend in cachedFriends) {
+      final String? fid = friend.friendUserID;
+      if (fid != null && fid.isNotEmpty && foundIDs.add(fid)) {
+        cached.add(
+          UserInfo(
+            userID: fid,
+            nickname: friend.nickname,
+            faceURL: friend.faceURL,
+            ex: friend.ex,
+            createTime: friend.createTime,
+          ),
+        );
+      }
+    }
+
+    final List<String> missing = userIDList.where((String id) => !foundIDs.contains(id)).toList();
     if (missing.isEmpty) {
       return cached;
     }

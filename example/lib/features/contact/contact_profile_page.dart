@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
@@ -70,46 +72,57 @@ class _ContactProfilePageState extends State<ContactProfilePage> {
   void didUpdateWidget(covariant ContactProfilePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.userId != widget.userId) {
-      _loading.value = true;
       _load();
     }
   }
 
   Future<void> _load() async {
+    final String targetUserId = widget.userId;
     try {
-      final List<UserInfo> users = await OpenIM.iMManager.userManager
-          .getUsersInfoWithCache(userIDList: <String>[widget.userId]);
-      final List<FriendInfo> friends = await OpenIM.iMManager.friendshipManager
-          .getFriendsInfo(userIDList: <String>[widget.userId]);
-      final List<BlacklistInfo> blacks = await OpenIM
-          .iMManager
-          .friendshipManager
-          .getBlacklist();
-      bool online = false;
-      try {
-        final List<UserStatusInfo> statuses = await OpenIM.iMManager.userManager
-            .subscribeUsersStatus(<String>[widget.userId]);
-        if (statuses.isNotEmpty) {
-          online = (statuses.first.status ?? 0) == 1;
-        }
-      } on Object catch (_) {}
-
-      if (mounted) {
-        batch(() {
-          _user.value = users.isNotEmpty ? users.first : null;
-          _friend.value = friends.isNotEmpty ? friends.first : null;
-          _isFriend.value = friends.isNotEmpty;
-          _isBlocked.value = blacks.any(
-            (BlacklistInfo b) => b.blockUserID == widget.userId,
-          );
-          _isOnline.value = online;
-        });
+      // 先并行读取本地好友、黑名单与用户缓存（本地已有数据时零网络请求秒开）。
+      final List<Object> localResults = await Future.wait<Object>(
+        <Future<Object>>[
+          OpenIM.iMManager.friendshipManager.getFriendsInfo(
+            userIDList: <String>[targetUserId],
+          ),
+          OpenIM.iMManager.friendshipManager.getBlacklist(),
+          OpenIM.iMManager.userManager.getUsersInfoWithCache(
+            userIDList: <String>[targetUserId],
+          ),
+        ],
+      );
+      if (!mounted || widget.userId != targetUserId) {
+        return;
       }
-    } finally {
-      if (mounted) {
+      final List<FriendInfo> friends = localResults[0] as List<FriendInfo>;
+      final List<BlacklistInfo> blacks = localResults[1] as List<BlacklistInfo>;
+      final List<UserInfo> users = localResults[2] as List<UserInfo>;
+      batch(() {
+        _friend.value = friends.isNotEmpty ? friends.first : null;
+        _user.value = users.isNotEmpty ? users.first : null;
+        _isFriend.value = friends.isNotEmpty;
+        _isBlocked.value = blacks.any(
+          (BlacklistInfo b) => b.blockUserID == targetUserId,
+        );
+        _loading.value = false;
+      });
+      // 在线状态订阅异步执行，绝不阻塞本地资料秒开。
+      unawaited(_subscribeOnlineStatus(targetUserId));
+    } on Object catch (_) {
+      if (mounted && widget.userId == targetUserId) {
         _loading.value = false;
       }
     }
+  }
+
+  Future<void> _subscribeOnlineStatus(String targetUserId) async {
+    try {
+      final List<UserStatusInfo> statuses = await OpenIM.iMManager.userManager
+          .subscribeUsersStatus(<String>[targetUserId]);
+      if (mounted && widget.userId == targetUserId && statuses.isNotEmpty) {
+        _isOnline.value = (statuses.first.status ?? 0) == 1;
+      }
+    } on Object catch (_) {}
   }
 
   Future<void> _startChat() async {

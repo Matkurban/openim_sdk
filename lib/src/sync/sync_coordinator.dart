@@ -200,6 +200,7 @@ class SyncCoordinator {
 
       await Future.wait<void>(<Future<void>>[
         friendSyncer.sync(loginUserID),
+        friendSyncer.syncBlackList(loginUserID),
         groupSyncer.sync(loginUserID),
       ]);
       conversationListenerProvider()?.syncServerProgress(30);
