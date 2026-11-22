@@ -75,7 +75,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
             tooltip: '新建笔记 / 链接',
             icon: const Icon(Icons.add),
             onPressed: () async {
-              await router.pushNamed(AppRoutes.favoriteNoteEditor);
+              await router.pushNamedAndRemoveUntil(
+                AppRoutes.favoriteNoteEditor,
+                (AdaptiveRouteMatch m) =>
+                    m.matchedLocation == AppRoutes.favorites,
+              );
               await _load(fromServer: true);
             },
           ),
@@ -131,8 +135,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
                         title: '暂无收藏内容',
                         subtitle: '可在聊天消息、朋友圈长按收藏，或点击右上角新建笔记',
                         actionLabel: '新建笔记',
-                        onAction: () =>
-                            router.pushNamed(AppRoutes.favoriteNoteEditor),
+                        onAction: () => router.pushNamedAndRemoveUntil(
+                          AppRoutes.favoriteNoteEditor,
+                          (AdaptiveRouteMatch m) =>
+                              m.matchedLocation == AppRoutes.favorites,
+                        ),
                       )
                     : RefreshIndicator(
                         onRefresh: () => _load(fromServer: true),
@@ -173,8 +180,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                 ),
                                 onPressed: () => _remove(item),
                               ),
-                              onTap: () => router.pushNamed(
+                              onTap: () => router.pushNamedAndRemoveUntil(
                                 AppRoutes.favoriteDetail,
+                                (AdaptiveRouteMatch m) =>
+                                    m.matchedLocation == AppRoutes.favorites,
                                 arguments: item,
                               ),
                             );

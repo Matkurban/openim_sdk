@@ -163,15 +163,17 @@ class _ChatPageState extends State<ChatPage>
                     tooltip: '聊天详情',
                     icon: const Icon(Icons.more_horiz),
                     onPressed: () {
-                      if (controller.isGroup) {
-                        router.pushNamed(
-                          AppRoutes.groupChatDetail(widget.conversationId),
-                        );
-                      } else {
-                        router.pushNamed(
-                          AppRoutes.privateChatDetail(widget.conversationId),
-                        );
-                      }
+                      final String chatLoc = AppRoutes.chat(
+                        widget.conversationId,
+                      );
+                      router.pushNamedAndRemoveUntil(
+                        controller.isGroup
+                            ? AppRoutes.groupChatDetail(widget.conversationId)
+                            : AppRoutes.privateChatDetail(
+                                widget.conversationId,
+                              ),
+                        (AdaptiveRouteMatch m) => m.matchedLocation == chatLoc,
+                      );
                     },
                   ),
               ],
@@ -279,8 +281,11 @@ class _ChatPageState extends State<ChatPage>
                         onPickFile: controller.pickAndSendFile,
                         onPickLocation: _sendLocation,
                         onPickCard: _sendCard,
-                        onSendRedPacket: () => router.pushNamed(
+                        onSendRedPacket: () => router.pushNamedAndRemoveUntil(
                           AppRoutes.sendRedPacket(widget.conversationId),
+                          (AdaptiveRouteMatch m) =>
+                              m.matchedLocation ==
+                              AppRoutes.chat(widget.conversationId),
                           arguments: conv,
                         ),
                         onStartCall: _startCall,

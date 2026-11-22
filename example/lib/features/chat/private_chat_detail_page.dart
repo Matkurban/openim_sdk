@@ -151,8 +151,11 @@ class _PrivateChatDetailPageState extends State<PrivateChatDetailPage> {
                 tileColor: theme.colorScheme.surface,
                 title: const Text('查找聊天记录'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(
+                onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.chatSearch(widget.conversationId),
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation ==
+                      AppRoutes.privateChatDetail(widget.conversationId),
                 ),
               ),
               const Divider(height: 1),
@@ -160,8 +163,11 @@ class _PrivateChatDetailPageState extends State<PrivateChatDetailPage> {
                 tileColor: theme.colorScheme.surface,
                 title: const Text('图片与视频'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(
+                onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.chatGallery(widget.conversationId),
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation ==
+                      AppRoutes.privateChatDetail(widget.conversationId),
                 ),
               ),
               const SizedBox(height: 10),

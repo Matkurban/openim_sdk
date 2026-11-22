@@ -32,7 +32,7 @@ class ContactPage extends WireView<ContactController> {
             tooltip: '添加联系人',
             icon: const Icon(Icons.person_add_alt_1_outlined),
             onPressed: () => router.pushNamedAndRemoveUntil(
-              AppRoutes.addContact,
+              AppRoutes.contactAdd,
               (AdaptiveRouteMatch _) => false,
             ),
           ),

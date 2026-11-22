@@ -132,7 +132,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 title: const Text('账号与安全'),
                 subtitle: const Text('修改密码、支付密码、黑名单、账号申诉、注销'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(AppRoutes.accountSecurity),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.accountSecurity,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.settings,
+                ),
               ),
               const SizedBox(height: 10),
               ListTile(
@@ -151,7 +155,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 leading: const Icon(Icons.download_for_offline_outlined),
                 title: const Text('后台下载管理'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(AppRoutes.downloads),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.downloads,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.settings,
+                ),
               ),
               const Divider(height: 1),
               ListTile(
@@ -159,7 +167,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 leading: const Icon(Icons.devices_outlined),
                 title: const Text('设备信息'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(AppRoutes.deviceInfo),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.deviceInfo,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.settings,
+                ),
               ),
               const Divider(height: 1),
               ListTile(

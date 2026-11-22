@@ -407,6 +407,11 @@ abstract final class AppRouter {
                       const ContactPage(),
                   routes: <AdaptiveRoute>[
                     AdaptiveRoute(
+                      path: 'add-contact',
+                      builder: (BuildContext _, AdaptiveRouteState _) =>
+                          const AddContactPage(),
+                    ),
+                    AdaptiveRoute(
                       path: 'new-friends',
                       builder: (BuildContext _, AdaptiveRouteState _) =>
                           const NewFriendsPage(),
@@ -478,6 +483,15 @@ abstract final class AppRouter {
                           ),
                     ),
                     AdaptiveRoute(
+                      path: 'user/:userId',
+                      builder: (BuildContext _, AdaptiveRouteState state) =>
+                          UserMomentsPage(
+                            userId: Uri.decodeComponent(
+                              state.pathParameters['userId'] ?? '',
+                            ),
+                          ),
+                    ),
+                    AdaptiveRoute(
                       path: 'detail/:momentId',
                       builder: (BuildContext _, AdaptiveRouteState state) =>
                           MomentDetailPage(
@@ -508,6 +522,11 @@ abstract final class AppRouter {
                       path: 'qr',
                       builder: (BuildContext _, AdaptiveRouteState _) =>
                           const MyQrCodePage(),
+                    ),
+                    AdaptiveRoute(
+                      path: 'moments',
+                      builder: (BuildContext _, AdaptiveRouteState _) =>
+                          UserMomentsPage(userId: OpenIM.iMManager.userID),
                     ),
                     AdaptiveRoute(
                       path: 'favorites',

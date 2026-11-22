@@ -139,14 +139,22 @@ class AccountSecurityPage extends StatelessWidget {
             tileColor: theme.colorScheme.surface,
             title: const Text('支付密码管理'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => router.pushNamed(AppRoutes.paymentPassword),
+            onTap: () => router.pushNamedAndRemoveUntil(
+              AppRoutes.paymentPassword,
+              (AdaptiveRouteMatch m) =>
+                  m.matchedLocation == AppRoutes.accountSecurity,
+            ),
           ),
           const Divider(height: 1),
           ListTile(
             tileColor: theme.colorScheme.surface,
             title: const Text('通讯录黑名单'),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => router.pushNamed(AppRoutes.blacklist),
+            onTap: () => router.pushNamedAndRemoveUntil(
+              AppRoutes.blacklist,
+              (AdaptiveRouteMatch m) =>
+                  m.matchedLocation == AppRoutes.accountSecurity,
+            ),
           ),
           const Divider(height: 1),
           ListTile(

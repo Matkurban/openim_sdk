@@ -306,11 +306,16 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                             members: members.take(13).toList(),
                             canKick: isAdminOrOwner,
                             onTapMember: (GroupMembersInfo m) {
-                              router.pushNamed(
+                              router.pushNamedAndRemoveUntil(
                                 AppRoutes.groupMemberDetail(
                                   widget.conversationId,
                                   m.userID ?? '',
                                 ),
+                                (AdaptiveRouteMatch match) =>
+                                    match.matchedLocation ==
+                                    AppRoutes.groupChatDetail(
+                                      widget.conversationId,
+                                    ),
                                 arguments: <String, Object?>{
                                   'group': group,
                                   'member': m,
@@ -319,8 +324,13 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                               );
                             },
                             onInvite: _inviteMembers,
-                            onKick: () => router.pushNamed(
+                            onKick: () => router.pushNamedAndRemoveUntil(
                               AppRoutes.groupMembers(widget.conversationId),
+                              (AdaptiveRouteMatch match) =>
+                                  match.matchedLocation ==
+                                  AppRoutes.groupChatDetail(
+                                    widget.conversationId,
+                                  ),
                               arguments: <String, Object?>{
                                 'group': group,
                                 'selfMember': selfMember,
@@ -330,8 +340,13 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                           const SizedBox(height: 8),
                           TextButton(
                             onPressed: () async {
-                              await router.pushNamed(
+                              await router.pushNamedAndRemoveUntil(
                                 AppRoutes.groupMembers(widget.conversationId),
+                                (AdaptiveRouteMatch match) =>
+                                    match.matchedLocation ==
+                                    AppRoutes.groupChatDetail(
+                                      widget.conversationId,
+                                    ),
                                 arguments: <String, Object?>{
                                   'group': group,
                                   'selfMember': selfMember,
@@ -371,8 +386,11 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                           Icon(Icons.chevron_right),
                         ],
                       ),
-                      onTap: () => router.pushNamed(
+                      onTap: () => router.pushNamedAndRemoveUntil(
                         AppRoutes.groupQr(widget.conversationId),
+                        (AdaptiveRouteMatch match) =>
+                            match.matchedLocation ==
+                            AppRoutes.groupChatDetail(widget.conversationId),
                         arguments: group,
                       ),
                     ),
@@ -389,8 +407,11 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                           : null,
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () async {
-                        await router.pushNamed(
+                        await router.pushNamedAndRemoveUntil(
                           AppRoutes.groupAnnouncement(widget.conversationId),
+                          (AdaptiveRouteMatch match) =>
+                              match.matchedLocation ==
+                              AppRoutes.groupChatDetail(widget.conversationId),
                           arguments: <String, Object?>{
                             'group': group,
                             'canEdit': isAdminOrOwner,
@@ -407,8 +428,13 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                         subtitle: const Text('全员禁言、入群验证、管理员、转让群主'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () async {
-                          await router.pushNamed(
+                          await router.pushNamedAndRemoveUntil(
                             AppRoutes.groupManagement(widget.conversationId),
+                            (AdaptiveRouteMatch match) =>
+                                match.matchedLocation ==
+                                AppRoutes.groupChatDetail(
+                                  widget.conversationId,
+                                ),
                             arguments: <String, Object?>{
                               'group': group,
                               'isOwner': isOwner,
@@ -439,8 +465,11 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                       tileColor: theme.colorScheme.surface,
                       title: const Text('查找聊天记录'),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => router.pushNamed(
+                      onTap: () => router.pushNamedAndRemoveUntil(
                         AppRoutes.chatSearch(widget.conversationId),
+                        (AdaptiveRouteMatch match) =>
+                            match.matchedLocation ==
+                            AppRoutes.groupChatDetail(widget.conversationId),
                       ),
                     ),
                     const Divider(height: 1),
@@ -448,8 +477,11 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
                       tileColor: theme.colorScheme.surface,
                       title: const Text('图片与视频'),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => router.pushNamed(
+                      onTap: () => router.pushNamedAndRemoveUntil(
                         AppRoutes.chatGallery(widget.conversationId),
+                        (AdaptiveRouteMatch match) =>
+                            match.matchedLocation ==
+                            AppRoutes.groupChatDetail(widget.conversationId),
                       ),
                     ),
                     const SizedBox(height: 10),

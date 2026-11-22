@@ -216,11 +216,16 @@ class _GroupMembersPageState extends State<GroupMembersPage> {
                                 ? const Icon(Icons.chevron_right)
                                 : null,
                             onTap: () async {
-                              await router.pushNamed(
+                              await router.pushNamedAndRemoveUntil(
                                 AppRoutes.groupMemberDetail(
                                   widget.conversationId,
                                   m.userID ?? '',
                                 ),
+                                (AdaptiveRouteMatch match) =>
+                                    match.matchedLocation ==
+                                    AppRoutes.groupMembers(
+                                      widget.conversationId,
+                                    ),
                                 arguments: <String, Object?>{
                                   'group': widget.group,
                                   'member': m,

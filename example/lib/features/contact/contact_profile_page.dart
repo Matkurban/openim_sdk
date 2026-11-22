@@ -238,8 +238,11 @@ class _ContactProfilePageState extends State<ContactProfilePage> {
                   title: const Text('设置备注和标签'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
-                    await router.pushNamed(
+                    await router.pushNamedAndRemoveUntil(
                       AppRoutes.friendRemark(widget.userId),
+                      (AdaptiveRouteMatch m) =>
+                          m.matchedLocation ==
+                          AppRoutes.contactProfile(widget.userId),
                       arguments: friend,
                     );
                     await _load();
@@ -251,8 +254,12 @@ class _ContactProfilePageState extends State<ContactProfilePage> {
                 tileColor: Theme.of(context).colorScheme.surface,
                 title: const Text('朋友圈'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () =>
-                    router.pushNamed(AppRoutes.userMoments(widget.userId)),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.userMoments(widget.userId),
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation ==
+                      AppRoutes.contactProfile(widget.userId),
+                ),
               ),
               const Divider(height: 1),
               ListTile(

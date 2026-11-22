@@ -121,7 +121,7 @@ class ProfilePage extends StatelessWidget {
                 title: const Text('我的朋友圈相册'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => router.pushNamedAndRemoveUntil(
-                  AppRoutes.userMoments(uid),
+                  AppRoutes.myMoments,
                   (AdaptiveRouteMatch _) => false,
                 ),
               ),

@@ -117,8 +117,11 @@ class _PointsPageState extends State<PointsPage> {
                         title: const Text('积分收支明细'),
                         subtitle: const Text('查看全部 / 收入 / 支出流水'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () =>
-                            router.pushNamed(AppRoutes.pointsTransactions),
+                        onTap: () => router.pushNamedAndRemoveUntil(
+                          AppRoutes.pointsTransactions,
+                          (AdaptiveRouteMatch m) =>
+                              m.matchedLocation == AppRoutes.points,
+                        ),
                       ),
                       const Divider(height: 1),
                       ListTile(
@@ -127,7 +130,11 @@ class _PointsPageState extends State<PointsPage> {
                         subtitle: Text(hasPayPwd ? '已设置支付密码' : '未设置（发红包需先设置）'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () async {
-                          await router.pushNamed(AppRoutes.paymentPassword);
+                          await router.pushNamedAndRemoveUntil(
+                            AppRoutes.paymentPassword,
+                            (AdaptiveRouteMatch m) =>
+                                m.matchedLocation == AppRoutes.points,
+                          );
                           await _load();
                         },
                       ),

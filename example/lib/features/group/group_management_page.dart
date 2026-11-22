@@ -188,8 +188,11 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
                 tileColor: theme.colorScheme.surface,
                 title: const Text('群管理员'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(
+                onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.groupAdmins(widget.conversationId),
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation ==
+                      AppRoutes.groupManagement(widget.conversationId),
                   arguments: <String, Object?>{
                     'group': group,
                     'isOwner': widget.isOwner,
@@ -202,8 +205,11 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
                   tileColor: theme.colorScheme.surface,
                   title: const Text('群主管理权转让'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => router.pushNamed(
+                  onTap: () => router.pushNamedAndRemoveUntil(
                     AppRoutes.groupTransfer(widget.conversationId),
+                    (AdaptiveRouteMatch m) =>
+                        m.matchedLocation ==
+                        AppRoutes.groupManagement(widget.conversationId),
                     arguments: group,
                   ),
                 ),

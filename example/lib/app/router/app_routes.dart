@@ -104,6 +104,9 @@ abstract final class AppRoutes {
   /// Tab 2：通讯录。
   static const String contacts = '/contacts';
 
+  /// 通讯录分支内添加联系人。
+  static const String contactAdd = '/contacts/add-contact';
+
   /// 新的朋友。
   static const String newFriends = '/contacts/new-friends';
 
@@ -134,6 +137,10 @@ abstract final class AppRoutes {
   /// 朋友圈互动消息。
   static const String momentNotifications = '/moments/notifications';
 
+  /// 构造朋友圈分支内个人相册路径。
+  static String momentsUserAlbum(String userId) =>
+      '/moments/user/${Uri.encodeComponent(userId)}';
+
   /// 构造朋友圈详情路径。
   static String momentDetail(String momentId) =>
       '/moments/detail/${Uri.encodeComponent(momentId)}';
@@ -146,6 +153,9 @@ abstract final class AppRoutes {
 
   /// 我的二维码名片。
   static const String myQr = '/profile/qr';
+
+  /// 我的朋友圈相册（挂载在「我的」分支下）。
+  static const String myMoments = '/profile/moments';
 
   /// 我的收藏。
   static const String favorites = '/profile/favorites';

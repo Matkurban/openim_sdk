@@ -92,7 +92,7 @@ class MomentsPage extends WireView<MomentsController> {
                     nickname: self?.nickname ?? OpenIM.iMManager.userID,
                     avatarUrl: self?.faceURL,
                     onTapAvatar: () => router.pushNamedAndRemoveUntil(
-                      AppRoutes.userMoments(OpenIM.iMManager.userID),
+                      AppRoutes.momentsUserAlbum(OpenIM.iMManager.userID),
                       (AdaptiveRouteMatch _) => false,
                     ),
                   ),
