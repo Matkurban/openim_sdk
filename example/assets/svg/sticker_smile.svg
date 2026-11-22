@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <circle cx="40" cy="40" r="32" fill="#FFEB3B" stroke="#F57F17" stroke-width="3"/>
+  <circle cx="29" cy="34" r="4" fill="#3E2723"/>
+  <circle cx="51" cy="34" r="4" fill="#3E2723"/>
+  <path d="M26 48 Q40 60 54 48" fill="none" stroke="#3E2723" stroke-width="4" stroke-linecap="round">
+    <animate attributeName="d" values="M26 48 Q40 60 54 48;M26 46 Q40 64 54 46;M26 48 Q40 60 54 48" dur="1.5s" repeatCount="indefinite"/>
+  </path>
+</svg>

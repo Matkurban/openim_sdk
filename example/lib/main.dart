@@ -1,44 +1,46 @@
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'routes/app_pages.dart';
-import 'routes/app_routes.dart';
+import 'package:flutter/foundation.dart';
+import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:xue_hua_navite_window_manager/xue_hua_navite_window_manager.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+import 'app/app.dart';
+import 'app/theme/app_colors.dart';
+import 'core/services/app_bootstrap_service.dart';
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  @override
-  Widget build(BuildContext context) {
-    return GetMaterialApp(
-      title: 'OpenIM',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1B72E8),
-        useMaterial3: true,
-        brightness: Brightness.light,
-        appBarTheme: const AppBarTheme(centerTitle: true),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          isDense: true,
-        ),
-      ),
-      darkTheme: ThemeData(
-        colorSchemeSeed: const Color(0xFF1B72E8),
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        appBarTheme: const AppBarTheme(centerTitle: true),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          isDense: true,
-        ),
-      ),
-      initialRoute: AppRoutes.splash,
-      getPages: AppPages.pages,
+  Logger.root.level = Level.INFO;
+  Logger.root.onRecord.listen((LogRecord record) {
+    debugPrint(
+      '[${record.level.name}] ${record.loggerName}: ${record.message}'
+      '${record.error != null ? ' | ${record.error}' : ''}',
     );
+  });
+
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.linux)) {
+    try {
+      await XueHuaNaviteWindowManager.configure(
+        const WindowConfig(
+          size: Size(1160, 760),
+          minSize: Size(840, 600),
+          center: true,
+          title: 'OpenIM 聊天',
+          titleBarStyle: TitleBarStyle.hidden,
+          backgroundColor: AppColors.lightBackground,
+          preventClose: true,
+          showWhenReady: true,
+          trafficLightsOffset: Offset(14, 12),
+        ),
+      );
+    } on Object catch (error) {
+      debugPrint('WindowManager configure skipped: $error');
+    }
   }
+
+  AppBootstrapService.registerCoreServices();
+  runApp(const OpenImExampleApp());
 }

@@ -43,6 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-lib/config/host.dart
-/windows/flutter/generated_plugins.cmake
-/linux/flutter/generated_plugins.cmake
+
+# Widget Preview related
+.widget_preview/
