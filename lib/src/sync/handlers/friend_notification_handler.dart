@@ -6,11 +6,34 @@ import '../entity_syncers/friend_syncer.dart';
 
 /// 好友与黑名单系统通知处理器（contentType 1201–1210）。
 final class FriendNotificationHandler extends BaseNotificationHandler {
+  /// 数据库。
+  ///
+  /// Database.
   final DbEngine db;
+
+  /// 好友同步器。
+  ///
+  /// Friend syncer.
   final FriendSyncer friendSyncer;
+
+  /// 登录用户ID。
+  ///
+  /// Login user ID.
   final String loginUserID;
+
+  /// 监听器Provider。
+  ///
+  /// Listener provider.
   final OnFriendshipListener? Function() listenerProvider;
 
+  /// 创建 `FriendNotificationHandler` 实例。
+  ///
+  /// Creates a `FriendNotificationHandler` instance.
+  ///
+  /// - [db] 数据库 / Database.
+  /// - [friendSyncer] 好友同步器 / Friend syncer.
+  /// - [loginUserID] 登录用户ID / Login user ID.
+  /// - [listenerProvider] 监听器Provider / Listener provider.
   FriendNotificationHandler({
     required this.db,
     required this.friendSyncer,
@@ -18,9 +41,21 @@ final class FriendNotificationHandler extends BaseNotificationHandler {
     required this.listenerProvider,
   }) : super('FriendNotificationHandler');
 
+  /// 是否支持处理。
+  ///
+  /// Whether can handle.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   @override
   bool canHandle(int contentType) => contentType >= 1201 && contentType <= 1210;
 
+  /// 处理。
+  ///
+  /// Handle.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - [detail] 详情 / Detail.
   @override
   Future<void> handle(int contentType, Map<String, dynamic> detail) async {
     final OnFriendshipListener? listener = listenerProvider();

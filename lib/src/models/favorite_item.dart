@@ -10,7 +10,24 @@ import 'moment_comment.dart';
 import 'note_info.dart';
 
 /// 收藏项
+///
+/// Favorite item.
 class FavoriteItem extends Equatable {
+  /// 创建 `FavoriteItem` 实例。
+  ///
+  /// Creates a `FavoriteItem` instance.
+  ///
+  /// - [favoriteID] 收藏ID / Favorite ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [favoriteType] 收藏类型 / Favorite type.
+  /// - [targetID] 目标ID / Target ID.
+  /// - [data] 数据 / Data.
+  /// - [createTime] 创建时间戳 / Create timestamp.
+  /// - [message] 消息 / Message.
+  /// - [momentInfo] 朋友圈动态信息 / Moment info.
+  /// - [momentComment] 朋友圈动态评论 / Moment comment.
+  /// - [linkInfo] 链接信息 / Link info.
+  /// - [noteInfo] 笔记信息 / Note info.
   const FavoriteItem({
     required this.favoriteID,
     required this.userID,
@@ -25,11 +42,34 @@ class FavoriteItem extends Equatable {
     this.noteInfo,
   });
 
+  /// 收藏ID。
+  ///
+  /// Favorite ID.
   final String favoriteID;
+
+  /// 用户ID。
+  ///
+  /// User ID.
   final String userID;
+
+  /// 收藏类型。
+  ///
+  /// Favorite type.
   final FavoriteType favoriteType;
+
+  /// 目标ID。
+  ///
+  /// Target ID.
   final String targetID;
+
+  /// 数据。
+  ///
+  /// Data.
   final String data;
+
+  /// 创建时间戳。
+  ///
+  /// Create timestamp.
   final int createTime;
 
   /// 收藏的消息（当 favoriteType == FavoriteType.message 时可用）
@@ -51,6 +91,8 @@ class FavoriteItem extends Equatable {
   String get targetType => favoriteType.value;
 
   /// 返回毫秒级时间戳（自动处理秒级/毫秒级）
+  ///
+  /// Create timestamp ms.
   int get createTimeMs {
     if (createTime < 4102444800) {
       return createTime * 1000;
@@ -58,6 +100,12 @@ class FavoriteItem extends Equatable {
     return createTime;
   }
 
+  /// 从 JSON 字典反序列化实例（`FavoriteItem.fromJson`）。
+  ///
+  /// Deserializes an instance from a JSON map (`FavoriteItem.fromJson`).
+  ///
+  /// - [json] JSON / JSON.
+  /// - Returns: `FavoriteItem` 结果 / Resulting `FavoriteItem`.
   factory FavoriteItem.fromJson(Map<String, dynamic> json) {
     final FavoriteType type = FavoriteType.fromValue(
       json['targetType']?.toString() ?? json['favoriteType']?.toString(),
@@ -85,6 +133,13 @@ class FavoriteItem extends Equatable {
   }
 
   /// 快速创建消息收藏
+  ///
+  /// From message (`FavoriteItem.fromMessage`).
+  ///
+  /// - [favoriteID] 收藏ID / Favorite ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [msg] 消息 / Message.
+  /// - Returns: `FavoriteItem` 结果 / Resulting `FavoriteItem`.
   factory FavoriteItem.fromMessage({
     required String favoriteID,
     required String userID,
@@ -103,6 +158,13 @@ class FavoriteItem extends Equatable {
   }
 
   /// 快速创建朋友圈动态收藏
+  ///
+  /// From moment (`FavoriteItem.fromMoment`).
+  ///
+  /// - [favoriteID] 收藏ID / Favorite ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [moment] 朋友圈动态 / Moment.
+  /// - Returns: `FavoriteItem` 结果 / Resulting `FavoriteItem`.
   factory FavoriteItem.fromMoment({
     required String favoriteID,
     required String userID,
@@ -121,6 +183,13 @@ class FavoriteItem extends Equatable {
   }
 
   /// 快速创建朋友圈评论收藏
+  ///
+  /// From moment comment (`FavoriteItem.fromMomentComment`).
+  ///
+  /// - [favoriteID] 收藏ID / Favorite ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [comment] 评论 / Comment.
+  /// - Returns: `FavoriteItem` 结果 / Resulting `FavoriteItem`.
   factory FavoriteItem.fromMomentComment({
     required String favoriteID,
     required String userID,
@@ -139,6 +208,13 @@ class FavoriteItem extends Equatable {
   }
 
   /// 快速创建笔记收藏
+  ///
+  /// From note (`FavoriteItem.fromNote`).
+  ///
+  /// - [favoriteID] 收藏ID / Favorite ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [note] 笔记 / Note.
+  /// - Returns: `FavoriteItem` 结果 / Resulting `FavoriteItem`.
   factory FavoriteItem.fromNote({
     required String favoriteID,
     required String userID,
@@ -157,6 +233,13 @@ class FavoriteItem extends Equatable {
   }
 
   /// 快速创建链接收藏
+  ///
+  /// From link (`FavoriteItem.fromLink`).
+  ///
+  /// - [favoriteID] 收藏ID / Favorite ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [link] 链接 / Link.
+  /// - Returns: `FavoriteItem` 结果 / Resulting `FavoriteItem`.
   factory FavoriteItem.fromLink({
     required String favoriteID,
     required String userID,
@@ -239,6 +322,11 @@ class FavoriteItem extends Equatable {
     }
   }
 
+  /// 序列化为 JSON 字典。
+  ///
+  /// Serializes this object to a JSON map.
+  ///
+  /// - Returns: `Map<String, dynamic>` 映射结果 / Resulting `Map<String, dynamic>` map.
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'favoriteID': favoriteID,
@@ -250,6 +338,9 @@ class FavoriteItem extends Equatable {
     };
   }
 
+  /// 用于 Equatable 相等性比较的属性列表。
+  ///
+  /// Properties used by Equatable for value equality.
   @override
   List<Object?> get props => <Object?>[
     favoriteID,

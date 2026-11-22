@@ -66,19 +66,74 @@ class _ConvPushBatch {
 class SyncCoordinator {
   final Logger _logger = Logger('openim_sdk.SyncCoordinator');
 
+  /// 登录用户ID。
+  ///
+  /// Login user ID.
   final String loginUserID;
+
+  /// 数据库。
+  ///
+  /// Database.
   final DbEngine db;
+
+  /// 消息API。
+  ///
+  /// Message API.
   final MessageApi messageApi;
+
+  /// 好友同步器。
+  ///
+  /// Friend syncer.
   final FriendSyncer friendSyncer;
+
+  /// 群组同步器。
+  ///
+  /// Group syncer.
   final GroupSyncer groupSyncer;
+
+  /// 会话同步器。
+  ///
+  /// Conversation syncer.
   final ConversationSyncer conversationSyncer;
+
+  /// 用户同步器。
+  ///
+  /// User syncer.
   final UserSyncer userSyncer;
+
+  /// 通知路由器。
+  ///
+  /// Notification router.
   final NotificationRouter notificationRouter;
+
+  /// 正在输入追踪器。
+  ///
+  /// Typing tracker.
   final TypingStateTracker typingTracker;
+
+  /// 消息监听器Provider。
+  ///
+  /// Message listener provider.
   final OnAdvancedMsgListener? Function() msgListenerProvider;
+
+  /// 会话监听器Provider。
+  ///
+  /// Conversation listener provider.
   final OnConversationListener? Function() conversationListenerProvider;
+
+  /// 服务监听器Provider。
+  ///
+  /// Service listener provider.
   final OnListenerForService? Function() serviceListenerProvider;
+
+  /// 通话信令拦截器。
+  ///
+  /// Call signaling interceptor.
   final bool Function(String senderUserID, String customData)? callSignalingInterceptor;
+
+  /// onLowPriority同步。
+  ///
+  /// On low priority sync.
   final Future<void> Function()? onLowPrioritySync;
 
   final Map<String, int> _syncedMaxSeqs = <String, int>{};
@@ -89,6 +144,24 @@ class SyncCoordinator {
   bool _pendingConnectedSync = false;
   bool _disposed = false;
 
+  /// 创建 `SyncCoordinator` 实例。
+  ///
+  /// Creates a `SyncCoordinator` instance.
+  ///
+  /// - [loginUserID] 登录用户ID / Login user ID.
+  /// - [db] 数据库 / Database.
+  /// - [messageApi] 消息API / Message API.
+  /// - [friendSyncer] 好友同步器 / Friend syncer.
+  /// - [groupSyncer] 群组同步器 / Group syncer.
+  /// - [conversationSyncer] 会话同步器 / Conversation syncer.
+  /// - [userSyncer] 用户同步器 / User syncer.
+  /// - [notificationRouter] 通知路由器 / Notification router.
+  /// - [typingTracker] 正在输入追踪器 / Typing tracker.
+  /// - [msgListenerProvider] 消息监听器Provider / Message listener provider.
+  /// - [conversationListenerProvider] 会话监听器Provider / Conversation listener provider.
+  /// - [serviceListenerProvider] 服务监听器Provider / Service listener provider.
+  /// - [callSignalingInterceptor] 通话信令拦截器 / Call signaling interceptor.
+  /// - [onLowPrioritySync] onLowPriority同步 / On low priority sync.
   SyncCoordinator({
     required this.loginUserID,
     required this.db,
@@ -107,6 +180,8 @@ class SyncCoordinator {
   });
 
   /// 连接成功或重连成功后触发完整同步。
+  ///
+  /// Do connected sync.
   Future<void> doConnectedSync() async {
     if (_disposed) {
       return;
@@ -163,6 +238,8 @@ class SyncCoordinator {
   }
 
   /// 前台唤醒后的轻量缺口同步。
+  ///
+  /// Do wakeup sync.
   Future<void> doWakeupSync() async {
     if (_disposed || _isSyncing) {
       return;
@@ -187,6 +264,8 @@ class SyncCoordinator {
   }
 
   /// 接收 WebSocket 推送包，通过 [SerialTaskQueue] 严格串行处理（修复 B-16）。
+  ///
+  /// - [resp] 响应结果 / Response.
   void handlePushMsg(WebSocketResponse resp) {
     if (_disposed || resp.data.isEmpty) {
       return;
@@ -194,6 +273,9 @@ class SyncCoordinator {
     unawaited(_pushQueue.enqueue<void>(() => _processSinglePushResponse(resp)));
   }
 
+  /// 释放资源。
+  ///
+  /// Dispose.
   void dispose() {
     _disposed = true;
     notificationRouter.dispose();

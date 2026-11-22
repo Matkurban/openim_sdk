@@ -2,7 +2,12 @@ import 'dart:convert';
 
 import 'package:openim_sdk/openim_sdk.dart';
 
-/// 数据库 Map 转 Message 对象
+/// 将本地数据库原始行 Map 转换为强类型 [Message] 对象。
+///
+/// Converts a raw local database row map into a strongly-typed [Message] object.
+///
+/// - [data] 数据库 `local_chat_logs` 行数据字典 / Row map from `local_chat_logs`.
+/// - Returns: 转换后的 [Message] 实例 / Converted [Message] instance.
 Message convertMessage(Map<String, dynamic> data) {
   final int? contentTypeValue = data['contentType'] as int?;
   final String? content = data['content'] as String?;

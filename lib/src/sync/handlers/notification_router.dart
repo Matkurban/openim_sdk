@@ -11,9 +11,19 @@ class NotificationRouter {
   final Logger _logger = Logger('openim_sdk.NotificationRouter');
   final List<BaseNotificationHandler> _handlers;
 
+  /// 创建 `NotificationRouter` 实例。
+  ///
+  /// Creates a `NotificationRouter` instance.
+  ///
+  /// - [_handlers] handlers / Handlers.
   NotificationRouter({required this._handlers});
 
   /// 解析通知正文并顺序分发给所有匹配的策略处理器。
+  ///
+  /// Dispatch.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - [rawContent] 原始内容 / Raw content.
   Future<void> dispatch(int contentType, String rawContent) async {
     final Map<String, dynamic> detail = _extractDetail(rawContent);
     for (final BaseNotificationHandler handler in _handlers) {
@@ -33,6 +43,8 @@ class NotificationRouter {
   }
 
   /// 释放所有处理器持有的资源。
+  ///
+  /// Dispose.
   void dispose() {
     for (final BaseNotificationHandler handler in _handlers) {
       handler.dispose();

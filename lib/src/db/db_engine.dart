@@ -21,13 +21,44 @@ class DbEngine {
   static final Logger _logger = Logger('openim_sdk.DbEngine');
   static final Logger _toStoreLogger = Logger('openim_sdk.ToStore');
 
+  /// 转为存储。
+  ///
+  /// To store.
   final ToStore toStore;
+
+  /// 用户列表。
+  ///
+  /// Users.
   final UserRepository users;
+
+  /// 好友列表。
+  ///
+  /// Friends.
   final FriendRepository friends;
+
+  /// 群组列表。
+  ///
+  /// Groups.
   final GroupRepository groups;
+
+  /// 会话列表。
+  ///
+  /// Conversations.
   final ConversationRepository conversations;
+
+  /// 消息列表。
+  ///
+  /// Messages.
   final MessageRepository messages;
+
+  /// social。
+  ///
+  /// Social.
   final SocialRepository social;
+
+  /// 同步Meta。
+  ///
+  /// Sync meta.
   final SyncMetaRepository syncMeta;
 
   String _currentUserID = '';
@@ -44,9 +75,17 @@ class DbEngine {
   });
 
   /// 当前绑定的登录用户 ID。
+  ///
+  /// Current user ID.
   String get currentUserID => _currentUserID;
 
   /// 按 ToStore 3.6.3 最佳实践打开数据库并构建所有领域仓储。
+  ///
+  /// - [dbPath] 数据库路径 / Database path.
+  /// - [dbName] 数据库名称 / Database name.
+  /// - [extraSchemas] 扩展信息表结构列表 / Extra data schemas.
+  /// - [logLevel] log等级 / Log level.
+  /// - Returns: `Future<DbEngine>` 结果 / Resulting `Future<DbEngine>`.
   static Future<DbEngine> open({
     String? dbPath,
     String? dbName,
@@ -70,6 +109,9 @@ class DbEngine {
   }
 
   /// 基于已打开的 [ToStore] 实例创建（适用于内存库单元测试）。
+  ///
+  /// - [store] 存储 / Store.
+  /// - Returns: `DbEngine` 结果 / Resulting `DbEngine`.
   factory DbEngine.fromStore(ToStore store) {
     final DbEngine engine = DbEngine._(
       toStore: store,
@@ -85,6 +127,11 @@ class DbEngine {
   }
 
   /// 切换到目标用户的数据空间并标记为活跃空间，提升下次冷启动速度。
+  ///
+  /// Switch storage space.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> switchSpace({required String userID}) async {
     _currentUserID = userID;
     users.setCurrentUserID(userID);
@@ -104,6 +151,11 @@ class DbEngine {
   }
 
   /// 在原子事务中执行多表操作；任意异常自动回滚。
+  ///
+  /// Transaction.
+  ///
+  /// - [action] action / Action.
+  /// - Returns: `Future<TransactionResult>` 结果 / Resulting `Future<TransactionResult>`.
   Future<TransactionResult> transaction(Future<void> Function() action) async {
     final TransactionResult result = await toStore.transaction(action, rollbackOnError: true);
     if (result.hasErrors) {
@@ -113,6 +165,8 @@ class DbEngine {
   }
 
   /// 安全关闭数据库。登出/反初始化时 `keepActiveSpace: false` 防止下次误入旧用户空间。
+  ///
+  /// - [keepActiveSpace] keep活跃存储空间 / Keep active storage space.
   Future<void> close({bool keepActiveSpace = false}) async {
     _currentUserID = '';
     await toStore.close(keepActiveSpace: keepActiveSpace);

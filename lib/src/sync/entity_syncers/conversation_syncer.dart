@@ -16,17 +16,59 @@ import '../../models/user_info.dart';
 /// 使用 `db.conversations.batchUpdateConversations` 替代原 50 次循环单行更新，
 /// 并复用 `db.conversations.getTotalUnreadCount()`（修复 B-27）。
 final class ConversationSyncer extends BaseSyncer {
+  /// 数据库。
+  ///
+  /// Database.
   final DbEngine db;
+
+  /// 会话API。
+  ///
+  /// Conversation API.
   final ConversationApi conversationApi;
+
+  /// 消息API。
+  ///
+  /// Message API.
   final MessageApi messageApi;
+
+  /// 用户API。
+  ///
+  /// User API.
   final UserApi userApi;
+
+  /// 群组API。
+  ///
+  /// Group API.
   final GroupApi groupApi;
+
+  /// on会话Changed。
+  ///
+  /// On conversation changed.
   final void Function(List<ConversationInfo> conversations)? onConversationChanged;
+
+  /// on总计未读Changed。
+  ///
+  /// On total unread changed.
   final void Function(int totalUnread)? onTotalUnreadChanged;
 
   bool _reinstalled = false;
+
+  /// 服务端最大序列号列表。
+  ///
+  /// Server maximum sequence numbers.
   final Map<String, int> serverMaxSeqs = <String, int>{};
 
+  /// 创建 `ConversationSyncer` 实例。
+  ///
+  /// Creates a `ConversationSyncer` instance.
+  ///
+  /// - [db] 数据库 / Database.
+  /// - [conversationApi] 会话API / Conversation API.
+  /// - [messageApi] 消息API / Message API.
+  /// - [userApi] 用户API / User API.
+  /// - [groupApi] 群组API / Group API.
+  /// - [onConversationChanged] on会话Changed / On conversation changed.
+  /// - [onTotalUnreadChanged] on总计未读Changed / On total unread changed.
   ConversationSyncer({
     required this.db,
     required this.conversationApi,
@@ -37,16 +79,28 @@ final class ConversationSyncer extends BaseSyncer {
     this.onTotalUnreadChanged,
   }) : super('ConversationSyncer');
 
+  /// 同步数据表名称。
+  ///
+  /// Sync table name.
   @override
   String get syncTableName => 'conversations';
 
   /// 同步会话结构及所有会话的 `maxSeq` / `hasReadSeq`。
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [reinstalled] 是否重装 / Whether reinstalled.
   Future<void> syncConversationsAndSeqs(String userID, {required bool reinstalled}) async {
     _reinstalled = reinstalled;
     await sync(userID, forceFull: reinstalled);
     await _syncSeqsAndUnread(userID, reinstalled: reinstalled);
   }
 
+  /// 读取本地版本。
+  ///
+  /// Read local version.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - Returns: `Future<({int version, String versionID})>` 结果 / Resulting `Future<({int version, String versionID})>`.
   @override
   Future<({int version, String versionID})> readLocalVersion(String entityID) async {
     final Map<String, dynamic>? row = await db.syncMeta.getVersionSync(syncTableName, entityID);
@@ -56,6 +110,13 @@ final class ConversationSyncer extends BaseSyncer {
     );
   }
 
+  /// 保存本地版本。
+  ///
+  /// Save local version.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - [version] 版本 / Version.
+  /// - [versionID] 版本ID / Version ID.
   @override
   Future<void> saveLocalVersion(
     String entityID, {
@@ -71,6 +132,14 @@ final class ConversationSyncer extends BaseSyncer {
     );
   }
 
+  /// 拉取增量。
+  ///
+  /// Fetch incremental.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - [version] 版本 / Version.
+  /// - [versionID] 版本ID / Version ID.
+  /// - Returns: `Future<IncrementalSyncResponse?>` 结果 / Resulting `Future<IncrementalSyncResponse?>`.
   @override
   Future<IncrementalSyncResponse?> fetchIncremental({
     required String entityID,
@@ -100,6 +169,14 @@ final class ConversationSyncer extends BaseSyncer {
     );
   }
 
+  /// apply增量。
+  ///
+  /// Apply incremental.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - [deleteIDs] 删除ID 列表 / Delete i ds.
+  /// - [insertItems] 插入Items / Insert items.
+  /// - [updateItems] 更新Items / Update items.
   @override
   Future<void> applyIncremental({
     required String entityID,
@@ -136,6 +213,11 @@ final class ConversationSyncer extends BaseSyncer {
     }
   }
 
+  /// 同步全量。
+  ///
+  /// Sync full.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
   @override
   Future<void> syncFull(String entityID) async {
     final ApiResponse resp = await conversationApi.getAllConversations(ownerUserID: entityID);
@@ -251,6 +333,8 @@ final class ConversationSyncer extends BaseSyncer {
   }
 
   /// 批量为会话填充 `showName` 与 `faceURL`。
+  ///
+  /// - [conversations] 会话列表 / Conversations.
   Future<void> batchFillShowNameAndFaceURL(List<Map<String, dynamic>> conversations) async {
     final Set<String> userIDs = <String>{};
     final Set<String> groupIDs = <String>{};
@@ -371,6 +455,9 @@ final class ConversationSyncer extends BaseSyncer {
     }
   }
 
+  /// fire总计未读Changed。
+  ///
+  /// Fire total unread changed.
   Future<void> fireTotalUnreadChanged() async {
     final int total = await db.conversations.getTotalUnreadCount();
     onTotalUnreadChanged?.call(total);

@@ -20,15 +20,37 @@ class FileUploader {
   final SdkContext _context;
 
   Map<String, dynamic>? _partLimitCache;
+
+  /// 上传文件监听器。
+  ///
+  /// Upload file listener.
   OnUploadFileListener? uploadFileListener;
 
+  /// 创建 `FileUploader` 实例。
+  ///
+  /// Creates a `FileUploader` instance.
+  ///
+  /// - [_context] context / Context.
   FileUploader({required this._context});
 
+  /// 重置缓存。
+  ///
+  /// Reset cache.
   void resetCache() {
     _partLimitCache = null;
   }
 
   /// 上传文件并返回访问 URL。
+  ///
+  /// - [id] ID / ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [filePath] 文件路径 / File path.
+  /// - [fileBytes] 文件字节数据 / File bytes.
+  /// - [fileName] 文件名称 / File name.
+  /// - [contentType] 内容类型 / Content type.
+  /// - [cause] cause / Cause.
+  /// - [onProgress] on进度 / On progress.
+  /// - Returns: 字符串结果 / String result.
   Future<String> uploadFile({
     required String id,
     required String userID,

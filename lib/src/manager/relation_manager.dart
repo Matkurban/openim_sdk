@@ -15,13 +15,31 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
   final SdkContext _context;
   final OnConversationListener? Function() _conversationListenerProvider;
 
+  /// 创建 `FriendshipManager` 实例。
+  ///
+  /// Creates a `FriendshipManager` instance.
+  ///
+  /// - [_context] context / Context.
+  /// - [_conversationListenerProvider] 会话监听器Provider / Conversation listener provider.
   FriendshipManager({required this._context, required this._conversationListenerProvider})
     : super('FriendshipManager');
 
+  /// 设置好友关系监听器。
+  ///
+  /// Set friendship listener.
+  ///
+  /// - [listener] 监听器 / Listener.
   void setFriendshipListener(OnFriendshipListener listener) {
     setPrimaryListener(listener);
   }
 
+  /// 获取好友列表信息。
+  ///
+  /// Get friends info.
+  ///
+  /// - [userIDList] 用户ID列表 / User ID list.
+  /// - [filterBlack] 筛选黑名单 / Filter blacklist.
+  /// - Returns: `Future<List<FriendInfo>>` 列表结果 / Resulting `Future<List<FriendInfo>>` list.
   Future<List<FriendInfo>> getFriendsInfo({
     required List<String> userIDList,
     bool filterBlack = false,
@@ -37,6 +55,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     return list;
   }
 
+  /// 添加好友。
+  ///
+  /// Add friend.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [reason] 原因 / Reason.
   Future<void> addFriend({required String userID, String? reason}) async {
     final ApiResponse resp = await _context.apis.friend.addFriend(
       fromUserID: currentUserID,
@@ -48,6 +72,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     }
   }
 
+  /// 获取好友申请列表作为接收方。
+  ///
+  /// Get friend application list as recipient.
+  ///
+  /// - [req] 请求参数 / Request.
+  /// - Returns: `Future<List<FriendApplicationInfo>>` 列表结果 / Resulting `Future<List<FriendApplicationInfo>>` list.
   Future<List<FriendApplicationInfo>> getFriendApplicationListAsRecipient({
     GetFriendApplicationListAsRecipientReq? req,
   }) async {
@@ -69,6 +99,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
         .toList();
   }
 
+  /// 获取好友申请列表作为申请方。
+  ///
+  /// Get friend application list as applicant.
+  ///
+  /// - [req] 请求参数 / Request.
+  /// - Returns: `Future<List<FriendApplicationInfo>>` 列表结果 / Resulting `Future<List<FriendApplicationInfo>>` list.
   Future<List<FriendApplicationInfo>> getFriendApplicationListAsApplicant({
     GetFriendApplicationListAsApplicantReq? req,
   }) async {
@@ -90,6 +126,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
         .toList();
   }
 
+  /// 获取好友列表。
+  ///
+  /// Get friend list.
+  ///
+  /// - [filterBlack] 筛选黑名单 / Filter blacklist.
+  /// - Returns: `Future<List<FriendInfo>>` 列表结果 / Resulting `Future<List<FriendInfo>>` list.
   Future<List<FriendInfo>> getFriendList({bool filterBlack = false}) async {
     List<FriendInfo> friends = await _context.db.friends.getAllFriends();
     if (filterBlack) {
@@ -99,6 +141,14 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     return friends;
   }
 
+  /// 获取好友列表分页。
+  ///
+  /// Get friend list paged.
+  ///
+  /// - [filterBlack] 筛选黑名单 / Filter blacklist.
+  /// - [offset] 偏移量 / Offset.
+  /// - [count] 数量 / Count.
+  /// - Returns: `Future<List<FriendInfo>>` 列表结果 / Resulting `Future<List<FriendInfo>>` list.
   Future<List<FriendInfo>> getFriendListPage({
     bool filterBlack = false,
     int offset = 0,
@@ -112,6 +162,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     return _context.db.friends.getFriendsPage(offset, safeCount);
   }
 
+  /// 添加黑名单。
+  ///
+  /// Add blacklist.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [ex] 扩展字段 / Extension.
   Future<void> addBlacklist({required String userID, String? ex}) async {
     final ApiResponse resp = await _context.apis.friend.addBlack(
       ownerUserID: currentUserID,
@@ -130,8 +186,18 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     });
   }
 
+  /// 获取黑名单。
+  ///
+  /// Get blacklist.
+  ///
+  /// - Returns: `Future<List<BlacklistInfo>>` 列表结果 / Resulting `Future<List<BlacklistInfo>>` list.
   Future<List<BlacklistInfo>> getBlacklist() => _context.db.friends.getBlackList();
 
+  /// 移除黑名单。
+  ///
+  /// Remove blacklist.
+  ///
+  /// - [userID] 用户ID / User ID.
   Future<void> removeBlacklist({required String userID}) async {
     final ApiResponse resp = await _context.apis.friend.removeBlack(
       ownerUserID: currentUserID,
@@ -143,6 +209,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     await _context.db.friends.removeBlack(userID);
   }
 
+  /// 检查好友。
+  ///
+  /// Check friend.
+  ///
+  /// - [userIDList] 用户ID列表 / User ID list.
+  /// - Returns: `Future<List<FriendshipInfo>>` 列表结果 / Resulting `Future<List<FriendshipInfo>>` list.
   Future<List<FriendshipInfo>> checkFriend({required List<String> userIDList}) async {
     if (userIDList.isEmpty) {
       return <FriendshipInfo>[];
@@ -159,6 +231,11 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
         .toList();
   }
 
+  /// 删除好友。
+  ///
+  /// Delete friend.
+  ///
+  /// - [userID] 用户ID / User ID.
   Future<void> deleteFriend({required String userID}) async {
     final ApiResponse resp = await _context.apis.friend.deleteFriend(
       ownerUserID: currentUserID,
@@ -170,6 +247,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     await _context.db.friends.deleteFriend(userID);
   }
 
+  /// 接受好友申请。
+  ///
+  /// Accept friend application.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [handleMsg] 处理消息 / Handle message.
   Future<void> acceptFriendApplication({required String userID, String? handleMsg}) async {
     final ApiResponse resp = await _context.apis.friend.addFriendResponse(
       fromUserID: userID,
@@ -182,6 +265,12 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     }
   }
 
+  /// 拒绝好友申请。
+  ///
+  /// Refuse friend application.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [handleMsg] 处理消息 / Handle message.
   Future<void> refuseFriendApplication({required String userID, String? handleMsg}) async {
     final ApiResponse resp = await _context.apis.friend.addFriendResponse(
       fromUserID: userID,
@@ -194,6 +283,15 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     }
   }
 
+  /// 搜索好友列表。
+  ///
+  /// Search friends.
+  ///
+  /// - [keywordList] 关键词列表 / Keyword list.
+  /// - [isSearchUserID] 是否搜索用户ID / Whether search user ID.
+  /// - [isSearchNickname] 是否搜索昵称 / Whether search nickname.
+  /// - [isSearchRemark] 是否搜索备注 / Whether search remark.
+  /// - Returns: `Future<List<SearchFriendsInfo>>` 列表结果 / Resulting `Future<List<SearchFriendsInfo>>` list.
   Future<List<SearchFriendsInfo>> searchFriends({
     List<String> keywordList = const <String>[],
     bool isSearchUserID = false,
@@ -228,6 +326,11 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
         .toList();
   }
 
+  /// 更新好友列表。
+  ///
+  /// Update friends.
+  ///
+  /// - [updateFriendsReq] 更新好友列表请求参数 / Update friends request.
   Future<void> updateFriends({required UpdateFriendsReq updateFriendsReq}) async {
     final ApiResponse resp = await _context.apis.friend.updateFriends(
       req: <String, dynamic>{'ownerUserID': currentUserID, ...updateFriendsReq.toJson()},
@@ -267,6 +370,11 @@ final class FriendshipManager extends BaseManager<OnFriendshipListener> {
     }
   }
 
+  /// 获取好友申请未处理数量。
+  ///
+  /// Get friend application unhandled count.
+  ///
+  /// - Returns: 整数结果 / Integer result.
   Future<int> getFriendApplicationUnhandledCount() async {
     final ApiResponse resp = await _context.apis.friend.getSelfUnhandledApplyCount(
       userID: currentUserID,

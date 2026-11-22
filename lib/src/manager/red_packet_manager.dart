@@ -16,14 +16,30 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
   double _cachedBalance = 0;
   final Set<String> _grabbedPacketIDs = <String>{};
 
+  /// 创建 `RedPacketManager` 实例。
+  ///
+  /// Creates a `RedPacketManager` instance.
+  ///
+  /// - [_context] context / Context.
   RedPacketManager({required this._context}) : super('RedPacketManager');
 
+  /// cached余额。
+  ///
+  /// Cached balance.
   double get cachedBalance => _cachedBalance;
 
+  /// 设置红包监听器。
+  ///
+  /// Set red packet listener.
+  ///
+  /// - [listener] 监听器 / Listener.
   void setRedPacketListener(OnRedPacketListener listener) {
     setPrimaryListener(listener);
   }
 
+  /// on登出。
+  ///
+  /// On logout.
   @override
   void onLogout() {
     _cachedBalance = 0;
@@ -31,6 +47,11 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     super.onLogout();
   }
 
+  /// preload已领取状态。
+  ///
+  /// Preload grabbed status.
+  ///
+  /// - [packetIDs] 包ID 列表 / Packet i ds.
   Future<void> preloadGrabbedStatus(List<String> packetIDs) async {
     if (packetIDs.isEmpty) {
       return;
@@ -45,13 +66,30 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     _grabbedPacketIDs.addAll(grabbed);
   }
 
+  /// 是否已领取。
+  ///
+  /// Whether grabbed.
+  ///
+  /// - [packetID] 包ID / Packet ID.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   bool isGrabbed(String packetID) => _grabbedPacketIDs.contains(packetID);
 
+  /// 标记已领取。
+  ///
+  /// Mark grabbed.
+  ///
+  /// - [packetID] 包ID / Packet ID.
   Future<void> markGrabbed(String packetID) async {
     _grabbedPacketIDs.add(packetID);
     await _context.db.social.markRedPacketGrabbed(packetID);
   }
 
+  /// 发送红包。
+  ///
+  /// Send red packet.
+  ///
+  /// - [req] 请求参数 / Request.
+  /// - Returns: 字符串结果 / String result.
   Future<String> sendRedPacket(SendRedPacketRequest req) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/red_packet/send',
@@ -66,6 +104,12 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     return packetID;
   }
 
+  /// 领取红包。
+  ///
+  /// Grab red packet.
+  ///
+  /// - [packetID] 包ID / Packet ID.
+  /// - Returns: 数值结果 / Numeric result.
   Future<double> grabRedPacket(String packetID) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/red_packet/grab',
@@ -81,6 +125,12 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     return amount;
   }
 
+  /// 获取红包详情。
+  ///
+  /// Get red packet detail.
+  ///
+  /// - [packetID] 包ID / Packet ID.
+  /// - Returns: `Future<RedPacketDetail>` 结果 / Resulting `Future<RedPacketDetail>`.
   Future<RedPacketDetail> getRedPacketDetail(String packetID) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/red_packet/detail',
@@ -92,6 +142,11 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     return RedPacketDetail.fromJson(resp.data as Map<String, dynamic>);
   }
 
+  /// 获取积分余额。
+  ///
+  /// Get points balance.
+  ///
+  /// - Returns: 数值结果 / Numeric result.
   Future<double> getPointsBalance() async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/points/balance',
@@ -105,6 +160,17 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     return _cachedBalance;
   }
 
+  /// 获取积分交易记录列表。
+  ///
+  /// Get points transactions.
+  ///
+  /// - [pageNumber] 分页号码 / Paged number.
+  /// - [showNumber] 展示号码 / Display number.
+  /// - [txType] tx类型 / Tx type.
+  /// - [startTime] 开始时间戳 / Start timestamp.
+  /// - [endTime] 结束时间戳 / End timestamp.
+  /// - [keyword] 关键词 / Keyword.
+  /// - Returns: `Future<(int total, List<PointsTransaction> items)>` 结果 / Resulting `Future<(int total, List<PointsTransaction> items)>`.
   Future<(int total, List<PointsTransaction> items)> getPointsTransactions({
     int pageNumber = 1,
     int showNumber = 20,
@@ -134,6 +200,13 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     return (total, items);
   }
 
+  /// 获取Income交易记录列表。
+  ///
+  /// Get income transactions.
+  ///
+  /// - [pageNumber] 分页号码 / Paged number.
+  /// - [showNumber] 展示号码 / Display number.
+  /// - Returns: `Future<(int total, List<PointsTransaction> items)>` 结果 / Resulting `Future<(int total, List<PointsTransaction> items)>`.
   Future<(int total, List<PointsTransaction> items)> getIncomeTransactions({
     int pageNumber = 1,
     int showNumber = 20,
@@ -145,6 +218,13 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     return (total, items.where((PointsTransaction tx) => tx.isIncome).toList());
   }
 
+  /// 获取Expense交易记录列表。
+  ///
+  /// Get expense transactions.
+  ///
+  /// - [pageNumber] 分页号码 / Paged number.
+  /// - [showNumber] 展示号码 / Display number.
+  /// - Returns: `Future<(int total, List<PointsTransaction> items)>` 结果 / Resulting `Future<(int total, List<PointsTransaction> items)>`.
   Future<(int total, List<PointsTransaction> items)> getExpenseTransactions({
     int pageNumber = 1,
     int showNumber = 20,
@@ -156,6 +236,12 @@ final class RedPacketManager extends BaseManager<OnRedPacketListener> {
     return (total, items.where((PointsTransaction tx) => tx.isExpense).toList());
   }
 
+  /// 派发Business通知。
+  ///
+  /// Dispatch business notification.
+  ///
+  /// - [key] 键名 / Key.
+  /// - [data] 数据 / Data.
   @internal
   void dispatchBusinessNotification(String key, String data) {
     try {

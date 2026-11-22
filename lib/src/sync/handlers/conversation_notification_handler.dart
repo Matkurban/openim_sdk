@@ -6,12 +6,40 @@ import '../entity_syncers/conversation_syncer.dart';
 
 /// 会话属性变更、阅后即焚与清空会话通知处理器（contentType 1300 / 1701 / 1703 / 2001）。
 final class ConversationNotificationHandler extends BaseNotificationHandler {
+  /// 数据库。
+  ///
+  /// Database.
   final DbEngine db;
+
+  /// 会话同步器。
+  ///
+  /// Conversation syncer.
   final ConversationSyncer conversationSyncer;
+
+  /// 登录用户ID。
+  ///
+  /// Login user ID.
   final String loginUserID;
+
+  /// 会话监听器Provider。
+  ///
+  /// Conversation listener provider.
   final OnConversationListener? Function() conversationListenerProvider;
+
+  /// onBusiness通知。
+  ///
+  /// On business notification.
   final void Function(String key, Map<String, dynamic> data)? onBusinessNotification;
 
+  /// 创建 `ConversationNotificationHandler` 实例。
+  ///
+  /// Creates a `ConversationNotificationHandler` instance.
+  ///
+  /// - [db] 数据库 / Database.
+  /// - [conversationSyncer] 会话同步器 / Conversation syncer.
+  /// - [loginUserID] 登录用户ID / Login user ID.
+  /// - [conversationListenerProvider] 会话监听器Provider / Conversation listener provider.
+  /// - [onBusinessNotification] onBusiness通知 / On business notification.
   ConversationNotificationHandler({
     required this.db,
     required this.conversationSyncer,
@@ -20,10 +48,22 @@ final class ConversationNotificationHandler extends BaseNotificationHandler {
     this.onBusinessNotification,
   }) : super('ConversationNotificationHandler');
 
+  /// 是否支持处理。
+  ///
+  /// Whether can handle.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   @override
   bool canHandle(int contentType) =>
       contentType == 1300 || contentType == 1701 || contentType == 1703 || contentType == 2001;
 
+  /// 处理。
+  ///
+  /// Handle.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - [detail] 详情 / Detail.
   @override
   Future<void> handle(int contentType, Map<String, dynamic> detail) async {
     switch (contentType) {

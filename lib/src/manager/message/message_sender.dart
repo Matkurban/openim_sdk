@@ -43,6 +43,17 @@ class MessageSender {
   final OnMsgSendProgressListener? Function() _progressListenerProvider;
   final OnConversationListener? Function() _conversationListenerProvider;
 
+  /// 创建 `MessageSender` 实例。
+  ///
+  /// Creates a `MessageSender` instance.
+  ///
+  /// - [_context] context / Context.
+  /// - [_fileUploader] 文件上传器 / File uploader.
+  /// - [_factory] 工厂 / Factory.
+  /// - [_userIDProvider] 用户IDProvider / User ID provider.
+  /// - [_msgListenerProvider] 消息监听器Provider / Message listener provider.
+  /// - [_progressListenerProvider] 进度监听器Provider / Progress listener provider.
+  /// - [_conversationListenerProvider] 会话监听器Provider / Conversation listener provider.
   MessageSender({
     required this._context,
     required this._fileUploader,
@@ -101,6 +112,17 @@ class MessageSender {
   }
 
   /// 发送消息（支持媒体自动分片上传、重发、仅在线消息与自定义选项）。
+  ///
+  /// Send message.
+  ///
+  /// - [message] 消息 / Message.
+  /// - [offlinePushInfo] 离线推送信息 / Offline push info.
+  /// - [userID] 用户ID / User ID.
+  /// - [groupID] 群组ID / Group ID.
+  /// - [isOnlineOnly] 是否在线Only / Whether online only.
+  /// - [messageOptions] 消息选项 / Message options.
+  /// - [uploadMedia] 上传媒体 / Upload media.
+  /// - Returns: `Future<Message>` 结果 / Resulting `Future<Message>`.
   Future<Message> sendMessage({
     required Message message,
     required OfflinePushInfo offlinePushInfo,
@@ -207,6 +229,11 @@ class MessageSender {
   }
 
   /// 更新会话的 `latestMsg` 并触发会话监听器回调。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [message] 消息 / Message.
+  /// - [sessionType] 会话类型 / Session type.
+  /// - [seqOverride] 序列号Override / Sequence number override.
   Future<void> updateConversationLatestMsg(
     String conversationID,
     Message message,

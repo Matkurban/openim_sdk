@@ -25,22 +25,54 @@ final class CallManager extends BaseManager<OnCallListener> {
 
   void Function(String toUserID, String data, {bool isInvite})? _sendSignalingFn;
 
+  /// 创建 `CallManager` 实例。
+  ///
+  /// Creates a `CallManager` instance.
+  ///
+  /// - [_context] context / Context.
   CallManager({required this._context}) : super('CallManager');
 
+  /// current会话。
+  ///
+  /// Current session.
   CallSession? get currentSession => _currentSession;
 
+  /// 是否忙线。
+  ///
+  /// Whether busy.
   bool get isBusy => _currentSession != null;
 
+  /// 通话状态。
+  ///
+  /// Call state.
   CallState get callState => _currentSession?.state ?? CallState.idle;
 
+  /// 设置通话监听器。
+  ///
+  /// Set call listener.
+  ///
+  /// - [listener] 监听器 / Listener.
   void setCallListener(OnCallListener listener) {
     setPrimaryListener(listener);
   }
 
+  /// 设置发送信令Fn。
+  ///
+  /// Set send signaling fn.
+  ///
+  /// - [fn] fn / Fn.
   void setSendSignalingFn(void Function(String toUserID, String data, {bool isInvite}) fn) {
     _sendSignalingFn = fn;
   }
 
+  /// 邀请。
+  ///
+  /// Invite.
+  ///
+  /// - [inviteeUserIDs] 被邀请者用户ID 列表 / Invitee user i ds.
+  /// - [callType] 通话类型 / Call type.
+  /// - [timeout] 超时时间 / Timeout.
+  /// - Returns: `Future<CallSession>` 结果 / Resulting `Future<CallSession>`.
   Future<CallSession> invite({
     required List<String> inviteeUserIDs,
     required CallType callType,
@@ -96,6 +128,12 @@ final class CallManager extends BaseManager<OnCallListener> {
     return session;
   }
 
+  /// 接受。
+  ///
+  /// Accept.
+  ///
+  /// - [roomID] 房间ID / Room ID.
+  /// - Returns: `Future<CallSession>` 结果 / Resulting `Future<CallSession>`.
   Future<CallSession> accept({required String roomID}) async {
     final CallSession? session = _currentSession;
     if (session == null || session.roomID != roomID) {
@@ -124,6 +162,11 @@ final class CallManager extends BaseManager<OnCallListener> {
     return session;
   }
 
+  /// 拒绝。
+  ///
+  /// Reject.
+  ///
+  /// - [roomID] 房间ID / Room ID.
   Future<void> reject({required String roomID}) async {
     final CallSession? session = _currentSession;
     if (session == null || session.roomID != roomID) {
@@ -142,6 +185,9 @@ final class CallManager extends BaseManager<OnCallListener> {
     _cleanupSession();
   }
 
+  /// 取消。
+  ///
+  /// Cancel.
   Future<void> cancel() async {
     final CallSession? session = _currentSession;
     if (session == null) {
@@ -166,6 +212,9 @@ final class CallManager extends BaseManager<OnCallListener> {
     _cleanupSession();
   }
 
+  /// hangup。
+  ///
+  /// Hangup.
   Future<void> hangup() async {
     final CallSession? session = _currentSession;
     if (session == null) {
@@ -207,6 +256,13 @@ final class CallManager extends BaseManager<OnCallListener> {
     listener?.onCallEnded?.call(session);
   }
 
+  /// 处理信令消息。
+  ///
+  /// Handle signaling message.
+  ///
+  /// - [senderUserID] 发送器用户ID / Sender user ID.
+  /// - [data] 数据 / Data.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   bool handleSignalingMessage(String senderUserID, String data) {
     try {
       final Map<String, dynamic> map = jsonDecode(data) as Map<String, dynamic>;
@@ -466,6 +522,9 @@ final class CallManager extends BaseManager<OnCallListener> {
     }
   }
 
+  /// on登出。
+  ///
+  /// On logout.
   @override
   void onLogout() {
     _cleanupSession();
@@ -473,6 +532,9 @@ final class CallManager extends BaseManager<OnCallListener> {
     super.onLogout();
   }
 
+  /// 释放资源。
+  ///
+  /// Dispose.
   @override
   void dispose() {
     _cleanupSession();

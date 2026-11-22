@@ -12,6 +12,11 @@ import '../utils/open_im_utils.dart';
 class HttpClient {
   static final HttpClient _instance = HttpClient._internal();
 
+  /// 创建 `HttpClient` 实例。
+  ///
+  /// Creates a `HttpClient` instance.
+  ///
+  /// - Returns: `HttpClient` 结果 / Resulting `HttpClient`.
   factory HttpClient() => _instance;
 
   final Logger _logger = Logger('openim_sdk.HttpClient');
@@ -38,6 +43,11 @@ class HttpClient {
   }
 
   /// 初始化 IM API 基础配置（幂等安装拦截器）。
+  ///
+  /// - [baseUrl] baseURL 地址 / Base URL.
+  /// - [connectTimeout] 连接超时时间 / Connect timeout.
+  /// - [receiveTimeout] receive超时时间 / Receive timeout.
+  /// - [headers] 请求头 / Headers.
   void init({
     required String baseUrl,
     Duration? connectTimeout,
@@ -71,6 +81,8 @@ class HttpClient {
   }
 
   /// 设置 IM Token。
+  ///
+  /// - [token] 令牌 / Token.
   void setToken(String? token) {
     _logger.fine('setToken(${token != null && token.isNotEmpty ? "***" : "null"})');
     _token = token;
@@ -81,9 +93,14 @@ class HttpClient {
     }
   }
 
+  /// 令牌。
+  ///
+  /// Token.
   String? get token => _token;
 
   /// 初始化 Chat 服务端客户端。
+  ///
+  /// - [baseUrl] baseURL 地址 / Base URL.
   void initChat({required String baseUrl}) {
     _logger.info('initChat baseUrl=$baseUrl');
     _chatDio?.close();
@@ -114,6 +131,8 @@ class HttpClient {
   }
 
   /// 设置 Chat Token。
+  ///
+  /// - [token] 令牌 / Token.
   void setChatToken(String? token) {
     _logger.fine('setChatToken(${token != null && token.isNotEmpty ? "***" : "null"})');
     _chatToken = token;
@@ -127,14 +146,34 @@ class HttpClient {
     }
   }
 
+  /// chat令牌。
+  ///
+  /// Chat token.
   String? get chatToken => _chatToken;
 
+  /// dio。
+  ///
+  /// Dio.
   Dio get dio => _dio;
 
+  /// 添加拦截器。
+  ///
+  /// Add interceptor.
+  ///
+  /// - [interceptor] 拦截器 / Interceptor.
   void addInterceptor(Interceptor interceptor) {
     _dio.interceptors.add(interceptor);
   }
 
+  /// 获取。
+  ///
+  /// Get.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [queryParameters] 查询参数 / Query parameters.
+  /// - [options] 选项 / Options.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> get(
     String path, {
     Map<String, dynamic>? queryParameters,
@@ -151,6 +190,16 @@ class HttpClient {
     );
   }
 
+  /// POST 请求。
+  ///
+  /// POST request.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [data] 数据 / Data.
+  /// - [queryParameters] 查询参数 / Query parameters.
+  /// - [options] 选项 / Options.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> post(
     String path, {
     dynamic data,
@@ -169,6 +218,17 @@ class HttpClient {
     );
   }
 
+  /// PUT 请求。
+  ///
+  /// PUT request.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [data] 数据 / Data.
+  /// - [queryParameters] 查询参数 / Query parameters.
+  /// - [options] 选项 / Options.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - [onSendProgress] on发送进度 / On send progress.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> put(
     String path, {
     dynamic data,
@@ -189,6 +249,16 @@ class HttpClient {
     );
   }
 
+  /// 删除。
+  ///
+  /// Delete.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [data] 数据 / Data.
+  /// - [queryParameters] 查询参数 / Query parameters.
+  /// - [options] 选项 / Options.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> delete(
     String path, {
     dynamic data,
@@ -207,6 +277,16 @@ class HttpClient {
     );
   }
 
+  /// 上传。
+  ///
+  /// Upload.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [formData] 表单数据 / Form data.
+  /// - [options] 选项 / Options.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - [onSendProgress] on发送进度 / On send progress.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> upload(
     String path, {
     required FormData formData,
@@ -225,6 +305,16 @@ class HttpClient {
     );
   }
 
+  /// 下载。
+  ///
+  /// Download.
+  ///
+  /// - [urlPath] URL 地址路径 / URL path.
+  /// - [savePath] 保存路径 / Save path.
+  /// - [queryParameters] 查询参数 / Query parameters.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - [onReceiveProgress] onReceive进度 / On receive progress.
+  /// - Returns: `Future<Response<dynamic>>` 结果 / Resulting `Future<Response<dynamic>>`.
   Future<Response<dynamic>> download(
     String urlPath,
     dynamic savePath, {
@@ -241,6 +331,16 @@ class HttpClient {
     );
   }
 
+  /// chatPOST 请求。
+  ///
+  /// Chat POST request.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [data] 数据 / Data.
+  /// - [queryParameters] 查询参数 / Query parameters.
+  /// - [options] 选项 / Options.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> chatPost(
     String path, {
     dynamic data,
@@ -266,6 +366,8 @@ class HttpClient {
   }
 
   /// 初始化 Admin 服务端客户端（governance 公开端点）。
+  ///
+  /// - [baseUrl] baseURL 地址 / Base URL.
   void initAdmin({required String baseUrl}) {
     _logger.info('initAdmin baseUrl=$baseUrl');
     _adminDio?.close();
@@ -292,6 +394,15 @@ class HttpClient {
     _adminDio = adminDio;
   }
 
+  /// 管理员POST 请求。
+  ///
+  /// Administrator POST request.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [data] 数据 / Data.
+  /// - [options] 选项 / Options.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> adminPost(
     String path, {
     dynamic data,
@@ -309,6 +420,16 @@ class HttpClient {
     );
   }
 
+  /// 管理员分片表单POST 请求。
+  ///
+  /// Administrator multipart form POST request.
+  ///
+  /// - [path] 路径 / Path.
+  /// - [formData] 表单数据 / Form data.
+  /// - [headers] 请求头 / Headers.
+  /// - [cancelToken] 取消令牌 / Cancel token.
+  /// - [onSendProgress] on发送进度 / On send progress.
+  /// - Returns: `Future<ApiResponse>` 结果 / Resulting `Future<ApiResponse>`.
   Future<ApiResponse> adminMultipartPost(
     String path, {
     required FormData formData,

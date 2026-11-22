@@ -6,9 +6,16 @@ library;
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
+/// 全局This。
+///
+/// Global this.
+///
+/// - Returns: `JSObject` 结果 / Resulting `JSObject`.
 @JS()
 external JSObject get globalThis;
 
+/// 释放资源OldWebSocket从Js全局。
+///
 /// Call and remove any previously registered dispose callback on JS global.
 void disposeOldWsFromJsGlobal() {
   try {
@@ -20,6 +27,8 @@ void disposeOldWsFromJsGlobal() {
   } catch (_) {}
 }
 
+/// 注册释放资源InJs全局。
+///
 /// Register [disposeCallback] on JS global so the next hot-restart can clean up.
 void registerDisposeInJsGlobal(void Function() disposeCallback) {
   try {

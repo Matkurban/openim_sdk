@@ -25,12 +25,23 @@ abstract final class NotificationClassifier {
   };
 
   /// 是否需要路由到 `NotificationRouter` 执行控制副作用。
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   static bool isNotification(int contentType) => contentType >= 1000;
 
   /// 是否为 `2101` 撤回通知（改写原消息，不独立入库）。
+  ///
+  /// Whether revoke notification.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   static bool isRevokeNotification(int contentType) => contentType == 2101;
 
   /// 是否允许写入 `local_chat_logs` 并在聊天界面可见。
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   static bool shouldPersistInChatLog(int contentType) {
     if (contentType < 1000) {
       return true;

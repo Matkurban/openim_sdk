@@ -9,6 +9,14 @@ class TypingStateTracker {
   String _key(String conversationID, String userID) => '$conversationID|$userID';
 
   /// 更新某用户在某会话某平台的输入状态；返回该用户当前活跃的平台 ID 列表。
+  ///
+  /// Update.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [platformID] 平台ID / Platform ID.
+  /// - [isTyping] 是否正在输入 / Whether typing.
+  /// - Returns: `List<int>` 列表结果 / Resulting `List<int>` list.
   List<int> update({
     required String conversationID,
     required String userID,
@@ -36,6 +44,12 @@ class TypingStateTracker {
   }
 
   /// 查询某用户在某会话当前正在输入的平台 ID 列表。
+  ///
+  /// Get active platforms.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [userID] 用户ID / User ID.
+  /// - Returns: `List<int>` 列表结果 / Resulting `List<int>` list.
   List<int> getActivePlatforms(String conversationID, String userID) {
     final String k = _key(conversationID, userID);
     final Map<int, DateTime>? platforms = _entries[k];
@@ -50,6 +64,9 @@ class TypingStateTracker {
     return platforms.keys.toList();
   }
 
+  /// 清空。
+  ///
+  /// Clear.
   void clear() {
     _entries.clear();
   }

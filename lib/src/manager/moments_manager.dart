@@ -12,12 +12,28 @@ import '../models/moment_list_response.dart';
 final class MomentsManager extends BaseManager<OnMomentsListener> {
   final SdkContext _context;
 
+  /// 创建 `MomentsManager` 实例。
+  ///
+  /// Creates a `MomentsManager` instance.
+  ///
+  /// - [_context] context / Context.
   MomentsManager({required this._context}) : super('MomentsManager');
 
+  /// 设置朋友圈动态列表监听器。
+  ///
+  /// Set moments listener.
+  ///
+  /// - [listener] 监听器 / Listener.
   void setMomentsListener(OnMomentsListener listener) {
     setPrimaryListener(listener);
   }
 
+  /// 创建朋友圈动态。
+  ///
+  /// Create moment.
+  ///
+  /// - [request] 申请/请求 / Request.
+  /// - Returns: `Future<MomentInfo?>` 结果 / Resulting `Future<MomentInfo?>`.
   Future<MomentInfo?> createMoment({required MomentCreateReq request}) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/moment/create',
@@ -35,6 +51,12 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     return moment;
   }
 
+  /// 删除朋友圈动态。
+  ///
+  /// Delete moment.
+  ///
+  /// - [momentID] 朋友圈动态ID / Moment ID.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> deleteMoment({required String momentID}) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/moment/delete',
@@ -48,6 +70,14 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     return true;
   }
 
+  /// 获取朋友圈动态列表。
+  ///
+  /// Get moment list.
+  ///
+  /// - [ownerUserID] 群主/拥有者用户ID / Owner user ID.
+  /// - [pageNumber] 分页号码 / Paged number.
+  /// - [showNumber] 展示号码 / Display number.
+  /// - Returns: `Future<MomentListResponse>` 结果 / Resulting `Future<MomentListResponse>`.
   Future<MomentListResponse> getMomentList({
     String? ownerUserID,
     int pageNumber = 1,
@@ -71,6 +101,14 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     );
   }
 
+  /// 拉取朋友圈动态列表从服务端。
+  ///
+  /// Fetch moment list from server.
+  ///
+  /// - [ownerUserID] 群主/拥有者用户ID / Owner user ID.
+  /// - [pageNumber] 分页号码 / Paged number.
+  /// - [showNumber] 展示号码 / Display number.
+  /// - Returns: `Future<MomentListResponse>` 结果 / Resulting `Future<MomentListResponse>`.
   Future<MomentListResponse> fetchMomentListFromServer({
     String? ownerUserID,
     int pageNumber = 1,
@@ -96,6 +134,13 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     return result;
   }
 
+  /// 点赞朋友圈动态。
+  ///
+  /// Like moment.
+  ///
+  /// - [momentID] 朋友圈动态ID / Moment ID.
+  /// - [ownerUserID] 群主/拥有者用户ID / Owner user ID.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> likeMoment({required String momentID, String? ownerUserID}) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/moment/like',
@@ -104,6 +149,13 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     return resp.isSuccess;
   }
 
+  /// 取消点赞朋友圈动态。
+  ///
+  /// Unlike moment.
+  ///
+  /// - [momentID] 朋友圈动态ID / Moment ID.
+  /// - [ownerUserID] 群主/拥有者用户ID / Owner user ID.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> unlikeMoment({required String momentID, String? ownerUserID}) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/moment/unlike',
@@ -112,6 +164,15 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     return resp.isSuccess;
   }
 
+  /// 评论朋友圈动态。
+  ///
+  /// Comment moment.
+  ///
+  /// - [momentID] 朋友圈动态ID / Moment ID.
+  /// - [content] 内容 / Content.
+  /// - [replyToUserID] 回复转为用户ID / Reply to user ID.
+  /// - [ownerUserID] 群主/拥有者用户ID / Owner user ID.
+  /// - Returns: `Future<MomentCommentWithUser?>` 结果 / Resulting `Future<MomentCommentWithUser?>`.
   Future<MomentCommentWithUser?> commentMoment({
     required String momentID,
     required String content,
@@ -137,6 +198,13 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     return comment;
   }
 
+  /// 删除评论。
+  ///
+  /// Delete comment.
+  ///
+  /// - [commentID] 评论ID / Comment ID.
+  /// - [momentID] 朋友圈动态ID / Moment ID.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> deleteComment({required String commentID, String? momentID}) async {
     final ApiResponse resp = await _context.httpClient.chatPost(
       '/moment/delete_comment',
@@ -149,6 +217,12 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     return true;
   }
 
+  /// 处理通知。
+  ///
+  /// Handle notification.
+  ///
+  /// - [key] 键名 / Key.
+  /// - [data] 数据 / Data.
   Future<void> handleNotification(String key, Map<String, dynamic> data) async {
     try {
       switch (key) {
@@ -185,6 +259,9 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
     }
   }
 
+  /// 同步从服务端。
+  ///
+  /// Sync from server.
   Future<void> syncFromServer() async {
     await fetchMomentListFromServer(pageNumber: 1, showNumber: 20);
   }

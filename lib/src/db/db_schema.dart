@@ -1,22 +1,87 @@
 import 'package:tostore/tostore.dart';
 
 /// 数据库表名常量定义。
+///
+/// Database table name.
 sealed class DbTableName {
+  /// 本地用户。
+  ///
+  /// Local user.
   static const String localUser = 'local_users';
+
+  /// 本地好友。
+  ///
+  /// Local friend.
   static const String localFriend = 'local_friends';
+
+  /// 本地好友申请/请求。
+  ///
+  /// Local friend request.
   static const String localFriendRequest = 'local_friend_requests';
+
+  /// 本地黑名单。
+  ///
+  /// Local blacklist.
   static const String localBlack = 'local_blacks';
+
+  /// 本地群组。
+  ///
+  /// Local group.
   static const String localGroup = 'local_groups';
+
+  /// 本地群组成员。
+  ///
+  /// Local group member.
   static const String localGroupMember = 'local_group_members';
+
+  /// 本地群组申请/请求。
+  ///
+  /// Local group request.
   static const String localGroupRequest = 'local_group_requests';
+
+  /// 本地会话。
+  ///
+  /// Local conversation.
   static const String localConversation = 'local_conversations';
+
+  /// 本地ChatLog。
+  ///
+  /// Local chat log.
   static const String localChatLog = 'local_chat_logs';
+
+  /// 本地Sending消息。
+  ///
+  /// Local sending message.
   static const String localSendingMessage = 'local_sending_messages';
+
+  /// 本地朋友圈动态。
+  ///
+  /// Local moment.
   static const String localMoment = 'local_moments';
+
+  /// 本地收藏。
+  ///
+  /// Local favorite.
   static const String localFavorite = 'local_favorites';
+
+  /// 本地上传。
+  ///
+  /// Local upload.
   static const String localUpload = 'local_uploads';
+
+  /// 本地版本同步。
+  ///
+  /// Local version sync.
   static const String localVersionSync = 'local_version_sync';
+
+  /// 本地通知序列号。
+  ///
+  /// Local notification sequence number.
   static const String localNotificationSeq = 'local_notification_seqs';
+
+  /// 本地已领取红包。
+  ///
+  /// Local grabbed red packet.
   static const String localGrabbedRedPacket = 'local_grabbed_red_packets';
 }
 
@@ -29,8 +94,17 @@ sealed class DbTableName {
 /// 4. 全表声明 `tableId`，保障声明式 Schema 在线自动演进安全。
 sealed class DbSchema {
   /// 构建确定性双键复合主键，避免重复插入与全表扫描。
+  ///
+  /// Composite key.
+  ///
+  /// - [partA] 分片A / Part a.
+  /// - [partB] 分片B / Part b.
+  /// - Returns: 字符串结果 / String result.
   static String compositeKey(String partA, String partB) => '${partA}_$partB';
 
+  /// 本地用户。
+  ///
+  /// Local user.
   static final TableSchema localUser = TableSchema(
     name: DbTableName.localUser,
     tableId: DbTableName.localUser,
@@ -45,6 +119,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地好友。
+  ///
+  /// Local friend.
   static final TableSchema localFriend = TableSchema(
     name: DbTableName.localFriend,
     tableId: DbTableName.localFriend,
@@ -79,6 +156,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地好友申请/请求。
+  ///
+  /// Local friend request.
   static final TableSchema localFriendRequest = TableSchema(
     name: DbTableName.localFriendRequest,
     tableId: DbTableName.localFriendRequest,
@@ -106,6 +186,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地黑名单。
+  ///
+  /// Local blacklist.
   static final TableSchema localBlack = TableSchema(
     name: DbTableName.localBlack,
     tableId: DbTableName.localBlack,
@@ -124,6 +207,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地群组。
+  ///
+  /// Local group.
   static final TableSchema localGroup = TableSchema(
     name: DbTableName.localGroup,
     tableId: DbTableName.localGroup,
@@ -155,6 +241,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地群组成员。
+  ///
+  /// Local group member.
   static final TableSchema localGroupMember = TableSchema(
     name: DbTableName.localGroupMember,
     tableId: DbTableName.localGroupMember,
@@ -180,6 +269,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地群组申请/请求。
+  ///
+  /// Local group request.
   static final TableSchema localGroupRequest = TableSchema(
     name: DbTableName.localGroupRequest,
     tableId: DbTableName.localGroupRequest,
@@ -218,6 +310,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地会话。
+  ///
+  /// Local conversation.
   static final TableSchema localConversation = TableSchema(
     name: DbTableName.localConversation,
     tableId: DbTableName.localConversation,
@@ -286,6 +381,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地ChatLog。
+  ///
+  /// Local chat log.
   static final TableSchema localChatLog = TableSchema(
     name: DbTableName.localChatLog,
     tableId: DbTableName.localChatLog,
@@ -336,6 +434,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地Sending消息。
+  ///
+  /// Local sending message.
   static final TableSchema localSendingMessage = TableSchema(
     name: DbTableName.localSendingMessage,
     tableId: DbTableName.localSendingMessage,
@@ -346,6 +447,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地朋友圈动态。
+  ///
+  /// Local moment.
   static final TableSchema localMoment = TableSchema(
     name: DbTableName.localMoment,
     tableId: DbTableName.localMoment,
@@ -370,6 +474,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地收藏。
+  ///
+  /// Local favorite.
   static final TableSchema localFavorite = TableSchema(
     name: DbTableName.localFavorite,
     tableId: DbTableName.localFavorite,
@@ -391,6 +498,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地上传。
+  ///
+  /// Local upload.
   static final TableSchema localUpload = TableSchema(
     name: DbTableName.localUpload,
     tableId: DbTableName.localUpload,
@@ -409,6 +519,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地版本同步。
+  ///
+  /// Local version sync.
   static final TableSchema localVersionSync = TableSchema(
     name: DbTableName.localVersionSync,
     tableId: DbTableName.localVersionSync,
@@ -423,6 +536,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地通知序列号。
+  ///
+  /// Local notification sequence number.
   static final TableSchema localNotificationSeq = TableSchema(
     name: DbTableName.localNotificationSeq,
     tableId: DbTableName.localNotificationSeq,
@@ -433,6 +549,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 本地已领取红包。
+  ///
+  /// Local grabbed red packet.
   static final TableSchema localGrabbedRedPacket = TableSchema(
     name: DbTableName.localGrabbedRedPacket,
     tableId: DbTableName.localGrabbedRedPacket,
@@ -442,6 +561,9 @@ sealed class DbSchema {
     ],
   );
 
+  /// 全部表结构列表。
+  ///
+  /// All schemas.
   static List<TableSchema> get allSchemas => <TableSchema>[
     localUser,
     localFriend,

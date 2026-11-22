@@ -6,11 +6,34 @@ import '../entity_syncers/group_syncer.dart';
 
 /// 群组与群成员系统通知处理器（contentType 1501–1520）。
 final class GroupNotificationHandler extends BaseNotificationHandler {
+  /// 数据库。
+  ///
+  /// Database.
   final DbEngine db;
+
+  /// 群组同步器。
+  ///
+  /// Group syncer.
   final GroupSyncer groupSyncer;
+
+  /// 登录用户ID。
+  ///
+  /// Login user ID.
   final String loginUserID;
+
+  /// 监听器Provider。
+  ///
+  /// Listener provider.
   final OnGroupListener? Function() listenerProvider;
 
+  /// 创建 `GroupNotificationHandler` 实例。
+  ///
+  /// Creates a `GroupNotificationHandler` instance.
+  ///
+  /// - [db] 数据库 / Database.
+  /// - [groupSyncer] 群组同步器 / Group syncer.
+  /// - [loginUserID] 登录用户ID / Login user ID.
+  /// - [listenerProvider] 监听器Provider / Listener provider.
   GroupNotificationHandler({
     required this.db,
     required this.groupSyncer,
@@ -18,9 +41,21 @@ final class GroupNotificationHandler extends BaseNotificationHandler {
     required this.listenerProvider,
   }) : super('GroupNotificationHandler');
 
+  /// 是否支持处理。
+  ///
+  /// Whether can handle.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   @override
   bool canHandle(int contentType) => contentType >= 1501 && contentType <= 1520;
 
+  /// 处理。
+  ///
+  /// Handle.
+  ///
+  /// - [contentType] 内容类型 / Content type.
+  /// - [detail] 详情 / Detail.
   @override
   Future<void> handle(int contentType, Map<String, dynamic> detail) async {
     final OnGroupListener? listener = listenerProvider();

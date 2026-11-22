@@ -101,6 +101,11 @@ class IMManager {
 
   static final IMManager _instance = IMManager._internal();
 
+  /// 创建 `IMManager` 实例。
+  ///
+  /// Creates a `IMManager` instance.
+  ///
+  /// - Returns: `IMManager` 结果 / Resulting `IMManager`.
   factory IMManager() => _instance;
 
   final Logger _logger = Logger('openim_sdk.IMManager');
@@ -109,16 +114,59 @@ class IMManager {
   late final FileUploader _fileUploader;
   late final List<BaseManager<dynamic>> _allManagers;
 
+  /// 会话管理器。
+  ///
+  /// Conversation manager.
   late final ConversationManager conversationManager;
+
+  /// 好友关系管理器。
+  ///
+  /// Friendship manager.
   late final FriendshipManager friendshipManager;
+
+  /// 消息管理器。
+  ///
+  /// Message manager.
   late final MessageManager messageManager;
+
+  /// 群组管理器。
+  ///
+  /// Group manager.
   late final GroupManager groupManager;
+
+  /// 用户管理器。
+  ///
+  /// User manager.
   late final UserManager userManager;
+
+  /// 朋友圈动态列表管理器。
+  ///
+  /// Moments manager.
   late final MomentsManager momentsManager;
+
+  /// 收藏管理器。
+  ///
+  /// Favorite manager.
   late final FavoriteManager favoriteManager;
+
+  /// 通话管理器。
+  ///
+  /// Call manager.
   late final CallManager callManager;
+
+  /// 红包管理器。
+  ///
+  /// Red packet manager.
   late final RedPacketManager redPacketManager;
+
+  /// 举报申诉管理器。
+  ///
+  /// Report appeal manager.
   late final ReportAppealManager reportAppealManager;
+
+  /// 申请管理器。
+  ///
+  /// Application manager.
   late final ApplicationManager applicationManager;
 
   OnListenerForService? _listenerForService;
@@ -134,14 +182,35 @@ class IMManager {
   bool _tokenInvalidFired = false;
   bool _kickedOfflineFired = false;
 
+  /// 认证数据。
+  ///
+  /// Authentication data.
   AuthCacheData get authData => _authData!;
+
+  /// 是否Initialized。
+  ///
+  /// Whether initialized.
   bool get isInitialized => _initialized;
+
+  /// 获取登录状态。
+  ///
+  /// Get login status.
   LoginStatus get getLoginStatus => _loginStatus;
 
+  /// 设置监听器的服务。
+  ///
+  /// Set listener for service.
+  ///
+  /// - [listener] 监听器 / Listener.
   void setListenerForService(OnListenerForService listener) {
     _listenerForService = listener;
   }
 
+  /// 设置上传文件监听器。
+  ///
+  /// Set upload file listener.
+  ///
+  /// - [listener] 监听器 / Listener.
   void setUploadFileListener(OnUploadFileListener listener) {
     _fileUploader.uploadFileListener = listener;
   }
@@ -150,6 +219,16 @@ class IMManager {
   ///
   /// [logLevel] 使用官方 `package:logging` 的 [Level]（默认 [Level.INFO]），
   /// 仅作用于 `openim_sdk` 命名空间，不覆盖宿主 App 全局 `Logger.root.level`。
+  ///
+  /// - [platformID] 平台ID / Platform ID.
+  /// - [apiAddr] APIAddr / API addr.
+  /// - [wsAddr] WebSocketAddr / WebSocket addr.
+  /// - [authAddr] 认证Addr / Authentication addr.
+  /// - [adminAddr] 管理员Addr / Administrator addr.
+  /// - [dataDir] 数据Dir / Data dir.
+  /// - [listener] 监听器 / Listener.
+  /// - [schemas] 表结构列表 / Schemas.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> initSDK({
     int? platformID,
     required String apiAddr,
@@ -218,6 +297,8 @@ class IMManager {
   }
 
   /// 自动登录（从 ToStore 全局 KV 加载并校验 Token）。
+  ///
+  /// - Returns: `Future<LoginStatus>` 结果 / Resulting `Future<LoginStatus>`.
   Future<LoginStatus> loadLoginConfig() async {
     try {
       final String? value = await _context.db.toStore.kv.getString(
@@ -252,6 +333,12 @@ class IMManager {
     }
   }
 
+  /// 检查令牌。
+  ///
+  /// Check token.
+  ///
+  /// - [token] 令牌 / Token.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> checkToken({required String token}) async {
     try {
       final ApiResponse result = await _context.apis.auth.parseToken(token: token);
@@ -264,25 +351,64 @@ class IMManager {
 
   // ---- KV 与数据库访问 ----
 
+  /// 获取值。
+  ///
+  /// Get value.
+  ///
+  /// - [key] 键名 / Key.
+  /// - [isGlobal] 是否全局 / Whether global.
+  /// - Returns: `Future<dynamic>` 结果 / Resulting `Future<dynamic>`.
   Future<dynamic> getValue(String key, {bool isGlobal = false}) {
     return _context.db.toStore.kv.get(key, isGlobal: isGlobal);
   }
 
+  /// 设置值。
+  ///
+  /// Set value.
+  ///
+  /// - [key] 键名 / Key.
+  /// - [value] 值 / Value.
+  /// - [isGlobal] 是否全局 / Whether global.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> setValue(String key, dynamic value, {bool isGlobal = false}) async {
     final DbResult result = await _context.db.toStore.kv.set(key, value, isGlobal: isGlobal);
     return !result.hasErrors;
   }
 
+  /// 移除值。
+  ///
+  /// Remove value.
+  ///
+  /// - [key] 键名 / Key.
+  /// - [isGlobal] 是否全局 / Whether global.
+  /// - Returns: 操作结果布尔值 / Boolean result.
   Future<bool> removeValue(String key, {bool isGlobal = false}) async {
     final DbResult result = await _context.db.toStore.kv.remove(key, isGlobal: isGlobal);
     return !result.hasErrors;
   }
 
+  /// 获取存储空间信息。
+  ///
+  /// Get storage space info.
+  ///
+  /// - Returns: `Future<SpaceInfo>` 结果 / Resulting `Future<SpaceInfo>`.
   Future<SpaceInfo> getSpaceInfo() => _context.db.toStore.getSpaceInfo();
 
+  /// 获取DatabaseInstance。
+  ///
+  /// Get database instance.
+  ///
+  /// - Returns: `ToStore` 结果 / Resulting `ToStore`.
   @internal
   ToStore getDatabaseInstance() => _context.db.toStore;
 
+  /// 执行InDatabase。
+  ///
+  /// Run in database.
+  ///
+  /// - [callback] 回调 / Callback.
+  /// - [arg] arg / Arg.
+  /// - Returns: `Future<R>` 结果 / Resulting `Future<R>`.
   Future<R> runInDatabase<R, A>(
     FutureOr<R> Function(ToStore db, [A? arg]) callback, {
     A? arg,
@@ -292,6 +418,13 @@ class IMManager {
 
   // ---- 登录 / 登出 / 反初始化 ----
 
+  /// 登录。
+  ///
+  /// Login.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [token] 令牌 / Token.
+  /// - Returns: `Future<UserInfo>` 结果 / Resulting `Future<UserInfo>`.
   Future<UserInfo> login({required String userID, required String token}) async {
     _logger.info('login userID=$userID');
     _loginStatus = LoginStatus.logging;
@@ -350,6 +483,14 @@ class IMManager {
     return user;
   }
 
+  /// 登录按邮箱。
+  ///
+  /// Login by email.
+  ///
+  /// - [email] 邮箱 / Email.
+  /// - [password] 密码 / Password.
+  /// - [verificationCode] 验证代码 / Verification code.
+  /// - Returns: `Future<UserInfo>` 结果 / Resulting `Future<UserInfo>`.
   Future<UserInfo> loginByEmail({
     required String email,
     String? password,
@@ -365,6 +506,15 @@ class IMManager {
     return _loginWithChatPayload(body);
   }
 
+  /// 登录按手机号。
+  ///
+  /// Login by phone number.
+  ///
+  /// - [areaCode] 区号代码 / Area code.
+  /// - [phoneNumber] 手机号号码 / Phone number number.
+  /// - [password] 密码 / Password.
+  /// - [verificationCode] 验证代码 / Verification code.
+  /// - Returns: `Future<UserInfo>` 结果 / Resulting `Future<UserInfo>`.
   Future<UserInfo> loginByPhone({
     required String areaCode,
     required String phoneNumber,
@@ -382,6 +532,13 @@ class IMManager {
     return _loginWithChatPayload(body);
   }
 
+  /// 登录按账号。
+  ///
+  /// Login by account.
+  ///
+  /// - [account] 账号 / Account.
+  /// - [password] 密码 / Password.
+  /// - Returns: `Future<UserInfo>` 结果 / Resulting `Future<UserInfo>`.
   Future<UserInfo> loginByAccount({required String account, required String password}) async {
     final Map<String, dynamic> body = <String, dynamic>{
       'account': account,
@@ -429,6 +586,9 @@ class IMManager {
     return userInfo;
   }
 
+  /// 登出。
+  ///
+  /// Logout.
   Future<void> logout() async {
     _logger.info('logout called');
     try {
@@ -476,6 +636,9 @@ class IMManager {
     await _context.clear();
   }
 
+  /// 触发唤醒同步。
+  ///
+  /// Trigger wakeup sync.
   Future<void> triggerWakeupSync() async {
     if (_loginStatus != LoginStatus.logged) {
       return;
@@ -483,11 +646,42 @@ class IMManager {
     await _syncCoordinator?.doWakeupSync();
   }
 
+  /// 获取登录用户ID。
+  ///
+  /// Get login user ID.
+  ///
+  /// - Returns: 字符串结果 / String result.
   String getLoginUserID() => _context.loginUser.userID;
+
+  /// 用户ID。
+  ///
+  /// User ID.
   String get userID => _context.loginUser.userID;
+
+  /// 获取登录用户信息。
+  ///
+  /// Get login user info.
+  ///
+  /// - Returns: `UserInfo` 结果 / Resulting `UserInfo`.
   UserInfo getLoginUserInfo() => _context.loginUser;
+
+  /// 用户信息。
+  ///
+  /// User info.
   UserInfo get userInfo => _context.loginUser;
 
+  /// 上传文件。
+  ///
+  /// Upload file.
+  ///
+  /// - [id] ID / ID.
+  /// - [filePath] 文件路径 / File path.
+  /// - [fileBytes] 文件字节数据 / File bytes.
+  /// - [fileName] 文件名称 / File name.
+  /// - [contentType] 内容类型 / Content type.
+  /// - [cause] cause / Cause.
+  /// - [onProgress] on进度 / On progress.
+  /// - Returns: 字符串结果 / String result.
   Future<String> uploadFile({
     required String id,
     String? filePath,
@@ -509,6 +703,9 @@ class IMManager {
     );
   }
 
+  /// 网络状态Changed。
+  ///
+  /// Network status changed.
   Future<void> networkStatusChanged() async {
     if (!_context.isInitialized) {
       return;
@@ -516,6 +713,11 @@ class IMManager {
     await _context.ws.reconnect();
   }
 
+  /// 设置App后台状态。
+  ///
+  /// Set app background status.
+  ///
+  /// - [isBackground] 是否后台 / Whether background.
   Future<void> setAppBackgroundStatus(bool isBackground) async {
     if (!_context.isInitialized) {
       return;
@@ -523,6 +725,12 @@ class IMManager {
     await _context.ws.setBackground(isBackground);
   }
 
+  /// 更新FCM 推送令牌。
+  ///
+  /// Update FCM push token.
+  ///
+  /// - [fcmToken] FCM 推送令牌 / FCM push token.
+  /// - [expireTime] expire时间戳 / Expire timestamp.
   Future<void> updateFcmToken({required String fcmToken, int expireTime = 0}) async {
     final ApiResponse resp = await _context.apis.objectStorage.fcmUpdateToken(
       platformID: PlatformUtils.platformID,

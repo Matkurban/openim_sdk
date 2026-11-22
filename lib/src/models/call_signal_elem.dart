@@ -12,15 +12,58 @@ import 'package:openim_sdk/src/models/call_record.dart';
 /// 与 [CallRecord] 互转通过 [toCallRecord] / [CallSignalElem.fromCallRecord]，
 /// 这样上层既有依赖 [CallRecord] 的展示逻辑可以零改动复用。
 class CallSignalElem {
+  /// 会话。
+  ///
+  /// Conversation.
   final CallRecordConversation conversation;
+
+  /// 房间ID。
+  ///
+  /// Room ID.
   final String roomId;
+
+  /// 通话类型。
+  ///
+  /// Call type.
   final CallType callType;
+
+  /// 通话房间类型。
+  ///
+  /// Call room type.
   final CallRoomType callRoomType;
+
+  /// 通话信令类型。
+  ///
+  /// Call signaling type.
   final CallSignalType callSignalType;
+
+  /// 发送器用户。
+  ///
+  /// Sender user.
   final CallRecordUser senderUser;
+
+  /// 接收用户。
+  ///
+  /// Receive user.
   final List<CallRecordUser> recvUser;
+
+  /// 时长。
+  ///
+  /// Duration.
   final int? duration;
 
+  /// 创建 `CallSignalElem` 实例。
+  ///
+  /// Creates a `CallSignalElem` instance.
+  ///
+  /// - [conversation] 会话 / Conversation.
+  /// - [roomId] 房间ID / Room ID.
+  /// - [callType] 通话类型 / Call type.
+  /// - [callRoomType] 通话房间类型 / Call room type.
+  /// - [callSignalType] 通话信令类型 / Call signaling type.
+  /// - [senderUser] 发送器用户 / Sender user.
+  /// - [recvUser] 接收用户 / Receive user.
+  /// - [duration] 时长 / Duration.
   const CallSignalElem({
     required this.conversation,
     required this.roomId,
@@ -33,6 +76,9 @@ class CallSignalElem {
   });
 
   /// 由现有 [CallRecord] 构造（迁移期适配）
+  ///
+  /// - [r] r / R.
+  /// - Returns: `CallSignalElem` 结果 / Resulting `CallSignalElem`.
   factory CallSignalElem.fromCallRecord(CallRecord r) => CallSignalElem(
     conversation: r.conversation,
     roomId: r.roomId,
@@ -45,6 +91,8 @@ class CallSignalElem {
   );
 
   /// 转为 [CallRecord]，复用其 [CallRecord.getDisplayText] 等方法
+  ///
+  /// - Returns: `CallRecord` 结果 / Resulting `CallRecord`.
   CallRecord toCallRecord() => CallRecord(
     conversation: conversation,
     roomId: roomId,
@@ -56,6 +104,11 @@ class CallSignalElem {
     duration: duration,
   );
 
+  /// 序列化为 JSON 字典。
+  ///
+  /// Serializes this object to a JSON map.
+  ///
+  /// - Returns: `Map<String, dynamic>` 映射结果 / Resulting `Map<String, dynamic>` map.
   Map<String, dynamic> toJson() => <String, dynamic>{
     'conversation': conversation.toJson(),
     'roomId': roomId,
@@ -67,6 +120,12 @@ class CallSignalElem {
     'duration': duration,
   };
 
+  /// 从 JSON 字典反序列化实例（`CallSignalElem.fromJson`）。
+  ///
+  /// Deserializes an instance from a JSON map (`CallSignalElem.fromJson`).
+  ///
+  /// - [json] JSON / JSON.
+  /// - Returns: `CallSignalElem` 结果 / Resulting `CallSignalElem`.
   factory CallSignalElem.fromJson(Map<String, dynamic> json) => CallSignalElem(
     conversation: CallRecordConversation.fromJson(
       json['conversation'] as Map<String, dynamic>? ?? <String, dynamic>{},

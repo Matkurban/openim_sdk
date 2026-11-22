@@ -11,25 +11,49 @@ import 'sdk_compute_executor_stub.dart'
     as platform_compute;
 
 /// 图片宽高尺寸结果。
+///
+/// Decoded image width and height dimensions.
 class ImageDimensions {
+  /// 图片宽度（像素）。
+  ///
+  /// Image width in pixels.
   final int width;
+
+  /// 图片高度（像素）。
+  ///
+  /// Image height in pixels.
   final int height;
 
+  /// 创建图片尺寸结果对象。
+  ///
+  /// Creates an [ImageDimensions] instance.
+  ///
+  /// - [width] 图片宽度（像素） / Image width in pixels.
+  /// - [height] 图片高度（像素） / Image height in pixels.
   const ImageDimensions({required this.width, required this.height});
 }
 
 /// SDK 纯 CPU / 同步文件计算卸载执行器。
 ///
+/// Pure CPU and synchronous file-I/O compute offloader for the SDK.
+///
 /// 设计原则：
 /// - Native 5 端通过 Dart 原生 `Isolate.run` 按需卸载重计算任务，零第三方并发库依赖；
 /// - 内置 [AsyncSemaphore] 限制最大并发 Isolate 数（默认 2），避免抢占宿主 App 核数；
 /// - Web / WASM 端条件导入内联执行，确保 6 端编译通过；
-/// - 小于 [_offloadThresholdBytes] 的字节哈希直接在当前线程计算，避免跨 Isolate 拷贝开销。
+/// - 小于 256KB 的字节哈希直接在当前线程计算，避免跨 Isolate 拷贝开销。
+/// Offloads heavy CPU/file work via Dart `Isolate.run` on native platforms (capped by
+/// [AsyncSemaphore]) and runs inline on Web/WASM via conditional imports.
 abstract final class SdkComputeExecutor {
   static const int _offloadThresholdBytes = 256 * 1024;
   static final AsyncSemaphore _semaphore = AsyncSemaphore(2);
 
   /// 计算字节数组 MD5（大于 256KB 自动卸载到独立 Isolate）。
+  ///
+  /// Computes the MD5 hex digest of [bytes], automatically offloading payloads >= 256KB.
+  ///
+  /// - [bytes] 输入字节数据 / Input byte buffer.
+  /// - Returns: 32 位小写十六进制 MD5 字符串 / 32-character lowercase hex MD5 string.
   static Future<String> computeMd5(Uint8List bytes) async {
     if (bytes.length < _offloadThresholdBytes) {
       return md5.convert(bytes).toString();
@@ -40,12 +64,26 @@ abstract final class SdkComputeExecutor {
   }
 
   /// 计算多个分片 MD5 的组合哈希。
+  ///
+  /// Computes the combined MD5 digest of comma-joined part MD5 strings.
+  ///
+  /// - [partMd5s] 各分片 MD5 字符串列表 / Ordered list of part MD5 hex digests.
+  /// - Returns: 组合后的 MD5 字符串 / Combined MD5 hex string.
   static Future<String> computeCombinedMd5(List<String> partMd5s) async {
     final String joined = partMd5s.join(',');
     return md5.convert(utf8.encode(joined)).toString();
   }
 
   /// 计算大文件或字节缓冲的所有分片 MD5。
+  ///
+  /// Computes MD5 digests for every part of a file or byte buffer.
+  ///
+  /// - [filePath] 本地文件路径（Native 平台与 [fileBytes] 二选一） / Local file path on native platforms.
+  /// - [fileBytes] 内存字节缓冲（Web 平台必填） / In-memory file bytes (required on Web).
+  /// - [partSize] 单个分片字节大小 / Size of each part in bytes.
+  /// - [partNum] 分片总数 / Total number of parts.
+  /// - [fileSize] 文件总字节大小 / Total file size in bytes.
+  /// - Returns: 按分片顺序排列的 MD5 列表 / Ordered list of per-part MD5 strings.
   static Future<List<String>> computePartMd5s({
     String? filePath,
     Uint8List? fileBytes,
@@ -80,6 +118,13 @@ abstract final class SdkComputeExecutor {
   }
 
   /// 在后台 Isolate 读取本地文件指定字节分片（仅 Native）。
+  ///
+  /// Reads a byte slice from a local file in a background isolate (native platforms only).
+  ///
+  /// - [filePath] 本地文件路径 / Local file path.
+  /// - [start] 起始字节偏移量 / Starting byte offset.
+  /// - [length] 读取字节长度 / Number of bytes to read.
+  /// - Returns: 读取到的分片字节数组 / Read byte slice.
   static Future<Uint8List> readFilePart({
     required String filePath,
     required int start,
@@ -94,6 +139,11 @@ abstract final class SdkComputeExecutor {
   }
 
   /// 从字节头解析图片宽高（支持 PNG / JPEG / GIF / BMP / WebP）。
+  ///
+  /// Decodes image dimensions from raw bytes (supports PNG, JPEG, GIF, BMP, WebP).
+  ///
+  /// - [bytes] 图片原始字节数组 / Raw image byte buffer.
+  /// - Returns: 解析出的 [ImageDimensions]，无法识别时返回 `null` / Decoded [ImageDimensions], or `null` if unrecognized.
   static Future<ImageDimensions?> decodeImageDimensions(Uint8List bytes) async {
     if (bytes.length < _offloadThresholdBytes) {
       return decodeImageDimensionsSync(bytes);
@@ -106,6 +156,11 @@ abstract final class SdkComputeExecutor {
   }
 
   /// 从本地文件头解析图片宽高（仅 Native）。
+  ///
+  /// Decodes image dimensions from a local file header (native platforms only).
+  ///
+  /// - [filePath] 本地图片文件路径 / Local image file path.
+  /// - Returns: 解析出的 [ImageDimensions]，无法识别时返回 `null` / Decoded [ImageDimensions], or `null` if unrecognized.
   static Future<ImageDimensions?> decodeImageDimensionsFromFile(String filePath) async {
     if (kIsWeb) {
       throw UnsupportedError('Web platform does not support decoding image from filePath');
@@ -116,6 +171,11 @@ abstract final class SdkComputeExecutor {
   }
 
   /// 纯 Dart 同步解析图片头宽高（无 `dart:io` 依赖，6 端通用）。
+  ///
+  /// Synchronously parses image header dimensions in pure Dart (works across all 6 platforms).
+  ///
+  /// - [bytes] 图片原始字节数组 / Raw image byte buffer.
+  /// - Returns: 解析出的 [ImageDimensions]，无法识别时返回 `null` / Decoded [ImageDimensions], or `null` if unrecognized.
   static ImageDimensions? decodeImageDimensionsSync(Uint8List bytes) {
     if (bytes.length < 24) {
       return null;

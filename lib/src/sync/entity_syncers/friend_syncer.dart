@@ -8,11 +8,34 @@ import '../../utils/open_im_utils.dart';
 
 /// 好友增量/全量同步器（继承 [BaseSyncer]），供启动同步与好友通知共用。
 final class FriendSyncer extends BaseSyncer {
+  /// 数据库。
+  ///
+  /// Database.
   final DbEngine db;
+
+  /// 好友API。
+  ///
+  /// Friend API.
   final FriendApi friendApi;
+
+  /// on好友信息Changed。
+  ///
+  /// On friend info changed.
   final void Function(FriendInfo info)? onFriendInfoChanged;
+
+  /// on会话Changed。
+  ///
+  /// On conversation changed.
   final void Function(List<ConversationInfo> conversations)? onConversationChanged;
 
+  /// 创建 `FriendSyncer` 实例。
+  ///
+  /// Creates a `FriendSyncer` instance.
+  ///
+  /// - [db] 数据库 / Database.
+  /// - [friendApi] 好友API / Friend API.
+  /// - [onFriendInfoChanged] on好友信息Changed / On friend info changed.
+  /// - [onConversationChanged] on会话Changed / On conversation changed.
   FriendSyncer({
     required this.db,
     required this.friendApi,
@@ -20,9 +43,18 @@ final class FriendSyncer extends BaseSyncer {
     this.onConversationChanged,
   }) : super('FriendSyncer');
 
+  /// 同步数据表名称。
+  ///
+  /// Sync table name.
   @override
   String get syncTableName => 'friends';
 
+  /// 读取本地版本。
+  ///
+  /// Read local version.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - Returns: `Future<({int version, String versionID})>` 结果 / Resulting `Future<({int version, String versionID})>`.
   @override
   Future<({int version, String versionID})> readLocalVersion(String entityID) async {
     final Map<String, dynamic>? row = await db.syncMeta.getVersionSync(syncTableName, entityID);
@@ -32,6 +64,13 @@ final class FriendSyncer extends BaseSyncer {
     );
   }
 
+  /// 保存本地版本。
+  ///
+  /// Save local version.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - [version] 版本 / Version.
+  /// - [versionID] 版本ID / Version ID.
   @override
   Future<void> saveLocalVersion(
     String entityID, {
@@ -47,6 +86,14 @@ final class FriendSyncer extends BaseSyncer {
     );
   }
 
+  /// 拉取增量。
+  ///
+  /// Fetch incremental.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - [version] 版本 / Version.
+  /// - [versionID] 版本ID / Version ID.
+  /// - Returns: `Future<IncrementalSyncResponse?>` 结果 / Resulting `Future<IncrementalSyncResponse?>`.
   @override
   Future<IncrementalSyncResponse?> fetchIncremental({
     required String entityID,
@@ -75,6 +122,14 @@ final class FriendSyncer extends BaseSyncer {
     );
   }
 
+  /// apply增量。
+  ///
+  /// Apply incremental.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
+  /// - [deleteIDs] 删除ID 列表 / Delete i ds.
+  /// - [insertItems] 插入Items / Insert items.
+  /// - [updateItems] 更新Items / Update items.
   @override
   Future<void> applyIncremental({
     required String entityID,
@@ -114,6 +169,11 @@ final class FriendSyncer extends BaseSyncer {
     }
   }
 
+  /// 同步全量。
+  ///
+  /// Sync full.
+  ///
+  /// - [entityID] 实体ID / Entity ID.
   @override
   Future<void> syncFull(String entityID) async {
     final List<FriendInfo> oldFriends = await db.friends.getAllFriends();
@@ -194,6 +254,10 @@ final class FriendSyncer extends BaseSyncer {
   }
 
   /// 同步黑名单列表。
+  ///
+  /// Sync blacklist list.
+  ///
+  /// - [userID] 用户ID / User ID.
   Future<void> syncBlackList(String userID) async {
     final ApiResponse resp = await friendApi.getBlackList(userID: userID);
     if (resp.errCode != 0) {

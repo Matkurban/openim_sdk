@@ -7,8 +7,20 @@ import '../models/application_version_info.dart';
 final class ApplicationManager extends BaseManager<void> {
   final SdkContext _context;
 
+  /// 创建 `ApplicationManager` 实例。
+  ///
+  /// Creates a `ApplicationManager` instance.
+  ///
+  /// - [_context] context / Context.
   ApplicationManager({required this._context}) : super('ApplicationManager');
 
+  /// 获取最新版本。
+  ///
+  /// Get latest version.
+  ///
+  /// - [platform] 平台 / Platform.
+  /// - [currentVersion] current版本 / Current version.
+  /// - Returns: `Future<ApplicationVersionInfo?>` 结果 / Resulting `Future<ApplicationVersionInfo?>`.
   Future<ApplicationVersionInfo?> getLatestVersion({
     required String platform,
     String? currentVersion,

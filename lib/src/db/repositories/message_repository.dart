@@ -20,6 +20,11 @@ import '../db_schema.dart';
 final class MessageRepository extends BaseRepository<Message> {
   String _currentUserID = '';
 
+  /// 创建 `MessageRepository` 实例。
+  ///
+  /// Creates a `MessageRepository` instance.
+  ///
+  /// - [store] 存储 / Store.
   MessageRepository({required super.store})
     : super(
         tableName: DbTableName.localChatLog,
@@ -27,31 +32,92 @@ final class MessageRepository extends BaseRepository<Message> {
         name: 'MessageRepository',
       );
 
+  /// 设置Current用户ID。
+  ///
+  /// Set current user ID.
+  ///
+  /// - [userID] 用户ID / User ID.
   void setCurrentUserID(String userID) {
     _currentUserID = userID;
   }
 
+  /// 从行数据。
+  ///
+  /// From row.
+  ///
+  /// - [row] 行数据 / Row.
+  /// - Returns: `Message` 结果 / Resulting `Message`.
   @override
   Message fromRow(Map<String, dynamic> row) => convertMessage(row);
 
+  /// 插入消息。
+  ///
+  /// Insert message.
+  ///
+  /// - [msgData] 消息数据 / Message data.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> insertMessage(Map<String, dynamic> msgData) => upsertRow(msgData);
 
+  /// 批量插入消息列表。
+  ///
+  /// Batch insert messages.
+  ///
+  /// - [msgList] 消息列表 / Message list.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> batchInsertMessages(List<Map<String, dynamic>> msgList) =>
       batchUpsertRows(msgList);
 
+  /// 获取消息。
+  ///
+  /// Get message.
+  ///
+  /// - [clientMsgID] 客户端消息ID / Client message ID.
+  /// - Returns: `Future<Message?>` 结果 / Resulting `Future<Message?>`.
   Future<Message?> getMessage(String clientMsgID) => findByPrimaryKey(clientMsgID);
 
+  /// 获取消息列表按客户端消息ID 列表。
+  ///
+  /// Get messages by client message i ds.
+  ///
+  /// - [clientMsgIDs] 客户端消息ID 列表 / Client message i ds.
+  /// - Returns: `Future<List<Message>>` 列表结果 / Resulting `Future<List<Message>>` list.
   Future<List<Message>> getMessagesByClientMsgIDs(List<String> clientMsgIDs) =>
       findByPrimaryKeys(clientMsgIDs);
 
+  /// 更新消息状态。
+  ///
+  /// Update message status.
+  ///
+  /// - [clientMsgID] 客户端消息ID / Client message ID.
+  /// - [status] 状态 / Status.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> updateMessageStatus(String clientMsgID, int status) =>
       updateByPrimaryKey(clientMsgID, <String, dynamic>{'status': status});
 
+  /// 更新消息。
+  ///
+  /// Update message.
+  ///
+  /// - [clientMsgID] 客户端消息ID / Client message ID.
+  /// - [data] 数据 / Data.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> updateMessage(String clientMsgID, Map<String, dynamic> data) =>
       updateByPrimaryKey(clientMsgID, data);
 
+  /// 删除消息。
+  ///
+  /// Delete message.
+  ///
+  /// - [clientMsgID] 客户端消息ID / Client message ID.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> deleteMessage(String clientMsgID) => deleteByPrimaryKey(clientMsgID);
 
+  /// 删除会话全部消息列表。
+  ///
+  /// Delete conversation all messages.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> deleteConversationAllMessages(String conversationID) async {
     final DbResult result = await store
         .delete(DbTableName.localChatLog)
@@ -60,6 +126,11 @@ final class MessageRepository extends BaseRepository<Message> {
     return result;
   }
 
+  /// 删除全部消息列表。
+  ///
+  /// Delete all messages.
+  ///
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> deleteAllMessages() async {
     final DbResult result = await store.delete(DbTableName.localChatLog).allowDeleteAll();
     logIfErrors('deleteAllMessages', result);
@@ -67,6 +138,15 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 获取会话历史消息（按发送时间倒序，向更早消息翻页）。
+  ///
+  /// Get history messages.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [startTime] 开始时间戳 / Start timestamp.
+  /// - [startSeq] 开始序列号 / Start sequence number.
+  /// - [startClientMsgID] 开始客户端消息ID / Start client message ID.
+  /// - [count] 数量 / Count.
+  /// - Returns: `Future<List<Message>>` 列表结果 / Resulting `Future<List<Message>>` list.
   Future<List<Message>> getHistoryMessages({
     required String conversationID,
     int startTime = 0,
@@ -133,6 +213,13 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 反向获取历史消息（按发送时间升序，查询 `startMsg` 之后更新的消息，修复 B-08）。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [startTime] 开始时间戳 / Start timestamp.
+  /// - [startSeq] 开始序列号 / Start sequence number.
+  /// - [startClientMsgID] 开始客户端消息ID / Start client message ID.
+  /// - [count] 数量 / Count.
+  /// - Returns: `Future<List<Message>>` 列表结果 / Resulting `Future<List<Message>>` list.
   Future<List<Message>> getHistoryMessagesReverse({
     required String conversationID,
     int startTime = 0,
@@ -175,6 +262,17 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 本地消息搜索：支持多关键词 AND/OR、发送者过滤、时间窗与 BM25 词法检索（修复 B-19）。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [keywords] 关键词列表 / Keywords.
+  /// - [matchAllKeywords] match全部关键词列表 / Match all keywords.
+  /// - [senderUserIDs] 发送器用户ID 列表 / Sender user i ds.
+  /// - [messageTypes] 消息Types / Message types.
+  /// - [startTime] 开始时间戳 / Start timestamp.
+  /// - [endTime] 结束时间戳 / End timestamp.
+  /// - [offset] 偏移量 / Offset.
+  /// - [count] 数量 / Count.
+  /// - Returns: `Future<({List<Message> messages, int totalCount})>` 结果 / Resulting `Future<({List<Message> messages, int totalCount})>`.
   Future<({List<Message> messages, int totalCount})> searchMessages({
     String? conversationID,
     List<String> keywords = const <String>[],
@@ -267,6 +365,10 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 统计某会话的未读消息条数（使用 `whereEqual('isRead', false)` 命中 `idx_chat_conv_read` 索引）。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [hasReadSeq] 是否包含读取序列号 / Whether has read sequence number.
+  /// - Returns: 整数结果 / Integer result.
   Future<int> countUnreadInChatLog(String conversationID, int hasReadSeq) async {
     final QueryResult<Map<String, dynamic>> result = await store
         .query(DbTableName.localChatLog)
@@ -286,6 +388,9 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 获取会话内尚未标记已读的非自己发送消息（供单聊标记会话已读上报 seq）。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - Returns: `Future<List<Message>>` 列表结果 / Resulting `Future<List<Message>>` list.
   Future<List<Message>> getUnreadMessages(String conversationID) async {
     final QueryResult<Map<String, dynamic>> result = await store
         .query(DbTableName.localChatLog)
@@ -301,6 +406,11 @@ final class MessageRepository extends BaseRepository<Message> {
         .toList();
   }
 
+  /// 标记消息为已读。
+  ///
+  /// Mark message as read.
+  ///
+  /// - [clientMsgID] 客户端消息ID / Client message ID.
   Future<void> markMessageAsRead(String clientMsgID) async {
     await updateMessage(clientMsgID, <String, dynamic>{
       'isRead': true,
@@ -308,6 +418,12 @@ final class MessageRepository extends BaseRepository<Message> {
     });
   }
 
+  /// 标记消息列表为已读。
+  ///
+  /// Mark messages as read.
+  ///
+  /// - [clientMsgIDs] 客户端消息ID 列表 / Client message i ds.
+  /// - Returns: 整数结果 / Integer result.
   Future<int> markMessagesAsRead(List<String> clientMsgIDs) async {
     if (clientMsgIDs.isEmpty) {
       return 0;
@@ -320,6 +436,13 @@ final class MessageRepository extends BaseRepository<Message> {
     return clientMsgIDs.length;
   }
 
+  /// 标记消息列表为已读按序列号列表。
+  ///
+  /// Mark messages as read by sequence numbers.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [seqs] 序列号列表 / Sequence numbers.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> markMessagesAsReadBySeqs(String conversationID, List<int> seqs) async {
     if (seqs.isEmpty) {
       return DbResult.success();
@@ -333,6 +456,13 @@ final class MessageRepository extends BaseRepository<Message> {
     return result;
   }
 
+  /// 标记消息列表DeletedBy序列号列表。
+  ///
+  /// Mark messages deleted by sequence numbers.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [seqs] 序列号列表 / Sequence numbers.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> markMessagesDeletedBySeqs(String conversationID, List<int> seqs) async {
     if (seqs.isEmpty) {
       return DbResult.success();
@@ -345,6 +475,13 @@ final class MessageRepository extends BaseRepository<Message> {
     return result;
   }
 
+  /// 获取消息列表按序列号列表。
+  ///
+  /// Get messages by sequence numbers.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [seqs] 序列号列表 / Sequence numbers.
+  /// - Returns: `Future<List<Message>>` 列表结果 / Resulting `Future<List<Message>>` list.
   Future<List<Message>> getMessagesBySeqs(String conversationID, List<int> seqs) async {
     if (seqs.isEmpty) {
       return <Message>[];
@@ -357,6 +494,12 @@ final class MessageRepository extends BaseRepository<Message> {
     return result.data.map<Message>(fromRow).toList();
   }
 
+  /// 获取会话普通消息最大序列号。
+  ///
+  /// Get conversation normal message maximum sequence number.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - Returns: 整数结果 / Integer result.
   Future<int> getConversationNormalMsgMaxSeq(String conversationID) async {
     final QueryResult<Map<String, dynamic>> result = await store
         .query(DbTableName.localChatLog)
@@ -370,6 +513,12 @@ final class MessageRepository extends BaseRepository<Message> {
     return (result.data.first['seq'] as num?)?.toInt() ?? 0;
   }
 
+  /// 获取全部会话普通消息最大序列号列表。
+  ///
+  /// Get all conversation normal message maximum sequence numbers.
+  ///
+  /// - [conversationIDs] 会话ID 列表 / Conversation i ds.
+  /// - Returns: `Future<Map<String, int>>` 映射结果 / Resulting `Future<Map<String, int>>` map.
   Future<Map<String, int>> getAllConversationNormalMsgMaxSeqs(List<String> conversationIDs) async {
     if (conversationIDs.isEmpty) {
       return <String, int>{};
@@ -413,6 +562,14 @@ final class MessageRepository extends BaseRepository<Message> {
     }
   }
 
+  /// 更新单聊聊天消息发送器信息。
+  ///
+  /// Update single chat message sender info.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [senderNickname] 发送器昵称 / Sender nickname.
+  /// - [senderFaceUrl] 发送器头像URL 地址 / Sender avatar URL.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> updateSingleChatMessageSenderInfo(
     String userID, {
     required String senderNickname,
@@ -430,6 +587,14 @@ final class MessageRepository extends BaseRepository<Message> {
     return result;
   }
 
+  /// 更新全部消息发送器信息。
+  ///
+  /// Update all message sender info.
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [senderNickname] 发送器昵称 / Sender nickname.
+  /// - [senderFaceUrl] 发送器头像URL 地址 / Sender avatar URL.
+  /// - Returns: `Future<DbResult>` 结果 / Resulting `Future<DbResult>`.
   Future<DbResult> updateAllMessageSenderInfo(
     String userID, {
     required String senderNickname,
@@ -447,6 +612,10 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 将 [Message] 转换为数据库行 Map（可选直接注入 `conversationID`，修复 B-26）。
+  ///
+  /// - [msg] 消息 / Message.
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - Returns: `Map<String, dynamic>` 映射结果 / Resulting `Map<String, dynamic>` map.
   static Map<String, dynamic> messageToDbMap(Message msg, {String? conversationID}) {
     final String? content = encodeMessageContent(msg);
     return <String, dynamic>{
@@ -478,6 +647,9 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 提取并序列化消息的 Elem JSON 字符串。
+  ///
+  /// - [msg] 消息 / Message.
+  /// - Returns: 字符串结果（可为 `null`） / String result, or `null`.
   static String? encodeMessageContent(Message msg) {
     if (msg.textElem != null) return jsonEncode(msg.textElem!.toJson());
     if (msg.pictureElem != null) return jsonEncode(msg.pictureElem!.toJson());
@@ -509,6 +681,9 @@ final class MessageRepository extends BaseRepository<Message> {
   }
 
   /// 规范化服务端原始消息 Map，将 `content` JSON 解包为对应 `*Elem` 键。
+  ///
+  /// - [msg] 消息 / Message.
+  /// - Returns: `Map<String, dynamic>` 映射结果 / Resulting `Map<String, dynamic>` map.
   static Map<String, dynamic> normalizeRawMsg(Map<String, dynamic> msg) {
     final int ct = (msg['contentType'] as num?)?.toInt() ?? 0;
     final String? elemKey = _contentTypeToElemKey(ct);

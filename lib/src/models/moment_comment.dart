@@ -3,7 +3,23 @@ import 'package:equatable/equatable.dart';
 import 'moment_user_info.dart';
 
 /// 朋友圈评论记录
+///
+/// Moment comment with updated fields user.
 class MomentCommentWithUser extends Equatable {
+  /// 创建 `MomentCommentWithUser` 实例。
+  ///
+  /// Creates a `MomentCommentWithUser` instance.
+  ///
+  /// - [commentID] 评论ID / Comment ID.
+  /// - [momentID] 朋友圈动态ID / Moment ID.
+  /// - [userID] 用户ID / User ID.
+  /// - [replyToUserID] 回复转为用户ID / Reply to user ID.
+  /// - [content] 内容 / Content.
+  /// - [status] 状态 / Status.
+  /// - [createTime] 创建时间戳 / Create timestamp.
+  /// - [updateTime] 更新时间戳 / Update timestamp.
+  /// - [userInfo] 用户信息 / User info.
+  /// - [replyToUser] 回复转为用户 / Reply to user.
   const MomentCommentWithUser({
     required this.commentID,
     required this.momentID,
@@ -17,17 +33,62 @@ class MomentCommentWithUser extends Equatable {
     this.replyToUser,
   });
 
+  /// 评论ID。
+  ///
+  /// Comment ID.
   final String commentID;
+
+  /// 朋友圈动态ID。
+  ///
+  /// Moment ID.
   final String momentID;
+
+  /// 用户ID。
+  ///
+  /// User ID.
   final String userID;
+
+  /// 回复转为用户ID。
+  ///
+  /// Reply to user ID.
   final String replyToUserID;
+
+  /// 内容。
+  ///
+  /// Content.
   final String content;
+
+  /// 状态。
+  ///
+  /// Status.
   final int status;
+
+  /// 创建时间戳。
+  ///
+  /// Create timestamp.
   final String createTime;
+
+  /// 更新时间戳。
+  ///
+  /// Update timestamp.
   final String updateTime;
+
+  /// 用户信息。
+  ///
+  /// User info.
   final MomentUserInfo? userInfo;
+
+  /// 回复转为用户。
+  ///
+  /// Reply to user.
   final MomentUserInfo? replyToUser;
 
+  /// 从 JSON 字典反序列化实例（`MomentCommentWithUser.fromJson`）。
+  ///
+  /// Deserializes an instance from a JSON map (`MomentCommentWithUser.fromJson`).
+  ///
+  /// - [json] JSON / JSON.
+  /// - Returns: `MomentCommentWithUser` 结果 / Resulting `MomentCommentWithUser`.
   factory MomentCommentWithUser.fromJson(Map<String, dynamic> json) {
     return MomentCommentWithUser(
       commentID: json['commentID']?.toString() ?? '',
@@ -47,6 +108,11 @@ class MomentCommentWithUser extends Equatable {
     );
   }
 
+  /// 序列化为 JSON 字典。
+  ///
+  /// Serializes this object to a JSON map.
+  ///
+  /// - Returns: `Map<String, dynamic>` 映射结果 / Resulting `Map<String, dynamic>` map.
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'commentID': commentID,
@@ -62,6 +128,9 @@ class MomentCommentWithUser extends Equatable {
     };
   }
 
+  /// 用于 Equatable 相等性比较的属性列表。
+  ///
+  /// Properties used by Equatable for value equality.
   @override
   List<Object?> get props => <Object?>[
     commentID,

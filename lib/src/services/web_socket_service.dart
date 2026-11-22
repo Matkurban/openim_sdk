@@ -25,10 +25,28 @@ import 'web_socket_js_interop_stub.dart'
 class WebSocketService {
   final Logger _logger = Logger('openim_sdk.WebSocketService');
 
+  /// WebSocketURL 地址。
+  ///
+  /// WebSocket URL.
   final String wsUrl;
+
+  /// 平台ID。
+  ///
+  /// Platform ID.
   final int platformID;
+
+  /// 连接监听器。
+  ///
+  /// Connect listener.
   final OnConnectListener connectListener;
 
+  /// 创建 `WebSocketService` 实例。
+  ///
+  /// Creates a `WebSocketService` instance.
+  ///
+  /// - [wsUrl] WebSocketURL 地址 / WebSocket URL.
+  /// - [platformID] 平台ID / Platform ID.
+  /// - [connectListener] 连接监听器 / Connect listener.
   WebSocketService({required this.wsUrl, required this.platformID, required this.connectListener});
 
   String _userID = '';
@@ -61,15 +79,36 @@ class WebSocketService {
       <String, Completer<WebSocketResponse>>{};
   static const Duration _requestTimeout = Duration(seconds: 10);
 
+  /// on推送消息。
+  ///
+  /// On push message.
   void Function(WebSocketResponse response)? onPushMsg;
+
+  /// onConnected。
+  ///
+  /// On connected.
   void Function()? onConnected;
+
+  /// on用户在线状态Changed。
+  ///
+  /// On user online status changed.
   void Function(WebSocketResponse response)? onUserOnlineStatusChanged;
 
+  /// conn状态。
+  ///
+  /// Conn status.
   WebSocketStatus get connStatus => _connStatus;
 
+  /// 是否Connected。
+  ///
+  /// Whether connected.
   bool get isConnected => _connStatus == WebSocketStatus.connected;
 
   /// 建立 WebSocket 长连接。
+  ///
+  /// - [userID] 用户ID / User ID.
+  /// - [token] 令牌 / Token.
+  /// - [compression] 压缩 / Compression.
   Future<void> connect({
     required String userID,
     required String token,
@@ -87,6 +126,8 @@ class WebSocketService {
   }
 
   /// 主动断开连接并清理所有回调与定时器。
+  ///
+  /// Disconnect.
   Future<void> disconnect() async {
     _logger.info('disconnect called');
     _userDisconnected = true;
@@ -101,6 +142,8 @@ class WebSocketService {
   }
 
   /// 上报前后台状态到服务端（对齐 `connection.rs:set_background`，修复 B-13）。
+  ///
+  /// - [isBackground] 是否后台 / Whether background.
   Future<void> setBackground(bool isBackground) async {
     _logger.fine('setBackground=$isBackground');
     _isBackground = isBackground;
@@ -121,6 +164,8 @@ class WebSocketService {
   }
 
   /// 网络状态变化时强制断开旧连接并立即触发重连。
+  ///
+  /// Reconnect.
   Future<void> reconnect() async {
     _logger.info('reconnect called');
     if (_userDisconnected) {
@@ -137,6 +182,12 @@ class WebSocketService {
   }
 
   /// 发送二进制协议请求并等待匹配的响应。
+  ///
+  /// Send request wait response.
+  ///
+  /// - [reqIdentifier] 请求参数标识符 / Request identifier.
+  /// - [data] 数据 / Data.
+  /// - Returns: `Future<WebSocketResponse>` 结果 / Resulting `Future<WebSocketResponse>`.
   Future<WebSocketResponse> sendRequestWaitResponse({
     required int reqIdentifier,
     Uint8List? data,

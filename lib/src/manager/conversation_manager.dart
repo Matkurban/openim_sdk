@@ -36,15 +36,36 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
   final TypingStateTracker _typingTracker;
   final KeyedAsyncLock _markReadLock = KeyedAsyncLock();
 
+  /// 创建 `ConversationManager` 实例。
+  ///
+  /// Creates a `ConversationManager` instance.
+  ///
+  /// - [_context] context / Context.
+  /// - [_typingTracker] 正在输入追踪器 / Typing tracker.
   ConversationManager({required this._context, required this._typingTracker})
     : super('ConversationManager');
 
+  /// 设置会话监听器。
+  ///
+  /// Set conversation listener.
+  ///
+  /// - [listener] 监听器 / Listener.
   void setConversationListener(OnConversationListener listener) {
     setPrimaryListener(listener);
   }
 
+  /// @提及全部标签。
+  ///
+  /// @-mention all tag.
   String get atAllTag => 'AtAllTag';
 
+  /// 获取会话IDBy会话类型。
+  ///
+  /// Get conversation ID by session type.
+  ///
+  /// - [sourceID] 来源ID / Source ID.
+  /// - [sessionType] 会话类型 / Session type.
+  /// - Returns: 字符串结果 / String result.
   String getConversationIDBySessionType({required String sourceID, required int sessionType}) {
     if (sessionType == ConversationType.single.value) {
       return OpenImUtils.genSingleConversationID(currentUserID, sourceID);
@@ -55,6 +76,11 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     return OpenImUtils.genNotificationConversationID(currentUserID, sourceID);
   }
 
+  /// 获取全部会话列表。
+  ///
+  /// Get all conversation list.
+  ///
+  /// - Returns: `Future<List<ConversationInfo>>` 列表结果 / Resulting `Future<List<ConversationInfo>>` list.
   Future<List<ConversationInfo>> getAllConversationList() async {
     try {
       return await _context.db.conversations.getVisibleConversations();
@@ -64,10 +90,24 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     }
   }
 
+  /// 获取会话列表分页。
+  ///
+  /// Get conversation list paginated.
+  ///
+  /// - [offset] 偏移量 / Offset.
+  /// - [count] 数量 / Count.
+  /// - Returns: `Future<List<ConversationInfo>>` 列表结果 / Resulting `Future<List<ConversationInfo>>` list.
   Future<List<ConversationInfo>> getConversationListSplit({int offset = 0, int count = 20}) {
     return _context.db.conversations.getConversationsPage(offset, count);
   }
 
+  /// 获取单个会话。
+  ///
+  /// Get single conversation.
+  ///
+  /// - [sourceID] 来源ID / Source ID.
+  /// - [sessionType] 会话类型 / Session type.
+  /// - Returns: `Future<ConversationInfo>` 结果 / Resulting `Future<ConversationInfo>`.
   Future<ConversationInfo> getOneConversation({
     required String sourceID,
     required int sessionType,
@@ -129,21 +169,42 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     return created;
   }
 
+  /// 获取多个会话。
+  ///
+  /// Get multiple conversation.
+  ///
+  /// - [conversationIDList] 会话ID列表 / Conversation ID list.
+  /// - Returns: `Future<List<ConversationInfo>>` 列表结果 / Resulting `Future<List<ConversationInfo>>` list.
   Future<List<ConversationInfo>> getMultipleConversation({
     required List<String> conversationIDList,
   }) {
     return _context.db.conversations.getMultipleConversations(conversationIDList);
   }
 
+  /// 搜索会话列表。
+  ///
+  /// Search conversations.
+  ///
+  /// - [name] 名称 / Name.
+  /// - Returns: `Future<List<ConversationInfo>>` 列表结果 / Resulting `Future<List<ConversationInfo>>` list.
   Future<List<ConversationInfo>> searchConversations(String name) {
     return _context.db.conversations.searchConversations(name);
   }
 
+  /// 简单排序。
+  ///
+  /// Simple sort.
+  ///
+  /// - [list] 列表 / List.
+  /// - Returns: `List<ConversationInfo>` 列表结果 / Resulting `List<ConversationInfo>` list.
   List<ConversationInfo> simpleSort(List<ConversationInfo> list) {
     return ConversationRepository.sortConversations(list);
   }
 
   /// 设置会话属性（修复 B-04：使用 OpenIM 服务端标准的嵌套 `userIDs` + `conversation` 请求体）。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [req] 请求参数 / Request.
   Future<void> setConversation({
     required String conversationID,
     required ConversationReq req,
@@ -180,6 +241,12 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     await _notifyConversationChanged(<String>[conversationID]);
   }
 
+  /// 置顶会话。
+  ///
+  /// Pin conversation.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [isPinned] 是否已置顶 / Whether pinned.
   Future<void> pinConversation({required String conversationID, required bool isPinned}) {
     return setConversation(
       conversationID: conversationID,
@@ -187,11 +254,19 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     );
   }
 
+  /// 隐藏会话。
+  ///
+  /// Hide conversation.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
   Future<void> hideConversation({required String conversationID}) async {
     await _context.db.conversations.resetConversation(conversationID);
     await _notifyConversationChanged(<String>[conversationID]);
   }
 
+  /// 隐藏全部会话列表。
+  ///
+  /// Hide all conversations.
   Future<void> hideAllConversations() async {
     await _context.db.conversations.resetAllConversations();
     final List<ConversationInfo> allConvs = await _context.db.conversations
@@ -201,6 +276,12 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     listener?.totalUnreadMessageCountChanged(total);
   }
 
+  /// 设置会话草稿。
+  ///
+  /// Set conversation draft.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [draftText] 草稿文本 / Draft text.
   Future<void> setConversationDraft({
     required String conversationID,
     required String draftText,
@@ -209,9 +290,16 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     await _notifyConversationChanged(<String>[conversationID]);
   }
 
+  /// 获取总计未读消息数量。
+  ///
+  /// Get total unread message count.
+  ///
+  /// - Returns: 整数结果 / Integer result.
   Future<int> getTotalUnreadMsgCount() => _context.db.conversations.getTotalUnreadCount();
 
   /// 标记会话已读（修复 B-18：检查 `hasReadSeq < maxSeq`，单聊同步标记消息 `isRead = true`）。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
   Future<void> markConversationMessageAsRead({required String conversationID}) {
     return _markReadLock.synchronized<void>(conversationID, () async {
       final ConversationInfo? conv = await _context.db.conversations.getConversation(
@@ -273,6 +361,9 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     });
   }
 
+  /// 标记全部会话消息为已读。
+  ///
+  /// Mark all conversation message as read.
   Future<void> markAllConversationMessageAsRead() async {
     final List<ConversationInfo> allConvs = await _context.db.conversations.getAllConversations();
     final List<ConversationInfo> unreadConvs = allConvs
@@ -288,6 +379,12 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     await _emitTotalUnread();
   }
 
+  /// 标记消息列表为已读按消息ID。
+  ///
+  /// Mark messages as read by message ID.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [clientMsgIDs] 客户端消息ID 列表 / Client message i ds.
   Future<void> markMessagesAsReadByMsgID({
     required String conversationID,
     required List<String> clientMsgIDs,
@@ -324,10 +421,20 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
     await _notifyConversationChanged(<String>[conversationID]);
   }
 
+  /// 删除会话并删除全部消息。
+  ///
+  /// Delete conversation and delete all message.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
   Future<void> deleteConversationAndDeleteAllMsg({required String conversationID}) async {
     await _clearOrDeleteConversation(conversationID: conversationID, resetTimestamp: true);
   }
 
+  /// 清空会话并删除全部消息。
+  ///
+  /// Clear conversation and delete all message.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
   Future<void> clearConversationAndDeleteAllMsg({required String conversationID}) async {
     await _clearOrDeleteConversation(conversationID: conversationID, resetTimestamp: false);
   }
@@ -372,6 +479,9 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
   }
 
   /// 发送正在输入状态（修复 B-03：严格使用 Protobuf `sdkws.MsgData` 编码）。
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [focus] 是否正在输入 / Whether typing focus is active.
   Future<void> changeInputStates({required String conversationID, required bool focus}) async {
     final ConversationInfo? conv = await _context.db.conversations.getConversation(conversationID);
     if (conv == null) {
@@ -409,6 +519,12 @@ final class ConversationManager extends BaseManager<OnConversationListener> {
   }
 
   /// 获取对端活跃输入平台列表（修复 B-03）。
+  ///
+  /// Get input states.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - [userID] 用户ID / User ID.
+  /// - Returns: `Future<List<int>?>` 列表结果 / Resulting `Future<List<int>?>` list.
   Future<List<int>?> getInputStates(String conversationID, String userID) async {
     return _typingTracker.getActivePlatforms(conversationID, userID);
   }

@@ -10,8 +10,22 @@ import '../models/report_info.dart';
 final class ReportAppealManager extends BaseManager<void> {
   final SdkContext _context;
 
+  /// 创建 `ReportAppealManager` 实例。
+  ///
+  /// Creates a `ReportAppealManager` instance.
+  ///
+  /// - [_context] context / Context.
   ReportAppealManager({required this._context}) : super('ReportAppealManager');
 
+  /// 举报用户。
+  ///
+  /// Report user.
+  ///
+  /// - [targetUserID] 目标用户ID / Target user ID.
+  /// - [category] 分类 / Category.
+  /// - [description] 描述 / Description.
+  /// - [evidenceUrls] 举证材料URL 列表 / Evidence URLs.
+  /// - Returns: `Future<CreateReportResp?>` 结果 / Resulting `Future<CreateReportResp?>`.
   Future<CreateReportResp?> reportUser({
     required String targetUserID,
     required String category,
@@ -27,6 +41,15 @@ final class ReportAppealManager extends BaseManager<void> {
     );
   }
 
+  /// 举报群组。
+  ///
+  /// Report group.
+  ///
+  /// - [targetGroupID] 目标群组ID / Target group ID.
+  /// - [category] 分类 / Category.
+  /// - [description] 描述 / Description.
+  /// - [evidenceUrls] 举证材料URL 列表 / Evidence URLs.
+  /// - Returns: `Future<CreateReportResp?>` 结果 / Resulting `Future<CreateReportResp?>`.
   Future<CreateReportResp?> reportGroup({
     required String targetGroupID,
     required String category,
@@ -42,6 +65,16 @@ final class ReportAppealManager extends BaseManager<void> {
     );
   }
 
+  /// 举报消息。
+  ///
+  /// Report message.
+  ///
+  /// - [targetUserID] 目标用户ID / Target user ID.
+  /// - [messageID] 消息ID / Message ID.
+  /// - [category] 分类 / Category.
+  /// - [description] 描述 / Description.
+  /// - [evidenceUrls] 举证材料URL 列表 / Evidence URLs.
+  /// - Returns: `Future<CreateReportResp?>` 结果 / Resulting `Future<CreateReportResp?>`.
   Future<CreateReportResp?> reportMessage({
     required String targetUserID,
     required String messageID,
@@ -85,6 +118,11 @@ final class ReportAppealManager extends BaseManager<void> {
     return null;
   }
 
+  /// 获取申诉验证码。
+  ///
+  /// Get appeal verification code.
+  ///
+  /// - Returns: `Future<AppealCaptcha?>` 结果 / Resulting `Future<AppealCaptcha?>`.
   Future<AppealCaptcha?> getAppealCaptcha() async {
     final ApiResponse resp = await _context.apis.governance.requestAppealCaptcha();
     if (resp.errCode != 0) {
@@ -97,6 +135,17 @@ final class ReportAppealManager extends BaseManager<void> {
     return null;
   }
 
+  /// submit申诉。
+  ///
+  /// Submit appeal.
+  ///
+  /// - [account] 账号 / Account.
+  /// - [reason] 原因 / Reason.
+  /// - [description] 描述 / Description.
+  /// - [contact] contact / Contact.
+  /// - [captchaID] 验证码ID / Verification code ID.
+  /// - [captchaAnswer] 验证码Answer / Verification code answer.
+  /// - Returns: `Future<CreateAppealResp?>` 结果 / Resulting `Future<CreateAppealResp?>`.
   Future<CreateAppealResp?> submitAppeal({
     required String account,
     required String reason,
@@ -123,6 +172,15 @@ final class ReportAppealManager extends BaseManager<void> {
     return null;
   }
 
+  /// 上传申诉举证材料。
+  ///
+  /// Upload appeal evidence.
+  ///
+  /// - [appealToken] 申诉令牌 / Appeal token.
+  /// - [filePath] 文件路径 / File path.
+  /// - [fileBytes] 文件字节数据 / File bytes.
+  /// - [fileName] 文件名称 / File name.
+  /// - Returns: `Future<AppealUploadResp?>` 结果 / Resulting `Future<AppealUploadResp?>`.
   Future<AppealUploadResp?> uploadAppealEvidence({
     required String appealToken,
     String? filePath,

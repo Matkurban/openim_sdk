@@ -1,11 +1,14 @@
+/// OpenIM 纯 Dart 跨平台即时通讯 SDK 统一公开导出入口。
+///
+/// Unified public library entry point for the cross-platform pure-Dart OpenIM SDK.
 library;
 
 export 'src/open_im.dart';
 
-/// Core Base Classes
+/// 核心抽象基类 / Core Base Classes
 export 'src/core/base_manager.dart';
 
-/// Managers
+/// 业务管理器 / Managers
 export 'src/manager/im_manager.dart';
 export 'src/manager/conversation_manager.dart';
 export 'src/manager/group_manager.dart';
@@ -19,13 +22,13 @@ export 'src/manager/red_packet_manager.dart';
 export 'src/manager/report_appeal_manager.dart';
 export 'src/manager/application_manager.dart';
 
-/// Concurrency Utilities
+/// 并发原语与计算卸载 / Concurrency Utilities
 export 'src/concurrency/async_semaphore.dart';
 export 'src/concurrency/keyed_async_lock.dart';
 export 'src/concurrency/sdk_compute_executor.dart';
 export 'src/concurrency/serial_task_queue.dart';
 
-/// Listeners
+/// 事件监听器 / Listeners
 export 'src/listener/advanced_msg_listener.dart';
 export 'src/listener/connect_listener.dart';
 export 'src/listener/conversation_listener.dart';
@@ -41,7 +44,7 @@ export 'src/listener/favorite_listener.dart';
 export 'src/listener/call_listener.dart';
 export 'src/listener/red_packet_listener.dart';
 
-/// Models
+/// 数据模型 / Models
 export 'src/models/api_response.dart';
 export 'src/models/conversation_info.dart';
 export 'src/models/group_info.dart';
@@ -78,7 +81,7 @@ export 'src/models/call_signal_elem.dart';
 export 'src/models/red_packet_elem.dart';
 export 'src/models/red_packet_grab_notify_elem.dart';
 
-/// Enums
+/// 枚举定义 / Enums
 export 'src/enums/allow_type.dart';
 export 'src/enums/conversation_type.dart';
 export 'src/enums/group_at_type.dart';
@@ -101,7 +104,7 @@ export 'src/enums/call_type.dart';
 export 'src/enums/call_signal_type.dart';
 export 'src/enums/call_room_type.dart';
 
-/// Utils & Third-party re-exports
+/// 工具类与第三方再导出 / Utils & Third-party Re-exports
 export 'src/utils/open_im_utils.dart';
 export 'package:logging/logging.dart' show Level, LogRecord;
 export 'package:tostore/tostore.dart' hide LogRecord;
