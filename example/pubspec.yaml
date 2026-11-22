@@ -1,6 +1,6 @@
 name: openim_sdk_example
 description: "Full-featured WeChat-style cross-platform IM example for OpenIM SDK."
-publish_to: 'none'
+publish_to: "none"
 version: 1.0.0+1
 
 environment:
@@ -12,13 +12,13 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: any
-  material_ui: ^1.1.0
-  cupertino_icons: ^1.0.8
+  material_ui: ^1.11.1
+  cupertino_icons: ^2.0.0
 
   # Core IM SDK, HTTP, Event Bus & Logging
   openim_sdk:
     path: ../
-  dio: ^5.7.0
+  dio: ^5.11.1
   rxdart: ^0.28.0
   logging: ^1.3.0
 
