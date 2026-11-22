@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -19,8 +20,10 @@ class AddContactPage extends StatefulWidget {
 
 class _AddContactPageState extends State<AddContactPage> {
   final TextEditingController _keywordController = TextEditingController();
-  List<UserFullInfo> _results = <UserFullInfo>[];
-  bool _searching = false;
+  late final Signal<List<UserFullInfo>> _results = signal<List<UserFullInfo>>(
+    <UserFullInfo>[],
+  );
+  late final Signal<bool> _searching = signal<bool>(false);
 
   @override
   void dispose() {
@@ -33,16 +36,12 @@ class _AddContactPageState extends State<AddContactPage> {
     if (kw.isEmpty) {
       return;
     }
-    setState(() {
-      _searching = true;
-    });
+    _searching.value = true;
     try {
       final List<UserFullInfo> list = await OpenIM.iMManager.userManager
           .searchUserFullInfo(kw);
       if (mounted) {
-        setState(() {
-          _results = list;
-        });
+        _results.value = list;
       }
       if (list.isEmpty) {
         await FlutterToastPro.info('未找到匹配的用户，可直接输入用户 ID 查看资料');
@@ -51,9 +50,7 @@ class _AddContactPageState extends State<AddContactPage> {
       await FlutterToastPro.error('搜索失败：$error');
     } finally {
       if (mounted) {
-        setState(() {
-          _searching = false;
-        });
+        _searching.value = false;
       }
     }
   }
@@ -63,68 +60,74 @@ class _AddContactPageState extends State<AddContactPage> {
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('添加联系人')),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: <Widget>[
-                Expanded(
-                  child: TextField(
-                    controller: _keywordController,
-                    onSubmitted: (String _) => _search(),
-                    decoration: const InputDecoration(
-                      hintText: '输入用户 ID / 账号 / 邮箱 / 昵称',
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                FilledButton(
-                  onPressed: _searching ? null : _search,
-                  child: const Text('搜索'),
-                ),
-              ],
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.qr_code_scanner),
-            title: const Text('扫一扫'),
-            subtitle: const Text('扫描二维码名片加好友或进群'),
-            onTap: () => router.pushNamed(AppRoutes.scanner),
-          ),
-          ListTile(
-            leading: const Icon(Icons.qr_code_2),
-            title: const Text('我的二维码'),
-            subtitle: Text('我的用户 ID：${OpenIM.iMManager.userID}'),
-            onTap: () => router.pushNamed(AppRoutes.myQr),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: _searching
-                ? const Center(child: CircularProgressIndicator())
-                : ListView.separated(
-                    itemCount: _results.length,
-                    separatorBuilder: (BuildContext _, int _) =>
-                        const Divider(height: 1, indent: 68),
-                    itemBuilder: (BuildContext _, int index) {
-                      final UserFullInfo user = _results[index];
-                      final String uid = user.userID;
-                      return ListTile(
-                        leading: CachedAvatar(
-                          imageUrl: user.faceURL,
-                          fallbackName: user.nickname ?? uid,
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final bool searching = _searching.value;
+          final List<UserFullInfo> results = _results.value;
+          return Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: TextField(
+                        controller: _keywordController,
+                        onSubmitted: (String _) => _search(),
+                        decoration: const InputDecoration(
+                          hintText: '输入用户 ID / 账号 / 邮箱 / 昵称',
+                          prefixIcon: Icon(Icons.search),
                         ),
-                        title: Text(user.nickname ?? uid),
-                        subtitle: Text('ID: $uid'),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () =>
-                            router.pushNamed(AppRoutes.contactProfile(uid)),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    FilledButton(
+                      onPressed: searching ? null : _search,
+                      child: const Text('搜索'),
+                    ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.qr_code_scanner),
+                title: const Text('扫一扫'),
+                subtitle: const Text('扫描二维码名片加好友或进群'),
+                onTap: () => router.pushNamed(AppRoutes.scanner),
+              ),
+              ListTile(
+                leading: const Icon(Icons.qr_code_2),
+                title: const Text('我的二维码'),
+                subtitle: Text('我的用户 ID：${OpenIM.iMManager.userID}'),
+                onTap: () => router.pushNamed(AppRoutes.myQr),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: searching
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.separated(
+                        itemCount: results.length,
+                        separatorBuilder: (BuildContext _, int _) =>
+                            const Divider(height: 1, indent: 68),
+                        itemBuilder: (BuildContext _, int index) {
+                          final UserFullInfo user = results[index];
+                          final String uid = user.userID;
+                          return ListTile(
+                            leading: CachedAvatar(
+                              imageUrl: user.faceURL,
+                              fallbackName: user.nickname ?? uid,
+                            ),
+                            title: Text(user.nickname ?? uid),
+                            subtitle: Text('ID: $uid'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () =>
+                                router.pushNamed(AppRoutes.contactProfile(uid)),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

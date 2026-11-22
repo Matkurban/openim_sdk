@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -18,11 +19,16 @@ class GlobalSearchPage extends StatefulWidget {
 
 class _GlobalSearchPageState extends State<GlobalSearchPage> {
   final TextEditingController _keywordController = TextEditingController();
-  List<SearchFriendsInfo> _friends = <SearchFriendsInfo>[];
-  List<GroupInfo> _groups = <GroupInfo>[];
-  List<ConversationInfo> _conversations = <ConversationInfo>[];
-  List<SearchResultItems> _messageGroups = <SearchResultItems>[];
-  bool _searching = false;
+  late final Signal<List<SearchFriendsInfo>> _friends =
+      signal<List<SearchFriendsInfo>>(<SearchFriendsInfo>[]);
+  late final Signal<List<GroupInfo>> _groups = signal<List<GroupInfo>>(
+    <GroupInfo>[],
+  );
+  late final Signal<List<ConversationInfo>> _conversations =
+      signal<List<ConversationInfo>>(<ConversationInfo>[]);
+  late final Signal<List<SearchResultItems>> _messageGroups =
+      signal<List<SearchResultItems>>(<SearchResultItems>[]);
+  late final Signal<bool> _searching = signal<bool>(false);
 
   @override
   void dispose() {
@@ -33,17 +39,15 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
   Future<void> _search(String raw) async {
     final String keyword = raw.trim();
     if (keyword.isEmpty) {
-      setState(() {
-        _friends = <SearchFriendsInfo>[];
-        _groups = <GroupInfo>[];
-        _conversations = <ConversationInfo>[];
-        _messageGroups = <SearchResultItems>[];
+      batch(() {
+        _friends.value = <SearchFriendsInfo>[];
+        _groups.value = <GroupInfo>[];
+        _conversations.value = <ConversationInfo>[];
+        _messageGroups.value = <SearchResultItems>[];
       });
       return;
     }
-    setState(() {
-      _searching = true;
-    });
+    _searching.value = true;
     try {
       final List<SearchFriendsInfo> friends = await OpenIM
           .iMManager
@@ -67,18 +71,17 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
       final SearchResult msgResult = await OpenIM.iMManager.messageManager
           .searchLocalMessages(keywordList: <String>[keyword]);
       if (mounted) {
-        setState(() {
-          _friends = friends;
-          _groups = groups;
-          _conversations = convs;
-          _messageGroups = msgResult.searchResultItems ?? <SearchResultItems>[];
+        batch(() {
+          _friends.value = friends;
+          _groups.value = groups;
+          _conversations.value = convs;
+          _messageGroups.value =
+              msgResult.searchResultItems ?? <SearchResultItems>[];
         });
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _searching = false;
-        });
+        _searching.value = false;
       }
     }
   }
@@ -98,87 +101,96 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
           ),
         ),
       ),
-      body: _searching
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: <Widget>[
-                if (_friends.isNotEmpty) ...<Widget>[
-                  const _SearchSectionHeader(title: '联系人'),
-                  for (final SearchFriendsInfo friend in _friends)
-                    ListTile(
-                      leading: CachedAvatar(
-                        imageUrl: friend.faceURL,
-                        fallbackName: friend.getShowName(),
-                      ),
-                      title: Text(friend.getShowName()),
-                      subtitle: Text(friend.friendUserID ?? ''),
-                      onTap: () => router.pushNamed(
-                        AppRoutes.contactProfile(friend.friendUserID ?? ''),
-                      ),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_searching.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final List<SearchFriendsInfo> friends = _friends.value;
+          final List<GroupInfo> groups = _groups.value;
+          final List<ConversationInfo> conversations = _conversations.value;
+          final List<SearchResultItems> messageGroups = _messageGroups.value;
+          return ListView(
+            children: <Widget>[
+              if (friends.isNotEmpty) ...<Widget>[
+                const _SearchSectionHeader(title: '联系人'),
+                for (final SearchFriendsInfo friend in friends)
+                  ListTile(
+                    leading: CachedAvatar(
+                      imageUrl: friend.faceURL,
+                      fallbackName: friend.getShowName(),
                     ),
-                ],
-                if (_groups.isNotEmpty) ...<Widget>[
-                  const _SearchSectionHeader(title: '群聊'),
-                  for (final GroupInfo group in _groups)
-                    ListTile(
-                      leading: CachedAvatar(
-                        imageUrl: group.faceURL,
-                        fallbackName: group.groupName,
-                      ),
-                      title: Text(group.groupName ?? group.groupID),
-                      subtitle: Text('${group.memberCount ?? 0} 人'),
-                      onTap: () async {
-                        final ConversationInfo conv = await OpenIM
-                            .iMManager
-                            .conversationManager
-                            .getOneConversation(
-                              sourceID: group.groupID,
-                              sessionType: ConversationType.superGroup.value,
-                            );
-                        if (context.mounted) {
-                          await router.pushNamed(
-                            AppRoutes.chat(conv.conversationID),
-                            arguments: conv,
-                          );
-                        }
-                      },
+                    title: Text(friend.getShowName()),
+                    subtitle: Text(friend.friendUserID ?? ''),
+                    onTap: () => router.pushNamed(
+                      AppRoutes.contactProfile(friend.friendUserID ?? ''),
                     ),
-                ],
-                if (_conversations.isNotEmpty) ...<Widget>[
-                  const _SearchSectionHeader(title: '相关会话'),
-                  for (final ConversationInfo conv in _conversations)
-                    ListTile(
-                      leading: CachedAvatar(
-                        imageUrl: conv.faceURL,
-                        fallbackName: conv.showName,
-                      ),
-                      title: Text(conv.showName ?? conv.conversationID),
-                      onTap: () => router.pushNamed(
-                        AppRoutes.chat(conv.conversationID),
-                        arguments: conv,
-                      ),
-                    ),
-                ],
-                if (_messageGroups.isNotEmpty) ...<Widget>[
-                  const _SearchSectionHeader(title: '聊天记录'),
-                  for (final SearchResultItems item in _messageGroups)
-                    ListTile(
-                      leading: CachedAvatar(
-                        imageUrl: item.faceURL,
-                        fallbackName: item.showName,
-                      ),
-                      title: Text(item.showName ?? item.conversationID ?? ''),
-                      subtitle: Text('${item.messageCount ?? 0} 条相关聊天记录'),
-                      onTap: () {
-                        final String cid = item.conversationID ?? '';
-                        if (cid.isNotEmpty) {
-                          router.pushNamed(AppRoutes.chatSearch(cid));
-                        }
-                      },
-                    ),
-                ],
+                  ),
               ],
-            ),
+              if (groups.isNotEmpty) ...<Widget>[
+                const _SearchSectionHeader(title: '群聊'),
+                for (final GroupInfo group in groups)
+                  ListTile(
+                    leading: CachedAvatar(
+                      imageUrl: group.faceURL,
+                      fallbackName: group.groupName,
+                    ),
+                    title: Text(group.groupName ?? group.groupID),
+                    subtitle: Text('${group.memberCount ?? 0} 人'),
+                    onTap: () async {
+                      final ConversationInfo conv = await OpenIM
+                          .iMManager
+                          .conversationManager
+                          .getOneConversation(
+                            sourceID: group.groupID,
+                            sessionType: ConversationType.superGroup.value,
+                          );
+                      if (context.mounted) {
+                        await router.pushNamed(
+                          AppRoutes.chat(conv.conversationID),
+                          arguments: conv,
+                        );
+                      }
+                    },
+                  ),
+              ],
+              if (conversations.isNotEmpty) ...<Widget>[
+                const _SearchSectionHeader(title: '相关会话'),
+                for (final ConversationInfo conv in conversations)
+                  ListTile(
+                    leading: CachedAvatar(
+                      imageUrl: conv.faceURL,
+                      fallbackName: conv.showName,
+                    ),
+                    title: Text(conv.showName ?? conv.conversationID),
+                    onTap: () => router.pushNamed(
+                      AppRoutes.chat(conv.conversationID),
+                      arguments: conv,
+                    ),
+                  ),
+              ],
+              if (messageGroups.isNotEmpty) ...<Widget>[
+                const _SearchSectionHeader(title: '聊天记录'),
+                for (final SearchResultItems item in messageGroups)
+                  ListTile(
+                    leading: CachedAvatar(
+                      imageUrl: item.faceURL,
+                      fallbackName: item.showName,
+                    ),
+                    title: Text(item.showName ?? item.conversationID ?? ''),
+                    subtitle: Text('${item.messageCount ?? 0} 条相关聊天记录'),
+                    onTap: () {
+                      final String cid = item.conversationID ?? '';
+                      if (cid.isNotEmpty) {
+                        router.pushNamed(AppRoutes.chatSearch(cid));
+                      }
+                    },
+                  ),
+              ],
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -6,10 +6,11 @@ import 'package:xue_hua_navite_clipboard/xue_hua_navite_clipboard.dart';
 
 import '../../app/router/app_routes.dart';
 import '../../core/utils/qr_payload_codec.dart';
+import '../../l10n/app_localizations.dart';
 
-/// 扫一扫全屏页（基于 `xue_hua_barcode_scanner`，识别好友名片/群二维码/链接并自动路由）。
+/// 扫一扫全屏页（基于 `xue_hua_barcode_scanner`，支持桌面扫码登录确认、加好友、入群与链接识别）。
 ///
-/// Full-screen QR/barcode scanner page dispatching user/group/URL scan results.
+/// Full-screen QR/barcode scanner page handling desktop login, user, group, and URL payloads.
 class ScannerPage extends StatefulWidget {
   /// 创建扫一扫页。
   const ScannerPage({super.key});
@@ -33,6 +34,11 @@ class _ScannerPageState extends State<ScannerPage> {
     }
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     switch (type) {
+      case 'desktop_login':
+        await router.pushReplacementNamed(
+          AppRoutes.qrDesktopLoginConfirm,
+          arguments: value,
+        );
       case 'user':
         await router.pushReplacementNamed(AppRoutes.contactProfile(value));
       case 'group':
@@ -49,7 +55,10 @@ class _ScannerPageState extends State<ScannerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     return BarcodeScannerPage(
+      autoPopOnDetect: false,
+      texts: ScannerTexts(galleryLabel: l10n.selectFromAlbum),
       onDetect: (List<BarcodeResult> results) {
         if (results.isNotEmpty) {
           _onResult(results.first);

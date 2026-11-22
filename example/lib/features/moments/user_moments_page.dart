@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -21,8 +22,10 @@ class UserMomentsPage extends StatefulWidget {
 }
 
 class _UserMomentsPageState extends State<UserMomentsPage> {
-  List<MomentInfo> _list = <MomentInfo>[];
-  bool _loading = true;
+  late final Signal<List<MomentInfo>> _list = signal<List<MomentInfo>>(
+    <MomentInfo>[],
+  );
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -39,11 +42,11 @@ class _UserMomentsPageState extends State<UserMomentsPage> {
             showNumber: 50,
           );
       if (mounted) {
-        setState(() => _list = res.moments);
+        _list.value = res.moments;
       }
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _loading.value = false;
       }
     }
   }
@@ -53,44 +56,51 @@ class _UserMomentsPageState extends State<UserMomentsPage> {
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('TA 的朋友圈')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _list.isEmpty
-          ? const EmptyStateView(title: '暂无公开动态')
-          : ListView.separated(
-              itemCount: _list.length,
-              separatorBuilder: (BuildContext _, int _) =>
-                  const Divider(height: 1),
-              itemBuilder: (BuildContext _, int index) {
-                final MomentInfo m = _list[index];
-                return MomentCard(
-                  moment: m,
-                  onToggleLike: () async {
-                    await OpenIM.iMManager.momentsManager.likeMoment(
-                      momentID: m.momentID,
-                      ownerUserID: m.userID,
-                    );
-                    await _load();
-                  },
-                  onComment: () => router.pushNamed(
-                    AppRoutes.momentDetail(m.momentID),
-                    arguments: m,
-                  ),
-                  onFavorite: () =>
-                      OpenIM.iMManager.favoriteManager.addMoment(moment: m),
-                  onDelete: () async {
-                    await OpenIM.iMManager.momentsManager.deleteMoment(
-                      momentID: m.momentID,
-                    );
-                    await _load();
-                  },
-                  onOpenDetail: () => router.pushNamed(
-                    AppRoutes.momentDetail(m.momentID),
-                    arguments: m,
-                  ),
-                );
-              },
-            ),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final List<MomentInfo> list = _list.value;
+          if (list.isEmpty) {
+            return const EmptyStateView(title: '暂无公开动态');
+          }
+          return ListView.separated(
+            itemCount: list.length,
+            separatorBuilder: (BuildContext _, int _) =>
+                const Divider(height: 1),
+            itemBuilder: (BuildContext _, int index) {
+              final MomentInfo m = list[index];
+              return MomentCard(
+                moment: m,
+                onToggleLike: () async {
+                  await OpenIM.iMManager.momentsManager.likeMoment(
+                    momentID: m.momentID,
+                    ownerUserID: m.userID,
+                  );
+                  await _load();
+                },
+                onComment: () => router.pushNamed(
+                  AppRoutes.momentDetail(m.momentID),
+                  arguments: m,
+                ),
+                onFavorite: () =>
+                    OpenIM.iMManager.favoriteManager.addMoment(moment: m),
+                onDelete: () async {
+                  await OpenIM.iMManager.momentsManager.deleteMoment(
+                    momentID: m.momentID,
+                  );
+                  await _load();
+                },
+                onOpenDetail: () => router.pushNamed(
+                  AppRoutes.momentDetail(m.momentID),
+                  arguments: m,
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

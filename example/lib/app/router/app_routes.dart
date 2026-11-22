@@ -20,6 +20,9 @@ abstract final class AppRoutes {
   /// 账号申诉页。
   static const String appeal = '/appeal';
 
+  /// 桌面端扫码登录授权确认页。
+  static const String qrDesktopLoginConfirm = '/qr-desktop-login-confirm';
+
   /// Tab 1：会话列表。
   static const String conversations = '/conversations';
 

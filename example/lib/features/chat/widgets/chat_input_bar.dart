@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_audio/xue_hua_audio.dart';
 
 import 'chat_emoji_panel.dart';
@@ -68,10 +69,10 @@ class ChatInputBar extends StatefulWidget {
 }
 
 class _ChatInputBarState extends State<ChatInputBar> {
-  bool _voiceMode = false;
-  bool _recording = false;
-  bool _showEmoji = false;
-  bool _showMore = false;
+  late final Signal<bool> _voiceMode = signal<bool>(false);
+  late final Signal<bool> _recording = signal<bool>(false);
+  late final Signal<bool> _showEmoji = signal<bool>(false);
+  late final Signal<bool> _showMore = signal<bool>(false);
   DateTime? _recordStartAt;
   AudioRecorder? _recorder;
 
@@ -96,7 +97,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
       await recorder.start(const RecordConfig(), path: path);
       _recordStartAt = DateTime.now();
       if (mounted) {
-        setState(() => _recording = true);
+        _recording.value = true;
       }
     } on Object catch (error) {
       await FlutterToastPro.error('录音启动失败：$error');
@@ -104,7 +105,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   Future<void> _stopRecord() async {
-    if (!_recording || _recorder == null) {
+    if (!_recording.value || _recorder == null) {
       return;
     }
     try {
@@ -113,14 +114,14 @@ class _ChatInputBarState extends State<ChatInputBar> {
           ? DateTime.now().difference(_recordStartAt!).inSeconds.clamp(1, 60)
           : 1;
       if (mounted) {
-        setState(() => _recording = false);
+        _recording.value = false;
       }
       if (path != null && path.isNotEmpty) {
         widget.onSendVoice(path, secs);
       }
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _recording = false);
+        _recording.value = false;
       }
       await FlutterToastPro.error('结束录音失败：$error');
     }
@@ -131,146 +132,159 @@ class _ChatInputBarState extends State<ChatInputBar> {
     final ThemeData theme = Theme.of(context);
     return SafeArea(
       top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if (widget.quotingMessage != null)
-            Container(
-              color: theme.colorScheme.surfaceContainerHighest,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      '回复 ${widget.quotingMessage!.senderNickname ?? ''}: '
-                      '${widget.quotingMessage!.textElem?.content ?? '[消息]'}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
-                    ),
+      child: SignalBuilder(
+        builder: (BuildContext _) {
+          final bool voiceMode = _voiceMode.value;
+          final bool recording = _recording.value;
+          final bool showEmoji = _showEmoji.value;
+          final bool showMore = _showMore.value;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              if (widget.quotingMessage != null)
+                Container(
+                  color: theme.colorScheme.surfaceContainerHighest,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    onPressed: widget.onCancelQuote,
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          '回复 ${widget.quotingMessage!.senderNickname ?? ''}: '
+                          '${widget.quotingMessage!.textElem?.content ?? '[消息]'}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: widget.onCancelQuote,
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          Container(
-            color: theme.appBarTheme.backgroundColor,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            child: Row(
-              children: <Widget>[
-                IconButton(
-                  tooltip: _voiceMode ? '切换键盘' : '语音输入',
-                  icon: Icon(
-                    _voiceMode ? Icons.keyboard_alt_outlined : Icons.mic_none,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _voiceMode = !_voiceMode;
-                      _showEmoji = false;
-                      _showMore = false;
-                    });
-                  },
                 ),
-                Expanded(
-                  child: _voiceMode
-                      ? GestureDetector(
-                          onLongPressStart: (LongPressStartDetails _) =>
-                              _startRecord(),
-                          onLongPressEnd: (LongPressEndDetails _) =>
-                              _stopRecord(),
-                          child: Container(
-                            height: 40,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: _recording
-                                  ? theme.colorScheme.primaryContainer
-                                  : theme.colorScheme.surface,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              _recording ? '正在录音，松开发送...' : '按住 说话',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
+              Container(
+                color: theme.appBarTheme.backgroundColor,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Row(
+                  children: <Widget>[
+                    IconButton(
+                      tooltip: voiceMode ? '切换键盘' : '语音输入',
+                      icon: Icon(
+                        voiceMode
+                            ? Icons.keyboard_alt_outlined
+                            : Icons.mic_none,
+                      ),
+                      onPressed: () {
+                        batch(() {
+                          _voiceMode.value = !voiceMode;
+                          _showEmoji.value = false;
+                          _showMore.value = false;
+                        });
+                      },
+                    ),
+                    Expanded(
+                      child: voiceMode
+                          ? GestureDetector(
+                              onLongPressStart: (LongPressStartDetails _) =>
+                                  _startRecord(),
+                              onLongPressEnd: (LongPressEndDetails _) =>
+                                  _stopRecord(),
+                              child: Container(
+                                height: 40,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: recording
+                                      ? theme.colorScheme.primaryContainer
+                                      : theme.colorScheme.surface,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  recording ? '正在录音，松开发送...' : '按住 说话',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : TextField(
+                              controller: widget.textController,
+                              minLines: 1,
+                              maxLines: 4,
+                              onChanged: widget.onTextChanged,
+                              onTap: () {
+                                if (showEmoji || showMore) {
+                                  batch(() {
+                                    _showEmoji.value = false;
+                                    _showMore.value = false;
+                                  });
+                                }
+                              },
+                              onSubmitted: (String _) => widget.onSendText(),
+                              decoration: const InputDecoration(
+                                hintText: '输入消息...',
+                                isDense: true,
                               ),
                             ),
-                          ),
-                        )
-                      : TextField(
-                          controller: widget.textController,
-                          minLines: 1,
-                          maxLines: 4,
-                          onChanged: widget.onTextChanged,
-                          onTap: () {
-                            if (_showEmoji || _showMore) {
-                              setState(() {
-                                _showEmoji = false;
-                                _showMore = false;
-                              });
-                            }
-                          },
-                          onSubmitted: (String _) => widget.onSendText(),
-                          decoration: const InputDecoration(
-                            hintText: '输入消息...',
-                            isDense: true,
-                          ),
-                        ),
+                    ),
+                    IconButton(
+                      tooltip: '表情与动效',
+                      icon: const Icon(Icons.emoji_emotions_outlined),
+                      onPressed: () {
+                        batch(() {
+                          _showEmoji.value = !showEmoji;
+                          _showMore.value = false;
+                          _voiceMode.value = false;
+                        });
+                      },
+                    ),
+                    IconButton(
+                      tooltip: '更多功能',
+                      icon: const Icon(Icons.add_circle_outline),
+                      onPressed: () {
+                        batch(() {
+                          _showMore.value = !showMore;
+                          _showEmoji.value = false;
+                          _voiceMode.value = false;
+                        });
+                      },
+                    ),
+                    FilledButton(
+                      onPressed: widget.onSendText,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(54, 36),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      child: const Text('发送'),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: '表情与动效',
-                  icon: const Icon(Icons.emoji_emotions_outlined),
-                  onPressed: () {
-                    setState(() {
-                      _showEmoji = !_showEmoji;
-                      _showMore = false;
-                      _voiceMode = false;
-                    });
+              ),
+              if (showEmoji)
+                ChatEmojiPanel(
+                  onSelectEmoji: (String emoji) {
+                    widget.textController.text =
+                        '${widget.textController.text}$emoji';
                   },
+                  onSelectSvgSticker: widget.onSendSvgSticker,
                 ),
-                IconButton(
-                  tooltip: '更多功能',
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () {
-                    setState(() {
-                      _showMore = !_showMore;
-                      _showEmoji = false;
-                      _voiceMode = false;
-                    });
-                  },
+              if (showMore)
+                ChatMorePanel(
+                  onPickImage: widget.onPickImage,
+                  onCapturePhoto: widget.onCapturePhoto,
+                  onPickVideo: widget.onPickVideo,
+                  onPickFile: widget.onPickFile,
+                  onPickLocation: widget.onPickLocation,
+                  onPickCard: widget.onPickCard,
+                  onSendRedPacket: widget.onSendRedPacket,
+                  onStartCall: widget.onStartCall,
                 ),
-                FilledButton(
-                  onPressed: widget.onSendText,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(54, 36),
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                  ),
-                  child: const Text('发送'),
-                ),
-              ],
-            ),
-          ),
-          if (_showEmoji)
-            ChatEmojiPanel(
-              onSelectEmoji: (String emoji) {
-                widget.textController.text =
-                    '${widget.textController.text}$emoji';
-              },
-              onSelectSvgSticker: widget.onSendSvgSticker,
-            ),
-          if (_showMore)
-            ChatMorePanel(
-              onPickImage: widget.onPickImage,
-              onCapturePhoto: widget.onCapturePhoto,
-              onPickVideo: widget.onPickVideo,
-              onPickFile: widget.onPickFile,
-              onPickLocation: widget.onPickLocation,
-              onPickCard: widget.onPickCard,
-              onSendRedPacket: widget.onSendRedPacket,
-              onStartCall: widget.onStartCall,
-            ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

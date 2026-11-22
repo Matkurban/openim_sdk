@@ -21,9 +21,9 @@ class PointsPage extends StatefulWidget {
 }
 
 class _PointsPageState extends State<PointsPage> {
-  double _balance = 0;
-  bool _hasPayPwd = false;
-  bool _loading = true;
+  late final Signal<double> _balance = signal<double>(0);
+  late final Signal<bool> _hasPayPwd = signal<bool>(false);
+  late final Signal<bool> _loading = signal<bool>(true);
   StreamSubscription<double>? _balanceSub;
 
   @override
@@ -32,7 +32,7 @@ class _PointsPageState extends State<PointsPage> {
     final ImEventBus bus = Wire.find<ImEventBus>();
     _balanceSub = bus.pointsBalanceStream.listen((double next) {
       if (mounted) {
-        setState(() => _balance = next);
+        _balance.value = next;
       }
     });
     _load();
@@ -46,14 +46,14 @@ class _PointsPageState extends State<PointsPage> {
           .checkPaymentPasswordSet();
       Wire.find<ImEventBus>().updatePointsBalance(bal);
       if (mounted) {
-        setState(() {
-          _balance = bal;
-          _hasPayPwd = hasPwd;
+        batch(() {
+          _balance.value = bal;
+          _hasPayPwd.value = hasPwd;
         });
       }
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _loading.value = false;
       }
     }
   }
@@ -69,74 +69,76 @@ class _PointsPageState extends State<PointsPage> {
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('积分中心')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: <Widget>[
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: <Color>[
-                          AppColors.primary,
-                          AppColors.primaryDark,
-                        ],
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final double balance = _balance.value;
+          final bool hasPayPwd = _hasPayPwd.value;
+          return RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: <Color>[AppColors.primary, AppColors.primaryDark],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      const Text(
+                        '当前可用积分',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          '当前可用积分',
-                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                      const SizedBox(height: 8),
+                      Text(
+                        balance.toStringAsFixed(2),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _balance.toStringAsFixed(2),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 34,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  Card(
-                    child: Column(
-                      children: <Widget>[
-                        ListTile(
-                          leading: const Icon(Icons.receipt_long_outlined),
-                          title: const Text('积分收支明细'),
-                          subtitle: const Text('查看全部 / 收入 / 支出流水'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () =>
-                              router.pushNamed(AppRoutes.pointsTransactions),
-                        ),
-                        const Divider(height: 1),
-                        ListTile(
-                          leading: const Icon(Icons.password_outlined),
-                          title: const Text('支付密码管理'),
-                          subtitle: Text(
-                            _hasPayPwd ? '已设置支付密码' : '未设置（发红包需先设置）',
-                          ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () async {
-                            await router.pushNamed(AppRoutes.paymentPassword);
-                            await _load();
-                          },
-                        ),
-                      ],
-                    ),
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  child: Column(
+                    children: <Widget>[
+                      ListTile(
+                        leading: const Icon(Icons.receipt_long_outlined),
+                        title: const Text('积分收支明细'),
+                        subtitle: const Text('查看全部 / 收入 / 支出流水'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () =>
+                            router.pushNamed(AppRoutes.pointsTransactions),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.password_outlined),
+                        title: const Text('支付密码管理'),
+                        subtitle: Text(hasPayPwd ? '已设置支付密码' : '未设置（发红包需先设置）'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () async {
+                          await router.pushNamed(AppRoutes.paymentPassword);
+                          await _load();
+                        },
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
+          );
+        },
+      ),
     );
   }
 }

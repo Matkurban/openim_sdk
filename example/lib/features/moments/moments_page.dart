@@ -38,11 +38,11 @@ class MomentsPage extends WireView<MomentsController> {
         ),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(),
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(textCtrl.text.trim()),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(textCtrl.text.trim()),
             child: const Text('发送'),
           ),
         ],
@@ -67,7 +67,11 @@ class MomentsPage extends WireView<MomentsController> {
             tooltip: '发布动态',
             icon: const Icon(Icons.camera_alt_outlined),
             onPressed: () async {
-              await router.pushNamed(AppRoutes.momentPublish);
+              await router.pushNamedAndRemoveUntil(
+                AppRoutes.momentPublish,
+                (AdaptiveRouteMatch m) =>
+                    m.matchedLocation == AppRoutes.moments,
+              );
               await controller.loadMoments(fromServer: true);
             },
           ),
@@ -88,8 +92,10 @@ class MomentsPage extends WireView<MomentsController> {
                   child: _MomentsCoverHeader(
                     nickname: self?.nickname ?? OpenIM.iMManager.userID,
                     avatarUrl: self?.faceURL,
-                    onTapAvatar: () => router.pushNamed(
+                    onTapAvatar: () => router.pushNamedAndRemoveUntil(
                       AppRoutes.userMoments(OpenIM.iMManager.userID),
+                      (AdaptiveRouteMatch m) =>
+                          m.matchedLocation == AppRoutes.moments,
                     ),
                   ),
                 ),
@@ -102,8 +108,10 @@ class MomentsPage extends WireView<MomentsController> {
                           avatar: const Icon(Icons.notifications, size: 16),
                           label: Text('${unreadEvents.length} 条新互动消息'),
                           onPressed: () {
-                            router.pushNamed(
+                            router.pushNamedAndRemoveUntil(
                               AppRoutes.momentNotifications,
+                              (AdaptiveRouteMatch m) =>
+                                  m.matchedLocation == AppRoutes.moments,
                               arguments: unreadEvents,
                             );
                             controller.clearNotifications();
@@ -122,7 +130,11 @@ class MomentsPage extends WireView<MomentsController> {
                       title: '朋友圈还没有动态',
                       subtitle: '点击右上角相机图标发布第一条图文或视频动态',
                       actionLabel: '发布动态',
-                      onAction: () => router.pushNamed(AppRoutes.momentPublish),
+                      onAction: () => router.pushNamedAndRemoveUntil(
+                        AppRoutes.momentPublish,
+                        (AdaptiveRouteMatch m) =>
+                            m.matchedLocation == AppRoutes.moments,
+                      ),
                     ),
                   )
                 else
@@ -138,8 +150,10 @@ class MomentsPage extends WireView<MomentsController> {
                         onComment: () => _showCommentDialog(context, item),
                         onFavorite: () => controller.favoriteMoment(item),
                         onDelete: () => controller.deleteMoment(item.momentID),
-                        onOpenDetail: () => router.pushNamed(
+                        onOpenDetail: () => router.pushNamedAndRemoveUntil(
                           AppRoutes.momentDetail(item.momentID),
+                          (AdaptiveRouteMatch m) =>
+                              m.matchedLocation == AppRoutes.moments,
                           arguments: item,
                         ),
                       );

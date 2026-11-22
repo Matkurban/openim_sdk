@@ -10,8 +10,8 @@ import 'package:xue_hua_navite_accept_sharing/xue_hua_navite_accept_sharing.dart
 import '../../app/router/app_routes.dart';
 import '../../app/theme/app_colors.dart';
 import '../../core/services/auth_session_service.dart';
-import '../../core/services/settings_service.dart';
 import '../../core/services/sharing_receive_service.dart';
+import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/cached_avatar.dart';
 import '../../shared/widgets/desktop_title_bar.dart';
 import '../../shared/widgets/share_target_picker_sheet.dart';
@@ -128,7 +128,7 @@ class _MainShellScaffoldState extends State<MainShellScaffold>
   Widget build(BuildContext context) {
     final double width = MediaQuery.sizeOf(context).width;
     final bool isWide = width >= 840;
-    final SettingsService settings = Wire.find<SettingsService>();
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
     final AuthSessionService auth = Wire.find<AuthSessionService>();
 
     return SignalBuilder(
@@ -185,7 +185,7 @@ class _MainShellScaffoldState extends State<MainShellScaffold>
                   count: unread,
                   selected: true,
                 ),
-                label: settings.tr('tab_chats'),
+                label: l10n.tabChats,
               ),
               NavigationDestination(
                 icon: _BadgedTabIcon(
@@ -197,17 +197,17 @@ class _MainShellScaffoldState extends State<MainShellScaffold>
                   count: pending,
                   selected: true,
                 ),
-                label: settings.tr('tab_contacts'),
+                label: l10n.tabContacts,
               ),
               NavigationDestination(
                 icon: const Icon(Icons.camera_outlined),
                 selectedIcon: const Icon(Icons.camera),
-                label: settings.tr('tab_moments'),
+                label: l10n.tabMoments,
               ),
               NavigationDestination(
                 icon: const Icon(Icons.person_outline),
                 selectedIcon: const Icon(Icons.person),
-                label: settings.tr('tab_me'),
+                label: l10n.tabMe,
               ),
             ],
           ),
@@ -311,7 +311,11 @@ class _DesktopNavigationRail extends StatelessWidget {
             icon: const Icon(Icons.settings_outlined, color: Colors.white70),
             onPressed: () {
               onSelect(3);
-              AdaptiveRouter.of(context).pushNamed(AppRoutes.settings);
+              AdaptiveRouter.of(context).pushNamedAndRemoveUntil(
+                AppRoutes.settings,
+                (AdaptiveRouteMatch m) =>
+                    m.matchedLocation == AppRoutes.profile,
+              );
             },
           ),
         ],

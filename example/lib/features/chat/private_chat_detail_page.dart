@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -21,8 +22,9 @@ class PrivateChatDetailPage extends StatefulWidget {
 }
 
 class _PrivateChatDetailPageState extends State<PrivateChatDetailPage> {
-  ConversationInfo? _conversation;
-  bool _loading = true;
+  late final Signal<ConversationInfo?> _conversation =
+      signal<ConversationInfo?>(null);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -38,9 +40,9 @@ class _PrivateChatDetailPageState extends State<PrivateChatDetailPage> {
           conversationIDList: <String>[widget.conversationId],
         );
     if (mounted) {
-      setState(() {
-        _conversation = list.isNotEmpty ? list.first : null;
-        _loading = false;
+      batch(() {
+        _conversation.value = list.isNotEmpty ? list.first : null;
+        _loading.value = false;
       });
     }
   }
@@ -73,158 +75,165 @@ class _PrivateChatDetailPageState extends State<PrivateChatDetailPage> {
   Widget build(BuildContext context) {
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     final ThemeData theme = Theme.of(context);
-    final String peerId = _conversation?.userID ?? '';
-    final bool isPinned = _conversation?.isPinned ?? false;
-    final bool isMuted =
-        _conversation?.recvMsgOpt == ReceiveMessageOpt.notNotify;
-    final bool isBurn = _conversation?.isPrivateChat ?? false;
-    final bool isDestruct = _conversation?.isMsgDestruct ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('聊天详情')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: <Widget>[
-                Container(
-                  color: theme.colorScheme.surface,
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: <Widget>[
-                      InkWell(
-                        onTap: peerId.isEmpty
-                            ? null
-                            : () => router.pushNamed(
-                                AppRoutes.contactProfile(peerId),
-                              ),
-                        child: Column(
-                          children: <Widget>[
-                            CachedAvatar(
-                              imageUrl: _conversation?.faceURL,
-                              fallbackName: _conversation?.showName,
-                              size: 52,
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final ConversationInfo? conversation = _conversation.value;
+          final String peerId = conversation?.userID ?? '';
+          final bool isPinned = conversation?.isPinned ?? false;
+          final bool isMuted =
+              conversation?.recvMsgOpt == ReceiveMessageOpt.notNotify;
+          final bool isBurn = conversation?.isPrivateChat ?? false;
+          final bool isDestruct = conversation?.isMsgDestruct ?? false;
+
+          return ListView(
+            children: <Widget>[
+              Container(
+                color: theme.colorScheme.surface,
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: <Widget>[
+                    InkWell(
+                      onTap: peerId.isEmpty
+                          ? null
+                          : () => router.pushNamed(
+                              AppRoutes.contactProfile(peerId),
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _conversation?.showName ?? peerId,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
+                      child: Column(
+                        children: <Widget>[
+                          CachedAvatar(
+                            imageUrl: conversation?.faceURL,
+                            fallbackName: conversation?.showName,
+                            size: 52,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            conversation?.showName ?? peerId,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 20),
-                      InkWell(
-                        onTap: () => router.pushNamed(
-                          AppRoutes.createGroup,
-                          arguments: peerId.isNotEmpty
-                              ? <String>[peerId]
-                              : const <String>[],
-                        ),
-                        child: Column(
-                          children: <Widget>[
-                            Container(
-                              width: 52,
-                              height: 52,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: theme.dividerColor),
-                              ),
-                              child: Icon(Icons.add, color: theme.hintColor),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text('发起群聊', style: TextStyle(fontSize: 12)),
-                          ],
-                        ),
+                    ),
+                    const SizedBox(width: 20),
+                    InkWell(
+                      onTap: () => router.pushNamed(
+                        AppRoutes.createGroup,
+                        arguments: peerId.isNotEmpty
+                            ? <String>[peerId]
+                            : const <String>[],
                       ),
-                    ],
+                      child: Column(
+                        children: <Widget>[
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: theme.dividerColor),
+                            ),
+                            child: Icon(Icons.add, color: theme.hintColor),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text('发起群聊', style: TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('查找聊天记录'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => router.pushNamed(
+                  AppRoutes.chatSearch(widget.conversationId),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('图片与视频'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => router.pushNamed(
+                  AppRoutes.chatGallery(widget.conversationId),
+                ),
+              ),
+              const SizedBox(height: 10),
+              SwitchListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('置顶聊天'),
+                value: isPinned,
+                onChanged: (bool v) async {
+                  await OpenIM.iMManager.conversationManager.pinConversation(
+                    conversationID: widget.conversationId,
+                    isPinned: v,
+                  );
+                  await _load();
+                },
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('消息免打扰'),
+                value: isMuted,
+                onChanged: (bool v) => _updateConversation(
+                  ConversationReq(
+                    recvMsgOpt: v
+                        ? ReceiveMessageOpt.notNotify.value
+                        : ReceiveMessageOpt.receive.value,
                   ),
                 ),
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('查找聊天记录'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => router.pushNamed(
-                    AppRoutes.chatSearch(widget.conversationId),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('阅后即焚（30 秒）'),
+                value: isBurn,
+                onChanged: (bool v) => _updateConversation(
+                  ConversationReq(isPrivateChat: v, burnDuration: v ? 30 : 0),
+                ),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('消息定时销毁（7 天）'),
+                value: isDestruct,
+                onChanged: (bool v) => _updateConversation(
+                  ConversationReq(
+                    isMsgDestruct: v,
+                    msgDestructTime: v ? 7 * 24 * 3600 : 0,
                   ),
                 ),
-                const Divider(height: 1),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('图片与视频'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => router.pushNamed(
-                    AppRoutes.chatGallery(widget.conversationId),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SwitchListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('置顶聊天'),
-                  value: isPinned,
-                  onChanged: (bool v) async {
-                    await OpenIM.iMManager.conversationManager.pinConversation(
-                      conversationID: widget.conversationId,
-                      isPinned: v,
-                    );
-                    await _load();
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('清空聊天记录'),
+                onTap: _clearHistory,
+              ),
+              const Divider(height: 1),
+              ListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('投诉举报'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => router.pushNamed(
+                  AppRoutes.report,
+                  arguments: <String, String>{
+                    'type': 'user',
+                    'targetId': peerId,
                   },
                 ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('消息免打扰'),
-                  value: isMuted,
-                  onChanged: (bool v) => _updateConversation(
-                    ConversationReq(
-                      recvMsgOpt: v
-                          ? ReceiveMessageOpt.notNotify.value
-                          : ReceiveMessageOpt.receive.value,
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('阅后即焚（30 秒）'),
-                  value: isBurn,
-                  onChanged: (bool v) => _updateConversation(
-                    ConversationReq(isPrivateChat: v, burnDuration: v ? 30 : 0),
-                  ),
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('消息定时销毁（7 天）'),
-                  value: isDestruct,
-                  onChanged: (bool v) => _updateConversation(
-                    ConversationReq(
-                      isMsgDestruct: v,
-                      msgDestructTime: v ? 7 * 24 * 3600 : 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('清空聊天记录'),
-                  onTap: _clearHistory,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('投诉举报'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => router.pushNamed(
-                    AppRoutes.report,
-                    arguments: <String, String>{
-                      'type': 'user',
-                      'targetId': peerId,
-                    },
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -18,9 +19,11 @@ class MyGroupsPage extends StatefulWidget {
 }
 
 class _MyGroupsPageState extends State<MyGroupsPage> {
-  List<GroupInfo> _all = <GroupInfo>[];
-  String _keyword = '';
-  bool _loading = true;
+  late final Signal<List<GroupInfo>> _all = signal<List<GroupInfo>>(
+    <GroupInfo>[],
+  );
+  late final Signal<String> _keyword = signal<String>('');
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -32,9 +35,9 @@ class _MyGroupsPageState extends State<MyGroupsPage> {
     final List<GroupInfo> list = await OpenIM.iMManager.groupManager
         .getJoinedGroupList();
     if (mounted) {
-      setState(() {
-        _all = list;
-        _loading = false;
+      batch(() {
+        _all.value = list;
+        _loading.value = false;
       });
     }
   }
@@ -54,23 +57,6 @@ class _MyGroupsPageState extends State<MyGroupsPage> {
   @override
   Widget build(BuildContext context) {
     final String selfID = OpenIM.iMManager.userID;
-    final List<GroupInfo> filtered = _keyword.isEmpty
-        ? _all
-        : _all
-              .where(
-                (GroupInfo g) =>
-                    (g.groupName ?? '').toLowerCase().contains(
-                      _keyword.toLowerCase(),
-                    ) ||
-                    g.groupID.contains(_keyword),
-              )
-              .toList();
-    final List<GroupInfo> created = filtered
-        .where((GroupInfo g) => g.ownerUserID == selfID)
-        .toList();
-    final List<GroupInfo> joined = filtered
-        .where((GroupInfo g) => g.ownerUserID != selfID)
-        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -89,7 +75,7 @@ class _MyGroupsPageState extends State<MyGroupsPage> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
-              onChanged: (String v) => setState(() => _keyword = v.trim()),
+              onChanged: (String v) => _keyword.value = v.trim(),
               decoration: const InputDecoration(
                 hintText: '搜索群名称或群 ID',
                 prefixIcon: Icon(Icons.search),
@@ -98,35 +84,58 @@ class _MyGroupsPageState extends State<MyGroupsPage> {
             ),
           ),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
-                ? const EmptyStateView(title: '暂未加入任何群聊')
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView(
-                      children: <Widget>[
-                        if (created.isNotEmpty) ...<Widget>[
-                          _GroupSectionTitle(
-                            title: '我创建的群聊（${created.length}）',
+            child: SignalBuilder(
+              builder: (BuildContext _) {
+                if (_loading.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final List<GroupInfo> all = _all.value;
+                final String keyword = _keyword.value;
+                final List<GroupInfo> filtered = keyword.isEmpty
+                    ? all
+                    : all
+                          .where(
+                            (GroupInfo g) =>
+                                (g.groupName ?? '').toLowerCase().contains(
+                                  keyword.toLowerCase(),
+                                ) ||
+                                g.groupID.contains(keyword),
+                          )
+                          .toList();
+                if (filtered.isEmpty) {
+                  return const EmptyStateView(title: '暂未加入任何群聊');
+                }
+                final List<GroupInfo> created = filtered
+                    .where((GroupInfo g) => g.ownerUserID == selfID)
+                    .toList();
+                final List<GroupInfo> joined = filtered
+                    .where((GroupInfo g) => g.ownerUserID != selfID)
+                    .toList();
+                return RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    children: <Widget>[
+                      if (created.isNotEmpty) ...<Widget>[
+                        _GroupSectionTitle(title: '我创建的群聊（${created.length}）'),
+                        for (final GroupInfo g in created)
+                          _GroupItemTile(
+                            group: g,
+                            onTap: () => _openGroupChat(g),
                           ),
-                          for (final GroupInfo g in created)
-                            _GroupItemTile(
-                              group: g,
-                              onTap: () => _openGroupChat(g),
-                            ),
-                        ],
-                        if (joined.isNotEmpty) ...<Widget>[
-                          _GroupSectionTitle(title: '我加入的群聊（${joined.length}）'),
-                          for (final GroupInfo g in joined)
-                            _GroupItemTile(
-                              group: g,
-                              onTap: () => _openGroupChat(g),
-                            ),
-                        ],
                       ],
-                    ),
+                      if (joined.isNotEmpty) ...<Widget>[
+                        _GroupSectionTitle(title: '我加入的群聊（${joined.length}）'),
+                        for (final GroupInfo g in joined)
+                          _GroupItemTile(
+                            group: g,
+                            onTap: () => _openGroupChat(g),
+                          ),
+                      ],
+                    ],
                   ),
+                );
+              },
+            ),
           ),
         ],
       ),

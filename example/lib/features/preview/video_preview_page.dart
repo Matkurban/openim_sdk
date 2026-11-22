@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 import 'package:xue_hua_navite_share/xue_hua_navite_share.dart';
 import 'package:xue_hua_navite_video_player/xue_hua_navite_video_player.dart';
-import 'package:xue_hua_navite_volume_controller/xue_hua_navite_volume_controller.dart';
 
-/// 视频全屏播放页（集成 `xue_hua_navite_video_player` 与 `xue_hua_navite_volume_controller`）。
+/// 视频全屏沉浸式播放页（`Stack` 布局，使用 `VideoPlayer` 自带音量与播放控制）。
 ///
-/// Full-screen video player page with native volume/mute controls and casting.
+/// Full-screen immersive `Stack`-based video preview page using built-in player controls.
 class VideoPreviewPage extends StatefulWidget {
   /// 视频 URL 或本地文件路径。
   final String videoUrl;
@@ -25,8 +25,6 @@ class VideoPreviewPage extends StatefulWidget {
 
 class _VideoPreviewPageState extends State<VideoPreviewPage> {
   late final VideoPlayerController _playerController;
-  double _volume = 0.8;
-  bool _muted = false;
 
   @override
   void initState() {
@@ -42,37 +40,6 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
         }
       }),
     );
-    unawaited(_loadVolume());
-  }
-
-  Future<void> _loadVolume() async {
-    try {
-      final VolumeState state = await XueHuaNaviteVolumeController.instance
-          .getVolumeState();
-      if (mounted) {
-        setState(() {
-          _volume = state.volume;
-          _muted = state.isMuted;
-        });
-      }
-    } on Object catch (_) {}
-  }
-
-  Future<void> _setVolume(double value) async {
-    setState(() {
-      _volume = value;
-      _muted = value == 0;
-    });
-    try {
-      await XueHuaNaviteVolumeController.instance.setVolume(value);
-    } on Object catch (_) {}
-  }
-
-  Future<void> _toggleMute() async {
-    try {
-      await XueHuaNaviteVolumeController.instance.toggleMute();
-      await _loadVolume();
-    } on Object catch (_) {}
   }
 
   @override
@@ -85,61 +52,66 @@ class _VideoPreviewPageState extends State<VideoPreviewPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black54,
-        foregroundColor: Colors.white,
-        title: Text(widget.title ?? '视频播放'),
-        actions: <Widget>[
-          IconButton(
-            tooltip: '投屏',
-            icon: const Icon(Icons.cast),
-            onPressed: () async {
-              await _playerController.showCastPicker();
-            },
-          ),
-          IconButton(
-            tooltip: '分享视频链接',
-            icon: const Icon(Icons.share_outlined),
-            onPressed: () async {
-              await XueHuaNaviteShare.instance.shareUri(
-                Uri.parse(widget.videoUrl),
-                subject: widget.title ?? '视频分享',
-              );
-              await FlutterToastPro.info('已调用系统分享');
-            },
-          ),
-        ],
-      ),
-      body: Column(
+      body: Stack(
+        fit: StackFit.expand,
         children: <Widget>[
-          Expanded(
-            child: Center(child: VideoPlayer(controller: _playerController)),
-          ),
-          SafeArea(
-            top: false,
-            child: Container(
-              color: Colors.black87,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: <Widget>[
-                  IconButton(
-                    icon: Icon(
-                      _muted ? Icons.volume_off : Icons.volume_up,
-                      color: Colors.white,
+          Positioned.fill(child: VideoPlayer(controller: _playerController)),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: <Color>[Colors.black54, Colors.transparent],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: Row(
+                  children: <Widget>[
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () => AdaptiveRouter.of(context).pop(),
                     ),
-                    onPressed: _toggleMute,
-                  ),
-                  Expanded(
-                    child: Slider(
-                      value: _volume.clamp(0.0, 1.0),
-                      onChanged: _setVolume,
+                    Expanded(
+                      child: Text(
+                        widget.title ?? '视频播放',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
-                  ),
-                  Text(
-                    '${(_volume * 100).round()}%',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
-                  ),
-                ],
+                    IconButton(
+                      tooltip: '投屏',
+                      icon: const Icon(Icons.cast, color: Colors.white),
+                      onPressed: () async {
+                        await _playerController.showCastPicker();
+                      },
+                    ),
+                    IconButton(
+                      tooltip: '外部分享',
+                      icon: const Icon(
+                        Icons.share_outlined,
+                        color: Colors.white,
+                      ),
+                      onPressed: () async {
+                        await XueHuaNaviteShare.instance.shareUri(
+                          Uri.parse(widget.videoUrl),
+                          subject: widget.title ?? '视频分享',
+                        );
+                        await FlutterToastPro.info('已调用系统分享');
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

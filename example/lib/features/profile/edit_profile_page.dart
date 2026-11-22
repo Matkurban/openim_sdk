@@ -22,17 +22,16 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _nicknameController;
-  String? _faceURL;
-  int _gender = 1;
-  bool _saving = false;
+  late final Signal<String?> _faceURL;
+  late final Signal<int> _gender = signal<int>(1);
+  late final Signal<bool> _saving = signal<bool>(false);
 
   @override
   void initState() {
     super.initState();
     final UserInfo? self = Wire.find<AuthSessionService>().currentUser.value;
     _nicknameController = TextEditingController(text: self?.nickname ?? '');
-    _faceURL = self?.faceURL;
-    _gender = 1;
+    _faceURL = signal<String?>(self?.faceURL);
   }
 
   @override
@@ -60,7 +59,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       );
       FlutterToastPro.hideLoading();
       if (mounted) {
-        setState(() => _faceURL = url);
+        _faceURL.value = url;
       }
       await FlutterToastPro.success('头像已上传');
     } on Object catch (error) {
@@ -70,16 +69,16 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _save() async {
-    setState(() => _saving = true);
+    _saving.value = true;
     try {
       await OpenIM.iMManager.userManager.setSelfInfo(
         nickname: _nicknameController.text.trim(),
-        faceURL: _faceURL,
+        faceURL: _faceURL.value,
       );
       await OpenIM.iMManager.userManager.updateChatUserInfo(
         nickname: _nicknameController.text.trim(),
-        faceURL: _faceURL,
-        gender: _gender,
+        faceURL: _faceURL.value,
+        gender: _gender.value,
       );
       await Wire.find<AuthSessionService>().refreshSelfInfo();
       await FlutterToastPro.success('个人资料已保存');
@@ -90,7 +89,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       await FlutterToastPro.error('保存失败：$error');
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _saving.value = false;
       }
     }
   }
@@ -101,49 +100,59 @@ class _EditProfilePageState extends State<EditProfilePage> {
       appBar: AppBar(
         title: const Text('个人资料'),
         actions: <Widget>[
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('保存'),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          Center(
-            child: GestureDetector(
-              onTap: _pickAvatar,
-              child: Column(
-                children: <Widget>[
-                  CachedAvatar(
-                    imageUrl: _faceURL,
-                    fallbackName: _nicknameController.text,
-                    size: 80,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('点击更换头像'),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _nicknameController,
-            decoration: const InputDecoration(labelText: '昵称'),
-          ),
-          const SizedBox(height: 16),
-          SegmentedButton<int>(
-            segments: const <ButtonSegment<int>>[
-              ButtonSegment<int>(value: 1, label: Text('男')),
-              ButtonSegment<int>(value: 2, label: Text('女')),
-              ButtonSegment<int>(value: 0, label: Text('保密')),
-            ],
-            selected: <int>{_gender},
-            onSelectionChanged: (Set<int> next) {
-              setState(() => _gender = next.first);
+          SignalBuilder(
+            builder: (BuildContext _) {
+              return TextButton(
+                onPressed: _saving.value ? null : _save,
+                child: const Text('保存'),
+              );
             },
           ),
         ],
+      ),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final String? faceURL = _faceURL.value;
+          final int gender = _gender.value;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: <Widget>[
+              Center(
+                child: GestureDetector(
+                  onTap: _pickAvatar,
+                  child: Column(
+                    children: <Widget>[
+                      CachedAvatar(
+                        imageUrl: faceURL,
+                        fallbackName: _nicknameController.text,
+                        size: 80,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('点击更换头像'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _nicknameController,
+                decoration: const InputDecoration(labelText: '昵称'),
+              ),
+              const SizedBox(height: 16),
+              SegmentedButton<int>(
+                segments: const <ButtonSegment<int>>[
+                  ButtonSegment<int>(value: 1, label: Text('男')),
+                  ButtonSegment<int>(value: 2, label: Text('女')),
+                  ButtonSegment<int>(value: 0, label: Text('保密')),
+                ],
+                selected: <int>{gender},
+                onSelectionChanged: (Set<int> next) {
+                  _gender.value = next.first;
+                },
+              ),
+            ],
+          );
+        },
       ),
     );
   }

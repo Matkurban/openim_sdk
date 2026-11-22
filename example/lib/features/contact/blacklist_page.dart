@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 
 import '../../shared/widgets/cached_avatar.dart';
 import '../../shared/widgets/empty_state_view.dart';
@@ -17,8 +18,10 @@ class BlacklistPage extends StatefulWidget {
 }
 
 class _BlacklistPageState extends State<BlacklistPage> {
-  List<BlacklistInfo> _list = <BlacklistInfo>[];
-  bool _loading = true;
+  late final Signal<List<BlacklistInfo>> _list = signal<List<BlacklistInfo>>(
+    <BlacklistInfo>[],
+  );
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -30,9 +33,9 @@ class _BlacklistPageState extends State<BlacklistPage> {
     final List<BlacklistInfo> list = await OpenIM.iMManager.friendshipManager
         .getBlacklist();
     if (mounted) {
-      setState(() {
-        _list = list;
-        _loading = false;
+      batch(() {
+        _list.value = list;
+        _loading.value = false;
       });
     }
   }
@@ -51,30 +54,37 @@ class _BlacklistPageState extends State<BlacklistPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('通讯录黑名单')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _list.isEmpty
-          ? const EmptyStateView(title: '黑名单为空')
-          : ListView.separated(
-              itemCount: _list.length,
-              separatorBuilder: (BuildContext _, int _) =>
-                  const Divider(height: 1, indent: 68),
-              itemBuilder: (BuildContext _, int index) {
-                final BlacklistInfo item = _list[index];
-                final String uid = item.blockUserID ?? '';
-                return ListTile(
-                  leading: CachedAvatar(
-                    imageUrl: item.faceURL,
-                    fallbackName: item.nickname ?? uid,
-                  ),
-                  title: Text(item.nickname ?? uid),
-                  trailing: TextButton(
-                    onPressed: () => _remove(uid),
-                    child: const Text('移出'),
-                  ),
-                );
-              },
-            ),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final List<BlacklistInfo> list = _list.value;
+          if (list.isEmpty) {
+            return const EmptyStateView(title: '黑名单为空');
+          }
+          return ListView.separated(
+            itemCount: list.length,
+            separatorBuilder: (BuildContext _, int _) =>
+                const Divider(height: 1, indent: 68),
+            itemBuilder: (BuildContext _, int index) {
+              final BlacklistInfo item = list[index];
+              final String uid = item.blockUserID ?? '';
+              return ListTile(
+                leading: CachedAvatar(
+                  imageUrl: item.faceURL,
+                  fallbackName: item.nickname ?? uid,
+                ),
+                title: Text(item.nickname ?? uid),
+                trailing: TextButton(
+                  onPressed: () => _remove(uid),
+                  child: const Text('移出'),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

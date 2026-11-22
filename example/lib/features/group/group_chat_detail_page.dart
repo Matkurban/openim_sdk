@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -23,15 +24,19 @@ class GroupChatDetailPage extends StatefulWidget {
 }
 
 class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
-  ConversationInfo? _conversation;
-  GroupInfo? _group;
-  List<GroupMembersInfo> _members = <GroupMembersInfo>[];
-  GroupMembersInfo? _selfMember;
-  bool _loading = true;
+  late final Signal<ConversationInfo?> _conversation =
+      signal<ConversationInfo?>(null);
+  late final Signal<GroupInfo?> _group = signal<GroupInfo?>(null);
+  late final Signal<List<GroupMembersInfo>> _members =
+      signal<List<GroupMembersInfo>>(<GroupMembersInfo>[]);
+  late final Signal<GroupMembersInfo?> _selfMember = signal<GroupMembersInfo?>(
+    null,
+  );
+  late final Signal<bool> _loading = signal<bool>(true);
 
-  bool get _isOwner => _selfMember?.roleLevel == GroupRoleLevel.owner;
+  bool get _isOwner => _selfMember.value?.roleLevel == GroupRoleLevel.owner;
   bool get _isAdminOrOwner =>
-      _isOwner || _selfMember?.roleLevel == GroupRoleLevel.admin;
+      _isOwner || _selfMember.value?.roleLevel == GroupRoleLevel.admin;
 
   @override
   void initState() {
@@ -74,28 +79,26 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
         }
       }
       if (mounted) {
-        setState(() {
-          _conversation = conv;
-          _group = group;
-          _members = members;
-          _selfMember = selfMember;
+        batch(() {
+          _conversation.value = conv;
+          _group.value = group;
+          _members.value = members;
+          _selfMember.value = selfMember;
         });
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        _loading.value = false;
       }
     }
   }
 
   Future<void> _inviteMembers() async {
-    final String gid = _group?.groupID ?? '';
+    final String gid = _group.value?.groupID ?? '';
     if (gid.isEmpty) {
       return;
     }
-    final Set<String> existing = _members
+    final Set<String> existing = _members.value
         .map((GroupMembersInfo m) => m.userID ?? '')
         .toSet();
     final List<FriendInfo>? picked = await ContactPickerPage.pick(
@@ -119,7 +122,7 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
   }
 
   Future<void> _editGroupName() async {
-    final GroupInfo? group = _group;
+    final GroupInfo? group = _group.value;
     if (group == null) {
       return;
     }
@@ -134,11 +137,12 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
         content: TextField(controller: textController, autofocus: true),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(),
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(textController.text.trim()),
+            onPressed: () =>
+                AdaptiveRouter.of(ctx).pop(textController.text.trim()),
             child: const Text('保存'),
           ),
         ],
@@ -160,12 +164,12 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
   }
 
   Future<void> _editMyNickname() async {
-    final String gid = _group?.groupID ?? '';
+    final String gid = _group.value?.groupID ?? '';
     if (gid.isEmpty) {
       return;
     }
     final TextEditingController textController = TextEditingController(
-      text: _selfMember?.nickname ?? '',
+      text: _selfMember.value?.nickname ?? '',
     );
     final String? nextNick = await showDialog<String>(
       context: context,
@@ -175,11 +179,12 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
         content: TextField(controller: textController, autofocus: true),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(),
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(textController.text.trim()),
+            onPressed: () =>
+                AdaptiveRouter.of(ctx).pop(textController.text.trim()),
             child: const Text('保存'),
           ),
         ],
@@ -243,7 +248,7 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
   }
 
   Future<void> _quitOrDismiss() async {
-    final String gid = _group?.groupID ?? '';
+    final String gid = _group.value?.groupID ?? '';
     if (gid.isEmpty) {
       return;
     }
@@ -270,227 +275,239 @@ class _GroupChatDetailPageState extends State<GroupChatDetailPage> {
   Widget build(BuildContext context) {
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     final ThemeData theme = Theme.of(context);
-    final int memberCount = _group?.memberCount ?? _members.length;
-    final bool isPinned = _conversation?.isPinned ?? false;
-    final bool isMuted =
-        _conversation?.recvMsgOpt == ReceiveMessageOpt.notNotify;
-    final bool isDestruct = _conversation?.isMsgDestruct ?? false;
 
-    return Scaffold(
-      appBar: AppBar(title: Text('聊天信息 ($memberCount)')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: <Widget>[
-                Container(
-                  color: theme.colorScheme.surface,
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    children: <Widget>[
-                      _GroupMembersPreviewGrid(
-                        members: _members.take(13).toList(),
-                        canKick: _isAdminOrOwner,
-                        onTapMember: (GroupMembersInfo m) {
-                          router.pushNamed(
-                            AppRoutes.groupMemberDetail(
-                              widget.conversationId,
-                              m.userID ?? '',
-                            ),
-                            arguments: <String, Object?>{
-                              'group': _group,
-                              'member': m,
-                              'selfMember': _selfMember,
+    return SignalBuilder(
+      builder: (BuildContext _) {
+        final GroupInfo? group = _group.value;
+        final ConversationInfo? conversation = _conversation.value;
+        final List<GroupMembersInfo> members = _members.value;
+        final GroupMembersInfo? selfMember = _selfMember.value;
+        final bool loading = _loading.value;
+        final int memberCount = group?.memberCount ?? members.length;
+        final bool isPinned = conversation?.isPinned ?? false;
+        final bool isMuted =
+            conversation?.recvMsgOpt == ReceiveMessageOpt.notNotify;
+        final bool isDestruct = conversation?.isMsgDestruct ?? false;
+        final bool isOwner = _isOwner;
+        final bool isAdminOrOwner = _isAdminOrOwner;
+
+        return Scaffold(
+          appBar: AppBar(title: Text('聊天信息 ($memberCount)')),
+          body: loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                  children: <Widget>[
+                    Container(
+                      color: theme.colorScheme.surface,
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        children: <Widget>[
+                          _GroupMembersPreviewGrid(
+                            members: members.take(13).toList(),
+                            canKick: isAdminOrOwner,
+                            onTapMember: (GroupMembersInfo m) {
+                              router.pushNamed(
+                                AppRoutes.groupMemberDetail(
+                                  widget.conversationId,
+                                  m.userID ?? '',
+                                ),
+                                arguments: <String, Object?>{
+                                  'group': group,
+                                  'member': m,
+                                  'selfMember': selfMember,
+                                },
+                              );
                             },
-                          );
-                        },
-                        onInvite: _inviteMembers,
-                        onKick: () => router.pushNamed(
-                          AppRoutes.groupMembers(widget.conversationId),
-                          arguments: <String, Object?>{
-                            'group': _group,
-                            'selfMember': _selfMember,
-                          },
-                        ),
+                            onInvite: _inviteMembers,
+                            onKick: () => router.pushNamed(
+                              AppRoutes.groupMembers(widget.conversationId),
+                              arguments: <String, Object?>{
+                                'group': group,
+                                'selfMember': selfMember,
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () async {
+                              await router.pushNamed(
+                                AppRoutes.groupMembers(widget.conversationId),
+                                arguments: <String, Object?>{
+                                  'group': group,
+                                  'selfMember': selfMember,
+                                },
+                              );
+                              await _load();
+                            },
+                            child: Text('查看全部群成员 ($memberCount) >'),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 8),
-                      TextButton(
-                        onPressed: () async {
+                    ),
+                    const SizedBox(height: 10),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('群聊名称'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            group?.groupName ?? '',
+                            style: TextStyle(color: theme.hintColor),
+                          ),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                      onTap: isAdminOrOwner ? _editGroupName : null,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('群二维码'),
+                      trailing: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Icon(Icons.qr_code_2, size: 20),
+                          Icon(Icons.chevron_right),
+                        ],
+                      ),
+                      onTap: () => router.pushNamed(
+                        AppRoutes.groupQr(widget.conversationId),
+                        arguments: group,
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('群公告'),
+                      subtitle: (group?.notification ?? '').isNotEmpty
+                          ? Text(
+                              group!.notification!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            )
+                          : null,
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        await router.pushNamed(
+                          AppRoutes.groupAnnouncement(widget.conversationId),
+                          arguments: <String, Object?>{
+                            'group': group,
+                            'canEdit': isAdminOrOwner,
+                          },
+                        );
+                        await _load();
+                      },
+                    ),
+                    if (isAdminOrOwner) ...<Widget>[
+                      const Divider(height: 1),
+                      ListTile(
+                        tileColor: theme.colorScheme.surface,
+                        title: const Text('群管理'),
+                        subtitle: const Text('全员禁言、入群验证、管理员、转让群主'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () async {
                           await router.pushNamed(
-                            AppRoutes.groupMembers(widget.conversationId),
+                            AppRoutes.groupManagement(widget.conversationId),
                             arguments: <String, Object?>{
-                              'group': _group,
-                              'selfMember': _selfMember,
+                              'group': group,
+                              'isOwner': isOwner,
                             },
                           );
                           await _load();
                         },
-                        child: Text('查看全部群成员 ($memberCount) >'),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('群聊名称'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        _group?.groupName ?? '',
-                        style: TextStyle(color: theme.hintColor),
+                    const SizedBox(height: 10),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('我在本群的昵称'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            selfMember?.nickname ?? '',
+                            style: TextStyle(color: theme.hintColor),
+                          ),
+                          const Icon(Icons.chevron_right),
+                        ],
                       ),
-                      const Icon(Icons.chevron_right),
-                    ],
-                  ),
-                  onTap: _isAdminOrOwner ? _editGroupName : null,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('群二维码'),
-                  trailing: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(Icons.qr_code_2, size: 20),
-                      Icon(Icons.chevron_right),
-                    ],
-                  ),
-                  onTap: () => router.pushNamed(
-                    AppRoutes.groupQr(widget.conversationId),
-                    arguments: _group,
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('群公告'),
-                  subtitle: (_group?.notification ?? '').isNotEmpty
-                      ? Text(
-                          _group!.notification!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : null,
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () async {
-                    await router.pushNamed(
-                      AppRoutes.groupAnnouncement(widget.conversationId),
-                      arguments: <String, Object?>{
-                        'group': _group,
-                        'canEdit': _isAdminOrOwner,
-                      },
-                    );
-                    await _load();
-                  },
-                ),
-                if (_isAdminOrOwner) ...<Widget>[
-                  const Divider(height: 1),
-                  ListTile(
-                    tileColor: theme.colorScheme.surface,
-                    title: const Text('群管理'),
-                    subtitle: const Text('全员禁言、入群验证、管理员、转让群主'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () async {
-                      await router.pushNamed(
-                        AppRoutes.groupManagement(widget.conversationId),
-                        arguments: <String, Object?>{
-                          'group': _group,
-                          'isOwner': _isOwner,
-                        },
-                      );
-                      await _load();
-                    },
-                  ),
-                ],
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('我在本群的昵称'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Text(
-                        _selfMember?.nickname ?? '',
-                        style: TextStyle(color: theme.hintColor),
-                      ),
-                      const Icon(Icons.chevron_right),
-                    ],
-                  ),
-                  onTap: _editMyNickname,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('查找聊天记录'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => router.pushNamed(
-                    AppRoutes.chatSearch(widget.conversationId),
-                  ),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('图片与视频'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => router.pushNamed(
-                    AppRoutes.chatGallery(widget.conversationId),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SwitchListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('置顶聊天'),
-                  value: isPinned,
-                  onChanged: _togglePin,
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('消息免打扰'),
-                  value: isMuted,
-                  onChanged: _toggleMute,
-                ),
-                const Divider(height: 1),
-                SwitchListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('消息定时销毁（7天）'),
-                  value: isDestruct,
-                  onChanged: _toggleMsgDestruct,
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('清空聊天记录'),
-                  onTap: _clearHistory,
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  tileColor: theme.colorScheme.surface,
-                  title: const Text('投诉举报'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => router.pushNamed(
-                    AppRoutes.report,
-                    arguments: <String, String>{
-                      'type': 'group',
-                      'targetId': _group?.groupID ?? '',
-                    },
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.danger,
+                      onTap: _editMyNickname,
                     ),
-                    onPressed: _quitOrDismiss,
-                    child: Text(_isOwner ? '解散该群' : '退出群聊'),
-                  ),
+                    const Divider(height: 1),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('查找聊天记录'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => router.pushNamed(
+                        AppRoutes.chatSearch(widget.conversationId),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('图片与视频'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => router.pushNamed(
+                        AppRoutes.chatGallery(widget.conversationId),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SwitchListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('置顶聊天'),
+                      value: isPinned,
+                      onChanged: _togglePin,
+                    ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('消息免打扰'),
+                      value: isMuted,
+                      onChanged: _toggleMute,
+                    ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('消息定时销毁（7天）'),
+                      value: isDestruct,
+                      onChanged: _toggleMsgDestruct,
+                    ),
+                    const SizedBox(height: 10),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('清空聊天记录'),
+                      onTap: _clearHistory,
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      tileColor: theme.colorScheme.surface,
+                      title: const Text('投诉举报'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => router.pushNamed(
+                        AppRoutes.report,
+                        arguments: <String, String>{
+                          'type': 'group',
+                          'targetId': group?.groupID ?? '',
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.danger,
+                        ),
+                        onPressed: _quitOrDismiss,
+                        child: Text(isOwner ? '解散该群' : '退出群聊'),
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                  ],
                 ),
-                const SizedBox(height: 28),
-              ],
-            ),
+        );
+      },
     );
   }
 }

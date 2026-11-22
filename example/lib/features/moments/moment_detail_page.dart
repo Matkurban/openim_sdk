@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../shared/widgets/cached_avatar.dart';
@@ -29,15 +30,11 @@ class MomentDetailPage extends StatefulWidget {
 
 class _MomentDetailPageState extends State<MomentDetailPage> {
   final TextEditingController _commentController = TextEditingController();
-  MomentInfo? _moment;
-  String? _replyUserID;
-  String? _replyNickname;
-
-  @override
-  void initState() {
-    super.initState();
-    _moment = widget.initialMoment;
-  }
+  late final Signal<MomentInfo?> _moment = signal<MomentInfo?>(
+    widget.initialMoment,
+  );
+  late final Signal<String?> _replyUserID = signal<String?>(null);
+  late final Signal<String?> _replyNickname = signal<String?>(null);
 
   @override
   void dispose() {
@@ -46,7 +43,7 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
   }
 
   Future<void> _sendComment() async {
-    final MomentInfo? moment = _moment;
+    final MomentInfo? moment = _moment.value;
     final String text = _commentController.text.trim();
     if (moment == null || text.isEmpty) {
       return;
@@ -55,13 +52,13 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
       await OpenIM.iMManager.momentsManager.commentMoment(
         momentID: moment.momentID,
         content: text,
-        replyToUserID: _replyUserID,
+        replyToUserID: _replyUserID.value,
         ownerUserID: moment.userID,
       );
       _commentController.clear();
-      setState(() {
-        _replyUserID = null;
-        _replyNickname = null;
+      batch(() {
+        _replyUserID.value = null;
+        _replyNickname.value = null;
       });
       await FlutterToastPro.success('评论已发送');
     } on Object catch (error) {
@@ -71,113 +68,119 @@ class _MomentDetailPageState extends State<MomentDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final MomentInfo? moment = _moment;
-    if (moment == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('动态详情')),
-        body: const Center(child: Text('动态不存在或已被删除')),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(title: const Text('动态详情')),
-      body: Column(
-        children: <Widget>[
-          Expanded(
-            child: ListView(
-              children: <Widget>[
-                MomentCard(
-                  moment: moment,
-                  onToggleLike: () async {
-                    await OpenIM.iMManager.momentsManager.likeMoment(
-                      momentID: moment.momentID,
-                      ownerUserID: moment.userID,
-                    );
-                  },
-                  onComment: () {},
-                  onFavorite: () async {
-                    await OpenIM.iMManager.favoriteManager.addMoment(
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final MomentInfo? moment = _moment.value;
+          final String? replyNickname = _replyNickname.value;
+          if (moment == null) {
+            return const Center(child: Text('动态不存在或已被删除'));
+          }
+
+          return Column(
+            children: <Widget>[
+              Expanded(
+                child: ListView(
+                  children: <Widget>[
+                    MomentCard(
                       moment: moment,
-                    );
-                    await FlutterToastPro.success('已收藏动态');
-                  },
-                  onDelete: () async {
-                    await OpenIM.iMManager.momentsManager.deleteMoment(
-                      momentID: moment.momentID,
-                    );
-                    if (context.mounted) {
-                      AdaptiveRouter.of(context).pop();
-                    }
-                  },
-                  onOpenDetail: () {},
-                ),
-                const Divider(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  child: Text('全部评论 (${moment.comments.length})'),
-                ),
-                for (final MomentCommentWithUser c in moment.comments)
-                  ListTile(
-                    leading: CachedAvatar(
-                      imageUrl: c.userInfo?.faceURL,
-                      fallbackName: c.userInfo?.nickname ?? c.userID,
-                      size: 36,
+                      onToggleLike: () async {
+                        await OpenIM.iMManager.momentsManager.likeMoment(
+                          momentID: moment.momentID,
+                          ownerUserID: moment.userID,
+                        );
+                      },
+                      onComment: () {},
+                      onFavorite: () async {
+                        await OpenIM.iMManager.favoriteManager.addMoment(
+                          moment: moment,
+                        );
+                        await FlutterToastPro.success('已收藏动态');
+                      },
+                      onDelete: () async {
+                        await OpenIM.iMManager.momentsManager.deleteMoment(
+                          momentID: moment.momentID,
+                        );
+                        if (context.mounted) {
+                          AdaptiveRouter.of(context).pop();
+                        }
+                      },
+                      onOpenDetail: () {},
                     ),
-                    title: Text(c.userInfo?.nickname ?? c.userID),
-                    subtitle: Text(c.content),
-                    onTap: () {
-                      setState(() {
-                        _replyUserID = c.userID;
-                        _replyNickname = c.userInfo?.nickname ?? c.userID;
-                      });
-                    },
-                    trailing: c.userID == OpenIM.iMManager.userID
-                        ? IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed: () async {
-                              await OpenIM.iMManager.momentsManager
-                                  .deleteComment(
-                                    commentID: c.commentID,
-                                    momentID: moment.momentID,
-                                  );
-                              await FlutterToastPro.success('已删除评论');
-                            },
-                          )
-                        : null,
-                  ),
-              ],
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: TextField(
-                      controller: _commentController,
-                      decoration: InputDecoration(
-                        hintText: _replyNickname != null
-                            ? '回复 $_replyNickname...'
-                            : '写一条评论...',
-                        isDense: true,
+                    const Divider(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
                       ),
+                      child: Text('全部评论 (${moment.comments.length})'),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _sendComment,
-                    child: const Text('发送'),
-                  ),
-                ],
+                    for (final MomentCommentWithUser c in moment.comments)
+                      ListTile(
+                        leading: CachedAvatar(
+                          imageUrl: c.userInfo?.faceURL,
+                          fallbackName: c.userInfo?.nickname ?? c.userID,
+                          size: 36,
+                        ),
+                        title: Text(c.userInfo?.nickname ?? c.userID),
+                        subtitle: Text(c.content),
+                        onTap: () {
+                          batch(() {
+                            _replyUserID.value = c.userID;
+                            _replyNickname.value =
+                                c.userInfo?.nickname ?? c.userID;
+                          });
+                        },
+                        trailing: c.userID == OpenIM.iMManager.userID
+                            ? IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                ),
+                                onPressed: () async {
+                                  await OpenIM.iMManager.momentsManager
+                                      .deleteComment(
+                                        commentID: c.commentID,
+                                        momentID: moment.momentID,
+                                      );
+                                  await FlutterToastPro.success('已删除评论');
+                                },
+                              )
+                            : null,
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ),
-        ],
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          decoration: InputDecoration(
+                            hintText: replyNickname != null
+                                ? '回复 $replyNickname...'
+                                : '写一条评论...',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: _sendComment,
+                        child: const Text('发送'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

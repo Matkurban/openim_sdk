@@ -11,6 +11,7 @@ import 'badge_service.dart';
 import 'desktop_service.dart';
 import 'download_service.dart';
 import 'media_service.dart';
+import 'qr_login_service.dart';
 import 'settings_service.dart';
 import 'sharing_receive_service.dart';
 
@@ -47,6 +48,9 @@ class AppBootstrapService extends WireService {
     }
     if (!Wire.isRegistered<AuthSessionService>()) {
       Wire.put<AuthSessionService>(AuthSessionService());
+    }
+    if (!Wire.isRegistered<QrLoginService>()) {
+      Wire.put<QrLoginService>(QrLoginService());
     }
     if (!Wire.isRegistered<AppBootstrapService>()) {
       Wire.put<AppBootstrapService>(AppBootstrapService());

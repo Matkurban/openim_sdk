@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
+import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import 'cached_avatar.dart';
 
@@ -31,8 +33,9 @@ class ShareTargetPickerSheet extends StatefulWidget {
 }
 
 class _ShareTargetPickerSheetState extends State<ShareTargetPickerSheet> {
-  List<ConversationInfo> _conversations = <ConversationInfo>[];
-  bool _loading = true;
+  late final Signal<List<ConversationInfo>> _conversations =
+      signal<List<ConversationInfo>>(<ConversationInfo>[]);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -46,9 +49,9 @@ class _ShareTargetPickerSheetState extends State<ShareTargetPickerSheet> {
         .conversationManager
         .getAllConversationList();
     if (mounted) {
-      setState(() {
-        _conversations = list;
-        _loading = false;
+      batch(() {
+        _conversations.value = list;
+        _loading.value = false;
       });
     }
   }
@@ -71,38 +74,42 @@ class _ShareTargetPickerSheetState extends State<ShareTargetPickerSheet> {
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close),
-                    onPressed: () =>
-                        Navigator.of(context, rootNavigator: true).pop(),
+                    onPressed: () => AdaptiveRouter.of(context).pop(),
                   ),
                 ],
               ),
             ),
             const Divider(height: 1),
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _conversations.isEmpty
-                  ? const Center(child: Text('暂无可用会话'))
-                  : ListView.separated(
-                      itemCount: _conversations.length,
-                      separatorBuilder: (BuildContext _, int _) =>
-                          const Divider(height: 1, indent: 68),
-                      itemBuilder: (BuildContext _, int index) {
-                        final ConversationInfo conv = _conversations[index];
-                        return ListTile(
-                          leading: CachedAvatar(
-                            imageUrl: conv.faceURL,
-                            fallbackName: conv.showName,
-                          ),
-                          title: Text(conv.showName ?? conv.conversationID),
-                          subtitle: Text(conv.isGroupChat ? '群聊' : '单聊'),
-                          onTap: () => Navigator.of(
-                            context,
-                            rootNavigator: true,
-                          ).pop(conv),
-                        );
-                      },
-                    ),
+              child: SignalBuilder(
+                builder: (BuildContext _) {
+                  if (_loading.value) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final List<ConversationInfo> conversations =
+                      _conversations.value;
+                  if (conversations.isEmpty) {
+                    return const Center(child: Text('暂无可用会话'));
+                  }
+                  return ListView.separated(
+                    itemCount: conversations.length,
+                    separatorBuilder: (BuildContext _, int _) =>
+                        const Divider(height: 1, indent: 68),
+                    itemBuilder: (BuildContext _, int index) {
+                      final ConversationInfo conv = conversations[index];
+                      return ListTile(
+                        leading: CachedAvatar(
+                          imageUrl: conv.faceURL,
+                          fallbackName: conv.showName,
+                        ),
+                        title: Text(conv.showName ?? conv.conversationID),
+                        subtitle: Text(conv.isGroupChat ? '群聊' : '单聊'),
+                        onTap: () => AdaptiveRouter.of(context).pop(conv),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),

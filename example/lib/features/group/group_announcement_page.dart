@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 /// 群公告查看与发布编辑页。
@@ -26,7 +27,7 @@ class GroupAnnouncementPage extends StatefulWidget {
 
 class _GroupAnnouncementPageState extends State<GroupAnnouncementPage> {
   late final TextEditingController _controller;
-  bool _saving = false;
+  late final Signal<bool> _saving = signal<bool>(false);
 
   @override
   void initState() {
@@ -45,7 +46,7 @@ class _GroupAnnouncementPageState extends State<GroupAnnouncementPage> {
     if (gid.isEmpty) {
       return;
     }
-    setState(() => _saving = true);
+    _saving.value = true;
     try {
       await OpenIM.iMManager.groupManager.setGroupInfo(
         groupInfo: GroupInfo(
@@ -61,7 +62,7 @@ class _GroupAnnouncementPageState extends State<GroupAnnouncementPage> {
       await FlutterToastPro.error('发布失败：$error');
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _saving.value = false;
       }
     }
   }
@@ -73,9 +74,14 @@ class _GroupAnnouncementPageState extends State<GroupAnnouncementPage> {
         title: const Text('群公告'),
         actions: <Widget>[
           if (widget.canEdit)
-            TextButton(
-              onPressed: _saving ? null : _publish,
-              child: Text(_saving ? '发布中...' : '发布'),
+            SignalBuilder(
+              builder: (BuildContext _) {
+                final bool saving = _saving.value;
+                return TextButton(
+                  onPressed: saving ? null : _publish,
+                  child: Text(saving ? '发布中...' : '发布'),
+                );
+              },
             ),
         ],
       ),

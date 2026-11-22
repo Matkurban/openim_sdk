@@ -30,16 +30,17 @@ class ImagePreviewPage extends StatefulWidget {
 
 class _ImagePreviewPageState extends State<ImagePreviewPage> {
   late final PageController _pageController;
-  late int _currentIndex;
+  late final Signal<int> _currentIndex;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex.clamp(
+    final int initial = widget.initialIndex.clamp(
       0,
       widget.imageUrls.isEmpty ? 0 : widget.imageUrls.length - 1,
     );
-    _pageController = PageController(initialPage: _currentIndex);
+    _currentIndex = signal<int>(initial);
+    _pageController = PageController(initialPage: initial);
   }
 
   @override
@@ -49,7 +50,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
   }
 
   String get _currentUrl =>
-      widget.imageUrls.isEmpty ? '' : widget.imageUrls[_currentIndex];
+      widget.imageUrls.isEmpty ? '' : widget.imageUrls[_currentIndex.value];
 
   Future<void> _saveCurrent() async {
     if (_currentUrl.isEmpty) {
@@ -92,10 +93,14 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
       appBar: AppBar(
         backgroundColor: Colors.black54,
         foregroundColor: Colors.white,
-        title: Text(
-          widget.imageUrls.length > 1
-              ? '${_currentIndex + 1} / ${widget.imageUrls.length}'
-              : '图片预览',
+        title: SignalBuilder(
+          builder: (BuildContext _) {
+            return Text(
+              widget.imageUrls.length > 1
+                  ? '${_currentIndex.value + 1} / ${widget.imageUrls.length}'
+                  : '图片预览',
+            );
+          },
         ),
         actions: <Widget>[
           IconButton(
@@ -117,7 +122,7 @@ class _ImagePreviewPageState extends State<ImagePreviewPage> {
           : PageView.builder(
               controller: _pageController,
               itemCount: widget.imageUrls.length,
-              onPageChanged: (int idx) => setState(() => _currentIndex = idx),
+              onPageChanged: (int idx) => _currentIndex.value = idx,
               itemBuilder: (BuildContext _, int index) {
                 return Center(
                   child: InteractiveViewer(

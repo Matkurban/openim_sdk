@@ -24,9 +24,11 @@ class _AppealPageState extends State<AppealPage> {
   final TextEditingController _reasonController = TextEditingController();
   final TextEditingController _captchaController = TextEditingController();
 
-  AppealCaptcha? _captcha;
-  final List<String> _evidenceUrls = <String>[];
-  bool _submitting = false;
+  late final Signal<AppealCaptcha?> _captcha = signal<AppealCaptcha?>(null);
+  late final Signal<List<String>> _evidenceUrls = signal<List<String>>(
+    <String>[],
+  );
+  late final Signal<bool> _submitting = signal<bool>(false);
 
   @override
   void initState() {
@@ -48,9 +50,7 @@ class _AppealPageState extends State<AppealPage> {
       final AppealCaptcha? result = await OpenIM.iMManager.reportAppealManager
           .getAppealCaptcha();
       if (mounted) {
-        setState(() {
-          _captcha = result;
-        });
+        _captcha.value = result;
       }
     } on Object catch (error) {
       await FlutterToastPro.error('加载图形验证码失败：$error');
@@ -69,15 +69,13 @@ class _AppealPageState extends State<AppealPage> {
           .iMManager
           .reportAppealManager
           .uploadAppealEvidence(
-            appealToken: _captcha?.captchaID ?? '',
+            appealToken: _captcha.value?.captchaID ?? '',
             filePath: file.path!,
             fileName: file.name,
           );
       FlutterToastPro.hideLoading();
       if (uploaded != null && uploaded.url.isNotEmpty && mounted) {
-        setState(() {
-          _evidenceUrls.add(uploaded.url);
-        });
+        _evidenceUrls.value = <String>[..._evidenceUrls.value, uploaded.url];
         await FlutterToastPro.success('证据上传成功');
       }
     } on Object catch (error) {
@@ -92,15 +90,13 @@ class _AppealPageState extends State<AppealPage> {
       await FlutterToastPro.warning('请填写账号和申诉理由');
       return;
     }
-    setState(() {
-      _submitting = true;
-    });
+    _submitting.value = true;
     try {
       await OpenIM.iMManager.reportAppealManager.submitAppeal(
         account: _accountController.text.trim(),
         contact: _contactController.text.trim(),
         reason: _reasonController.text.trim(),
-        captchaID: _captcha?.captchaID ?? '',
+        captchaID: _captcha.value?.captchaID ?? '',
         captchaAnswer: _captchaController.text.trim(),
       );
       await FlutterToastPro.success('申诉已提交，请留意联系邮箱');
@@ -111,9 +107,7 @@ class _AppealPageState extends State<AppealPage> {
       await FlutterToastPro.error('提交申诉失败：$error');
     } finally {
       if (mounted) {
-        setState(() {
-          _submitting = false;
-        });
+        _submitting.value = false;
       }
     }
   }
@@ -127,52 +121,61 @@ class _AppealPageState extends State<AppealPage> {
           constraints: const BoxConstraints(maxWidth: 460),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                TextField(
-                  controller: _accountController,
-                  decoration: const InputDecoration(labelText: '申诉账号 / 邮箱'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _contactController,
-                  decoration: const InputDecoration(labelText: '联系邮箱或手机号'),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _reasonController,
-                  maxLines: 4,
-                  decoration: const InputDecoration(labelText: '申诉说明'),
-                ),
-                const SizedBox(height: 12),
-                Row(
+            child: SignalBuilder(
+              builder: (BuildContext _) {
+                final AppealCaptcha? captcha = _captcha.value;
+                final List<String> evidenceUrls = _evidenceUrls.value;
+                final bool submitting = _submitting.value;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Expanded(
-                      child: TextField(
-                        controller: _captchaController,
-                        decoration: const InputDecoration(labelText: '图形验证码'),
-                      ),
+                    TextField(
+                      controller: _accountController,
+                      decoration: const InputDecoration(labelText: '申诉账号 / 邮箱'),
                     ),
-                    const SizedBox(width: 10),
-                    OutlinedButton(
-                      onPressed: _loadCaptcha,
-                      child: Text(_captcha == null ? '获取验证码' : '换一张'),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _contactController,
+                      decoration: const InputDecoration(labelText: '联系邮箱或手机号'),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _reasonController,
+                      maxLines: 4,
+                      decoration: const InputDecoration(labelText: '申诉说明'),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: TextField(
+                            controller: _captchaController,
+                            decoration: const InputDecoration(
+                              labelText: '图形验证码',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        OutlinedButton(
+                          onPressed: _loadCaptcha,
+                          child: Text(captcha == null ? '获取验证码' : '换一张'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _pickEvidence,
+                      icon: const Icon(Icons.upload_file),
+                      label: Text('上传截图证据（已上传 ${evidenceUrls.length} 张）'),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: submitting ? null : _submit,
+                      child: Text(submitting ? '提交中...' : '提交申诉'),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _pickEvidence,
-                  icon: const Icon(Icons.upload_file),
-                  label: Text('上传截图证据（已上传 ${_evidenceUrls.length} 张）'),
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _submitting ? null : _submit,
-                  child: Text(_submitting ? '提交中...' : '提交申诉'),
-                ),
-              ],
+                );
+              },
             ),
           ),
         ),

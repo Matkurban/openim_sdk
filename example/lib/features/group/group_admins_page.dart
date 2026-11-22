@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 
 import '../../shared/widgets/cached_avatar.dart';
 
@@ -22,9 +23,11 @@ class GroupAdminsPage extends StatefulWidget {
 }
 
 class _GroupAdminsPageState extends State<GroupAdminsPage> {
-  List<GroupMembersInfo> _admins = <GroupMembersInfo>[];
-  List<GroupMembersInfo> _normalMembers = <GroupMembersInfo>[];
-  bool _loading = true;
+  late final Signal<List<GroupMembersInfo>> _admins =
+      signal<List<GroupMembersInfo>>(<GroupMembersInfo>[]);
+  late final Signal<List<GroupMembersInfo>> _normalMembers =
+      signal<List<GroupMembersInfo>>(<GroupMembersInfo>[]);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -35,7 +38,7 @@ class _GroupAdminsPageState extends State<GroupAdminsPage> {
   Future<void> _load() async {
     final String gid = widget.group?.groupID ?? '';
     if (gid.isEmpty) {
-      setState(() => _loading = false);
+      _loading.value = false;
       return;
     }
     try {
@@ -50,18 +53,18 @@ class _GroupAdminsPageState extends State<GroupAdminsPage> {
             count: 100,
           );
       if (mounted) {
-        setState(() {
-          _admins = ownersAndAdmins
+        batch(() {
+          _admins.value = ownersAndAdmins
               .where(
                 (GroupMembersInfo m) => m.roleLevel == GroupRoleLevel.admin,
               )
               .toList();
-          _normalMembers = members;
+          _normalMembers.value = members;
         });
       }
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _loading.value = false;
       }
     }
   }
@@ -93,50 +96,57 @@ class _GroupAdminsPageState extends State<GroupAdminsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('群管理员')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              children: <Widget>[
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final List<GroupMembersInfo> admins = _admins.value;
+          final List<GroupMembersInfo> normalMembers = _normalMembers.value;
+          return ListView(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+                child: Text('当前管理员（${admins.length}）'),
+              ),
+              for (final GroupMembersInfo admin in admins)
+                ListTile(
+                  leading: CachedAvatar(
+                    imageUrl: admin.faceURL,
+                    fallbackName: admin.nickname ?? admin.userID,
+                  ),
+                  title: Text(admin.nickname ?? admin.userID ?? ''),
+                  trailing: widget.isOwner
+                      ? TextButton(
+                          onPressed: () =>
+                              _setRole(admin, GroupRoleLevel.member),
+                          child: const Text('撤销'),
+                        )
+                      : null,
+                ),
+              if (widget.isOwner) ...<Widget>[
+                const Divider(),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                  child: Text('当前管理员（${_admins.length}）'),
+                  child: Text('可添加的普通成员（${normalMembers.length}）'),
                 ),
-                for (final GroupMembersInfo admin in _admins)
+                for (final GroupMembersInfo m in normalMembers)
                   ListTile(
                     leading: CachedAvatar(
-                      imageUrl: admin.faceURL,
-                      fallbackName: admin.nickname ?? admin.userID,
+                      imageUrl: m.faceURL,
+                      fallbackName: m.nickname ?? m.userID,
                     ),
-                    title: Text(admin.nickname ?? admin.userID ?? ''),
-                    trailing: widget.isOwner
-                        ? TextButton(
-                            onPressed: () =>
-                                _setRole(admin, GroupRoleLevel.member),
-                            child: const Text('撤销'),
-                          )
-                        : null,
-                  ),
-                if (widget.isOwner) ...<Widget>[
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-                    child: Text('可添加的普通成员（${_normalMembers.length}）'),
-                  ),
-                  for (final GroupMembersInfo m in _normalMembers)
-                    ListTile(
-                      leading: CachedAvatar(
-                        imageUrl: m.faceURL,
-                        fallbackName: m.nickname ?? m.userID,
-                      ),
-                      title: Text(m.nickname ?? m.userID ?? ''),
-                      trailing: OutlinedButton(
-                        onPressed: () => _setRole(m, GroupRoleLevel.admin),
-                        child: const Text('设为管理员'),
-                      ),
+                    title: Text(m.nickname ?? m.userID ?? ''),
+                    trailing: OutlinedButton(
+                      onPressed: () => _setRole(m, GroupRoleLevel.admin),
+                      child: const Text('设为管理员'),
                     ),
-                ],
+                  ),
               ],
-            ),
+            ],
+          );
+        },
+      ),
     );
   }
 }

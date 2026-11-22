@@ -24,12 +24,12 @@ class ProfilePage extends StatelessWidget {
         content: const Text('确定要退出当前账号并断开 IM 连接吗？'),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(false),
             child: const Text('取消'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(true),
             child: const Text('退出登录'),
           ),
         ],
@@ -66,7 +66,11 @@ class ProfilePage extends StatelessWidget {
               Material(
                 color: theme.colorScheme.surface,
                 child: InkWell(
-                  onTap: () => router.pushNamed(AppRoutes.editProfile),
+                  onTap: () => router.pushNamedAndRemoveUntil(
+                    AppRoutes.editProfile,
+                    (AdaptiveRouteMatch m) =>
+                        m.matchedLocation == AppRoutes.profile,
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(18),
                     child: Row(
@@ -100,7 +104,11 @@ class ProfilePage extends StatelessWidget {
                         IconButton(
                           tooltip: '我的二维码',
                           icon: const Icon(Icons.qr_code_2, size: 26),
-                          onPressed: () => router.pushNamed(AppRoutes.myQr),
+                          onPressed: () => router.pushNamedAndRemoveUntil(
+                            AppRoutes.myQr,
+                            (AdaptiveRouteMatch m) =>
+                                m.matchedLocation == AppRoutes.profile,
+                          ),
                         ),
                         const Icon(Icons.chevron_right),
                       ],
@@ -114,7 +122,11 @@ class ProfilePage extends StatelessWidget {
                 leading: const Icon(Icons.photo_album_outlined),
                 title: const Text('我的朋友圈相册'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(AppRoutes.userMoments(uid)),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.userMoments(uid),
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.profile,
+                ),
               ),
               const Divider(height: 1),
               ListTile(
@@ -122,7 +134,11 @@ class ProfilePage extends StatelessWidget {
                 leading: const Icon(Icons.star_outline),
                 title: const Text('我的收藏'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(AppRoutes.favorites),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.favorites,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.profile,
+                ),
               ),
               const Divider(height: 1),
               ListTile(
@@ -130,7 +146,11 @@ class ProfilePage extends StatelessWidget {
                 leading: const Icon(Icons.account_balance_wallet_outlined),
                 title: const Text('积分中心'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(AppRoutes.points),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.points,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.profile,
+                ),
               ),
               const SizedBox(height: 10),
               ListTile(
@@ -138,7 +158,11 @@ class ProfilePage extends StatelessWidget {
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('通用与安全设置'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => router.pushNamed(AppRoutes.settings),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.settings,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.profile,
+                ),
               ),
               const SizedBox(height: 20),
               Padding(

@@ -27,16 +27,17 @@ class CallOverlayPage extends StatefulWidget {
 }
 
 class _CallOverlayPageState extends State<CallOverlayPage> {
-  CallSession? _session;
-  bool _muted = false;
-  int _elapsedSeconds = 0;
+  late final Signal<CallSession?> _session = signal<CallSession?>(
+    widget.session ?? OpenIM.iMManager.callManager.currentSession,
+  );
+  late final Signal<bool> _muted = signal<bool>(false);
+  late final Signal<int> _elapsedSeconds = signal<int>(0);
   Timer? _timer;
   StreamSubscription<ImSocialEvent>? _callSub;
 
   @override
   void initState() {
     super.initState();
-    _session = widget.session ?? OpenIM.iMManager.callManager.currentSession;
     _callSub = Wire.find<ImEventBus>().socialStream.listen((
       ImSocialEvent event,
     ) {
@@ -54,7 +55,7 @@ class _CallOverlayPageState extends State<CallOverlayPage> {
         }
       }
       if (event.callSession != null && mounted) {
-        setState(() => _session = event.callSession);
+        _session.value = event.callSession;
       }
     });
   }
@@ -63,7 +64,7 @@ class _CallOverlayPageState extends State<CallOverlayPage> {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (Timer _) {
       if (mounted) {
-        setState(() => _elapsedSeconds += 1);
+        _elapsedSeconds.value += 1;
       }
     });
   }
@@ -71,12 +72,12 @@ class _CallOverlayPageState extends State<CallOverlayPage> {
   Future<void> _toggleMute() async {
     await XueHuaNaviteVolumeController.instance.toggleMute();
     if (mounted) {
-      setState(() => _muted = !_muted);
+      _muted.value = !_muted.value;
     }
   }
 
   Future<void> _accept() async {
-    final String roomId = _session?.roomID ?? '';
+    final String roomId = _session.value?.roomID ?? '';
     if (roomId.isEmpty) {
       return;
     }
@@ -95,7 +96,7 @@ class _CallOverlayPageState extends State<CallOverlayPage> {
         await OpenIM.iMManager.callManager.cancel();
       } else if (state == CallState.incoming) {
         await OpenIM.iMManager.callManager.reject(
-          roomID: _session?.roomID ?? '',
+          roomID: _session.value?.roomID ?? '',
         );
       } else {
         await OpenIM.iMManager.callManager.hangup();
@@ -115,66 +116,75 @@ class _CallOverlayPageState extends State<CallOverlayPage> {
 
   @override
   Widget build(BuildContext context) {
-    final CallState state = OpenIM.iMManager.callManager.callState;
-    final bool isIncoming = state == CallState.incoming;
-    final String peerLabel = _session?.inviterUserID ?? '对方';
-
     return Scaffold(
       backgroundColor: const Color(0xFF1A1C1E),
       body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              CachedAvatar(fallbackName: peerLabel, size: 88, borderRadius: 44),
-              const SizedBox(height: 18),
-              Text(
-                peerLabel,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _elapsedSeconds > 0
-                    ? '通话中 ${_elapsedSeconds}s'
-                    : (isIncoming ? '邀请你通话...' : '正在等待对方接听...'),
-                style: const TextStyle(color: Colors.white70),
-              ),
-              const SizedBox(height: 64),
-              Row(
+          child: SignalBuilder(
+            builder: (BuildContext _) {
+              final CallState state = OpenIM.iMManager.callManager.callState;
+              final bool isIncoming = state == CallState.incoming;
+              final String peerLabel = _session.value?.inviterUserID ?? '对方';
+              final int elapsed = _elapsedSeconds.value;
+              final bool muted = _muted.value;
+              return Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: <Widget>[
-                  FloatingActionButton(
-                    heroTag: 'call_mute',
-                    backgroundColor: Colors.white24,
-                    onPressed: _toggleMute,
-                    child: Icon(
-                      _muted ? Icons.mic_off : Icons.mic,
+                  CachedAvatar(
+                    fallbackName: peerLabel,
+                    size: 88,
+                    borderRadius: 44,
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    peerLabel,
+                    style: const TextStyle(
                       color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: 28),
-                  if (isIncoming) ...<Widget>[
-                    FloatingActionButton(
-                      heroTag: 'call_accept',
-                      backgroundColor: AppColors.primary,
-                      onPressed: _accept,
-                      child: const Icon(Icons.call, color: Colors.white),
-                    ),
-                    const SizedBox(width: 28),
-                  ],
-                  FloatingActionButton(
-                    heroTag: 'call_end',
-                    backgroundColor: AppColors.danger,
-                    onPressed: _hangupOrCancel,
-                    child: const Icon(Icons.call_end, color: Colors.white),
+                  const SizedBox(height: 8),
+                  Text(
+                    elapsed > 0
+                        ? '通话中 ${elapsed}s'
+                        : (isIncoming ? '邀请你通话...' : '正在等待对方接听...'),
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 64),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      FloatingActionButton(
+                        heroTag: 'call_mute',
+                        backgroundColor: Colors.white24,
+                        onPressed: _toggleMute,
+                        child: Icon(
+                          muted ? Icons.mic_off : Icons.mic,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 28),
+                      if (isIncoming) ...<Widget>[
+                        FloatingActionButton(
+                          heroTag: 'call_accept',
+                          backgroundColor: AppColors.primary,
+                          onPressed: _accept,
+                          child: const Icon(Icons.call, color: Colors.white),
+                        ),
+                        const SizedBox(width: 28),
+                      ],
+                      FloatingActionButton(
+                        heroTag: 'call_end',
+                        backgroundColor: AppColors.danger,
+                        onPressed: _hangupOrCancel,
+                        child: const Icon(Icons.call_end, color: Colors.white),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
         ),
       ),

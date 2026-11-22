@@ -3,9 +3,9 @@ import 'package:xue_hua_navite_cache_manager/xue_hua_navite_cache_manager.dart';
 
 import '../../app/theme/app_colors.dart';
 
-/// 基于 `xue_hua_navite_cache_manager` 的圆角缓存头像组件。
+/// 基于 `xue_hua_navite_cache_manager` 的圆角缓存头像组件（直接使用高性能 `borderRadius` 属性）。
 ///
-/// Rounded cached avatar widget powered by `xue_hua_navite_cache_manager`.
+/// Rounded cached avatar widget using `CachedNetworkImage.borderRadius` directly (no `ClipRRect`).
 class CachedAvatar extends StatelessWidget {
   /// 头像图片 URL。
   final String? imageUrl;
@@ -32,23 +32,30 @@ class CachedAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final String url = (imageUrl ?? '').trim();
     final int decodeSize = (size * 2).round().clamp(64, 512);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: url.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: url,
-              tag: 'avatars',
-              width: size,
-              height: size,
-              memCacheWidth: decodeSize,
-              memCacheHeight: decodeSize,
-              fit: BoxFit.cover,
-              errorBuilder:
-                  (BuildContext _, String _, Object _, StackTrace? _) {
-                    return _AvatarFallback(name: fallbackName, size: size);
-                  },
-            )
-          : _AvatarFallback(name: fallbackName, size: size),
+    final BorderRadius radius = BorderRadius.circular(borderRadius);
+    if (url.isEmpty) {
+      return _AvatarFallback(
+        name: fallbackName,
+        size: size,
+        borderRadius: radius,
+      );
+    }
+    return CachedNetworkImage(
+      imageUrl: url,
+      tag: 'avatars',
+      width: size,
+      height: size,
+      memCacheWidth: decodeSize,
+      memCacheHeight: decodeSize,
+      borderRadius: radius,
+      fit: BoxFit.cover,
+      errorBuilder: (BuildContext _, String _, Object _, StackTrace? _) {
+        return _AvatarFallback(
+          name: fallbackName,
+          size: size,
+          borderRadius: radius,
+        );
+      },
     );
   }
 }
@@ -56,8 +63,13 @@ class CachedAvatar extends StatelessWidget {
 class _AvatarFallback extends StatelessWidget {
   final String? name;
   final double size;
+  final BorderRadius borderRadius;
 
-  const _AvatarFallback({required this.name, required this.size});
+  const _AvatarFallback({
+    required this.name,
+    required this.size,
+    required this.borderRadius,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +78,10 @@ class _AvatarFallback extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      color: AppColors.primary.withValues(alpha: 0.16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.16),
+        borderRadius: borderRadius,
+      ),
       alignment: Alignment.center,
       child: Text(
         initial,

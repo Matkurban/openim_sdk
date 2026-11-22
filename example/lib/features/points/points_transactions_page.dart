@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 
 import '../../core/utils/date_time_formatter.dart';
 import '../../shared/widgets/empty_state_view.dart';
@@ -16,10 +17,13 @@ class PointsTransactionsPage extends StatefulWidget {
 }
 
 class _PointsTransactionsPageState extends State<PointsTransactionsPage> {
-  List<PointsTransaction> _all = <PointsTransaction>[];
-  List<PointsTransaction> _income = <PointsTransaction>[];
-  List<PointsTransaction> _expense = <PointsTransaction>[];
-  bool _loading = true;
+  late final Signal<List<PointsTransaction>> _all =
+      signal<List<PointsTransaction>>(<PointsTransaction>[]);
+  late final Signal<List<PointsTransaction>> _income =
+      signal<List<PointsTransaction>>(<PointsTransaction>[]);
+  late final Signal<List<PointsTransaction>> _expense =
+      signal<List<PointsTransaction>>(<PointsTransaction>[]);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -42,15 +46,15 @@ class _PointsTransactionsPageState extends State<PointsTransactionsPage> {
           .redPacketManager
           .getExpenseTransactions(pageNumber: 1, showNumber: 50);
       if (mounted) {
-        setState(() {
-          _all = all;
-          _income = inc;
-          _expense = exp;
+        batch(() {
+          _all.value = all;
+          _income.value = inc;
+          _expense.value = exp;
         });
       }
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _loading.value = false;
       }
     }
   }
@@ -70,15 +74,20 @@ class _PointsTransactionsPageState extends State<PointsTransactionsPage> {
             ],
           ),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : TabBarView(
-                children: <Widget>[
-                  _TransactionListView(items: _all),
-                  _TransactionListView(items: _income),
-                  _TransactionListView(items: _expense),
-                ],
-              ),
+        body: SignalBuilder(
+          builder: (BuildContext _) {
+            if (_loading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return TabBarView(
+              children: <Widget>[
+                _TransactionListView(items: _all.value),
+                _TransactionListView(items: _income.value),
+                _TransactionListView(items: _expense.value),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

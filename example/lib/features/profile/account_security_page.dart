@@ -41,11 +41,11 @@ class AccountSecurityPage extends StatelessWidget {
         ),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(false),
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(true),
             child: const Text('确认修改'),
           ),
         ],
@@ -90,12 +90,12 @@ class AccountSecurityPage extends StatelessWidget {
         ),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(false),
             child: const Text('取消'),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(true),
             child: const Text('确认注销'),
           ),
         ],

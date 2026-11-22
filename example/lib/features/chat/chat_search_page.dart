@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -23,9 +24,11 @@ class ChatSearchPage extends StatefulWidget {
 
 class _ChatSearchPageState extends State<ChatSearchPage> {
   final TextEditingController _controller = TextEditingController();
-  List<Message> _results = <Message>[];
-  List<int> _typeFilter = const <int>[];
-  bool _searching = false;
+  late final Signal<List<Message>> _results = signal<List<Message>>(
+    <Message>[],
+  );
+  late final Signal<List<int>> _typeFilter = signal<List<int>>(const <int>[]);
+  late final Signal<bool> _searching = signal<bool>(false);
 
   @override
   void dispose() {
@@ -35,17 +38,17 @@ class _ChatSearchPageState extends State<ChatSearchPage> {
 
   Future<void> _search() async {
     final String kw = _controller.text.trim();
-    if (kw.isEmpty && _typeFilter.isEmpty) {
-      setState(() => _results = <Message>[]);
+    if (kw.isEmpty && _typeFilter.value.isEmpty) {
+      _results.value = <Message>[];
       return;
     }
-    setState(() => _searching = true);
+    _searching.value = true;
     try {
       final SearchResult res = await OpenIM.iMManager.messageManager
           .searchLocalMessages(
             conversationID: widget.conversationId,
             keywordList: kw.isNotEmpty ? <String>[kw] : const <String>[],
-            messageTypeList: _typeFilter,
+            messageTypeList: _typeFilter.value,
             count: 100,
           );
       final List<Message> msgs = <Message>[];
@@ -54,11 +57,11 @@ class _ChatSearchPageState extends State<ChatSearchPage> {
         msgs.addAll(item.messageList ?? const <Message>[]);
       }
       if (mounted) {
-        setState(() => _results = msgs);
+        _results.value = msgs;
       }
     } finally {
       if (mounted) {
-        setState(() => _searching = false);
+        _searching.value = false;
       }
     }
   }
@@ -81,100 +84,110 @@ class _ChatSearchPageState extends State<ChatSearchPage> {
           IconButton(icon: const Icon(Icons.search), onPressed: _search),
         ],
       ),
-      body: Column(
-        children: <Widget>[
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: <Widget>[
-                for (final (String label, List<int> types)
-                    in <(String, List<int>)>[
-                      ('全部', const <int>[]),
-                      (
-                        '图片与视频',
-                        <int>[
-                          MessageType.picture.value,
-                          MessageType.video.value,
-                        ],
-                      ),
-                      ('文件', <int>[MessageType.file.value]),
-                      ('语音', <int>[MessageType.voice.value]),
-                    ])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(label),
-                      selected: _typeFilter.toString() == types.toString(),
-                      onSelected: (bool _) {
-                        setState(() => _typeFilter = types);
-                        _search();
-                      },
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _searching
-                ? const Center(child: CircularProgressIndicator())
-                : _results.isEmpty
-                ? const EmptyStateView(title: '未找到匹配的聊天记录')
-                : ListView.separated(
-                    itemCount: _results.length,
-                    separatorBuilder: (BuildContext _, int _) =>
-                        const Divider(height: 1, indent: 68),
-                    itemBuilder: (BuildContext _, int index) {
-                      final Message msg = _results[index];
-                      return ListTile(
-                        leading: CachedAvatar(
-                          imageUrl: msg.senderFaceUrl,
-                          fallbackName: msg.senderNickname ?? msg.sendID,
-                        ),
-                        title: Text(msg.senderNickname ?? msg.sendID ?? ''),
-                        subtitle: Text(
-                          msg.textElem?.content ??
-                              msg.fileElem?.fileName ??
-                              '[${msg.contentType?.name ?? '消息'}]',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: Text(
-                          DateTimeFormatter.formatConversationTime(
-                            msg.sendTime,
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final List<int> activeTypes = _typeFilter.value;
+          final bool searching = _searching.value;
+          final List<Message> results = _results.value;
+          return Column(
+            children: <Widget>[
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: <Widget>[
+                    for (final (String label, List<int> types)
+                        in <(String, List<int>)>[
+                          ('全部', const <int>[]),
+                          (
+                            '图片与视频',
+                            <int>[
+                              MessageType.picture.value,
+                              MessageType.video.value,
+                            ],
                           ),
-                          style: Theme.of(context).textTheme.labelSmall,
+                          ('文件', <int>[MessageType.file.value]),
+                          ('语音', <int>[MessageType.voice.value]),
+                        ])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          label: Text(label),
+                          selected: activeTypes.toString() == types.toString(),
+                          onSelected: (bool _) {
+                            _typeFilter.value = types;
+                            _search();
+                          },
                         ),
-                        onTap: () {
-                          if (msg.contentType == MessageType.picture) {
-                            final String url =
-                                msg.pictureElem?.sourcePicture?.url ?? '';
-                            if (url.isNotEmpty) {
-                              router.pushNamed(
-                                AppRoutes.imagePreview,
-                                arguments: <String, Object>{
-                                  'urls': <String>[url],
-                                  'index': 0,
-                                },
-                              );
-                            }
-                          } else if (msg.contentType == MessageType.file) {
-                            router.pushNamed(
-                              AppRoutes.filePreview,
-                              arguments: <String, Object?>{
-                                'fileName': msg.fileElem?.fileName ?? '文件',
-                                'fileUrl': msg.fileElem?.sourceUrl ?? '',
-                                'fileSize': msg.fileElem?.fileSize ?? 0,
-                                'localPath': msg.fileElem?.filePath,
-                              },
-                            );
-                          }
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: searching
+                    ? const Center(child: CircularProgressIndicator())
+                    : results.isEmpty
+                    ? const EmptyStateView(title: '未找到匹配的聊天记录')
+                    : ListView.separated(
+                        itemCount: results.length,
+                        separatorBuilder: (BuildContext _, int _) =>
+                            const Divider(height: 1, indent: 68),
+                        itemBuilder: (BuildContext _, int index) {
+                          final Message msg = results[index];
+                          return ListTile(
+                            leading: CachedAvatar(
+                              imageUrl: msg.senderFaceUrl,
+                              fallbackName: msg.senderNickname ?? msg.sendID,
+                            ),
+                            title: Text(msg.senderNickname ?? msg.sendID ?? ''),
+                            subtitle: Text(
+                              msg.textElem?.content ??
+                                  msg.fileElem?.fileName ??
+                                  '[${msg.contentType?.name ?? '消息'}]',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Text(
+                              DateTimeFormatter.formatConversationTime(
+                                msg.sendTime,
+                              ),
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                            onTap: () {
+                              if (msg.contentType == MessageType.picture) {
+                                final String url =
+                                    msg.pictureElem?.sourcePicture?.url ?? '';
+                                if (url.isNotEmpty) {
+                                  router.pushNamed(
+                                    AppRoutes.imagePreview,
+                                    arguments: <String, Object>{
+                                      'urls': <String>[url],
+                                      'index': 0,
+                                    },
+                                  );
+                                }
+                              } else if (msg.contentType == MessageType.file) {
+                                router.pushNamed(
+                                  AppRoutes.filePreview,
+                                  arguments: <String, Object?>{
+                                    'fileName': msg.fileElem?.fileName ?? '文件',
+                                    'fileUrl': msg.fileElem?.sourceUrl ?? '',
+                                    'fileSize': msg.fileElem?.fileSize ?? 0,
+                                    'localPath': msg.fileElem?.filePath,
+                                  },
+                                );
+                              }
+                            },
+                          );
                         },
-                      );
-                    },
-                  ),
-          ),
-        ],
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

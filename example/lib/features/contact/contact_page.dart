@@ -31,7 +31,10 @@ class ContactPage extends WireView<ContactController> {
           IconButton(
             tooltip: '添加联系人',
             icon: const Icon(Icons.person_add_alt_1_outlined),
-            onPressed: () => router.pushNamed(AppRoutes.addContact),
+            onPressed: () => router.pushNamedAndRemoveUntil(
+              AppRoutes.addContact,
+              (AdaptiveRouteMatch m) => m.matchedLocation == AppRoutes.contacts,
+            ),
           ),
         ],
       ),
@@ -55,20 +58,32 @@ class ContactPage extends WireView<ContactController> {
                 color: const Color(0xFFFA9D3B),
                 title: '新的朋友',
                 badgeCount: friendBadge,
-                onTap: () => router.pushNamed(AppRoutes.newFriends),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.newFriends,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.contacts,
+                ),
               ),
               _FixedContactEntryTile(
                 icon: Icons.notifications_active,
                 color: const Color(0xFF2782D7),
                 title: '群通知',
                 badgeCount: groupBadge,
-                onTap: () => router.pushNamed(AppRoutes.groupNotifications),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.groupNotifications,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.contacts,
+                ),
               ),
               _FixedContactEntryTile(
                 icon: Icons.groups,
                 color: AppColors.primary,
                 title: '我的群聊',
-                onTap: () => router.pushNamed(AppRoutes.myGroups),
+                onTap: () => router.pushNamedAndRemoveUntil(
+                  AppRoutes.myGroups,
+                  (AdaptiveRouteMatch m) =>
+                      m.matchedLocation == AppRoutes.contacts,
+                ),
               ),
             ],
             endChildren: <Widget>[

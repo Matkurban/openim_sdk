@@ -23,7 +23,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  String _cacheSummary = '统计中...';
+  late final Signal<String> _cacheSummary = signal<String>('统计中...');
 
   @override
   void initState() {
@@ -36,14 +36,12 @@ class _SettingsPageState extends State<SettingsPage> {
       final CacheStats stats = await XueHuaNaviteCacheManager.instance
           .getStats();
       if (mounted) {
-        setState(() {
-          _cacheSummary =
-              '${DateTimeFormatter.formatBytes(stats.totalBytes)} (${stats.totalEntries} 条)';
-        });
+        _cacheSummary.value =
+            '${DateTimeFormatter.formatBytes(stats.totalBytes)} (${stats.totalEntries} 条)';
       }
     } on Object catch (_) {
       if (mounted) {
-        setState(() => _cacheSummary = '0 B');
+        _cacheSummary.value = '0 B';
       }
     }
   }
@@ -68,6 +66,7 @@ class _SettingsPageState extends State<SettingsPage> {
           final ThemeMode mode = settings.themeMode.value;
           final AppLocale loc = settings.locale.value;
           final bool protect = settings.screenProtectionEnabled.value;
+          final String cacheSummary = _cacheSummary.value;
 
           return ListView(
             children: <Widget>[
@@ -140,7 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 tileColor: theme.colorScheme.surface,
                 leading: const Icon(Icons.cleaning_services_outlined),
                 title: const Text('缓存管理与清理'),
-                subtitle: Text('当前媒体缓存：$_cacheSummary'),
+                subtitle: Text('当前媒体缓存：$cacheSummary'),
                 trailing: TextButton(
                   onPressed: _clearCache,
                   child: const Text('一键清理'),

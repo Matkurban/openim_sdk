@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/theme/app_colors.dart';
@@ -30,8 +31,8 @@ class _SendRedPacketPageState extends State<SendRedPacketPage> {
     text: '恭喜发财，大吉大利',
   );
   final TextEditingController _payPwdController = TextEditingController();
-  bool _lucky = true;
-  bool _sending = false;
+  late final Signal<bool> _lucky = signal<bool>(true);
+  late final Signal<bool> _sending = signal<bool>(false);
 
   @override
   void dispose() {
@@ -53,7 +54,7 @@ class _SendRedPacketPageState extends State<SendRedPacketPage> {
       await FlutterToastPro.warning('请输入有效的积分金额和个数');
       return;
     }
-    setState(() => _sending = true);
+    _sending.value = true;
     try {
       final String pwd = _payPwdController.text.trim();
       if (pwd.isNotEmpty) {
@@ -64,7 +65,7 @@ class _SendRedPacketPageState extends State<SendRedPacketPage> {
           return;
         }
       }
-      final int packetType = conv.isGroupChat ? (_lucky ? 2 : 1) : 1;
+      final int packetType = conv.isGroupChat ? (_lucky.value ? 2 : 1) : 1;
       final int finalCount = conv.isGroupChat ? count : 1;
       final String packetID = await OpenIM.iMManager.redPacketManager
           .sendRedPacket(
@@ -101,7 +102,7 @@ class _SendRedPacketPageState extends State<SendRedPacketPage> {
       await FlutterToastPro.error('发红包失败：$error');
     } finally {
       if (mounted) {
-        setState(() => _sending = false);
+        _sending.value = false;
       }
     }
   }
@@ -111,56 +112,64 @@ class _SendRedPacketPageState extends State<SendRedPacketPage> {
     final bool isGroup = widget.conversation?.isGroupChat ?? false;
     return Scaffold(
       appBar: AppBar(title: const Text('发积分红包')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          if (isGroup) ...<Widget>[
-            SegmentedButton<bool>(
-              segments: const <ButtonSegment<bool>>[
-                ButtonSegment<bool>(value: true, label: Text('拼手气红包')),
-                ButtonSegment<bool>(value: false, label: Text('普通红包')),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final bool lucky = _lucky.value;
+          final bool sending = _sending.value;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: <Widget>[
+              if (isGroup) ...<Widget>[
+                SegmentedButton<bool>(
+                  segments: const <ButtonSegment<bool>>[
+                    ButtonSegment<bool>(value: true, label: Text('拼手气红包')),
+                    ButtonSegment<bool>(value: false, label: Text('普通红包')),
+                  ],
+                  selected: <bool>{lucky},
+                  onSelectionChanged: (Set<bool> next) {
+                    _lucky.value = next.first;
+                  },
+                ),
+                const SizedBox(height: 14),
               ],
-              selected: <bool>{_lucky},
-              onSelectionChanged: (Set<bool> next) {
-                setState(() => _lucky = next.first);
-              },
-            ),
-            const SizedBox(height: 14),
-          ],
-          TextField(
-            controller: _amountController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: '总积分金额'),
-          ),
-          if (isGroup) ...<Widget>[
-            const SizedBox(height: 12),
-            TextField(
-              controller: _countController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '红包个数'),
-            ),
-          ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: _greetingController,
-            decoration: const InputDecoration(labelText: '祝福语'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _payPwdController,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: '支付密码（若已设置）'),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.redPacketOrange,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            onPressed: _sending ? null : _send,
-            child: Text(_sending ? '发送中...' : '塞积分进红包'),
-          ),
-        ],
+              TextField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: '总积分金额'),
+              ),
+              if (isGroup) ...<Widget>[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _countController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: '红包个数'),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _greetingController,
+                decoration: const InputDecoration(labelText: '祝福语'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _payPwdController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: '支付密码（若已设置）'),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.redPacketOrange,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                onPressed: sending ? null : _send,
+                child: Text(sending ? '发送中...' : '塞积分进红包'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

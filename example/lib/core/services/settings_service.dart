@@ -9,7 +9,6 @@ import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_screen_protection/xue_hua_screen_protection.dart';
 
 import '../../app/l10n/app_locale.dart';
-import '../../app/l10n/app_strings.dart';
 import '../config/sdk_server_config.dart';
 
 /// 全局设置服务（主题、多语言、屏幕保护、服务器配置）。
@@ -40,9 +39,6 @@ class SettingsService extends WireService {
 
   StreamSubscription<Object>? _captureSub;
   StreamSubscription<bool>? _recordingSub;
-
-  /// 读取翻译词条快捷方法。
-  String tr(String key) => AppStrings.t(locale.value, key);
 
   /// 从本地持久层加载设置并绑定屏幕保护事件监听。
   Future<void> loadSavedSettings() async {

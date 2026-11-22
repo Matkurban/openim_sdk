@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -32,30 +33,24 @@ class GroupManagementPage extends StatefulWidget {
 }
 
 class _GroupManagementPageState extends State<GroupManagementPage> {
-  GroupInfo? _group;
-
-  @override
-  void initState() {
-    super.initState();
-    _group = widget.initialGroup;
-  }
+  late final Signal<GroupInfo?> _group = signal<GroupInfo?>(
+    widget.initialGroup,
+  );
 
   Future<void> _reload() async {
-    final String gid = _group?.groupID ?? '';
+    final String gid = _group.value?.groupID ?? '';
     if (gid.isEmpty) {
       return;
     }
     final List<GroupInfo> infos = await OpenIM.iMManager.groupManager
         .getGroupsInfo(groupIDList: <String>[gid]);
     if (infos.isNotEmpty && mounted) {
-      setState(() {
-        _group = infos.first;
-      });
+      _group.value = infos.first;
     }
   }
 
   Future<void> _toggleAllMute(bool mute) async {
-    final String gid = _group?.groupID ?? '';
+    final String gid = _group.value?.groupID ?? '';
     if (gid.isEmpty) {
       return;
     }
@@ -76,7 +71,7 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
     int? lookMemberInfo,
     int? applyMemberFriend,
   }) async {
-    final String gid = _group?.groupID ?? '';
+    final String gid = _group.value?.groupID ?? '';
     if (gid.isEmpty) {
       return;
     }
@@ -97,7 +92,7 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
   }
 
   Future<void> _dismissGroup() async {
-    final String gid = _group?.groupID ?? '';
+    final String gid = _group.value?.groupID ?? '';
     if (gid.isEmpty) {
       return;
     }
@@ -119,108 +114,114 @@ class _GroupManagementPageState extends State<GroupManagementPage> {
   Widget build(BuildContext context) {
     final AdaptiveRouter router = AdaptiveRouter.of(context);
     final ThemeData theme = Theme.of(context);
-    final bool isMuted = _group?.status == GroupStatus.muted;
-    final GroupVerification verification =
-        _group?.needVerification ??
-        GroupVerification.applyNeedVerificationInviteDirectly;
-    final bool allowLookMember = (_group?.lookMemberInfo ?? 0) == 0;
-    final bool allowAddFriend = (_group?.applyMemberFriend ?? 0) == 0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('群管理')),
-      body: ListView(
-        children: <Widget>[
-          SwitchListTile(
-            tileColor: theme.colorScheme.surface,
-            title: const Text('全员禁言'),
-            subtitle: const Text('开启后仅群主和管理员可发言'),
-            value: isMuted,
-            onChanged: _toggleAllMute,
-          ),
-          const Divider(height: 1),
-          ListTile(
-            tileColor: theme.colorScheme.surface,
-            title: const Text('入群验证方式'),
-            subtitle: Text(switch (verification) {
-              GroupVerification.applyNeedVerificationInviteDirectly =>
-                '申请需验证，邀请直接入群',
-              GroupVerification.allNeedVerification => '所有人进群均需验证',
-              GroupVerification.directly => '允许直接进群',
-            }),
-            trailing: PopupMenuButton<GroupVerification>(
-              onSelected: (GroupVerification v) =>
-                  _updateGroupFlag(needVerification: v),
-              itemBuilder: (BuildContext _) =>
-                  const <PopupMenuEntry<GroupVerification>>[
-                    PopupMenuItem<GroupVerification>(
-                      value:
-                          GroupVerification.applyNeedVerificationInviteDirectly,
-                      child: Text('申请需验证，邀请直接入群'),
-                    ),
-                    PopupMenuItem<GroupVerification>(
-                      value: GroupVerification.allNeedVerification,
-                      child: Text('所有人进群均需验证'),
-                    ),
-                    PopupMenuItem<GroupVerification>(
-                      value: GroupVerification.directly,
-                      child: Text('允许直接进群'),
-                    ),
-                  ],
-            ),
-          ),
-          const Divider(height: 1),
-          SwitchListTile(
-            tileColor: theme.colorScheme.surface,
-            title: const Text('允许查看群成员资料'),
-            value: allowLookMember,
-            onChanged: (bool allow) =>
-                _updateGroupFlag(lookMemberInfo: allow ? 0 : 1),
-          ),
-          const Divider(height: 1),
-          SwitchListTile(
-            tileColor: theme.colorScheme.surface,
-            title: const Text('允许通过群聊添加好友'),
-            value: allowAddFriend,
-            onChanged: (bool allow) =>
-                _updateGroupFlag(applyMemberFriend: allow ? 0 : 1),
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            tileColor: theme.colorScheme.surface,
-            title: const Text('群管理员'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => router.pushNamed(
-              AppRoutes.groupAdmins(widget.conversationId),
-              arguments: <String, Object?>{
-                'group': _group,
-                'isOwner': widget.isOwner,
-              },
-            ),
-          ),
-          if (widget.isOwner) ...<Widget>[
-            const Divider(height: 1),
-            ListTile(
-              tileColor: theme.colorScheme.surface,
-              title: const Text('群主管理权转让'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => router.pushNamed(
-                AppRoutes.groupTransfer(widget.conversationId),
-                arguments: _group,
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final GroupInfo? group = _group.value;
+          final bool isMuted = group?.status == GroupStatus.muted;
+          final GroupVerification verification =
+              group?.needVerification ??
+              GroupVerification.applyNeedVerificationInviteDirectly;
+          final bool allowLookMember = (group?.lookMemberInfo ?? 0) == 0;
+          final bool allowAddFriend = (group?.applyMemberFriend ?? 0) == 0;
+
+          return ListView(
+            children: <Widget>[
+              SwitchListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('全员禁言'),
+                subtitle: const Text('开启后仅群主和管理员可发言'),
+                value: isMuted,
+                onChanged: _toggleAllMute,
               ),
-            ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.danger,
+              const Divider(height: 1),
+              ListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('入群验证方式'),
+                subtitle: Text(switch (verification) {
+                  GroupVerification.applyNeedVerificationInviteDirectly =>
+                    '申请需验证，邀请直接入群',
+                  GroupVerification.allNeedVerification => '所有人进群均需验证',
+                  GroupVerification.directly => '允许直接进群',
+                }),
+                trailing: PopupMenuButton<GroupVerification>(
+                  onSelected: (GroupVerification v) =>
+                      _updateGroupFlag(needVerification: v),
+                  itemBuilder: (BuildContext _) =>
+                      const <PopupMenuEntry<GroupVerification>>[
+                        PopupMenuItem<GroupVerification>(
+                          value: GroupVerification
+                              .applyNeedVerificationInviteDirectly,
+                          child: Text('申请需验证，邀请直接入群'),
+                        ),
+                        PopupMenuItem<GroupVerification>(
+                          value: GroupVerification.allNeedVerification,
+                          child: Text('所有人进群均需验证'),
+                        ),
+                        PopupMenuItem<GroupVerification>(
+                          value: GroupVerification.directly,
+                          child: Text('允许直接进群'),
+                        ),
+                      ],
                 ),
-                onPressed: _dismissGroup,
-                child: const Text('解散该群'),
               ),
-            ),
-          ],
-        ],
+              const Divider(height: 1),
+              SwitchListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('允许查看群成员资料'),
+                value: allowLookMember,
+                onChanged: (bool allow) =>
+                    _updateGroupFlag(lookMemberInfo: allow ? 0 : 1),
+              ),
+              const Divider(height: 1),
+              SwitchListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('允许通过群聊添加好友'),
+                value: allowAddFriend,
+                onChanged: (bool allow) =>
+                    _updateGroupFlag(applyMemberFriend: allow ? 0 : 1),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                tileColor: theme.colorScheme.surface,
+                title: const Text('群管理员'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => router.pushNamed(
+                  AppRoutes.groupAdmins(widget.conversationId),
+                  arguments: <String, Object?>{
+                    'group': group,
+                    'isOwner': widget.isOwner,
+                  },
+                ),
+              ),
+              if (widget.isOwner) ...<Widget>[
+                const Divider(height: 1),
+                ListTile(
+                  tileColor: theme.colorScheme.surface,
+                  title: const Text('群主管理权转让'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => router.pushNamed(
+                    AppRoutes.groupTransfer(widget.conversationId),
+                    arguments: group,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                    ),
+                    onPressed: _dismissGroup,
+                    child: const Text('解散该群'),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }

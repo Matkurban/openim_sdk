@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 /// 新建收藏笔记与网页链接页（对接 `FavoriteManager.addNote` / `addLink`）。
@@ -18,8 +19,8 @@ class _FavoriteNoteEditorPageState extends State<FavoriteNoteEditorPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
   final TextEditingController _urlController = TextEditingController();
-  bool _isLink = false;
-  bool _saving = false;
+  late final Signal<bool> _isLink = signal<bool>(false);
+  late final Signal<bool> _saving = signal<bool>(false);
 
   @override
   void dispose() {
@@ -36,9 +37,9 @@ class _FavoriteNoteEditorPageState extends State<FavoriteNoteEditorPage> {
       await FlutterToastPro.warning('请输入标题');
       return;
     }
-    setState(() => _saving = true);
+    _saving.value = true;
     try {
-      if (_isLink) {
+      if (_isLink.value) {
         await OpenIM.iMManager.favoriteManager.addLink(
           link: LinkInfo(
             url: _urlController.text.trim(),
@@ -60,7 +61,7 @@ class _FavoriteNoteEditorPageState extends State<FavoriteNoteEditorPage> {
       await FlutterToastPro.error('保存失败：$error');
     } finally {
       if (mounted) {
-        setState(() => _saving = false);
+        _saving.value = false;
       }
     }
   }
@@ -71,44 +72,55 @@ class _FavoriteNoteEditorPageState extends State<FavoriteNoteEditorPage> {
       appBar: AppBar(
         title: const Text('新建收藏'),
         actions: <Widget>[
-          TextButton(
-            onPressed: _saving ? null : _save,
-            child: const Text('保存'),
+          SignalBuilder(
+            builder: (BuildContext _) {
+              return TextButton(
+                onPressed: _saving.value ? null : _save,
+                child: const Text('保存'),
+              );
+            },
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          SegmentedButton<bool>(
-            segments: const <ButtonSegment<bool>>[
-              ButtonSegment<bool>(value: false, label: Text('收藏笔记')),
-              ButtonSegment<bool>(value: true, label: Text('收藏链接')),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final bool isLink = _isLink.value;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: <Widget>[
+              SegmentedButton<bool>(
+                segments: const <ButtonSegment<bool>>[
+                  ButtonSegment<bool>(value: false, label: Text('收藏笔记')),
+                  ButtonSegment<bool>(value: true, label: Text('收藏链接')),
+                ],
+                selected: <bool>{isLink},
+                onSelectionChanged: (Set<bool> next) {
+                  _isLink.value = next.first;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: '标题'),
+              ),
+              if (isLink) ...<Widget>[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _urlController,
+                  decoration: const InputDecoration(labelText: '网页 URL'),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _contentController,
+                maxLines: 6,
+                decoration: InputDecoration(
+                  labelText: isLink ? '链接描述' : '笔记正文',
+                ),
+              ),
             ],
-            selected: <bool>{_isLink},
-            onSelectionChanged: (Set<bool> next) {
-              setState(() => _isLink = next.first);
-            },
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _titleController,
-            decoration: const InputDecoration(labelText: '标题'),
-          ),
-          if (_isLink) ...<Widget>[
-            const SizedBox(height: 12),
-            TextField(
-              controller: _urlController,
-              decoration: const InputDecoration(labelText: '网页 URL'),
-            ),
-          ],
-          const SizedBox(height: 12),
-          TextField(
-            controller: _contentController,
-            maxLines: 6,
-            decoration: InputDecoration(labelText: _isLink ? '链接描述' : '笔记正文'),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

@@ -21,7 +21,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
-  bool _submitting = false;
+  late final Signal<bool> _submitting = signal<bool>(false);
 
   @override
   void dispose() {
@@ -49,9 +49,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   }
 
   Future<void> _reset() async {
-    setState(() {
-      _submitting = true;
-    });
+    _submitting.value = true;
     try {
       await OpenIM.iMManager.userManager.resetPassword(
         email: _emailController.text.trim(),
@@ -66,9 +64,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
       await FlutterToastPro.error('重置失败：$error');
     } finally {
       if (mounted) {
-        setState(() {
-          _submitting = false;
-        });
+        _submitting.value = false;
       }
     }
   }
@@ -112,9 +108,14 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   decoration: const InputDecoration(labelText: '新密码'),
                 ),
                 const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: _submitting ? null : _reset,
-                  child: Text(_submitting ? '提交中...' : '重置密码'),
+                SignalBuilder(
+                  builder: (BuildContext _) {
+                    final bool submitting = _submitting.value;
+                    return FilledButton(
+                      onPressed: submitting ? null : _reset,
+                      child: Text(submitting ? '提交中...' : '重置密码'),
+                    );
+                  },
                 ),
               ],
             ),

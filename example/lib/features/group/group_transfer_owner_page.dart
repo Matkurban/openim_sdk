@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../shared/widgets/cached_avatar.dart';
@@ -20,8 +21,9 @@ class GroupTransferOwnerPage extends StatefulWidget {
 }
 
 class _GroupTransferOwnerPageState extends State<GroupTransferOwnerPage> {
-  List<GroupMembersInfo> _candidates = <GroupMembersInfo>[];
-  bool _loading = true;
+  late final Signal<List<GroupMembersInfo>> _candidates =
+      signal<List<GroupMembersInfo>>(<GroupMembersInfo>[]);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -32,18 +34,18 @@ class _GroupTransferOwnerPageState extends State<GroupTransferOwnerPage> {
   Future<void> _load() async {
     final String gid = widget.group?.groupID ?? '';
     if (gid.isEmpty) {
-      setState(() => _loading = false);
+      _loading.value = false;
       return;
     }
     final List<GroupMembersInfo> all = await OpenIM.iMManager.groupManager
         .getGroupMemberList(groupID: gid, count: 100);
     final String selfID = OpenIM.iMManager.userID;
     if (mounted) {
-      setState(() {
-        _candidates = all
+      batch(() {
+        _candidates.value = all
             .where((GroupMembersInfo m) => m.userID != selfID)
             .toList();
-        _loading = false;
+        _loading.value = false;
       });
     }
   }
@@ -62,11 +64,11 @@ class _GroupTransferOwnerPageState extends State<GroupTransferOwnerPage> {
         content: Text('确定将群主身份转让给「${member.nickname ?? uid}」吗？转让后你将变为普通成员。'),
         actions: <Widget>[
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(false),
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
+            onPressed: () => AdaptiveRouter.of(ctx).pop(true),
             child: const Text('确认转让'),
           ),
         ],
@@ -93,27 +95,33 @@ class _GroupTransferOwnerPageState extends State<GroupTransferOwnerPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('选择新群主')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.separated(
-              itemCount: _candidates.length,
-              separatorBuilder: (BuildContext _, int _) =>
-                  const Divider(height: 1, indent: 68),
-              itemBuilder: (BuildContext _, int index) {
-                final GroupMembersInfo m = _candidates[index];
-                return ListTile(
-                  leading: CachedAvatar(
-                    imageUrl: m.faceURL,
-                    fallbackName: m.nickname ?? m.userID,
-                  ),
-                  title: Text(m.nickname ?? m.userID ?? ''),
-                  subtitle: Text(
-                    m.roleLevel == GroupRoleLevel.admin ? '管理员' : '群成员',
-                  ),
-                  onTap: () => _transfer(m),
-                );
-              },
-            ),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final List<GroupMembersInfo> candidates = _candidates.value;
+          return ListView.separated(
+            itemCount: candidates.length,
+            separatorBuilder: (BuildContext _, int _) =>
+                const Divider(height: 1, indent: 68),
+            itemBuilder: (BuildContext _, int index) {
+              final GroupMembersInfo m = candidates[index];
+              return ListTile(
+                leading: CachedAvatar(
+                  imageUrl: m.faceURL,
+                  fallbackName: m.nickname ?? m.userID,
+                ),
+                title: Text(m.nickname ?? m.userID ?? ''),
+                subtitle: Text(
+                  m.roleLevel == GroupRoleLevel.admin ? '管理员' : '群成员',
+                ),
+                onTap: () => _transfer(m),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

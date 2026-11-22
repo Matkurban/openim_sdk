@@ -334,40 +334,38 @@ class _MomentMediaGrid extends StatelessWidget {
                 );
               }
             },
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: SizedBox(
-                width: mediaList.length == 1 ? 180 : 88,
-                height: mediaList.length == 1 ? 140 : 88,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: <Widget>[
-                    CachedNetworkImage(
-                      imageUrl: mediaList[i].coverUrl ?? mediaList[i].url,
-                      tag: 'moments_media',
-                      memCacheWidth: 260,
-                      fit: BoxFit.cover,
-                      errorBuilder:
-                          (BuildContext _, String _, Object _, StackTrace? _) =>
-                              const ColoredBox(
-                                color: Colors.black12,
-                                child: Icon(Icons.image_outlined),
-                              ),
-                    ),
-                    if (mediaList[i].type == 'video')
-                      const Center(
-                        child: CircleAvatar(
-                          radius: 16,
-                          backgroundColor: Colors.black54,
-                          child: Icon(
-                            Icons.play_arrow,
-                            color: Colors.white,
-                            size: 20,
-                          ),
+            child: SizedBox(
+              width: mediaList.length == 1 ? 180 : 88,
+              height: mediaList.length == 1 ? 140 : 88,
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  CachedNetworkImage(
+                    imageUrl: mediaList[i].coverUrl ?? mediaList[i].url,
+                    tag: 'moments_media',
+                    memCacheWidth: 260,
+                    borderRadius: BorderRadius.circular(4),
+                    fit: BoxFit.cover,
+                    errorBuilder:
+                        (BuildContext _, String _, Object _, StackTrace? _) =>
+                            const ColoredBox(
+                              color: Colors.black12,
+                              child: Icon(Icons.image_outlined),
+                            ),
+                  ),
+                  if (mediaList[i].type == 'video')
+                    const Center(
+                      child: CircleAvatar(
+                        radius: 16,
+                        backgroundColor: Colors.black54,
+                        child: Icon(
+                          Icons.play_arrow,
+                          color: Colors.white,
+                          size: 20,
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                ],
               ),
             ),
           ),

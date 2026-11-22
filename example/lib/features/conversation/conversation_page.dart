@@ -39,9 +39,21 @@ class ConversationPage extends WireView<ConversationController> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: _PlusQuickActionMenu(
-              onAddContact: () => router.pushNamed(AppRoutes.addContact),
-              onCreateGroup: () => router.pushNamed(AppRoutes.createGroup),
-              onJoinGroup: () => router.pushNamed(AppRoutes.joinGroup),
+              onAddContact: () => router.pushNamedAndRemoveUntil(
+                AppRoutes.addContact,
+                (AdaptiveRouteMatch m) =>
+                    m.matchedLocation == AppRoutes.conversations,
+              ),
+              onCreateGroup: () => router.pushNamedAndRemoveUntil(
+                AppRoutes.createGroup,
+                (AdaptiveRouteMatch m) =>
+                    m.matchedLocation == AppRoutes.conversations,
+              ),
+              onJoinGroup: () => router.pushNamedAndRemoveUntil(
+                AppRoutes.joinGroup,
+                (AdaptiveRouteMatch m) =>
+                    m.matchedLocation == AppRoutes.conversations,
+              ),
               onScanQr: () => router.pushNamed(AppRoutes.scanner),
             ),
           ),
@@ -52,7 +64,11 @@ class ConversationPage extends WireView<ConversationController> {
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
             child: InkWell(
-              onTap: () => router.pushNamed(AppRoutes.globalSearch),
+              onTap: () => router.pushNamedAndRemoveUntil(
+                AppRoutes.globalSearch,
+                (AdaptiveRouteMatch m) =>
+                    m.matchedLocation == AppRoutes.conversations,
+              ),
               borderRadius: BorderRadius.circular(8),
               child: Container(
                 height: 36,
@@ -95,7 +111,11 @@ class ConversationPage extends WireView<ConversationController> {
                     title: '暂无会话',
                     subtitle: '点击右上角 + 号添加好友或发起群聊',
                     actionLabel: '添加联系人',
-                    onAction: () => router.pushNamed(AppRoutes.addContact),
+                    onAction: () => router.pushNamedAndRemoveUntil(
+                      AppRoutes.addContact,
+                      (AdaptiveRouteMatch m) =>
+                          m.matchedLocation == AppRoutes.conversations,
+                    ),
                   );
                 }
                 return RefreshIndicator(

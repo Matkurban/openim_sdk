@@ -1,0 +1,79 @@
+{
+  "@@locale": "en",
+  "appName": "OpenIM Chat",
+  "tabChats": "Chats",
+  "tabContacts": "Contacts",
+  "tabMoments": "Moments",
+  "tabMe": "Me",
+  "login": "Sign In",
+  "register": "Sign Up",
+  "logout": "Sign Out",
+  "emailLogin": "Email + Password",
+  "accountLogin": "Account + Password",
+  "email": "Email",
+  "account": "Account",
+  "password": "Password",
+  "nickname": "Nickname",
+  "verifyCode": "Verification Code",
+  "sendCode": "Send Code",
+  "serverConfig": "Server Settings",
+  "forgotPassword": "Forgot Password",
+  "accountAppeal": "Account Appeal",
+  "search": "Search",
+  "addContact": "Add Contact",
+  "createGroup": "New Group",
+  "joinGroup": "Join Group",
+  "scanQr": "Scan QR",
+  "selectFromAlbum": "Album",
+  "newFriends": "New Friends",
+  "groupNotifications": "Group Notices",
+  "myGroups": "My Groups",
+  "favorites": "Favorites",
+  "pointsCenter": "Points Center",
+  "settings": "General & Security",
+  "themeMode": "Theme",
+  "language": "Language",
+  "screenProtection": "Screen Protection (Anti-Capture & Blur)",
+  "cacheManagement": "Cache Management",
+  "checkUpdate": "Check for Updates",
+  "deviceInfo": "Device Info",
+  "downloads": "Downloads",
+  "accountSecurity": "Account & Security",
+  "send": "Send",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "save": "Save",
+  "delete": "Delete",
+  "qrLoginTitle": "Scan QR Code with Mobile OpenIM",
+  "qrLoginHint": "Open OpenIM on your phone and scan to sign in",
+  "qrLoginScanned": "Scanned. Please confirm on your phone",
+  "qrLoginExpired": "QR code expired. Tap to refresh",
+  "qrLoginLoading": "Generating QR code...",
+  "qrLoginRefresh": "Refresh QR Code",
+  "switchToQrLogin": "QR Code Login",
+  "switchToPasswordLogin": "Password Login",
+  "qrLoginConfirmTitle": "Desktop Login Confirmation",
+  "qrLoginConfirmMessage": "Confirm signing in to OpenIM {platform}?",
+  "@qrLoginConfirmMessage": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "qrLoginConfirmIp": "Client IP: {ip}",
+  "@qrLoginConfirmIp": {
+    "placeholders": {
+      "ip": {
+        "type": "String"
+      }
+    }
+  },
+  "qrLoginConfirmButton": "Confirm Sign In",
+  "qrLoginConfirming": "Authorizing desktop login...",
+  "qrLoginConfirmSuccess": "Desktop login authorized",
+  "qrLoginPlatformWindows": "Windows",
+  "qrLoginPlatformMac": "macOS",
+  "qrLoginPlatformLinux": "Linux",
+  "qrLoginPlatformDesktop": "Desktop"
+}

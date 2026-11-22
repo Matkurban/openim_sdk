@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -19,9 +20,11 @@ class NewFriendsPage extends StatefulWidget {
 }
 
 class _NewFriendsPageState extends State<NewFriendsPage> {
-  List<FriendApplicationInfo> _received = <FriendApplicationInfo>[];
-  List<FriendApplicationInfo> _sent = <FriendApplicationInfo>[];
-  bool _loading = true;
+  late final Signal<List<FriendApplicationInfo>> _received =
+      signal<List<FriendApplicationInfo>>(<FriendApplicationInfo>[]);
+  late final Signal<List<FriendApplicationInfo>> _sent =
+      signal<List<FriendApplicationInfo>>(<FriendApplicationInfo>[]);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -40,16 +43,14 @@ class _NewFriendsPageState extends State<NewFriendsPage> {
           .friendshipManager
           .getFriendApplicationListAsApplicant();
       if (mounted) {
-        setState(() {
-          _received = rec;
-          _sent = sent;
+        batch(() {
+          _received.value = rec;
+          _sent.value = sent;
         });
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        _loading.value = false;
       }
     }
   }
@@ -98,48 +99,55 @@ class _NewFriendsPageState extends State<NewFriendsPage> {
             ],
           ),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : TabBarView(
-                children: <Widget>[
-                  _received.isEmpty
-                      ? const EmptyStateView(title: '暂无收到的好友申请')
-                      : ListView.separated(
-                          itemCount: _received.length,
-                          separatorBuilder: (BuildContext _, int _) =>
-                              const Divider(height: 1, indent: 68),
-                          itemBuilder: (BuildContext _, int index) {
-                            final FriendApplicationInfo item = _received[index];
-                            return _FriendApplicationTile(
-                              name: item.fromNickname ?? item.fromUserID ?? '',
-                              avatar: item.fromFaceURL,
-                              reason: item.reqMsg ?? '请求添加你为好友',
-                              handleResult: item.handleResult ?? 0,
-                              isIncoming: true,
-                              onAccept: () => _handle(item, true),
-                              onRefuse: () => _handle(item, false),
-                            );
-                          },
-                        ),
-                  _sent.isEmpty
-                      ? const EmptyStateView(title: '暂无发出的好友申请')
-                      : ListView.separated(
-                          itemCount: _sent.length,
-                          separatorBuilder: (BuildContext _, int _) =>
-                              const Divider(height: 1, indent: 68),
-                          itemBuilder: (BuildContext _, int index) {
-                            final FriendApplicationInfo item = _sent[index];
-                            return _FriendApplicationTile(
-                              name: item.toNickname ?? item.toUserID ?? '',
-                              avatar: item.toFaceURL,
-                              reason: item.reqMsg ?? '已发送验证请求',
-                              handleResult: item.handleResult ?? 0,
-                              isIncoming: false,
-                            );
-                          },
-                        ),
-                ],
-              ),
+        body: SignalBuilder(
+          builder: (BuildContext _) {
+            if (_loading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final List<FriendApplicationInfo> received = _received.value;
+            final List<FriendApplicationInfo> sent = _sent.value;
+            return TabBarView(
+              children: <Widget>[
+                received.isEmpty
+                    ? const EmptyStateView(title: '暂无收到的好友申请')
+                    : ListView.separated(
+                        itemCount: received.length,
+                        separatorBuilder: (BuildContext _, int _) =>
+                            const Divider(height: 1, indent: 68),
+                        itemBuilder: (BuildContext _, int index) {
+                          final FriendApplicationInfo item = received[index];
+                          return _FriendApplicationTile(
+                            name: item.fromNickname ?? item.fromUserID ?? '',
+                            avatar: item.fromFaceURL,
+                            reason: item.reqMsg ?? '请求添加你为好友',
+                            handleResult: item.handleResult ?? 0,
+                            isIncoming: true,
+                            onAccept: () => _handle(item, true),
+                            onRefuse: () => _handle(item, false),
+                          );
+                        },
+                      ),
+                sent.isEmpty
+                    ? const EmptyStateView(title: '暂无发出的好友申请')
+                    : ListView.separated(
+                        itemCount: sent.length,
+                        separatorBuilder: (BuildContext _, int _) =>
+                            const Divider(height: 1, indent: 68),
+                        itemBuilder: (BuildContext _, int index) {
+                          final FriendApplicationInfo item = sent[index];
+                          return _FriendApplicationTile(
+                            name: item.toNickname ?? item.toUserID ?? '',
+                            avatar: item.toFaceURL,
+                            reason: item.reqMsg ?? '已发送验证请求',
+                            handleResult: item.handleResult ?? 0,
+                            isIncoming: false,
+                          );
+                        },
+                      ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

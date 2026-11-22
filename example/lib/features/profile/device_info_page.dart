@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_device_info/xue_hua_device_info.dart';
 
 import '../../core/utils/date_time_formatter.dart';
@@ -15,12 +16,12 @@ class DeviceInfoPage extends StatefulWidget {
 }
 
 class _DeviceInfoPageState extends State<DeviceInfoPage> {
-  DeviceInfo? _device;
-  BatteryInfo? _battery;
-  NetworkInfo? _network;
-  StorageInfo? _storage;
-  DisplayInfo? _display;
-  bool _loading = true;
+  late final Signal<DeviceInfo?> _device = signal<DeviceInfo?>(null);
+  late final Signal<BatteryInfo?> _battery = signal<BatteryInfo?>(null);
+  late final Signal<NetworkInfo?> _network = signal<NetworkInfo?>(null);
+  late final Signal<StorageInfo?> _storage = signal<StorageInfo?>(null);
+  late final Signal<DisplayInfo?> _display = signal<DisplayInfo?>(null);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -36,17 +37,17 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
       final StorageInfo storage = await XueHuaDeviceInfo.getStorageInfo();
       final DisplayInfo display = await XueHuaDeviceInfo.getDisplayInfo();
       if (mounted) {
-        setState(() {
-          _device = device;
-          _battery = battery;
-          _network = network;
-          _storage = storage;
-          _display = display;
+        batch(() {
+          _device.value = device;
+          _battery.value = battery;
+          _network.value = network;
+          _storage.value = storage;
+          _display.value = display;
         });
       }
     } finally {
       if (mounted) {
-        setState(() => _loading = false);
+        _loading.value = false;
       }
     }
   }
@@ -55,86 +56,86 @@ class _DeviceInfoPageState extends State<DeviceInfoPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('设备信息')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.all(14),
-                children: <Widget>[
-                  _InfoSectionCard(
-                    title: '设备标识与系统',
-                    rows: <(String, String)>[
-                      ('设备名称', _device?.name ?? '-'),
-                      ('型号', _device?.model ?? '-'),
-                      ('品牌 / 厂商', _device?.manufacturer ?? '-'),
-                      ('系统名称', _device?.operatingSystem ?? '-'),
-                      ('系统版本', _device?.osVersion ?? '-'),
-                      ('设备 ID', _device?.deviceId ?? '-'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _InfoSectionCard(
-                    title: '电池状态',
-                    rows: <(String, String)>[
-                      (
-                        '电量',
-                        _battery?.level != null ? '${_battery!.level}%' : '-',
-                      ),
-                      ('充电状态', _battery?.chargingState.name ?? '-'),
-                      ('健康状态', _battery?.healthStatus.name ?? '-'),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _InfoSectionCard(
-                    title: '网络状态',
-                    rows: <(String, String)>[
-                      ('连接类型', _network?.connectionType.name ?? '-'),
-                      (
-                        '是否联网',
-                        (_network?.isConnected ?? false) ? '已连接' : '未连接',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _InfoSectionCard(
-                    title: '存储空间',
-                    rows: <(String, String)>[
-                      (
-                        '总容量',
-                        _storage != null
-                            ? DateTimeFormatter.formatBytes(
-                                _storage!.totalBytes,
-                              )
-                            : '-',
-                      ),
-                      (
-                        '可用容量',
-                        _storage != null
-                            ? DateTimeFormatter.formatBytes(_storage!.freeBytes)
-                            : '-',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  _InfoSectionCard(
-                    title: '屏幕显示',
-                    rows: <(String, String)>[
-                      (
-                        '分辨率',
-                        '${_display?.width ?? 0} × ${_display?.height ?? 0}',
-                      ),
-                      (
-                        '刷新率',
-                        _display?.refreshRate != null
-                            ? '${_display!.refreshRate!.toStringAsFixed(0)} Hz'
-                            : '-',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          if (_loading.value) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final DeviceInfo? device = _device.value;
+          final BatteryInfo? battery = _battery.value;
+          final NetworkInfo? network = _network.value;
+          final StorageInfo? storage = _storage.value;
+          final DisplayInfo? display = _display.value;
+
+          return RefreshIndicator(
+            onRefresh: _load,
+            child: ListView(
+              padding: const EdgeInsets.all(14),
+              children: <Widget>[
+                _InfoSectionCard(
+                  title: '设备标识与系统',
+                  rows: <(String, String)>[
+                    ('设备名称', device?.name ?? '-'),
+                    ('型号', device?.model ?? '-'),
+                    ('品牌 / 厂商', device?.manufacturer ?? '-'),
+                    ('系统名称', device?.operatingSystem ?? '-'),
+                    ('系统版本', device?.osVersion ?? '-'),
+                    ('设备 ID', device?.deviceId ?? '-'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _InfoSectionCard(
+                  title: '电池状态',
+                  rows: <(String, String)>[
+                    ('电量', battery?.level != null ? '${battery!.level}%' : '-'),
+                    ('充电状态', battery?.chargingState.name ?? '-'),
+                    ('健康状态', battery?.healthStatus.name ?? '-'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _InfoSectionCard(
+                  title: '网络状态',
+                  rows: <(String, String)>[
+                    ('连接类型', network?.connectionType.name ?? '-'),
+                    ('是否联网', (network?.isConnected ?? false) ? '已连接' : '未连接'),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _InfoSectionCard(
+                  title: '存储空间',
+                  rows: <(String, String)>[
+                    (
+                      '总容量',
+                      storage != null
+                          ? DateTimeFormatter.formatBytes(storage.totalBytes)
+                          : '-',
+                    ),
+                    (
+                      '可用容量',
+                      storage != null
+                          ? DateTimeFormatter.formatBytes(storage.freeBytes)
+                          : '-',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _InfoSectionCard(
+                  title: '屏幕显示',
+                  rows: <(String, String)>[
+                    ('分辨率', '${display?.width ?? 0} × ${display?.height ?? 0}'),
+                    (
+                      '刷新率',
+                      display?.refreshRate != null
+                          ? '${display!.refreshRate!.toStringAsFixed(0)} Hz'
+                          : '-',
+                    ),
+                  ],
+                ),
+              ],
             ),
+          );
+        },
+      ),
     );
   }
 }

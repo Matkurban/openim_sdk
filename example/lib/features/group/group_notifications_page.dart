@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 
 import '../../shared/widgets/cached_avatar.dart';
 import '../../shared/widgets/empty_state_view.dart';
@@ -17,9 +18,11 @@ class GroupNotificationsPage extends StatefulWidget {
 }
 
 class _GroupNotificationsPageState extends State<GroupNotificationsPage> {
-  List<GroupApplicationInfo> _received = <GroupApplicationInfo>[];
-  List<GroupApplicationInfo> _sent = <GroupApplicationInfo>[];
-  bool _loading = true;
+  late final Signal<List<GroupApplicationInfo>> _received =
+      signal<List<GroupApplicationInfo>>(<GroupApplicationInfo>[]);
+  late final Signal<List<GroupApplicationInfo>> _sent =
+      signal<List<GroupApplicationInfo>>(<GroupApplicationInfo>[]);
+  late final Signal<bool> _loading = signal<bool>(true);
 
   @override
   void initState() {
@@ -36,16 +39,14 @@ class _GroupNotificationsPageState extends State<GroupNotificationsPage> {
           .groupManager
           .getGroupApplicationListAsApplicant();
       if (mounted) {
-        setState(() {
-          _received = rec;
-          _sent = sent;
+        batch(() {
+          _received.value = rec;
+          _sent.value = sent;
         });
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _loading = false;
-        });
+        _loading.value = false;
       }
     }
   }
@@ -90,39 +91,46 @@ class _GroupNotificationsPageState extends State<GroupNotificationsPage> {
             ],
           ),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : TabBarView(
-                children: <Widget>[
-                  _received.isEmpty
-                      ? const EmptyStateView(title: '暂无收到的群通知')
-                      : ListView.separated(
-                          itemCount: _received.length,
-                          separatorBuilder: (BuildContext _, int _) =>
-                              const Divider(height: 1, indent: 68),
-                          itemBuilder: (BuildContext _, int index) {
-                            final GroupApplicationInfo item = _received[index];
-                            return _GroupAppTile(
-                              item: item,
-                              isIncoming: true,
-                              onAccept: () => _handle(item, true),
-                              onRefuse: () => _handle(item, false),
-                            );
-                          },
-                        ),
-                  _sent.isEmpty
-                      ? const EmptyStateView(title: '暂无发出的入群申请')
-                      : ListView.separated(
-                          itemCount: _sent.length,
-                          separatorBuilder: (BuildContext _, int _) =>
-                              const Divider(height: 1, indent: 68),
-                          itemBuilder: (BuildContext _, int index) {
-                            final GroupApplicationInfo item = _sent[index];
-                            return _GroupAppTile(item: item, isIncoming: false);
-                          },
-                        ),
-                ],
-              ),
+        body: SignalBuilder(
+          builder: (BuildContext _) {
+            if (_loading.value) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final List<GroupApplicationInfo> received = _received.value;
+            final List<GroupApplicationInfo> sent = _sent.value;
+            return TabBarView(
+              children: <Widget>[
+                received.isEmpty
+                    ? const EmptyStateView(title: '暂无收到的群通知')
+                    : ListView.separated(
+                        itemCount: received.length,
+                        separatorBuilder: (BuildContext _, int _) =>
+                            const Divider(height: 1, indent: 68),
+                        itemBuilder: (BuildContext _, int index) {
+                          final GroupApplicationInfo item = received[index];
+                          return _GroupAppTile(
+                            item: item,
+                            isIncoming: true,
+                            onAccept: () => _handle(item, true),
+                            onRefuse: () => _handle(item, false),
+                          );
+                        },
+                      ),
+                sent.isEmpty
+                    ? const EmptyStateView(title: '暂无发出的入群申请')
+                    : ListView.separated(
+                        itemCount: sent.length,
+                        separatorBuilder: (BuildContext _, int _) =>
+                            const Divider(height: 1, indent: 68),
+                        itemBuilder: (BuildContext _, int index) {
+                          final GroupApplicationInfo item = sent[index];
+                          return _GroupAppTile(item: item, isIncoming: false);
+                        },
+                      ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_audio/xue_hua_audio.dart';
 import 'package:xue_hua_navite_volume_controller/xue_hua_navite_volume_controller.dart';
 
@@ -30,13 +31,13 @@ class VoiceMessageBubble extends StatefulWidget {
 class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
   AudioPlayer? _player;
   StreamSubscription<void>? _completeSub;
-  bool _playing = false;
+  late final Signal<bool> _playing = signal<bool>(false);
 
   Future<void> _togglePlay() async {
-    if (_playing) {
+    if (_playing.value) {
       await _player?.stop();
       if (mounted) {
-        setState(() => _playing = false);
+        _playing.value = false;
       }
       return;
     }
@@ -57,7 +58,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
       _completeSub?.cancel();
       _completeSub = player.onPlayerComplete.listen((void _) {
         if (mounted) {
-          setState(() => _playing = false);
+          _playing.value = false;
         }
       });
       final AudioSource source = (path != null && path.isNotEmpty)
@@ -66,7 +67,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
       await player.setSource(source);
       await player.play();
       if (mounted) {
-        setState(() => _playing = true);
+        _playing.value = true;
       }
     } on Object catch (error) {
       await FlutterToastPro.error('播放语音失败：$error');
@@ -90,28 +91,33 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
       onTap: _togglePlay,
       child: SizedBox(
         width: bubbleWidth,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: widget.isSelf
-              ? MainAxisAlignment.end
-              : MainAxisAlignment.start,
-          children: <Widget>[
-            if (!widget.isSelf) ...<Widget>[
-              Icon(
-                _playing ? Icons.graphic_eq : Icons.volume_up_outlined,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-            ],
-            Text('$duration"'),
-            if (widget.isSelf) ...<Widget>[
-              const SizedBox(width: 8),
-              Icon(
-                _playing ? Icons.graphic_eq : Icons.volume_up_outlined,
-                size: 20,
-              ),
-            ],
-          ],
+        child: SignalBuilder(
+          builder: (BuildContext _) {
+            final bool playing = _playing.value;
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: widget.isSelf
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
+              children: <Widget>[
+                if (!widget.isSelf) ...<Widget>[
+                  Icon(
+                    playing ? Icons.graphic_eq : Icons.volume_up_outlined,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                Text('$duration"'),
+                if (widget.isSelf) ...<Widget>[
+                  const SizedBox(width: 8),
+                  Icon(
+                    playing ? Icons.graphic_eq : Icons.volume_up_outlined,
+                    size: 20,
+                  ),
+                ],
+              ],
+            );
+          },
         ),
       ),
     );

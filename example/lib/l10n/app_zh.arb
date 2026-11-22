@@ -1,0 +1,79 @@
+{
+  "@@locale": "zh",
+  "appName": "OpenIM 聊天",
+  "tabChats": "消息",
+  "tabContacts": "通讯录",
+  "tabMoments": "朋友圈",
+  "tabMe": "我",
+  "login": "登录",
+  "register": "注册",
+  "logout": "退出登录",
+  "emailLogin": "邮箱 + 密码",
+  "accountLogin": "账号 + 密码",
+  "email": "邮箱地址",
+  "account": "登录账号",
+  "password": "密码",
+  "nickname": "昵称",
+  "verifyCode": "验证码",
+  "sendCode": "获取验证码",
+  "serverConfig": "服务器设置",
+  "forgotPassword": "忘记密码",
+  "accountAppeal": "账号申诉",
+  "search": "搜索",
+  "addContact": "添加联系人",
+  "createGroup": "创建群聊",
+  "joinGroup": "加入群聊",
+  "scanQr": "扫一扫",
+  "selectFromAlbum": "从相册选择",
+  "newFriends": "新的朋友",
+  "groupNotifications": "群通知",
+  "myGroups": "我的群聊",
+  "favorites": "我的收藏",
+  "pointsCenter": "积分中心",
+  "settings": "通用与安全设置",
+  "themeMode": "主题模式",
+  "language": "界面语言",
+  "screenProtection": "屏幕保护（防截屏 / 录屏与切后台模糊）",
+  "cacheManagement": "缓存管理与清理",
+  "checkUpdate": "检查更新",
+  "deviceInfo": "设备信息",
+  "downloads": "后台下载管理",
+  "accountSecurity": "账号与安全",
+  "send": "发送",
+  "cancel": "取消",
+  "confirm": "确认",
+  "save": "保存",
+  "delete": "删除",
+  "qrLoginTitle": "使用手机 OpenIM 扫码登录",
+  "qrLoginHint": "请打开手机端 OpenIM 扫一扫确认登录",
+  "qrLoginScanned": "已扫描，请在手机端点击确认登录",
+  "qrLoginExpired": "二维码已过期，请刷新重试",
+  "qrLoginLoading": "正在生成登录二维码...",
+  "qrLoginRefresh": "刷新二维码",
+  "switchToQrLogin": "扫码登录",
+  "switchToPasswordLogin": "账号密码登录",
+  "qrLoginConfirmTitle": "桌面端登录确认",
+  "qrLoginConfirmMessage": "确认登录 OpenIM {platform} 客户端吗？",
+  "@qrLoginConfirmMessage": {
+    "placeholders": {
+      "platform": {
+        "type": "String"
+      }
+    }
+  },
+  "qrLoginConfirmIp": "登录 IP：{ip}",
+  "@qrLoginConfirmIp": {
+    "placeholders": {
+      "ip": {
+        "type": "String"
+      }
+    }
+  },
+  "qrLoginConfirmButton": "确认登录",
+  "qrLoginConfirming": "正在授权登录...",
+  "qrLoginConfirmSuccess": "已授权桌面端登录",
+  "qrLoginPlatformWindows": "Windows",
+  "qrLoginPlatformMac": "macOS",
+  "qrLoginPlatformLinux": "Linux",
+  "qrLoginPlatformDesktop": "桌面端"
+}

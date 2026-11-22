@@ -4,12 +4,13 @@ import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../core/services/settings_service.dart';
+import '../l10n/app_localizations.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
-/// OpenIM 示例应用根组件（挂载 `AdaptiveRouter`、`ToastScope`、动态主题与多语言）。
+/// OpenIM 示例应用根组件（挂载 `AdaptiveRouter`、`ToastScope`、标准 `AppLocalizations` 与动态主题）。
 ///
-/// Root widget mounting `AdaptiveRouter`, `ToastScope`, dynamic theme, and locale.
+/// Root widget mounting `AdaptiveRouter`, `ToastScope`, standard `AppLocalizations`, and dynamic theme.
 class OpenImExampleApp extends StatefulWidget {
   /// 创建应用根组件。
   const OpenImExampleApp({super.key});
@@ -33,12 +34,15 @@ class _OpenImExampleAppState extends State<OpenImExampleApp> {
     return SignalBuilder(
       builder: (BuildContext _) {
         return MaterialApp.router(
-          title: settings.tr('app_name'),
+          onGenerateTitle: (BuildContext ctx) =>
+              AppLocalizations.of(ctx)?.appName ?? 'OpenIM',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light(),
           darkTheme: AppTheme.dark(),
           themeMode: settings.themeMode.value,
           locale: settings.locale.value.toLocale(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: _router,
           builder: (BuildContext _, Widget? child) {
             return ToastScope(child: child ?? const SizedBox.shrink());

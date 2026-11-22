@@ -6,6 +6,7 @@ import '../../core/events/im_social_event.dart';
 import '../../features/auth/appeal_page.dart';
 import '../../features/auth/forgot_password_page.dart';
 import '../../features/auth/login_page.dart';
+import '../../features/auth/qr_desktop_login_confirm_page.dart';
 import '../../features/auth/register_page.dart';
 import '../../features/call/call_overlay_page.dart';
 import '../../features/chat/chat_media_gallery_page.dart';
@@ -107,6 +108,14 @@ abstract final class AppRouter {
           fullscreenDialog: true,
           builder: (BuildContext _, AdaptiveRouteState _) =>
               const ScannerPage(),
+        ),
+        AdaptiveRoute(
+          path: AppRoutes.qrDesktopLoginConfirm,
+          fullscreenDialog: true,
+          builder: (BuildContext _, AdaptiveRouteState state) =>
+              QrDesktopLoginConfirmPage(
+                sessionId: (state.arguments as String?) ?? '',
+              ),
         ),
         AdaptiveRoute(
           path: AppRoutes.call,

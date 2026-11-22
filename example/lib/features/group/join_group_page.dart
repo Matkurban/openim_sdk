@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 
 import '../../app/router/app_routes.dart';
@@ -23,9 +24,9 @@ class JoinGroupPage extends StatefulWidget {
 class _JoinGroupPageState extends State<JoinGroupPage> {
   late final TextEditingController _groupIdController;
   final TextEditingController _reasonController = TextEditingController();
-  GroupInfo? _foundGroup;
-  bool _searching = false;
-  bool _joining = false;
+  late final Signal<GroupInfo?> _foundGroup = signal<GroupInfo?>(null);
+  late final Signal<bool> _searching = signal<bool>(false);
+  late final Signal<bool> _joining = signal<bool>(false);
 
   @override
   void initState() {
@@ -50,16 +51,12 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
     if (gid.isEmpty) {
       return;
     }
-    setState(() {
-      _searching = true;
-    });
+    _searching.value = true;
     try {
       final List<GroupInfo> infos = await OpenIM.iMManager.groupManager
           .getGroupsInfo(groupIDList: <String>[gid]);
       if (mounted) {
-        setState(() {
-          _foundGroup = infos.isNotEmpty ? infos.first : null;
-        });
+        _foundGroup.value = infos.isNotEmpty ? infos.first : null;
       }
       if (infos.isEmpty) {
         await FlutterToastPro.info('未找到该群聊，请确认群 ID');
@@ -68,21 +65,17 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
       await FlutterToastPro.error('查询失败：$error');
     } finally {
       if (mounted) {
-        setState(() {
-          _searching = false;
-        });
+        _searching.value = false;
       }
     }
   }
 
   Future<void> _join() async {
-    final GroupInfo? group = _foundGroup;
+    final GroupInfo? group = _foundGroup.value;
     if (group == null) {
       return;
     }
-    setState(() {
-      _joining = true;
-    });
+    _joining.value = true;
     try {
       final bool joined = await OpenIM.iMManager.groupManager.isJoinedGroup(
         groupID: group.groupID,
@@ -114,9 +107,7 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
       await FlutterToastPro.error('加入失败：$error');
     } finally {
       if (mounted) {
-        setState(() {
-          _joining = false;
-        });
+        _joining.value = false;
       }
     }
   }
@@ -125,80 +116,91 @@ class _JoinGroupPageState extends State<JoinGroupPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('加入群聊')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          Row(
+      body: SignalBuilder(
+        builder: (BuildContext _) {
+          final bool searching = _searching.value;
+          final bool joining = _joining.value;
+          final GroupInfo? foundGroup = _foundGroup.value;
+          return ListView(
+            padding: const EdgeInsets.all(16),
             children: <Widget>[
-              Expanded(
-                child: TextField(
-                  controller: _groupIdController,
-                  onSubmitted: (String _) => _search(),
-                  decoration: const InputDecoration(
-                    labelText: '输入群 ID',
-                    prefixIcon: Icon(Icons.search),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _groupIdController,
+                      onSubmitted: (String _) => _search(),
+                      decoration: const InputDecoration(
+                        labelText: '输入群 ID',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 10),
+                  FilledButton(
+                    onPressed: searching ? null : _search,
+                    child: const Text('查找'),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              FilledButton(
-                onPressed: _searching ? null : _search,
-                child: const Text('查找'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (_foundGroup != null) ...<Widget>[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Row(
+              const SizedBox(height: 16),
+              if (foundGroup != null) ...<Widget>[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
-                        CachedAvatar(
-                          imageUrl: _foundGroup!.faceURL,
-                          fallbackName: _foundGroup!.groupName,
-                          size: 54,
+                        Row(
+                          children: <Widget>[
+                            CachedAvatar(
+                              imageUrl: foundGroup.faceURL,
+                              fallbackName: foundGroup.groupName,
+                              size: 54,
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    foundGroup.groupName ?? foundGroup.groupID,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '群 ID: ${foundGroup.groupID} · ${foundGroup.memberCount ?? 0} 人',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              Text(
-                                _foundGroup!.groupName ?? _foundGroup!.groupID,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '群 ID: ${_foundGroup!.groupID} · ${_foundGroup!.memberCount ?? 0} 人',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _reasonController,
+                          decoration: const InputDecoration(
+                            labelText: '验证申请理由（选填）',
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton(
+                          onPressed: joining ? null : _join,
+                          child: Text(joining ? '提交中...' : '申请加入该群'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: _reasonController,
-                      decoration: const InputDecoration(
-                        labelText: '验证申请理由（选填）',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: _joining ? null : _join,
-                      child: Text(_joining ? '提交中...' : '申请加入该群'),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ],
-        ],
+              ],
+            ],
+          );
+        },
       ),
     );
   }
