@@ -68,8 +68,7 @@ class ProfilePage extends StatelessWidget {
                 child: InkWell(
                   onTap: () => router.pushNamedAndRemoveUntil(
                     AppRoutes.editProfile,
-                    (AdaptiveRouteMatch m) =>
-                        m.matchedLocation == AppRoutes.profile,
+                    (AdaptiveRouteMatch _) => false,
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(18),
@@ -106,8 +105,7 @@ class ProfilePage extends StatelessWidget {
                           icon: const Icon(Icons.qr_code_2, size: 26),
                           onPressed: () => router.pushNamedAndRemoveUntil(
                             AppRoutes.myQr,
-                            (AdaptiveRouteMatch m) =>
-                                m.matchedLocation == AppRoutes.profile,
+                            (AdaptiveRouteMatch _) => false,
                           ),
                         ),
                         const Icon(Icons.chevron_right),
@@ -124,8 +122,7 @@ class ProfilePage extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.userMoments(uid),
-                  (AdaptiveRouteMatch m) =>
-                      m.matchedLocation == AppRoutes.profile,
+                  (AdaptiveRouteMatch _) => false,
                 ),
               ),
               const Divider(height: 1),
@@ -136,8 +133,7 @@ class ProfilePage extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.favorites,
-                  (AdaptiveRouteMatch m) =>
-                      m.matchedLocation == AppRoutes.profile,
+                  (AdaptiveRouteMatch _) => false,
                 ),
               ),
               const Divider(height: 1),
@@ -148,8 +144,7 @@ class ProfilePage extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.points,
-                  (AdaptiveRouteMatch m) =>
-                      m.matchedLocation == AppRoutes.profile,
+                  (AdaptiveRouteMatch _) => false,
                 ),
               ),
               const SizedBox(height: 10),
@@ -160,8 +155,7 @@ class ProfilePage extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.settings,
-                  (AdaptiveRouteMatch m) =>
-                      m.matchedLocation == AppRoutes.profile,
+                  (AdaptiveRouteMatch _) => false,
                 ),
               ),
               const SizedBox(height: 20),

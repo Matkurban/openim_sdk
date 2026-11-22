@@ -69,8 +69,7 @@ class MomentsPage extends WireView<MomentsController> {
             onPressed: () async {
               await router.pushNamedAndRemoveUntil(
                 AppRoutes.momentPublish,
-                (AdaptiveRouteMatch m) =>
-                    m.matchedLocation == AppRoutes.moments,
+                (AdaptiveRouteMatch _) => false,
               );
               await controller.loadMoments(fromServer: true);
             },
@@ -94,8 +93,7 @@ class MomentsPage extends WireView<MomentsController> {
                     avatarUrl: self?.faceURL,
                     onTapAvatar: () => router.pushNamedAndRemoveUntil(
                       AppRoutes.userMoments(OpenIM.iMManager.userID),
-                      (AdaptiveRouteMatch m) =>
-                          m.matchedLocation == AppRoutes.moments,
+                      (AdaptiveRouteMatch _) => false,
                     ),
                   ),
                 ),
@@ -110,8 +108,7 @@ class MomentsPage extends WireView<MomentsController> {
                           onPressed: () {
                             router.pushNamedAndRemoveUntil(
                               AppRoutes.momentNotifications,
-                              (AdaptiveRouteMatch m) =>
-                                  m.matchedLocation == AppRoutes.moments,
+                              (AdaptiveRouteMatch _) => false,
                               arguments: unreadEvents,
                             );
                             controller.clearNotifications();
@@ -132,8 +129,7 @@ class MomentsPage extends WireView<MomentsController> {
                       actionLabel: '发布动态',
                       onAction: () => router.pushNamedAndRemoveUntil(
                         AppRoutes.momentPublish,
-                        (AdaptiveRouteMatch m) =>
-                            m.matchedLocation == AppRoutes.moments,
+                        (AdaptiveRouteMatch _) => false,
                       ),
                     ),
                   )
@@ -152,8 +148,7 @@ class MomentsPage extends WireView<MomentsController> {
                         onDelete: () => controller.deleteMoment(item.momentID),
                         onOpenDetail: () => router.pushNamedAndRemoveUntil(
                           AppRoutes.momentDetail(item.momentID),
-                          (AdaptiveRouteMatch m) =>
-                              m.matchedLocation == AppRoutes.moments,
+                          (AdaptiveRouteMatch _) => false,
                           arguments: item,
                         ),
                       );

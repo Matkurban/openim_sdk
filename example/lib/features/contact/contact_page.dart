@@ -33,7 +33,7 @@ class ContactPage extends WireView<ContactController> {
             icon: const Icon(Icons.person_add_alt_1_outlined),
             onPressed: () => router.pushNamedAndRemoveUntil(
               AppRoutes.addContact,
-              (AdaptiveRouteMatch m) => m.matchedLocation == AppRoutes.contacts,
+              (AdaptiveRouteMatch _) => false,
             ),
           ),
         ],
@@ -60,8 +60,7 @@ class ContactPage extends WireView<ContactController> {
                 badgeCount: friendBadge,
                 onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.newFriends,
-                  (AdaptiveRouteMatch m) =>
-                      m.matchedLocation == AppRoutes.contacts,
+                  (AdaptiveRouteMatch _) => false,
                 ),
               ),
               _FixedContactEntryTile(
@@ -71,8 +70,7 @@ class ContactPage extends WireView<ContactController> {
                 badgeCount: groupBadge,
                 onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.groupNotifications,
-                  (AdaptiveRouteMatch m) =>
-                      m.matchedLocation == AppRoutes.contacts,
+                  (AdaptiveRouteMatch _) => false,
                 ),
               ),
               _FixedContactEntryTile(
@@ -81,8 +79,7 @@ class ContactPage extends WireView<ContactController> {
                 title: '我的群聊',
                 onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.myGroups,
-                  (AdaptiveRouteMatch m) =>
-                      m.matchedLocation == AppRoutes.contacts,
+                  (AdaptiveRouteMatch _) => false,
                 ),
               ),
             ],
@@ -104,8 +101,9 @@ class ContactPage extends WireView<ContactController> {
                   size: 40,
                 ),
                 title: Text(friend.getShowName()),
-                onTap: () => router.pushNamed(
+                onTap: () => router.pushNamedAndRemoveUntil(
                   AppRoutes.contactProfile(friend.friendUserID ?? ''),
+                  (AdaptiveRouteMatch _) => false,
                 ),
               );
             },

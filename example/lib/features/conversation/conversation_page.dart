@@ -41,18 +41,15 @@ class ConversationPage extends WireView<ConversationController> {
             child: _PlusQuickActionMenu(
               onAddContact: () => router.pushNamedAndRemoveUntil(
                 AppRoutes.addContact,
-                (AdaptiveRouteMatch m) =>
-                    m.matchedLocation == AppRoutes.conversations,
+                (AdaptiveRouteMatch _) => false,
               ),
               onCreateGroup: () => router.pushNamedAndRemoveUntil(
                 AppRoutes.createGroup,
-                (AdaptiveRouteMatch m) =>
-                    m.matchedLocation == AppRoutes.conversations,
+                (AdaptiveRouteMatch _) => false,
               ),
               onJoinGroup: () => router.pushNamedAndRemoveUntil(
                 AppRoutes.joinGroup,
-                (AdaptiveRouteMatch m) =>
-                    m.matchedLocation == AppRoutes.conversations,
+                (AdaptiveRouteMatch _) => false,
               ),
               onScanQr: () => router.pushNamed(AppRoutes.scanner),
             ),
@@ -66,8 +63,7 @@ class ConversationPage extends WireView<ConversationController> {
             child: InkWell(
               onTap: () => router.pushNamedAndRemoveUntil(
                 AppRoutes.globalSearch,
-                (AdaptiveRouteMatch m) =>
-                    m.matchedLocation == AppRoutes.conversations,
+                (AdaptiveRouteMatch _) => false,
               ),
               borderRadius: BorderRadius.circular(8),
               child: Container(
@@ -113,8 +109,7 @@ class ConversationPage extends WireView<ConversationController> {
                     actionLabel: '添加联系人',
                     onAction: () => router.pushNamedAndRemoveUntil(
                       AppRoutes.addContact,
-                      (AdaptiveRouteMatch m) =>
-                          m.matchedLocation == AppRoutes.conversations,
+                      (AdaptiveRouteMatch _) => false,
                     ),
                   );
                 }
@@ -128,8 +123,9 @@ class ConversationPage extends WireView<ConversationController> {
                       final ConversationInfo conv = list[index];
                       return ConversationTile(
                         conversation: conv,
-                        onTap: () => router.pushNamed(
+                        onTap: () => router.pushNamedAndRemoveUntil(
                           AppRoutes.chat(conv.conversationID),
+                          (AdaptiveRouteMatch _) => false,
                           arguments: conv,
                         ),
                         onTogglePin: () => controller.togglePin(conv),

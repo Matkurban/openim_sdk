@@ -311,8 +311,7 @@ class _DesktopNavigationRail extends StatelessWidget {
               onSelect(3);
               AdaptiveRouter.of(context).pushNamedAndRemoveUntil(
                 AppRoutes.settings,
-                (AdaptiveRouteMatch m) =>
-                    m.matchedLocation == AppRoutes.profile,
+                (AdaptiveRouteMatch _) => false,
               );
             },
           ),
