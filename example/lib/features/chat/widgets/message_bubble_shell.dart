@@ -159,7 +159,11 @@ class MessageBubbleShell extends StatelessWidget {
                 onTap: () {
                   final String uid = message.sendID ?? '';
                   if (uid.isNotEmpty) {
-                    router.pushNamed(AppRoutes.contactProfile(uid));
+                    router.pushNamedAndRemoveUntil(
+                      AppRoutes.chatContactProfile(conversationId, uid),
+                      (AdaptiveRouteMatch m) =>
+                          m.matchedLocation == AppRoutes.chat(conversationId),
+                    );
                   }
                 },
                 child: CachedAvatar(
@@ -418,7 +422,10 @@ class _BubbleContentDispatcher extends StatelessWidget {
           conversationId: conversationId,
         );
       case MessageType.card:
-        return CardMessageBubble(message: message);
+        return CardMessageBubble(
+          message: message,
+          conversationId: conversationId,
+        );
       case MessageType.location:
         return LocationMessageBubble(message: message);
       case MessageType.customFace:

@@ -11,6 +11,9 @@ import '../../shared/widgets/cached_avatar.dart';
 ///
 /// Group member detail and moderation page (nickname, role, mute duration, kick).
 class GroupMemberDetailPage extends StatefulWidget {
+  /// 所属会话 ID。
+  final String conversationId;
+
   /// 目标成员用户 ID。
   final String userId;
 
@@ -26,6 +29,7 @@ class GroupMemberDetailPage extends StatefulWidget {
   /// 创建群成员详情操作页。
   const GroupMemberDetailPage({
     super.key,
+    required this.conversationId,
     required this.userId,
     this.group,
     this.member,
@@ -148,8 +152,18 @@ class _GroupMemberDetailPageState extends State<GroupMemberDetailPage> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () =>
-                      router.pushNamed(AppRoutes.contactProfile(widget.userId)),
+                  onPressed: () => router.pushNamedAndRemoveUntil(
+                    AppRoutes.chatContactProfile(
+                      widget.conversationId,
+                      widget.userId,
+                    ),
+                    (AdaptiveRouteMatch m) =>
+                        m.matchedLocation ==
+                        AppRoutes.groupMemberDetail(
+                          widget.conversationId,
+                          widget.userId,
+                        ),
+                  ),
                   child: const Text('详细资料'),
                 ),
               ],

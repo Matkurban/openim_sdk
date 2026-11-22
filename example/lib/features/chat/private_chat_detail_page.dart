@@ -101,8 +101,16 @@ class _PrivateChatDetailPageState extends State<PrivateChatDetailPage> {
                     InkWell(
                       onTap: peerId.isEmpty
                           ? null
-                          : () => router.pushNamed(
-                              AppRoutes.contactProfile(peerId),
+                          : () => router.pushNamedAndRemoveUntil(
+                              AppRoutes.chatContactProfile(
+                                widget.conversationId,
+                                peerId,
+                              ),
+                              (AdaptiveRouteMatch m) =>
+                                  m.matchedLocation ==
+                                  AppRoutes.privateChatDetail(
+                                    widget.conversationId,
+                                  ),
                             ),
                       child: Column(
                         children: <Widget>[

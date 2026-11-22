@@ -317,6 +317,28 @@ abstract final class AppTheme {
         }),
       ),
 
+      // 2b. NavigationRail (desktop side rail: flat parchment/tile bar + hairline border)
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: barBg,
+        elevation: 0,
+        indicatorColor: linkColor.withValues(alpha: 0.12),
+        indicatorShape: RoundedRectangleBorder(borderRadius: _radiusMd),
+        selectedIconTheme: IconThemeData(color: linkColor, size: 22),
+        unselectedIconTheme: IconThemeData(color: hint, size: 22),
+        selectedLabelTextStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: -0.12,
+          color: linkColor,
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w400,
+          letterSpacing: -0.12,
+          color: hint,
+        ),
+      ),
+
       // 3. TabBar
       tabBarTheme: TabBarThemeData(
         labelColor: linkColor,

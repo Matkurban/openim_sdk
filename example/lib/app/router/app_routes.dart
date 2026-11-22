@@ -101,6 +101,18 @@ abstract final class AppRoutes {
   static String redPacketDetail(String conversationId, String packetId) =>
       '${chat(conversationId)}/red-packet/${Uri.encodeComponent(packetId)}';
 
+  /// 构造聊天分支内联系人资料路径。
+  static String chatContactProfile(String conversationId, String userId) =>
+      '${chat(conversationId)}/profile/${Uri.encodeComponent(userId)}';
+
+  /// 构造聊天分支内设置好友备注路径。
+  static String chatFriendRemark(String conversationId, String userId) =>
+      '${chatContactProfile(conversationId, userId)}/remark';
+
+  /// 构造聊天分支内好友朋友圈相册路径。
+  static String chatUserMoments(String conversationId, String userId) =>
+      '${chatContactProfile(conversationId, userId)}/moments';
+
   /// Tab 2：通讯录。
   static const String contacts = '/contacts';
 

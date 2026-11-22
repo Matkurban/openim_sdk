@@ -12,8 +12,15 @@ class CardMessageBubble extends StatelessWidget {
   /// 消息对象。
   final Message message;
 
+  /// 所属会话 ID。
+  final String conversationId;
+
   /// 创建名片消息气泡。
-  const CardMessageBubble({super.key, required this.message});
+  const CardMessageBubble({
+    super.key,
+    required this.message,
+    required this.conversationId,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,9 +29,11 @@ class CardMessageBubble extends StatelessWidget {
     return InkWell(
       onTap: uid.isEmpty
           ? null
-          : () =>
-                AdaptiveRouter.of(context)
-                    .pushNamed(AppRoutes.contactProfile(uid)),
+          : () => AdaptiveRouter.of(context).pushNamedAndRemoveUntil(
+              AppRoutes.chatContactProfile(conversationId, uid),
+              (AdaptiveRouteMatch m) =>
+                  m.matchedLocation == AppRoutes.chat(conversationId),
+            ),
       child: SizedBox(
         width: 210,
         child: Column(

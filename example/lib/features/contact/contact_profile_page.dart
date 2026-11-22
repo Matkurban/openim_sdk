@@ -17,8 +17,15 @@ class ContactProfilePage extends StatefulWidget {
   /// 目标用户 ID。
   final String userId;
 
+  /// 所属会话 ID（从聊天分支进入时非空，用于保持在会话 Tab 内跳转子路由）。
+  final String? conversationId;
+
   /// 创建联系人资料页。
-  const ContactProfilePage({super.key, required this.userId});
+  const ContactProfilePage({
+    super.key,
+    required this.userId,
+    this.conversationId,
+  });
 
   @override
   State<ContactProfilePage> createState() => _ContactProfilePageState();
@@ -32,10 +39,40 @@ class _ContactProfilePageState extends State<ContactProfilePage> {
   late final Signal<bool> _isOnline = signal<bool>(false);
   late final Signal<bool> _loading = signal<bool>(true);
 
+  String get _currentProfileLocation {
+    final String? cid = widget.conversationId;
+    return cid != null && cid.isNotEmpty
+        ? AppRoutes.chatContactProfile(cid, widget.userId)
+        : AppRoutes.contactProfile(widget.userId);
+  }
+
+  String get _remarkLocation {
+    final String? cid = widget.conversationId;
+    return cid != null && cid.isNotEmpty
+        ? AppRoutes.chatFriendRemark(cid, widget.userId)
+        : AppRoutes.friendRemark(widget.userId);
+  }
+
+  String get _momentsLocation {
+    final String? cid = widget.conversationId;
+    return cid != null && cid.isNotEmpty
+        ? AppRoutes.chatUserMoments(cid, widget.userId)
+        : AppRoutes.userMoments(widget.userId);
+  }
+
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant ContactProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) {
+      _loading.value = true;
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -82,8 +119,11 @@ class _ContactProfilePageState extends State<ContactProfilePage> {
           sessionType: ConversationType.single.value,
         );
     if (mounted) {
-      await AdaptiveRouter.of(context)
-          .pushNamed(AppRoutes.chat(conv.conversationID), arguments: conv);
+      await AdaptiveRouter.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.chat(conv.conversationID),
+        (AdaptiveRouteMatch _) => false,
+        arguments: conv,
+      );
     }
   }
 
@@ -239,10 +279,9 @@ class _ContactProfilePageState extends State<ContactProfilePage> {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () async {
                     await router.pushNamedAndRemoveUntil(
-                      AppRoutes.friendRemark(widget.userId),
+                      _remarkLocation,
                       (AdaptiveRouteMatch m) =>
-                          m.matchedLocation ==
-                          AppRoutes.contactProfile(widget.userId),
+                          m.matchedLocation == _currentProfileLocation,
                       arguments: friend,
                     );
                     await _load();
@@ -255,10 +294,9 @@ class _ContactProfilePageState extends State<ContactProfilePage> {
                 title: const Text('朋友圈'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => router.pushNamedAndRemoveUntil(
-                  AppRoutes.userMoments(widget.userId),
+                  _momentsLocation,
                   (AdaptiveRouteMatch m) =>
-                      m.matchedLocation ==
-                      AppRoutes.contactProfile(widget.userId),
+                      m.matchedLocation == _currentProfileLocation,
                 ),
               ),
               const Divider(height: 1),

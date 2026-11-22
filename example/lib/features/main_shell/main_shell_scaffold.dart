@@ -17,9 +17,9 @@ import '../../shared/widgets/share_target_picker_sheet.dart';
 import '../../shared/widgets/unread_badge.dart';
 import 'main_shell_controller.dart';
 
-/// 四大 Tab 自适应主壳（移动端底部导航栏 / 桌面端微信风格左侧窄 NavigationRail）。
+/// 四大 Tab 自适应主壳（移动端底部导航栏 / 桌面端主题自适应左侧窄 NavigationRail）。
 ///
-/// Adaptive 4-tab main shell (BottomNavigationBar on mobile, WeChat dark rail on desktop).
+/// Adaptive 4-tab main shell (BottomNavigationBar on mobile, theme-adaptive rail on desktop).
 class MainShellScaffold extends StatefulWidget {
   /// 自适应路由壳状态。
   final AdaptiveShellState shell;
@@ -259,63 +259,83 @@ class _DesktopNavigationRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 68,
-      color: AppColors.desktopRailBackground,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        children: <Widget>[
-          GestureDetector(
-            onTap: () => onSelect(3),
-            child: CachedAvatar(
-              imageUrl: user?.faceURL,
-              fallbackName: user?.nickname ?? user?.userID,
-              size: 40,
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final NavigationRailThemeData railTheme = theme.navigationRailTheme;
+    final AppLocalizations l10n = AppLocalizations.of(context)!;
+    final Color backgroundColor =
+        railTheme.backgroundColor ??
+        theme.appBarTheme.backgroundColor ??
+        scheme.surfaceContainer;
+    final Color unselectedIconColor =
+        railTheme.unselectedIconTheme?.color ?? scheme.onSurfaceVariant;
+
+    return Material(
+      color: backgroundColor,
+      child: Container(
+        width: 68,
+        decoration: BoxDecoration(
+          border: Border(right: BorderSide(color: scheme.outline, width: 0.8)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Column(
+          children: <Widget>[
+            GestureDetector(
+              onTap: () => onSelect(3),
+              child: CachedAvatar(
+                imageUrl: user?.faceURL,
+                fallbackName: user?.nickname ?? user?.userID,
+                size: 40,
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          _RailButton(
-            icon: Icons.chat_bubble,
-            selected: currentIndex == 0,
-            badgeCount: unreadCount,
-            tooltip: '消息',
-            onTap: () => onSelect(0),
-          ),
-          const SizedBox(height: 16),
-          _RailButton(
-            icon: Icons.contacts,
-            selected: currentIndex == 1,
-            badgeCount: contactPendingCount,
-            tooltip: '通讯录',
-            onTap: () => onSelect(1),
-          ),
-          const SizedBox(height: 16),
-          _RailButton(
-            icon: Icons.camera,
-            selected: currentIndex == 2,
-            tooltip: '朋友圈',
-            onTap: () => onSelect(2),
-          ),
-          const SizedBox(height: 16),
-          _RailButton(
-            icon: Icons.person,
-            selected: currentIndex == 3,
-            tooltip: '我',
-            onTap: () => onSelect(3),
-          ),
-          const Spacer(),
-          IconButton(
-            tooltip: '通用与安全设置',
-            icon: const Icon(Icons.settings_outlined, color: Colors.white70),
-            onPressed: () {
-              onSelect(3);
-              AdaptiveRouter.of(context).pushNamedAndRemoveUntil(
-                AppRoutes.settings,
-                (AdaptiveRouteMatch _) => false,
-              );
-            },
-          ),
-        ],
+            const SizedBox(height: 24),
+            _RailButton(
+              icon: Icons.chat_bubble_outline,
+              selectedIcon: Icons.chat_bubble,
+              selected: currentIndex == 0,
+              badgeCount: unreadCount,
+              tooltip: l10n.tabChats,
+              onTap: () => onSelect(0),
+            ),
+            const SizedBox(height: 12),
+            _RailButton(
+              icon: Icons.contacts_outlined,
+              selectedIcon: Icons.contacts,
+              selected: currentIndex == 1,
+              badgeCount: contactPendingCount,
+              tooltip: l10n.tabContacts,
+              onTap: () => onSelect(1),
+            ),
+            const SizedBox(height: 12),
+            _RailButton(
+              icon: Icons.camera_outlined,
+              selectedIcon: Icons.camera,
+              selected: currentIndex == 2,
+              tooltip: l10n.tabMoments,
+              onTap: () => onSelect(2),
+            ),
+            const SizedBox(height: 12),
+            _RailButton(
+              icon: Icons.person_outline,
+              selectedIcon: Icons.person,
+              selected: currentIndex == 3,
+              tooltip: l10n.tabMe,
+              onTap: () => onSelect(3),
+            ),
+            const Spacer(),
+            IconButton(
+              tooltip: '通用与安全设置',
+              icon: Icon(Icons.settings_outlined, color: unselectedIconColor),
+              onPressed: () {
+                onSelect(3);
+                AdaptiveRouter.of(context).pushNamedAndRemoveUntil(
+                  AppRoutes.settings,
+                  (AdaptiveRouteMatch _) => false,
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -323,6 +343,7 @@ class _DesktopNavigationRail extends StatelessWidget {
 
 class _RailButton extends StatelessWidget {
   final IconData icon;
+  final IconData selectedIcon;
   final bool selected;
   final int badgeCount;
   final String tooltip;
@@ -330,6 +351,7 @@ class _RailButton extends StatelessWidget {
 
   const _RailButton({
     required this.icon,
+    required this.selectedIcon,
     required this.selected,
     required this.tooltip,
     required this.onTap,
@@ -338,21 +360,35 @@ class _RailButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme scheme = theme.colorScheme;
+    final NavigationRailThemeData railTheme = theme.navigationRailTheme;
+    final Color activeColor =
+        railTheme.selectedIconTheme?.color ?? scheme.primary;
+    final Color inactiveColor =
+        railTheme.unselectedIconTheme?.color ?? scheme.onSurfaceVariant;
+    final Color indicatorColor =
+        railTheme.indicatorColor ?? scheme.primary.withValues(alpha: 0.12);
+
     return Tooltip(
       message: tooltip,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: SizedBox(
-          width: 48,
+        borderRadius: BorderRadius.circular(11),
+        child: Container(
+          width: 46,
           height: 44,
+          decoration: BoxDecoration(
+            color: selected ? indicatorColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(11),
+          ),
           child: Stack(
             alignment: Alignment.center,
             children: <Widget>[
               Icon(
-                icon,
-                color: selected ? AppColors.primary : Colors.white70,
-                size: 24,
+                selected ? selectedIcon : icon,
+                color: selected ? activeColor : inactiveColor,
+                size: 22,
               ),
               if (badgeCount > 0)
                 Positioned(
@@ -381,10 +417,11 @@ class _BadgedTabIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ColorScheme scheme = Theme.of(context).colorScheme;
     return Stack(
       clipBehavior: Clip.none,
       children: <Widget>[
-        Icon(icon, color: selected ? AppColors.primary : null),
+        Icon(icon, color: selected ? scheme.primary : null),
         if (count > 0)
           Positioned(right: -10, top: -6, child: UnreadBadge(count: count)),
       ],

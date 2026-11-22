@@ -319,6 +319,9 @@ abstract final class AppRouter {
                             final Map<String, Object?>? args =
                                 state.arguments as Map<String, Object?>?;
                             return GroupMemberDetailPage(
+                              conversationId: Uri.decodeComponent(
+                                state.pathParameters['conversationId'] ?? '',
+                              ),
                               userId: Uri.decodeComponent(
                                 state.pathParameters['userId'] ?? '',
                               ),
@@ -391,6 +394,42 @@ abstract final class AppRouter {
                                   state.pathParameters['packetId'] ?? '',
                                 ),
                               ),
+                        ),
+                        AdaptiveRoute(
+                          path: 'profile/:userId',
+                          builder: (BuildContext _, AdaptiveRouteState state) =>
+                              ContactProfilePage(
+                                userId: Uri.decodeComponent(
+                                  state.pathParameters['userId'] ?? '',
+                                ),
+                                conversationId: Uri.decodeComponent(
+                                  state.pathParameters['conversationId'] ?? '',
+                                ),
+                              ),
+                          routes: <AdaptiveRoute>[
+                            AdaptiveRoute(
+                              path: 'remark',
+                              builder:
+                                  (BuildContext _, AdaptiveRouteState state) =>
+                                      FriendRemarkPage(
+                                        userId: Uri.decodeComponent(
+                                          state.pathParameters['userId'] ?? '',
+                                        ),
+                                        initialFriend:
+                                            state.arguments as FriendInfo?,
+                                      ),
+                            ),
+                            AdaptiveRoute(
+                              path: 'moments',
+                              builder:
+                                  (BuildContext _, AdaptiveRouteState state) =>
+                                      UserMomentsPage(
+                                        userId: Uri.decodeComponent(
+                                          state.pathParameters['userId'] ?? '',
+                                        ),
+                                      ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
