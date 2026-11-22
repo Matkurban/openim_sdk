@@ -121,6 +121,7 @@ class AppBootstrapService extends WireService {
 
   Future<void> _initOpenImSdk(SdkServerConfig config) async {
     final ImEventBus bus = Wire.find<ImEventBus>();
+    bool initializedNow = false;
     if (!OpenIM.iMManager.isInitialized) {
       await OpenIM.iMManager.initSDK(
         apiAddr: config.apiAddr,
@@ -130,7 +131,8 @@ class AppBootstrapService extends WireService {
         listener: bus.createConnectListener(),
         logLevel: Level.INFO,
       );
+      initializedNow = true;
     }
-    bus.bindSdkListeners();
+    bus.bindSdkListeners(force: initializedNow);
   }
 }

@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:scrollview_observer/scrollview_observer.dart';
 import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_file_operations/xue_hua_file_operations.dart';
 import 'package:xue_hua_media_info/xue_hua_media_info.dart' as media_info;
@@ -29,13 +31,19 @@ class ChatController extends WireController {
   late final Signal<ConversationInfo?> conversation =
       createSignal<ConversationInfo?>(null);
 
-  /// 消息列表信号（按发送时间倒序，配合 `reverse: true` 列表渲染）。
+  /// 消息列表信号（按发送时间降序：index 0 为最新消息，配合 `reverse: true` 列表显示在最底部）。
   late final Signal<List<Message>> messages = createSignal<List<Message>>(
     <Message>[],
   );
 
-  /// 是否正在加载历史消息。
+  /// 首次历史加载状态（不阻断页面交互，仅用于空态判定）。
   late final Signal<bool> loading = createSignal<bool>(true);
+
+  /// 上滑分页拉取更多历史消息状态（用于顶部细进度条）。
+  late final Signal<bool> loadingHistory = createSignal<bool>(false);
+
+  /// 浏览历史消息时新到达的未读条数（用于底部回底提示胶囊）。
+  late final Signal<int> unreadNewCount = createSignal<int>(0);
 
   /// 对端是否正在输入。
   late final Signal<bool> peerTyping = createSignal<bool>(false);
@@ -54,6 +62,22 @@ class ChatController extends WireController {
   /// 桌面端拖拽悬停态。
   late final Signal<bool> draggingOver = createSignal<bool>(false);
 
+  /// 聊天列表滚动控制器。
+  late final ScrollController scrollController;
+
+  /// `scrollview_observer` 列表观察控制器（对齐 `xue_hua_im`）。
+  late final ListObserverController chatListObserver;
+
+  /// `scrollview_observer` 聊天保位与顶对齐控制器。
+  late final ChatScrollObserver chatScrollObserver;
+
+  static const int _pageSize = 30;
+  double _lastScrollOffset = 0;
+  bool _isInitialLoadComplete = false;
+  bool _hasMoreHistory = true;
+  bool _needIncrementUnread = false;
+  Future<void>? _loadMoreInFlight;
+
   StreamSubscription<ImMessageEvent>? _msgSub;
   StreamSubscription<ImConversationEvent>? _convSub;
 
@@ -62,6 +86,27 @@ class ChatController extends WireController {
     if (initial != null) {
       conversation.value = initial;
     }
+    scrollController = ScrollController()..addListener(_onScroll);
+    chatListObserver = ListObserverController(controller: scrollController)
+      ..cacheJumpIndexOffset = false;
+    chatScrollObserver = ChatScrollObserver(chatListObserver)
+      ..fixedPositionOffset = 5
+      ..toRebuildScrollViewCallback = () {
+        messages.value = List<Message>.of(messages.value);
+      }
+      ..onHandlePositionResultCallback =
+          (ChatScrollObserverHandlePositionResultModel result) {
+            if (!_needIncrementUnread) {
+              return;
+            }
+            if (result.type ==
+                ChatScrollObserverHandlePositionType.keepPosition) {
+              unreadNewCount.value += result.changeCount;
+            } else {
+              _needIncrementUnread = false;
+              unreadNewCount.value = 0;
+            }
+          };
   }
 
   /// 是否群聊。
@@ -73,6 +118,13 @@ class ChatController extends WireController {
   /// 群聊目标群 ID。
   String? get groupID => isGroup ? conversation.value?.groupID : null;
 
+  bool get _isAtBottom =>
+      !scrollController.hasClients || scrollController.offset < 50;
+
+  bool get _isNearTop =>
+      scrollController.hasClients &&
+      scrollController.offset >= scrollController.position.maxScrollExtent - 40;
+
   @override
   void onInit() {
     super.onInit();
@@ -83,6 +135,12 @@ class ChatController extends WireController {
   }
 
   Future<void> _bootstrap() async {
+    // 标记已读异步上报，绝不阻塞首屏历史消息秒开（对齐 xue_hua_im）。
+    unawaited(
+      OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
+        conversationID: conversationId,
+      ),
+    );
     try {
       if (conversation.value == null) {
         final List<ConversationInfo> list = await OpenIM
@@ -96,18 +154,77 @@ class ChatController extends WireController {
         }
       }
       await loadHistory();
-      await OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
-        conversationID: conversationId,
-      );
     } on Object catch (error, stackTrace) {
       _logger.warning('Chat bootstrap failed', error, stackTrace);
     } finally {
+      _isInitialLoadComplete = true;
       loading.value = false;
     }
   }
 
-  /// 拉取历史消息。
-  Future<void> loadHistory({bool loadMore = false}) async {
+  void _onScroll() {
+    if (!scrollController.hasClients) {
+      return;
+    }
+    final double offset = scrollController.offset;
+    final bool scrollingUp = offset > _lastScrollOffset;
+    _lastScrollOffset = offset;
+
+    if (_isInitialLoadComplete &&
+        _hasMoreHistory &&
+        scrollingUp &&
+        _isNearTop &&
+        !loadingHistory.value) {
+      unawaited(loadHistory(loadMore: true));
+    }
+
+    if (_isAtBottom && unreadNewCount.value > 0) {
+      _needIncrementUnread = false;
+      unreadNewCount.value = 0;
+    }
+  }
+
+  /// 滚动回最新消息底部并清空新消息提示计数。
+  void scrollToBottom({bool animate = false}) {
+    _needIncrementUnread = false;
+    unreadNewCount.value = 0;
+    WidgetsBinding.instance.addPostFrameCallback((Duration _) {
+      if (!scrollController.hasClients) {
+        return;
+      }
+      if (animate) {
+        scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      } else {
+        scrollController.jumpTo(0);
+      }
+    });
+  }
+
+  /// 拉取历史消息（SDK 已按 `sendTime DESC, seq DESC` 返回，直接配合 `reverse: true` 渲染）。
+  Future<void> loadHistory({bool loadMore = false}) {
+    if (loadMore) {
+      if (_loadMoreInFlight != null) {
+        return _loadMoreInFlight!;
+      }
+      final Future<void> run = _loadHistoryBody(loadMore: true);
+      _loadMoreInFlight = run;
+      return run.whenComplete(() {
+        if (identical(_loadMoreInFlight, run)) {
+          _loadMoreInFlight = null;
+        }
+      });
+    }
+    return _loadHistoryBody(loadMore: false);
+  }
+
+  Future<void> _loadHistoryBody({required bool loadMore}) async {
+    if (loadMore) {
+      loadingHistory.value = true;
+    }
     try {
       final Message? startMsg = loadMore && messages.value.isNotEmpty
           ? messages.value.last
@@ -116,17 +233,57 @@ class ChatController extends WireController {
           .getAdvancedHistoryMessageList(
             conversationID: conversationId,
             startMsg: startMsg,
-            count: 30,
+            count: _pageSize,
           );
-      final List<Message> fetched = (res.messageList ?? <Message>[]).reversed
-          .toList();
+      final List<Message> fetched = res.messageList ?? <Message>[];
+      _hasMoreHistory = res.isEnd != true;
       if (loadMore) {
-        messages.value = <Message>[...messages.value, ...fetched];
+        if (fetched.isEmpty) {
+          _hasMoreHistory = false;
+          return;
+        }
+        final Set<String> existingClient = <String>{};
+        final Set<String> existingServer = <String>{};
+        for (final Message m in messages.value) {
+          if ((m.clientMsgID ?? '').isNotEmpty) {
+            existingClient.add(m.clientMsgID!);
+          }
+          if ((m.serverMsgID ?? '').isNotEmpty) {
+            existingServer.add(m.serverMsgID!);
+          }
+        }
+        final List<Message> filtered = fetched.where((Message m) {
+          final String cid = m.clientMsgID ?? '';
+          final String sid = m.serverMsgID ?? '';
+          if (cid.isNotEmpty && existingClient.contains(cid)) {
+            return false;
+          }
+          if (sid.isNotEmpty && existingServer.contains(sid)) {
+            return false;
+          }
+          return true;
+        }).toList();
+        if (filtered.isEmpty) {
+          _hasMoreHistory = false;
+          return;
+        }
+        final int lengthBefore = messages.value.length;
+        messages.value = <Message>[...messages.value, ...filtered];
+        if (lengthBefore < 20 && messages.value.length >= 20) {
+          chatListObserver.reattach();
+        }
       } else {
         messages.value = fetched;
+        chatListObserver.reattach();
+        chatScrollObserver.observeSwitchShrinkWrap();
+        scrollToBottom();
       }
     } on Object catch (error, stackTrace) {
       _logger.warning('loadHistory failed', error, stackTrace);
+    } finally {
+      if (loadMore) {
+        loadingHistory.value = false;
+      }
     }
   }
 
@@ -134,7 +291,7 @@ class ChatController extends WireController {
     if (event.kind == 'newMessage' && event.message != null) {
       final Message msg = event.message!;
       if (_belongsToThisChat(msg)) {
-        _upsertMessage(msg);
+        _insertOrUpdateIncoming(msg);
         unawaited(
           OpenIM.iMManager.conversationManager.markConversationMessageAsRead(
             conversationID: conversationId,
@@ -170,17 +327,47 @@ class ChatController extends WireController {
     return msg.sendID == peerUserID || msg.recvID == peerUserID;
   }
 
-  void _upsertMessage(Message msg) {
+  void _insertOrUpdateIncoming(Message msg) {
+    final List<Message> current = messages.value;
+    final int idx = current.indexWhere(
+      (Message m) =>
+          m.clientMsgID == msg.clientMsgID ||
+          ((msg.serverMsgID ?? '').isNotEmpty &&
+              m.serverMsgID == msg.serverMsgID),
+    );
+    if (idx >= 0) {
+      final List<Message> next = List<Message>.from(current);
+      next[idx] = msg;
+      messages.value = next;
+      return;
+    }
+    final bool atBottom = _isAtBottom;
+    if (!atBottom) {
+      _needIncrementUnread = true;
+    }
+    chatScrollObserver.standby();
+    messages.value = <Message>[msg, ...current];
+    if (atBottom) {
+      scrollToBottom();
+    }
+  }
+
+  void _upsertMessage(Message msg, {bool scrollToEnd = false}) {
     final List<Message> next = List<Message>.from(messages.value);
     final int idx = next.indexWhere(
       (Message m) => m.clientMsgID == msg.clientMsgID,
     );
     if (idx >= 0) {
       next[idx] = msg;
+      messages.value = next;
     } else {
+      chatScrollObserver.standby();
       next.insert(0, msg);
+      messages.value = next;
+      if (scrollToEnd) {
+        scrollToBottom(animate: true);
+      }
     }
-    messages.value = next;
   }
 
   /// 发送文本或引用回复消息。
@@ -499,15 +686,18 @@ class ChatController extends WireController {
   }
 
   Future<void> _dispatchMessage(Message msg) async {
-    _upsertMessage(msg);
+    final Message stamped = (msg.sendTime == null || msg.sendTime == 0)
+        ? msg.copyWith(sendTime: DateTime.now().millisecondsSinceEpoch)
+        : msg;
+    _upsertMessage(stamped, scrollToEnd: true);
     try {
       final Message sent = await OpenIM.iMManager.messageManager.sendMessage(
-        message: msg,
+        message: stamped,
         userID: peerUserID,
         groupID: groupID,
         offlinePushInfo: OfflinePushInfo(
           title: OpenIM.iMManager.userInfo.nickname ?? '新消息',
-          desc: msg.textElem?.content ?? '[新消息]',
+          desc: stamped.textElem?.content ?? '[新消息]',
         ),
       );
       _upsertMessage(sent);
@@ -521,6 +711,8 @@ class ChatController extends WireController {
   void onClose() {
     _msgSub?.cancel();
     _convSub?.cancel();
+    scrollController.removeListener(_onScroll);
+    scrollController.dispose();
     super.onClose();
   }
 }

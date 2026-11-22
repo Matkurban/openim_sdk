@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:fixnum/fixnum.dart';
 import 'package:meta/meta.dart';
 
+import '../../../protocol_gen/sdkws/sdkws.pb.dart' as sdkws;
 import '../../core/base_manager.dart';
 import '../../core/sdk_context.dart';
 import '../../db/repositories/message_repository.dart';
@@ -24,6 +26,9 @@ import '../../models/openim_exception.dart';
 import '../../models/red_packet_elem.dart';
 import '../../models/search_info.dart';
 import '../../models/user_info.dart';
+import '../../models/web_socket_codec.dart';
+import '../../models/web_socket_identifier.dart';
+import '../../sync/notification_classifier.dart';
 import '../../utils/open_im_utils.dart';
 import '../file_uploader.dart';
 import 'message_factory.dart';
@@ -37,6 +42,9 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
 
   late final MessageFactory _factory;
   late final MessageSender _sender;
+
+  /// 已确认拉取到云端最早边界的会话集合（避免少于一页的会话每次打开重复发网络请求）。
+  final Set<String> _exhaustedHistoryConvs = <String>{};
 
   /// 消息发送进度监听器。
   ///
@@ -111,7 +119,15 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
   @internal
   void onLogout() {
     _factory.clearPendingBytes();
+    _exhaustedHistoryConvs.clear();
     super.onLogout();
+  }
+
+  @override
+  @internal
+  void dispose() {
+    _exhaustedHistoryConvs.clear();
+    super.dispose();
   }
 
   // ---- 消息创建委托至 MessageFactory ----
@@ -589,35 +605,65 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
       count: queryCount + 1,
     );
 
-    if (dataList.length <= queryCount) {
-      final int convMaxSeq = await _context.db.conversations.getConversationMaxSeq(convID);
-      int currentSeq;
-      if (startMsg != null && (startMsg.seq ?? 0) > 1) {
+    if (dataList.isEmpty && startMsg == null && conv.latestMsg != null) {
+      final Message seed = conv.latestMsg!;
+      if ((seed.clientMsgID ?? '').isNotEmpty) {
+        await _context.db.messages.insertMessage(
+          MessageRepository.messageToDbMap(seed, conversationID: convID),
+        );
+        dataList = <Message>[seed];
+      }
+    }
+
+    if (dataList.length <= queryCount && !_exhaustedHistoryConvs.contains(convID)) {
+      final ({int maxSeq, int minSeq}) bounds = await _context.db.conversations
+          .getConversationSeqBounds(convID);
+      final int effectiveMinSeq = bounds.minSeq > 1 ? bounds.minSeq : 1;
+      final int effectiveMaxSeq = bounds.maxSeq > 0 ? bounds.maxSeq : (conv.latestMsg?.seq ?? 0);
+      int currentSeq = 0;
+      if (startMsg != null && (startMsg.seq ?? 0) > effectiveMinSeq) {
         currentSeq = dataList.isNotEmpty ? (dataList.last.seq ?? startMsg.seq!) : startMsg.seq!;
       } else if (dataList.isNotEmpty) {
-        currentSeq = dataList.last.seq ?? convMaxSeq;
-      } else {
-        currentSeq = convMaxSeq > 0 ? convMaxSeq + 1 : 1;
+        for (int i = dataList.length - 1; i >= 0; i--) {
+          final int s = dataList[i].seq ?? 0;
+          if (s > 0) {
+            currentSeq = s;
+            break;
+          }
+        }
+        if (currentSeq == 0) {
+          currentSeq = effectiveMaxSeq;
+        }
+      } else if (effectiveMaxSeq > 0) {
+        currentSeq = effectiveMaxSeq + 1;
       }
-      if (currentSeq >= 1) {
-        final int beginSeq = (currentSeq - queryCount).clamp(1, currentSeq);
+
+      if (currentSeq > effectiveMinSeq) {
+        final int beginSeq = (currentSeq - queryCount).clamp(effectiveMinSeq, currentSeq);
         final int endSeq = currentSeq - 1;
         if (endSeq >= beginSeq) {
-          await _pullAndPersistRange(
+          final ({int persisted, bool reachedEnd}) pulled = await _pullAndPersistRange(
             convID,
             beginSeq: beginSeq,
             endSeq: endSeq,
             count: queryCount,
             order: 1,
           );
-          dataList = await _context.db.messages.getHistoryMessages(
-            conversationID: convID,
-            startTime: startTime,
-            startSeq: startMsg?.seq ?? 0,
-            startClientMsgID: startMsg?.clientMsgID ?? '',
-            count: queryCount + 1,
-          );
+          if (pulled.persisted > 0) {
+            dataList = await _context.db.messages.getHistoryMessages(
+              conversationID: convID,
+              startTime: startTime,
+              startSeq: startMsg?.seq ?? 0,
+              startClientMsgID: startMsg?.clientMsgID ?? '',
+              count: queryCount + 1,
+            );
+          }
+          if (pulled.reachedEnd || (beginSeq <= effectiveMinSeq && pulled.persisted < queryCount)) {
+            _exhaustedHistoryConvs.add(convID);
+          }
         }
+      } else {
+        _exhaustedHistoryConvs.add(convID);
       }
     }
 
@@ -669,20 +715,22 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
           (dataList.isNotEmpty ? (dataList.last.seq ?? startMsg.seq!) : startMsg.seq!) + 1;
       if (convMaxSeq >= beginSeq) {
         final int endSeq = (beginSeq + queryCount - 1).clamp(beginSeq, convMaxSeq);
-        await _pullAndPersistRange(
+        final ({int persisted, bool reachedEnd}) pulled = await _pullAndPersistRange(
           convID,
           beginSeq: beginSeq,
           endSeq: endSeq,
           count: queryCount,
           order: 0,
         );
-        dataList = await _context.db.messages.getHistoryMessagesReverse(
-          conversationID: convID,
-          startTime: startTime,
-          startSeq: startMsg.seq ?? 0,
-          startClientMsgID: startMsg.clientMsgID ?? '',
-          count: queryCount + 1,
-        );
+        if (pulled.persisted > 0) {
+          dataList = await _context.db.messages.getHistoryMessagesReverse(
+            conversationID: convID,
+            startTime: startTime,
+            startSeq: startMsg.seq ?? 0,
+            startClientMsgID: startMsg.clientMsgID ?? '',
+            count: queryCount + 1,
+          );
+        }
       }
     }
 
@@ -691,7 +739,7 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
     return AdvancedMessage(messageList: actual, isEnd: isEnd);
   }
 
-  Future<void> _pullAndPersistRange(
+  Future<({int persisted, bool reachedEnd})> _pullAndPersistRange(
     String conversationID, {
     required int beginSeq,
     required int endSeq,
@@ -699,6 +747,66 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
     required int order,
   }) async {
     try {
+      // 优先走已建立的 WebSocket 长连接（1002 PullMsgByRange），毫秒级响应；未连接时回退 HTTP。
+      if (_context.ws.isConnected) {
+        final sdkws.PullMessageBySeqsReq req = sdkws.PullMessageBySeqsReq(
+          userID: currentUserID,
+          seqRanges: <sdkws.SeqRange>[
+            sdkws.SeqRange(
+              conversationID: conversationID,
+              begin: Int64(beginSeq),
+              end: Int64(endSeq),
+              num: Int64(count),
+            ),
+          ],
+          order: sdkws.PullOrder.valueOf(order),
+        );
+        final WebSocketResponse wsResp = await _context.ws.sendRequestWaitResponse(
+          reqIdentifier: WebSocketIdentifier.pullMsgByRange,
+          data: req.writeToBuffer(),
+        );
+        if (wsResp.errCode == 0 && wsResp.data.isNotEmpty) {
+          final sdkws.PullMessageBySeqsResp parsed = sdkws.PullMessageBySeqsResp.fromBuffer(
+            wsResp.data,
+          );
+          final sdkws.PullMsgs? convMsgs = parsed.msgs[conversationID];
+          final List<sdkws.MsgData> pulled = convMsgs?.msgs ?? const <sdkws.MsgData>[];
+          final List<Map<String, dynamic>> batchInsert = <Map<String, dynamic>>[];
+          for (final sdkws.MsgData msg in pulled) {
+            if (msg.status >= MessageStatus.deleted.value ||
+                !NotificationClassifier.shouldPersistInChatLog(msg.contentType)) {
+              continue;
+            }
+            batchInsert.add(<String, dynamic>{
+              'conversationID': conversationID,
+              'sendID': msg.sendID,
+              'recvID': msg.recvID,
+              'groupID': msg.groupID,
+              'clientMsgID': msg.clientMsgID,
+              'serverMsgID': msg.serverMsgID,
+              'senderPlatformID': msg.senderPlatformID,
+              'senderNickname': msg.senderNickname,
+              'senderFaceUrl': msg.senderFaceURL,
+              'sessionType': msg.sessionType,
+              'msgFrom': msg.msgFrom,
+              'contentType': msg.contentType,
+              'content': utf8.decode(msg.content, allowMalformed: true),
+              'seq': msg.seq.toInt(),
+              'sendTime': msg.sendTime.toInt(),
+              'createTime': msg.createTime.toInt(),
+              'status': msg.status == 0 ? MessageStatus.succeeded.value : msg.status,
+              'isRead': msg.isRead,
+              'attachedInfo': msg.attachedInfo,
+              'ex': msg.ex,
+            });
+          }
+          if (batchInsert.isNotEmpty) {
+            await _context.db.messages.batchInsertMessages(batchInsert);
+          }
+          return (persisted: batchInsert.length, reachedEnd: convMsgs?.isEnd ?? pulled.isEmpty);
+        }
+      }
+
       final ApiResponse resp = await _context.apis.message.pullMsgBySeqs(
         userID: currentUserID,
         seqRanges: <Map<String, dynamic>>[
@@ -712,7 +820,7 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
         order: order,
       );
       if (resp.errCode != 0) {
-        return;
+        return (persisted: 0, reachedEnd: false);
       }
       final Map<String, dynamic> data = resp.data as Map<String, dynamic>? ?? <String, dynamic>{};
       final Map<String, dynamic> msgsJson =
@@ -725,8 +833,13 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
       for (final dynamic netMsg in pulled) {
         if (netMsg is Map<dynamic, dynamic>) {
           final Map<String, dynamic> row = Map<String, dynamic>.from(netMsg);
-          row['conversationID'] = conversationID;
+          final int ct = (row['contentType'] as num?)?.toInt() ?? 0;
           final int rawStatus = (row['status'] as num?)?.toInt() ?? 0;
+          if (rawStatus >= MessageStatus.deleted.value ||
+              !NotificationClassifier.shouldPersistInChatLog(ct)) {
+            continue;
+          }
+          row['conversationID'] = conversationID;
           if (rawStatus == 0) {
             row['status'] = MessageStatus.succeeded.value;
           }
@@ -736,8 +849,11 @@ final class MessageManager extends BaseManager<OnAdvancedMsgListener> {
       if (batchInsert.isNotEmpty) {
         await _context.db.messages.batchInsertMessages(batchInsert);
       }
+      final bool isEnd = (convMsgs['isEnd'] as bool?) ?? pulled.isEmpty;
+      return (persisted: batchInsert.length, reachedEnd: isEnd);
     } on Object catch (error, stackTrace) {
       logger.warning('Pull cloud history failed', error, stackTrace);
+      return (persisted: 0, reachedEnd: false);
     }
   }
 

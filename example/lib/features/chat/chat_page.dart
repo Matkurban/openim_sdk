@@ -1,6 +1,7 @@
 import 'package:flutter_toast_pro/flutter_toast_pro.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:openim_sdk/openim_sdk.dart';
+import 'package:scrollview_observer/scrollview_observer.dart';
 import 'package:signal_wire/signal_wire.dart';
 import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.dart';
 import 'package:xue_hua_navite_drag_drop/xue_hua_navite_drag_drop.dart';
@@ -129,6 +130,9 @@ class _ChatPageState extends State<ChatPage>
           final Set<String> selectedIDs = controller.selectedMsgIDs.value;
           final List<Message> msgs = controller.messages.value;
           final bool isDragging = controller.draggingOver.value;
+          final bool loadingHistory = controller.loadingHistory.value;
+          final int unreadNewCount = controller.unreadNewCount.value;
+          final ThemeData theme = Theme.of(context);
 
           return Scaffold(
             appBar: AppBar(
@@ -177,65 +181,128 @@ class _ChatPageState extends State<ChatPage>
                     },
                   ),
               ],
+              bottom: loadingHistory
+                  ? const PreferredSize(
+                      preferredSize: Size.fromHeight(2),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    )
+                  : null,
             ),
             body: Stack(
               children: <Widget>[
                 Column(
                   children: <Widget>[
                     Expanded(
-                      child: controller.loading.value
-                          ? const Center(child: CircularProgressIndicator())
-                          : msgs.isEmpty
-                          ? const EmptyStateView(
+                      child: Stack(
+                        children: <Widget>[
+                          if (msgs.isEmpty && !controller.loading.value)
+                            const EmptyStateView(
                               title: '暂无聊天消息',
                               subtitle: '发送文字、语音、媒体或直接拖拽本地文件到此处',
                             )
-                          : ListView.builder(
-                              reverse: true,
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              itemCount: msgs.length,
-                              itemBuilder: (BuildContext _, int index) {
-                                final Message msg = msgs[index];
-                                final String cid = msg.clientMsgID ?? '';
-                                return MessageBubbleShell(
-                                  message: msg,
-                                  conversationId: widget.conversationId,
-                                  isGroup: controller.isGroup,
-                                  multiSelectMode: multiSelect,
-                                  selected: selectedIDs.contains(cid),
-                                  onToggleSelect: () =>
-                                      controller.toggleSelect(cid),
-                                  onCopy: () => controller.copyMessage(msg),
-                                  onReply: () =>
-                                      controller.quotingMessage.value = msg,
-                                  onForward: () async {
-                                    final ConversationInfo? target =
-                                        await ShareTargetPickerSheet.pick(
-                                          context,
-                                          title: '转发消息给...',
-                                        );
-                                    if (target != null) {
-                                      await controller.forwardMessages(
-                                        <Message>[msg],
-                                        target,
-                                      );
-                                    }
+                          else
+                            Align(
+                              alignment: Alignment.topCenter,
+                              child: ListViewObserver(
+                                controller: controller.chatListObserver,
+                                child: ListView.builder(
+                                  reverse: true,
+                                  controller: controller.scrollController,
+                                  physics: ChatObserverClampingScrollPhysics(
+                                    observer: controller.chatScrollObserver,
+                                  ),
+                                  shrinkWrap: msgs.length < 20
+                                      ? controller
+                                            .chatScrollObserver
+                                            .isShrinkWrap
+                                      : false,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
+                                  itemCount: msgs.length,
+                                  itemBuilder: (BuildContext _, int index) {
+                                    final Message msg = msgs[index];
+                                    final String cid = msg.clientMsgID ?? '';
+                                    return MessageBubbleShell(
+                                      key: ValueKey<String>(
+                                        cid.isNotEmpty
+                                            ? cid
+                                            : '${msg.seq ?? index}',
+                                      ),
+                                      message: msg,
+                                      conversationId: widget.conversationId,
+                                      isGroup: controller.isGroup,
+                                      multiSelectMode: multiSelect,
+                                      selected: selectedIDs.contains(cid),
+                                      onToggleSelect: () =>
+                                          controller.toggleSelect(cid),
+                                      onCopy: () => controller.copyMessage(msg),
+                                      onReply: () =>
+                                          controller.quotingMessage.value = msg,
+                                      onForward: () async {
+                                        final ConversationInfo? target =
+                                            await ShareTargetPickerSheet.pick(
+                                              context,
+                                              title: '转发消息给...',
+                                            );
+                                        if (target != null) {
+                                          await controller.forwardMessages(
+                                            <Message>[msg],
+                                            target,
+                                          );
+                                        }
+                                      },
+                                      onRevoke: () =>
+                                          controller.revokeMessage(msg),
+                                      onFavorite: () =>
+                                          controller.favoriteMessage(msg),
+                                      onEnterMultiSelect: () {
+                                        controller.multiSelectMode.value = true;
+                                        controller.toggleSelect(cid);
+                                      },
+                                      onSaveLocal: () =>
+                                          controller.saveMessageToLocal(msg),
+                                      onExternalShare: () => controller
+                                          .shareMessageExternally(msg),
+                                      onDelete: () =>
+                                          controller.deleteMessage(msg),
+                                    );
                                   },
-                                  onRevoke: () => controller.revokeMessage(msg),
-                                  onFavorite: () =>
-                                      controller.favoriteMessage(msg),
-                                  onEnterMultiSelect: () {
-                                    controller.multiSelectMode.value = true;
-                                    controller.toggleSelect(cid);
-                                  },
-                                  onSaveLocal: () =>
-                                      controller.saveMessageToLocal(msg),
-                                  onExternalShare: () =>
-                                      controller.shareMessageExternally(msg),
-                                  onDelete: () => controller.deleteMessage(msg),
-                                );
-                              },
+                                ),
+                              ),
                             ),
+                          if (unreadNewCount > 0)
+                            Positioned(
+                              bottom: 14,
+                              right: 12,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    controller.scrollToBottom(animate: true),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 7,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surface,
+                                    borderRadius: BorderRadius.circular(9999),
+                                    border: Border.all(
+                                      color: theme.colorScheme.outline,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$unreadNewCount 条新消息',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                     if (multiSelect)
                       _MultiSelectActionBar(

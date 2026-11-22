@@ -120,9 +120,9 @@ class ImEventBus extends WireService {
     );
   }
 
-  /// 在 `initSDK` 成功后一次性绑定全部 SDK 业务 Listener。
-  void bindSdkListeners() {
-    if (_listenersBound) {
+  /// 在 `initSDK` 成功后绑定全部 SDK 业务 Listener；`force: true` 用于 `unInitSDK` 重建后强制重绑。
+  void bindSdkListeners({bool force = false}) {
+    if (_listenersBound && !force) {
       return;
     }
     _listenersBound = true;

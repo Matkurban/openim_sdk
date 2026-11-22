@@ -152,6 +152,9 @@ class MessageSender {
       }
     }
 
+    final int initialSendTime = (message.sendTime != null && message.sendTime! > 0)
+        ? message.sendTime!
+        : DateTime.now().millisecondsSinceEpoch;
     final Message sendMsg = message.copyWith(
       sendID: selfID,
       senderNickname: senderNickname,
@@ -159,6 +162,7 @@ class MessageSender {
       recvID: userID,
       groupID: groupID,
       sessionType: sessionType,
+      sendTime: initialSendTime,
       status: MessageStatus.sending,
       offlinePush: offlinePushInfo,
     );
@@ -247,15 +251,18 @@ class MessageSender {
       conversationID: conversationID,
     );
 
+    final int effectiveSendTime = (message.sendTime != null && message.sendTime! > 0)
+        ? message.sendTime!
+        : DateTime.now().millisecondsSinceEpoch;
+
     if (conv != null) {
       final int existingTime = conv.latestMsgSendTime ?? 0;
-      final int newMsgTime = message.sendTime ?? 0;
       final bool isSame =
           message.clientMsgID != null && message.clientMsgID == conv.latestMsg?.clientMsgID;
       final Map<String, dynamic> updates = <String, dynamic>{};
-      if (newMsgTime >= existingTime || isSame) {
+      if (effectiveSendTime >= existingTime || isSame) {
         updates['latestMsg'] = jsonEncode(dbMsgMap);
-        updates['latestMsgSendTime'] = newMsgTime;
+        updates['latestMsgSendTime'] = effectiveSendTime;
       }
       final int candidateSeq = seqOverride ?? message.seq ?? 0;
       if (candidateSeq > 0) {
@@ -274,13 +281,36 @@ class MessageSender {
         }
       }
     } else {
+      String showName = '';
+      String faceURL = '';
+      if (sessionType == ConversationType.superGroup && (message.groupID ?? '').isNotEmpty) {
+        final GroupInfo? group = await _context.db.groups.getGroupByID(message.groupID!);
+        showName = group?.groupName ?? '';
+        faceURL = group?.faceURL ?? '';
+      } else if ((message.recvID ?? '').isNotEmpty) {
+        final FriendInfo? friend = await _context.db.friends.getFriendByUserID(message.recvID!);
+        if (friend != null) {
+          showName = friend.getShowName();
+          faceURL = friend.faceURL ?? '';
+        } else {
+          final List<UserInfo> users = await _context.db.users.getUsersByIDs(<String>[
+            message.recvID!,
+          ]);
+          if (users.isNotEmpty) {
+            showName = users.first.getShowName();
+            faceURL = users.first.faceURL ?? '';
+          }
+        }
+      }
       await _context.db.conversations.upsertConversation(<String, dynamic>{
         'conversationID': conversationID,
         'conversationType': sessionType.value,
         'userID': message.recvID,
         'groupID': message.groupID,
+        'showName': showName,
+        'faceURL': faceURL,
         'latestMsg': jsonEncode(dbMsgMap),
-        'latestMsgSendTime': message.sendTime,
+        'latestMsgSendTime': effectiveSendTime,
         'unreadCount': 0,
         if ((seqOverride ?? message.seq ?? 0) > 0) 'maxSeq': seqOverride ?? message.seq,
       });

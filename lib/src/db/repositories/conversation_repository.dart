@@ -275,6 +275,24 @@ final class ConversationRepository extends BaseRepository<ConversationInfo> {
     return (row?['maxSeq'] as num?)?.toInt() ?? 0;
   }
 
+  /// 一次查询同时获取会话的 `maxSeq` 与 `minSeq` 边界（避免历史消息加载时重复查库）。
+  ///
+  /// Gets both `maxSeq` and `minSeq` bounds of a conversation in a single query.
+  ///
+  /// - [conversationID] 会话ID / Conversation ID.
+  /// - Returns: `({int maxSeq, int minSeq})` 边界记录 / Sequence bounds record.
+  Future<({int maxSeq, int minSeq})> getConversationSeqBounds(String conversationID) async {
+    final QueryBuilder query = store
+        .query(DbTableName.localConversation)
+        .whereEqual('conversationID', conversationID)
+        .select(<String>['maxSeq', 'minSeq']);
+    final Map<String, dynamic>? row = query.peekFirst() ?? await query.first();
+    return (
+      maxSeq: (row?['maxSeq'] as num?)?.toInt() ?? 0,
+      minSeq: (row?['minSeq'] as num?)?.toInt() ?? 0,
+    );
+  }
+
   /// 获取会话是否包含读取序列号。
   ///
   /// Get conversation whether has read sequence number.

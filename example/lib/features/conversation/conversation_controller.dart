@@ -35,6 +35,11 @@ class ConversationController extends WireController {
       switch (event.kind) {
         case 'changed':
         case 'added':
+          if (event.conversations.isNotEmpty) {
+            _applyIncrementalConversations(event.conversations);
+          } else {
+            unawaited(loadConversations());
+          }
         case 'syncFinish':
           unawaited(loadConversations());
         case 'syncStart':
@@ -48,6 +53,23 @@ class ConversationController extends WireController {
       }
     });
     unawaited(loadConversations());
+  }
+
+  void _applyIncrementalConversations(List<ConversationInfo> incoming) {
+    final Map<String, ConversationInfo> byId = <String, ConversationInfo>{
+      for (final ConversationInfo c in conversations.value) c.conversationID: c,
+    };
+    for (final ConversationInfo c in incoming) {
+      if ((c.latestMsgSendTime ?? 0) > 0 || (c.draftText ?? '').isNotEmpty) {
+        byId[c.conversationID] = c;
+      } else {
+        byId.remove(c.conversationID);
+      }
+    }
+    conversations.value = OpenIM.iMManager.conversationManager.simpleSort(
+      byId.values.toList(),
+    );
+    loading.value = false;
   }
 
   /// 加载并按置顶与时间排序会话列表。
