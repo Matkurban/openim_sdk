@@ -13,7 +13,6 @@ import '../../core/services/auth_session_service.dart';
 import '../../core/services/sharing_receive_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../shared/widgets/cached_avatar.dart';
-import '../../shared/widgets/desktop_title_bar.dart';
 import '../../shared/widgets/share_target_picker_sheet.dart';
 import '../../shared/widgets/unread_badge.dart';
 import 'main_shell_controller.dart';
@@ -143,7 +142,6 @@ class _MainShellScaffoldState extends State<MainShellScaffold>
           return Scaffold(
             body: Column(
               children: <Widget>[
-                const DesktopTitleBar(title: 'OpenIM 聊天'),
                 if (banner.isNotEmpty) _ConnectionBanner(text: banner),
                 Expanded(
                   child: Row(

@@ -5,12 +5,14 @@ import 'package:xue_hua_adaptive_sliding_layout/xue_hua_adaptive_sliding_layout.
 
 import '../core/services/settings_service.dart';
 import '../l10n/app_localizations.dart';
+import '../shared/widgets/desktop_title_bar.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
-/// OpenIM 示例应用根组件（挂载 `AdaptiveRouter`、`ToastScope`、标准 `AppLocalizations` 与动态主题）。
+/// OpenIM 示例应用根组件（挂载 `AdaptiveRouter`、`DesktopTitleBar`、`ToastScope`、标准 `AppLocalizations` 与动态主题）。
 ///
-/// Root widget mounting `AdaptiveRouter`, `ToastScope`, standard `AppLocalizations`, and dynamic theme.
+/// Root widget mounting `AdaptiveRouter`, global `DesktopTitleBar`, `ToastScope`,
+/// standard `AppLocalizations`, and dynamic theme.
 class OpenImExampleApp extends StatefulWidget {
   /// 创建应用根组件。
   const OpenImExampleApp({super.key});
@@ -47,8 +49,17 @@ class _OpenImExampleAppState extends State<OpenImExampleApp> {
           ],
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: _router,
-          builder: (BuildContext _, Widget? child) {
-            return ToastScope(child: child ?? const SizedBox.shrink());
+          builder: (BuildContext ctx, Widget? child) {
+            return ToastScope(
+              child: Column(
+                children: <Widget>[
+                  DesktopTitleBar(
+                    title: AppLocalizations.of(ctx)?.appName ?? 'OpenIM 聊天',
+                  ),
+                  Expanded(child: child ?? const SizedBox.shrink()),
+                ],
+              ),
+            );
           },
         );
       },

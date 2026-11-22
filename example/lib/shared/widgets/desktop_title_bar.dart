@@ -2,10 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:xue_hua_navite_window_manager/xue_hua_navite_window_manager.dart';
 
-/// 桌面端自定义无边框窗口标题栏（严格遵循 `xue_hua_navite_window_manager` 的 `WindowCaption` 规范）。
+/// 桌面端全局无边框窗口标题栏（挂载在 `MaterialApp.builder` 顶层，避免任何页面的 `AppBar` 与系统红绿灯重叠）。
 ///
-/// Desktop custom frameless window title bar built directly with `WindowCaption`
-/// (without nesting duplicate `DragArea` or duplicating macOS traffic-light insets).
+/// Global desktop frameless window title bar mounted in `MaterialApp.builder`
+/// so page `AppBar`s never collide with macOS traffic lights or Windows/Linux window controls.
 class DesktopTitleBar extends StatelessWidget {
   /// 标题文字。
   final String title;
@@ -33,22 +33,25 @@ class DesktopTitleBar extends StatelessWidget {
     }
     final ThemeData theme = Theme.of(context);
     final bool isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        WindowCaption(
-          height: 40.0,
-          macosTrafficLightsReservedWidth: 78.0,
-          backgroundColor: theme.appBarTheme.backgroundColor,
-          foregroundColor: theme.appBarTheme.foregroundColor,
-          title: Padding(
-            padding: EdgeInsets.only(left: isMacOS ? 4.0 : 12.0),
-            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+    return Material(
+      color: theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          WindowCaption(
+            height: 40.0,
+            macosTrafficLightsReservedWidth: 78.0,
+            backgroundColor: Colors.transparent,
+            foregroundColor: theme.appBarTheme.foregroundColor,
+            title: Padding(
+              padding: EdgeInsets.only(left: isMacOS ? 4.0 : 12.0),
+              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+            actions: actions,
           ),
-          actions: actions,
-        ),
-        const Divider(height: 1),
-      ],
+          const Divider(height: 1),
+        ],
+      ),
     );
   }
 }

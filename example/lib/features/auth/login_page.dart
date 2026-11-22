@@ -10,7 +10,6 @@ import 'package:xue_hua_qr_code/xue_hua_qr_code.dart';
 import '../../app/router/app_routes.dart';
 import '../../core/services/qr_login_service.dart';
 import '../../l10n/app_localizations.dart';
-import '../../shared/widgets/desktop_title_bar.dart';
 import '../../shared/widgets/server_config_dialog.dart';
 import 'login_controller.dart';
 
@@ -77,135 +76,126 @@ class _LoginPageState extends State<LoginPage>
           ),
         ],
       ),
-      body: Column(
-        children: <Widget>[
-          DesktopTitleBar(title: l10n.appName),
-          Expanded(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: SignalBuilder(
-                    builder: (BuildContext _) {
-                      final bool qrMode = _showQrLogin.value;
-                      if (qrMode && _isDesktop) {
-                        return _DesktopQrLoginPanel(
-                          onSwitchToPassword: () => _showQrLogin.value = false,
-                        );
-                      }
-                      final bool isEmail = controller.useEmailLogin.value;
-                      final bool loading = controller.submitting.value;
-                      final bool obscure = controller.obscurePassword.value;
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          Text(
-                            isEmail ? l10n.emailLogin : l10n.accountLogin,
-                            style: theme.textTheme.headlineSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: SignalBuilder(
+              builder: (BuildContext _) {
+                final bool qrMode = _showQrLogin.value;
+                if (qrMode && _isDesktop) {
+                  return _DesktopQrLoginPanel(
+                    onSwitchToPassword: () => _showQrLogin.value = false,
+                  );
+                }
+                final bool isEmail = controller.useEmailLogin.value;
+                final bool loading = controller.submitting.value;
+                final bool obscure = controller.obscurePassword.value;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Text(
+                      isEmail ? l10n.emailLogin : l10n.accountLogin,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SegmentedButton<bool>(
+                      segments: <ButtonSegment<bool>>[
+                        ButtonSegment<bool>(
+                          value: true,
+                          label: Text(l10n.emailLogin),
+                          icon: const Icon(Icons.email_outlined),
+                        ),
+                        ButtonSegment<bool>(
+                          value: false,
+                          label: Text(l10n.accountLogin),
+                          icon: const Icon(Icons.person_outline),
+                        ),
+                      ],
+                      selected: <bool>{isEmail},
+                      onSelectionChanged: (Set<bool> next) {
+                        controller.useEmailLogin.value = next.first;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _identifierController,
+                      keyboardType: isEmail
+                          ? TextInputType.emailAddress
+                          : TextInputType.text,
+                      decoration: InputDecoration(
+                        labelText: isEmail ? l10n.email : l10n.account,
+                        prefixIcon: Icon(
+                          isEmail ? Icons.email_outlined : Icons.badge_outlined,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: obscure,
+                      onSubmitted: (String _) => _onLogin(),
+                      decoration: InputDecoration(
+                        labelText: l10n.password,
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscure
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
                           ),
-                          const SizedBox(height: 16),
-                          SegmentedButton<bool>(
-                            segments: <ButtonSegment<bool>>[
-                              ButtonSegment<bool>(
-                                value: true,
-                                label: Text(l10n.emailLogin),
-                                icon: const Icon(Icons.email_outlined),
-                              ),
-                              ButtonSegment<bool>(
-                                value: false,
-                                label: Text(l10n.accountLogin),
-                                icon: const Icon(Icons.person_outline),
-                              ),
-                            ],
-                            selected: <bool>{isEmail},
-                            onSelectionChanged: (Set<bool> next) {
-                              controller.useEmailLogin.value = next.first;
-                            },
-                          ),
-                          const SizedBox(height: 20),
-                          TextField(
-                            controller: _identifierController,
-                            keyboardType: isEmail
-                                ? TextInputType.emailAddress
-                                : TextInputType.text,
-                            decoration: InputDecoration(
-                              labelText: isEmail ? l10n.email : l10n.account,
-                              prefixIcon: Icon(
-                                isEmail
-                                    ? Icons.email_outlined
-                                    : Icons.badge_outlined,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          TextField(
-                            controller: _passwordController,
-                            obscureText: obscure,
-                            onSubmitted: (String _) => _onLogin(),
-                            decoration: InputDecoration(
-                              labelText: l10n.password,
-                              prefixIcon: const Icon(Icons.lock_outline),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  obscure
-                                      ? Icons.visibility_off_outlined
-                                      : Icons.visibility_outlined,
-                                ),
-                                onPressed: () {
-                                  controller.obscurePassword.value = !obscure;
-                                },
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          FilledButton(
-                            onPressed: loading ? null : _onLogin,
-                            child: Text(loading ? '...' : l10n.login),
-                          ),
-                          if (_isDesktop) ...<Widget>[
-                            const SizedBox(height: 12),
-                            OutlinedButton.icon(
-                              onPressed: () => _showQrLogin.value = true,
-                              icon: const Icon(Icons.qr_code_2),
-                              label: Text(l10n.switchToQrLogin),
-                            ),
-                          ],
-                          const SizedBox(height: 16),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: <Widget>[
-                              TextButton(
-                                onPressed: () =>
-                                    AdaptiveRouter.of(context)
-                                        .pushNamed(AppRoutes.forgotPassword),
-                                child: Text(l10n.forgotPassword),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    AdaptiveRouter.of(context)
-                                        .pushNamed(AppRoutes.appeal),
-                                child: Text(l10n.accountAppeal),
-                              ),
-                              TextButton(
-                                onPressed: () =>
-                                    AdaptiveRouter.of(context)
-                                        .pushNamed(AppRoutes.register),
-                                child: Text(l10n.register),
-                              ),
-                            ],
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ),
+                          onPressed: () {
+                            controller.obscurePassword.value = !obscure;
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: loading ? null : _onLogin,
+                      child: Text(loading ? '...' : l10n.login),
+                    ),
+                    if (_isDesktop) ...<Widget>[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: () => _showQrLogin.value = true,
+                        icon: const Icon(Icons.qr_code_2),
+                        label: Text(l10n.switchToQrLogin),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: <Widget>[
+                        TextButton(
+                          onPressed: () =>
+                              AdaptiveRouter.of(context)
+                                  .pushNamed(AppRoutes.forgotPassword),
+                          child: Text(l10n.forgotPassword),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              AdaptiveRouter.of(context)
+                                  .pushNamed(AppRoutes.appeal),
+                          child: Text(l10n.accountAppeal),
+                        ),
+                        TextButton(
+                          onPressed: () =>
+                              AdaptiveRouter.of(context)
+                                  .pushNamed(AppRoutes.register),
+                          child: Text(l10n.register),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -333,8 +323,16 @@ class _DesktopQrLoginPanelState extends State<_DesktopQrLoginPanel> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: theme.dividerColor),
               ),
-              child: st == 'loading' || qr.isEmpty
+              child: st == 'loading'
                   ? const Center(child: CircularProgressIndicator())
+                  : st == 'expired' && qr.isEmpty
+                  ? Center(
+                      child: FilledButton.icon(
+                        onPressed: _createQr,
+                        icon: const Icon(Icons.refresh),
+                        label: Text(l10n.qrLoginRefresh),
+                      ),
+                    )
                   : Stack(
                       alignment: Alignment.center,
                       children: <Widget>[
