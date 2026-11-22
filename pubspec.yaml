@@ -20,10 +20,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  meta: ^1.18.3
-  dio: ^5.11.0
+  meta: ^1.19.0
+  dio: ^5.11.1
   path: ^1.9.1
-  get_it: ^9.2.1
+  get_it: ^9.3.0
   crypto: ^3.0.8
   fixnum: ^1.1.1
   tostore: ^3.6.3
