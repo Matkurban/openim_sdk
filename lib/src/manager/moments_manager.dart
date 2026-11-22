@@ -118,7 +118,7 @@ final class MomentsManager extends BaseManager<OnMomentsListener> {
           if (oldest > 0) {
             await _context.db.social.setMomentsOldestSeq(oldest);
           }
-          await _context.db.social.setMomentsHasMoreHistory(batch.upserts.length >= limit);
+          await _context.db.social.setMomentsHasMoreHistory(batch.hasMore);
         } else {
           await _context.db.social.setMomentsOldestSeq(0);
           await _context.db.social.setMomentsHasMoreHistory(false);
