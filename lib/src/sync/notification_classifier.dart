@@ -46,6 +46,9 @@ abstract final class NotificationClassifier {
     if (contentType < 1000) {
       return true;
     }
+    if (contentType == 1400) {
+      return true;
+    }
     if (contentType == 2101) {
       return false;
     }

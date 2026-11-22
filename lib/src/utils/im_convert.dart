@@ -91,21 +91,34 @@ Message convertMessage(Map<String, dynamic> data) {
         contentTypeValue == MessageType.redPacketGrabNotify.value && contentMap != null
         ? RedPacketGrabNotifyElem.fromJson(contentMap)
         : null,
-    notificationElem: contentTypeValue != null && contentTypeValue >= 1000 && contentMap != null
-        ? _parseNotificationElem(contentMap)
+    notificationElem: contentTypeValue != null && contentTypeValue >= 1000
+        ? _parseNotificationElem(contentMap, data['notificationElem'])
         : null,
   );
 }
 
-/// 解析通知消息的 content → NotificationElem
+/// 解析通知消息的 content / notificationElem → NotificationElem
 ///
 /// OA 通知消息 (contentType=1400) 的 content 结构:
-/// {"detail": "{\"text\":\"...\",\"pictureElem\":{...},\"mixType\":0,...}"}
-/// 提取 detail 字段作为 NotificationElem.detail
-NotificationElem _parseNotificationElem(Map<String, dynamic> contentMap) {
-  final Object? detailRaw = contentMap['detail'];
-  if (detailRaw is String && detailRaw.isNotEmpty) {
-    return NotificationElem(detail: detailRaw);
+/// {"detail": "{\"notificationName\":\"...\",\"text\":\"...\",\"pictureElem\":{...},\"mixType\":0,...}"}
+/// 提取 detail 字段作为 NotificationElem.detail；兼容服务端或本地已解包的 `notificationElem` 字典。
+NotificationElem? _parseNotificationElem(
+  Map<String, dynamic>? contentMap,
+  Object? rawNotificationElem,
+) {
+  if (contentMap != null) {
+    final Object? detailRaw = contentMap['detail'];
+    final String? defaultTips = contentMap['defaultTips'] as String?;
+    if (detailRaw is String && detailRaw.isNotEmpty) {
+      return NotificationElem(detail: detailRaw, defaultTips: defaultTips);
+    }
+    if (detailRaw is Map<dynamic, dynamic>) {
+      return NotificationElem(detail: jsonEncode(detailRaw), defaultTips: defaultTips);
+    }
+    return NotificationElem(detail: jsonEncode(contentMap), defaultTips: defaultTips);
   }
-  return NotificationElem(detail: jsonEncode(contentMap));
+  if (rawNotificationElem is Map<dynamic, dynamic>) {
+    return NotificationElem.fromJson(Map<String, dynamic>.from(rawNotificationElem));
+  }
+  return null;
 }

@@ -677,6 +677,9 @@ final class MessageRepository extends BaseRepository<Message> {
     if (msg.redPacketGrabNotifyElem != null) {
       return jsonEncode(msg.redPacketGrabNotifyElem!.toJson());
     }
+    if (msg.notificationElem != null) {
+      return jsonEncode(msg.notificationElem!.toJson());
+    }
     return null;
   }
 

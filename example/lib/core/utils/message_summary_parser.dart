@@ -185,8 +185,8 @@ abstract final class MessageSummaryParser {
   /// 解析会议邀请卡片数据（`contentType == 127`）。
   static Map<String, dynamic> parseStructuredPayload(Message message) {
     final List<String?> candidates = <String?>[
-      message.customElem?.data,
       message.notificationElem?.detail,
+      message.customElem?.data,
       message.ex,
     ];
     for (final String? raw in candidates) {
@@ -196,6 +196,17 @@ abstract final class MessageSummaryParser {
       try {
         final Object? decoded = jsonDecode(raw);
         if (decoded is Map<String, dynamic>) {
+          final Object? nested = decoded['detail'];
+          if (nested is String && nested.trim().isNotEmpty) {
+            try {
+              final Object? inner = jsonDecode(nested);
+              if (inner is Map<String, dynamic>) {
+                return inner;
+              }
+            } on Object catch (_) {}
+          } else if (nested is Map<String, dynamic>) {
+            return nested;
+          }
           return decoded;
         }
       } on Object catch (_) {}
@@ -346,11 +357,17 @@ abstract final class MessageSummaryParser {
         final bool enabled = detail['isPrivate'] == true;
         return enabled ? '已开启阅后即焚' : '已关闭阅后即焚';
       case MessageType.oaNotification:
-        final String oaText = _readString(detail, <String>[
-          'text',
+        final String oaTitle = _readString(detail, <String>[
           'notificationName',
+          'title',
+          'text',
         ]);
-        return oaText.isNotEmpty ? oaText : '[系统通知]';
+        if (oaTitle.isNotEmpty) {
+          return oaTitle;
+        }
+        final String tips = (message.notificationElem?.defaultTips ?? '')
+            .trim();
+        return tips.isNotEmpty ? tips : '[系统通知]';
       case MessageType.revokeMessageNotification:
         final String revokerId = _readString(detail, <String>['revokerID']);
         final String revokerNick = _readString(detail, <String>[
